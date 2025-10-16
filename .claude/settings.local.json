@@ -6,7 +6,10 @@
       "Bash(flutter pub:*)",
       "Bash(./gradlew:*)",
       "Bash(flutter build:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__find_symbol",
+      "mcp__smithery-ai-server-sequential-thinking__sequentialthinking"
     ],
     "deny": []
   }
