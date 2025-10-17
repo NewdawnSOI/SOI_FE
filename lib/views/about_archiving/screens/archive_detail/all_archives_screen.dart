@@ -38,6 +38,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
   String? nickName;
   final Map<String, List<String>> _categoryProfileImages = {};
   AuthController? _authController; // AuthController 참조 저장
+  CategoryController? _categoryController; // CategoryController 참조 저장
   bool _isInitialLoad = true; // 초기 로딩 상태 추적
   int _previousCategoryCount = 0; // 이전 카테고리 개수 저장
 
@@ -141,15 +142,23 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
     return Scaffold(
       backgroundColor: AppTheme.lightTheme.colorScheme.surface,
       body: Consumer2<CategorySearchController, CategoryController>(
-        builder: (context, searchController, categoryController, child) {
-          // ✅ Stream 사용으로 실시간 업데이트
+        builder: (context, searchController, categoryControllerParam, child) {
+          // categoryController를 저장하여 _buildGridView와 _buildListView에서 사용
+          _categoryController = categoryControllerParam;
+
+          // Stream 사용으로 실시간 업데이트
           return StreamBuilder<List<dynamic>>(
-            stream: categoryController.streamUserCategories(nickName!),
+            stream: _categoryController!.streamUserCategories(nickName!),
             builder: (context, snapshot) {
-              // 로딩 중일 때 - Shimmer 표시 (이전 개수만큼)
+              // 로딩 중일 때
               if (snapshot.connectionState == ConnectionState.waiting ||
                   !snapshot.hasData) {
-                return _buildShimmerGrid(_previousCategoryCount);
+                // 이전에 카테고리가 있었으면 shimmer 표시
+                if (_previousCategoryCount > 0) {
+                  return _buildShimmerGrid(_previousCategoryCount);
+                }
+                // 처음 로딩이면 아무것도 표시하지 않음
+                return const SizedBox.shrink();
               }
 
               // 에러가 있을 때
@@ -323,6 +332,16 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                 final category = categories[index];
                 final categoryId = category.id;
 
+                // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
+                final userId = _authController?.getUserId;
+                final displayName =
+                    userId != null && _categoryController != null
+                        ? _categoryController!.getCategoryDisplayName(
+                          category,
+                          userId,
+                        )
+                        : category.name;
+
                 return ArchiveCardWidget(
                   key: ValueKey('archive_card_$categoryId'),
                   categoryId: categoryId,
@@ -338,7 +357,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                           : null,
                   onStartEdit: () {
                     if (widget.onStartEdit != null) {
-                      widget.onStartEdit!(categoryId, category.name);
+                      widget.onStartEdit!(categoryId, displayName);
                     }
                   },
                 );
@@ -365,6 +384,13 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
         final category = categories[index];
         final categoryId = category.id;
 
+        // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
+        final userId = _authController?.getUserId;
+        final displayName =
+            userId != null && _categoryController != null
+                ? _categoryController!.getCategoryDisplayName(category, userId)
+                : category.name;
+
         return ArchiveCardWidget(
           key: ValueKey('archive_list_card_$categoryId'),
           categoryId: categoryId,
@@ -378,7 +404,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                   : null,
           onStartEdit: () {
             if (widget.onStartEdit != null) {
-              widget.onStartEdit!(categoryId, category.name);
+              widget.onStartEdit!(categoryId, displayName);
             }
           },
         );

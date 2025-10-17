@@ -18,10 +18,10 @@ class CategoryInviteFriendListSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1F1F1F),
+        color: const Color(0xFF323232),
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(28.r),
-          topRight: Radius.circular(28.r),
+          topLeft: Radius.circular(24.8),
+          topRight: Radius.circular(24.8),
         ),
       ),
       child: SafeArea(
@@ -52,7 +52,7 @@ class CategoryInviteFriendListSheet extends StatelessWidget {
             ),
             SizedBox(height: 10.h),
             Divider(
-              color: const Color(0xFF464646),
+              color: const Color(0xFF464646).withValues(alpha: 0.7),
               indent: 29.w,
               endIndent: 29.w,
             ),

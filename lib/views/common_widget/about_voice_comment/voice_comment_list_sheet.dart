@@ -44,6 +44,7 @@ class VoiceCommentListSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
 
         children: [
+          SizedBox(height: 3.h),
           Text(
             "댓글",
             style: TextStyle(

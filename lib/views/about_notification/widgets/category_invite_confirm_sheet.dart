@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'category_invitee_preview.dart';
 
@@ -144,14 +145,21 @@ class CategoryInviteConfirmSheet extends StatelessWidget {
   }
 
   Widget _buildCategoryThumbnail() {
-    return categoryImageUrl.isNotEmpty
-        ? CachedNetworkImage(
-          imageUrl: categoryImageUrl,
-          fit: BoxFit.cover,
-          placeholder: (context, url) => _placeholder(),
-          errorWidget: (context, url, error) => _placeholder(),
-        )
-        : _placeholder();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6.61),
+      child: CachedNetworkImage(
+        width: 64,
+        height: 64,
+        memCacheHeight: (64 * (ScreenUtil().pixelRatio ?? 3.0)).round(),
+        memCacheWidth: (64 * (ScreenUtil().pixelRatio ?? 3.0)).round(),
+        maxWidthDiskCache: 192,
+        maxHeightDiskCache: 192,
+        imageUrl: categoryImageUrl,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => _shimmerPlaceholder(),
+        errorWidget: (context, url, error) => _placeholder(),
+      ),
+    );
   }
 
   Widget _placeholder() {
@@ -165,6 +173,24 @@ class CategoryInviteConfirmSheet extends StatelessWidget {
         ),
       ),
       child: Icon(Icons.image, color: const Color(0xFF595959), size: 28.sp),
+    );
+  }
+
+  Widget _shimmerPlaceholder() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6.61),
+      child: Shimmer.fromColors(
+        baseColor: const Color(0xFF2A2A2A),
+        highlightColor: const Color(0xFF3A3A3A),
+        child: Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(6.61),
+          ),
+        ),
+      ),
     );
   }
 

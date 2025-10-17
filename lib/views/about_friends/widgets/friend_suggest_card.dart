@@ -287,8 +287,9 @@ class _FriendSuggestCardState extends State<FriendSuggestCard> {
                       ? contact.displayName
                       : '이름 없음',
                   style: TextStyle(
-                    color: const Color(0xffd9d9d9),
-                    fontSize: (16).sp,
+                    color: const Color(0xFFD9D9D9),
+                    fontSize: 16,
+                    fontFamily: 'Pretendard',
                     fontWeight: FontWeight.w400,
                   ),
                 ),
@@ -299,8 +300,10 @@ class _FriendSuggestCardState extends State<FriendSuggestCard> {
                         ? Text(
                           phones.first.number,
                           style: TextStyle(
-                            color: const Color(0xff666666),
-                            fontSize: (14).sp,
+                            color: const Color(0xFFD9D9D9),
+                            fontSize: 10,
+                            fontFamily: 'Pretendard',
+                            fontWeight: FontWeight.w300,
                           ),
                         )
                         : null;

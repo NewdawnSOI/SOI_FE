@@ -34,6 +34,7 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
   String? nickName;
   // 카테고리별 프로필 이미지 캐시
   final Map<String, List<String>> _categoryProfileImages = {};
+  CategoryController? _categoryController; // CategoryController 참조 저장
   bool _isInitialLoad = true;
   int _previousCategoryCount = 0; // 이전 카테고리 개수 저장
 
@@ -106,15 +107,23 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
     return Scaffold(
       backgroundColor: AppTheme.lightTheme.colorScheme.surface,
       body: Consumer2<CategorySearchController, CategoryController>(
-        builder: (context, searchController, categoryController, child) {
+        builder: (context, searchController, categoryControllerParam, child) {
+          // categoryController를 저장하여 _buildGridView와 _buildListView에서 사용
+          _categoryController = categoryControllerParam;
+
           // ✅ Stream 사용으로 실시간 업데이트
           return StreamBuilder<List<dynamic>>(
-            stream: categoryController.streamUserCategories(nickName!),
+            stream: _categoryController!.streamUserCategories(nickName!),
             builder: (context, snapshot) {
-              // 로딩 중일 때 - Shimmer 표시 (이전 개수만큼)
+              // 로딩 중일 때
               if (snapshot.connectionState == ConnectionState.waiting ||
                   !snapshot.hasData) {
-                return _buildShimmerGrid(_previousCategoryCount);
+                // 이전에 카테고리가 있었으면 shimmer 표시
+                if (_previousCategoryCount > 0) {
+                  return _buildShimmerGrid(_previousCategoryCount);
+                }
+                // 처음 로딩이면 아무것도 표시하지 않음
+                return const SizedBox.shrink();
               }
 
               // 에러가 있을 때
@@ -298,6 +307,15 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                 final category = sharedCategories[index];
                 final categoryId = category.id;
 
+                // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
+                final displayName =
+                    nickName != null && _categoryController != null
+                        ? _categoryController!.getCategoryDisplayName(
+                          category,
+                          nickName!,
+                        )
+                        : category.name;
+
                 return ArchiveCardWidget(
                   key: ValueKey('shared_archive_card_$categoryId'),
                   categoryId: categoryId,
@@ -313,7 +331,7 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                           : null,
                   onStartEdit: () {
                     if (widget.onStartEdit != null) {
-                      widget.onStartEdit!(categoryId, category.name);
+                      widget.onStartEdit!(categoryId, displayName);
                     }
                   },
                 );
@@ -340,6 +358,15 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
         final category = sharedCategories[index];
         final categoryId = category.id;
 
+        // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
+        final displayName =
+            nickName != null && _categoryController != null
+                ? _categoryController!.getCategoryDisplayName(
+                  category,
+                  nickName!,
+                )
+                : category.name;
+
         return ArchiveCardWidget(
           key: ValueKey('shared_archive_list_card_$categoryId'),
           categoryId: categoryId,
@@ -353,7 +380,7 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                   : null,
           onStartEdit: () {
             if (widget.onStartEdit != null) {
-              widget.onStartEdit!(categoryId, category.name);
+              widget.onStartEdit!(categoryId, displayName);
             }
           },
         );

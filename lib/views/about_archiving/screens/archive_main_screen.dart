@@ -145,38 +145,19 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
 
   // 편집 모드 관련 메서드들
   void startEditMode(String categoryId, String currentName) {
-    // 현재 사용자의 커스텀 이름 가져오기
-    final authController = AuthController();
-    final userId = authController.getUserId;
-
-    // 카테고리 정보 가져오기
-    String displayName = currentName;
-    if (userId != null && _categoryController != null) {
-      // 카테고리 찾기
-      final category = _categoryController!.userCategoryList.firstWhere(
-        (cat) => cat.id == categoryId,
-        orElse: () => throw Exception('Category not found'),
-      );
-      // 사용자의 커스텀 이름 또는 기본 이름 사용
-      displayName = _categoryController!.getCategoryDisplayName(
-        category,
-        userId,
-      );
-    }
-
     setState(() {
       _isEditMode = true;
       _editingCategoryId = categoryId;
-      _originalText = displayName; // 현재 표시되는 이름 저장
+      _originalText = currentName; // 전달받은 현재 이름 저장
       _hasTextChangedNotifier.value = false; // 초기 상태는 변경 없음
 
       // 컨트롤러 완전히 초기화
       _editingNameController.clear();
-      _editingNameController.text = displayName;
+      _editingNameController.text = currentName;
 
-      // 또는 선택과 커서 위치도 리셋
+      // 선택과 커서 위치도 리셋
       _editingNameController.selection = TextSelection.fromPosition(
-        TextPosition(offset: displayName.length),
+        TextPosition(offset: currentName.length),
       );
 
       // 텍스트 변경 리스너 추가
@@ -310,14 +291,11 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
                   return FutureBuilder<String>(
                     future:
                         _profileImageFuture ??
-                        (
-                          currentUserId != null
-                              ? authController
-                                  .getUserProfileImageUrlWithCache(
-                                  currentUserId,
-                                )
-                              : authController.getUserProfileImageUrl()
-                        ),
+                        (currentUserId != null
+                            ? authController.getUserProfileImageUrlWithCache(
+                              currentUserId,
+                            )
+                            : authController.getUserProfileImageUrl()),
                     builder: (context, imageSnapshot) {
                       final isLoadingAvatar =
                           imageSnapshot.connectionState ==

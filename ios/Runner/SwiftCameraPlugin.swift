@@ -634,12 +634,17 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
                 }
             }
         } else {
-            // 전면 카메라는 줌 미지원
-            levels.append(1.0)
+            // 전면 카메라는 줌 미지원 - 빈 배열 반환
+            // levels는 빈 상태로 유지
         }
         
         // 정렬
         levels.sort()
+        
+        // ✅ 배율을 최대 3개로 제한
+        if levels.count > 3 {
+            levels = Array(levels.prefix(3))
+        }
         
         print("📱 디바이스 카메라 구성:")
         print("   - 초광각: \(hasUltraWide ? "있음" : "없음")")

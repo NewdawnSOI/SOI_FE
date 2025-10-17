@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/friend_controller.dart';
 import '../../models/friend_model.dart';
@@ -70,10 +71,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
         title: Text(
           '친구 목록',
           style: TextStyle(
-            color: const Color(0xfff9f9f9),
-            fontSize: 20.sp,
+            color: const Color(0xFFD9D9D9),
+            fontSize: 20,
+            fontFamily: GoogleFonts.inter().fontFamily,
             fontWeight: FontWeight.w700,
-            fontFamily: 'Pretendard',
           ),
         ),
         centerTitle: false,
@@ -99,7 +100,7 @@ class _FriendListScreenState extends State<FriendListScreen> {
                   width: double.infinity,
                   height: 47,
                   decoration: BoxDecoration(
-                    color: const Color(0xff292929),
+                    color: const Color(0xff1c1c1c),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: TextField(
@@ -111,10 +112,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
                     decoration: InputDecoration(
                       hintText: '친구 검색하기',
                       hintStyle: TextStyle(
-                        color: const Color(0xffd9d9d9),
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFFD9D9D9),
+                        fontSize: 18.02,
                         fontFamily: 'Pretendard',
+                        fontWeight: FontWeight.w400,
                       ),
 
                       prefixIcon: Icon(
@@ -180,15 +181,16 @@ class _FriendListScreenState extends State<FriendListScreen> {
                     ),
                   )
                   : Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20.w),
+                    padding: EdgeInsets.only(left: 20.w, right: 20.w),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Color(0xffadadad).withValues(alpha: 0.28),
+                        color: Color(0xff1c1c1c).withValues(alpha: 0.80),
                         borderRadius: BorderRadius.circular(16),
                       ),
+                      // 친구 목록과 배경 박스의 상단과 하단의 너비를 같게 만들기 위함
+                      padding: EdgeInsets.only(bottom: 3.h),
                       child: Column(
                         children: [
-                          SizedBox(height: (13).h),
                           // 친구 목록
                           Column(
                             mainAxisSize: MainAxisSize.min,
@@ -242,7 +244,7 @@ class _FriendListScreenState extends State<FriendListScreen> {
                   width: 44,
                   height: 44,
                   child: CircleAvatar(
-                    radius: 24.r,
+                    radius: 24,
                     backgroundColor: const Color(0xff323232),
                     backgroundImage:
                         friend.profileImageUrl != null
@@ -275,21 +277,21 @@ class _FriendListScreenState extends State<FriendListScreen> {
                       Text(
                         friend.name,
                         style: TextStyle(
-                          color: const Color(0xfff9f9f9),
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFFD9D9D9),
+                          fontSize: 16,
+                          fontFamily: 'Pretendard',
+                          fontWeight: FontWeight.w400,
                         ),
-                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: 2.h),
                       Text(
                         friend.id,
                         style: TextStyle(
-                          color: const Color(0xff999999),
-                          fontSize: 14.sp,
+                          color: const Color(0xFFD9D9D9),
+                          fontSize: 10,
+                          fontFamily: 'Pretendard',
+                          fontWeight: FontWeight.w300,
                         ),
-                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],

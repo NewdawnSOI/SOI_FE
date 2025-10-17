@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/user_search_model.dart';
@@ -26,8 +27,7 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
 
   bool _isSearching = false;
   List<UserSearchModel> _results = [];
-  Map<String, String> _friendshipStatus =
-      {}; // userId -> status('none'|'sent'|'received'|'friends')
+  Map<String, String> _friendshipStatus = {};
   final Set<String> _sending = {}; // 요청 버튼 로딩 대상
 
   @override
@@ -144,13 +144,19 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        title: Text(
-          'ID로 추가하기',
-          style: TextStyle(
-            color: const Color(0xffd9d9d9),
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w500,
-          ),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Text(
+              'ID로 추가하기',
+              style: TextStyle(
+                color: const Color(0xFFD9D9D9),
+                fontSize: 20,
+                fontFamily: GoogleFonts.inter().fontFamily,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
         iconTheme: const IconThemeData(color: Color(0xffd9d9d9)),
       ),
@@ -171,7 +177,7 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
       child: Container(
         height: 44.h,
         decoration: BoxDecoration(
-          color: const Color(0xff2d2d2d),
+          color: const Color(0xff1c1c1c),
           borderRadius: BorderRadius.circular(8 * scale),
         ),
         child: Row(
@@ -191,8 +197,10 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
                 decoration: InputDecoration(
                   hintText: '친구 아이디 찾기',
                   hintStyle: TextStyle(
-                    color: const Color(0xff9a9a9a),
-                    fontSize: 15.sp,
+                    color: const Color(0xFFD9D9D9),
+                    fontSize: 18.02,
+                    fontFamily: 'Pretendard',
+                    fontWeight: FontWeight.w400,
                   ),
                   border: InputBorder.none,
                   isDense: true,

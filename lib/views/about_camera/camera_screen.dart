@@ -634,11 +634,12 @@ class _CameraScreenState extends State<CameraScreen>
                               // 카메라 뷰
                               _cameraService.getCameraView(),
 
-                              // 줌 컨트롤 (상단 중앙)
-                              Padding(
-                                padding: EdgeInsets.only(bottom: 26.h),
-                                child: _buildZoomControls(),
-                              ),
+                              // 줌 컨트롤 (줌 레벨이 있을 때만 표시)
+                              if (zoomLevels.isNotEmpty)
+                                Padding(
+                                  padding: EdgeInsets.only(bottom: 26.h),
+                                  child: _buildZoomControls(),
+                                ),
                             ],
                           ),
                         ),
