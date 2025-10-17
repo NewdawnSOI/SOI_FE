@@ -9,7 +9,7 @@ import 'voice_comment_row_widget.dart';
 
 /// 재사용 가능한 음성 댓글 리스트 Bottom Sheet
 /// feed / archive 모두에서 사용
-class VoiceCommentListSheet extends StatelessWidget {
+class VoiceCommentListSheet extends StatefulWidget {
   final String photoId;
   final String? categoryId;
   final String? commentIdFilter;
@@ -22,6 +22,62 @@ class VoiceCommentListSheet extends StatelessWidget {
     this.commentIdFilter,
     this.selectedCommentId, // 선택된 댓글 ID 추가
   });
+
+  @override
+  State<VoiceCommentListSheet> createState() => _VoiceCommentListSheetState();
+}
+
+class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
+  late ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// 선택된 댓글로 자동 스크롤
+  void _scrollToSelectedComment(
+    List<CommentRecordModel> comments,
+    List<Map<String, dynamic>> reactions,
+  ) {
+    if (widget.selectedCommentId == null) return;
+
+    // 전체 아이템 리스트에서 선택된 댓글의 인덱스 찾기
+    final hasCommentFilter = widget.commentIdFilter != null;
+    final reactionCount = hasCommentFilter ? 0 : reactions.length;
+
+    int? targetIndex;
+    for (int i = 0; i < comments.length; i++) {
+      if (comments[i].id == widget.selectedCommentId) {
+        targetIndex = reactionCount + i;
+        break;
+      }
+    }
+
+    if (targetIndex != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          // 아이템 높이 추정 (각 댓글 행의 대략적인 높이 + separator)
+          const itemHeight = 80.0; // 댓글 행 높이 추정
+          const separatorHeight = 12.0;
+          final scrollOffset = targetIndex! * (itemHeight + separatorHeight);
+
+          _scrollController.animateTo(
+            scrollOffset,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,14 +114,14 @@ class VoiceCommentListSheet extends StatelessWidget {
           // 통합 ListView: (리액션들 + 음성 댓글) 하나의 스크롤
           Consumer2<EmojiReactionController, CommentRecordController>(
             builder: (context, reactionController, recordController, _) {
-              final hasCommentFilter = commentIdFilter != null;
+              final hasCommentFilter = widget.commentIdFilter != null;
 
               // 1) 리액션 스트림 (optional)
               final reactionsStream =
-                  (!hasCommentFilter && categoryId != null)
+                  (!hasCommentFilter && widget.categoryId != null)
                       ? reactionController.reactionsStream(
-                        categoryId: categoryId!,
-                        photoId: photoId,
+                        categoryId: widget.categoryId!,
+                        photoId: widget.photoId,
                       )
                       : const Stream<List<Map<String, dynamic>>>.empty();
 
@@ -76,7 +132,9 @@ class VoiceCommentListSheet extends StatelessWidget {
 
                   // 2) 댓글 스트림 (중첩 StreamBuilder)
                   return StreamBuilder<List<CommentRecordModel>>(
-                    stream: recordController.getCommentRecordsStream(photoId),
+                    stream: recordController.getCommentRecordsStream(
+                      widget.photoId,
+                    ),
                     builder: (context, commentSnap) {
                       final waiting =
                           reactSnap.connectionState ==
@@ -114,7 +172,8 @@ class VoiceCommentListSheet extends StatelessWidget {
                           hasCommentFilter
                               ? allComments
                                   .where(
-                                    (comment) => comment.id == commentIdFilter,
+                                    (comment) =>
+                                        comment.id == widget.commentIdFilter,
                                   )
                                   .toList()
                               : allComments;
@@ -137,8 +196,13 @@ class VoiceCommentListSheet extends StatelessWidget {
                           ),
                         );
                       }
+
+                      // 자동 스크롤 실행
+                      _scrollToSelectedComment(comments, reactions);
+
                       return Flexible(
                         child: ListView.separated(
+                          controller: _scrollController,
                           shrinkWrap: true,
                           itemCount: total,
                           separatorBuilder: (_, __) => SizedBox(height: 12.h),
@@ -173,8 +237,8 @@ class VoiceCommentListSheet extends StatelessWidget {
                                 commentIndex < comments.length) {
                               final comment = comments[commentIndex];
                               final isSelected =
-                                  selectedCommentId != null &&
-                                  comment.id == selectedCommentId;
+                                  widget.selectedCommentId != null &&
+                                  comment.id == widget.selectedCommentId;
                               return VoiceCommentRow(
                                 comment: comment,
                                 isHighlighted: isSelected, // 하이라이트 상태 전달

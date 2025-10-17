@@ -32,7 +32,7 @@ class VoiceCommentRow extends StatelessWidget {
   Widget _buildTextCommentRow(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isHighlighted ? Colors.grey[800] : null, // 하이라이트 배경색
+        color: isHighlighted ? Colors.white : null, // 하이라이트 배경색
         borderRadius: BorderRadius.circular(12),
       ),
       padding: EdgeInsets.all(isHighlighted ? 12 : 0),
@@ -110,7 +110,7 @@ class VoiceCommentRow extends StatelessWidget {
   Widget _buildAudioCommentRow(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isHighlighted ? Colors.grey[800] : null, // 하이라이트 배경색
+        color: isHighlighted ? Colors.black : null, // 하이라이트 배경색
         borderRadius: BorderRadius.circular(12),
       ),
       padding: EdgeInsets.all(isHighlighted ? 12 : 0),
