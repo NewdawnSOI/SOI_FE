@@ -208,20 +208,21 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
               }
 
               // 검색어가 있으면 카테고리 필터링
-              final displayCategories = searchController.searchQuery.isNotEmpty
-                  ? categories.where((category) {
-                      final userId = _authController?.getUserId;
-                      return userId != null
-                          ? searchController.matchesSearchQuery(
+              final displayCategories =
+                  searchController.searchQuery.isNotEmpty
+                      ? categories.where((category) {
+                        final userId = _authController?.getUserId;
+                        return userId != null
+                            ? searchController.matchesSearchQuery(
                               category,
                               searchController.searchQuery,
                               currentUserId: userId,
                             )
-                          : category.name
-                              .toLowerCase()
-                              .contains(searchController.searchQuery.toLowerCase());
-                    }).toList()
-                  : categories;
+                            : category.name.toLowerCase().contains(
+                              searchController.searchQuery.toLowerCase(),
+                            );
+                      }).toList()
+                      : categories;
 
               // 필터링 후 결과가 없는 경우 체크
               if (displayCategories.isEmpty) {

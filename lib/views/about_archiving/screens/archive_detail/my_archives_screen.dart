@@ -180,15 +180,16 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
               }
 
               // 검색어가 있으면 카테고리 필터링
-              final displayCategories = searchController.searchQuery.isNotEmpty
-                  ? userCategories.where((category) {
-                      return searchController.matchesSearchQuery(
-                        category,
-                        searchController.searchQuery,
-                        currentUserId: uID,
-                      );
-                    }).toList()
-                  : userCategories;
+              final displayCategories =
+                  searchController.searchQuery.isNotEmpty
+                      ? userCategories.where((category) {
+                        return searchController.matchesSearchQuery(
+                          category,
+                          searchController.searchQuery,
+                          currentUserId: uID,
+                        );
+                      }).toList()
+                      : userCategories;
 
               // 필터링된 결과가 없으면
               if (displayCategories.isEmpty) {
