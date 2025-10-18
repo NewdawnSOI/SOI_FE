@@ -164,46 +164,6 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                 });
               }
 
-              // 데이터 없으면
-              if (sharedCategories.isEmpty) {
-                // 초기 로딩 완료 표시
-                if (_isInitialLoad) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      setState(() {
-                        _isInitialLoad = false;
-                        _previousCategoryCount = 0; // 빈 상태도 저장
-                      });
-                    }
-                  });
-                }
-
-                // 검색 중인데 결과가 없는 경우
-                if (searchController.searchQuery.isNotEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 40.h),
-                      child: Text(
-                        '검색 결과가 없습니다.',
-                        style: TextStyle(color: Colors.white, fontSize: 16.sp),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  );
-                }
-
-                return Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 40.h),
-                    child: Text(
-                      '공유된 카테고리가 없습니다.',
-                      style: TextStyle(color: Colors.white, fontSize: 16.sp),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-
               // 모든 카테고리에 대해 프로필 이미지 로드 요청
               for (var category in sharedCategories) {
                 final categoryId = category.id;
@@ -222,6 +182,45 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                 });
               }
 
+              // 검색어가 있으면 카테고리 필터링
+              final displayCategories = searchController.searchQuery.isNotEmpty
+                  ? sharedCategories.where((category) {
+                      return searchController.matchesSearchQuery(
+                        category,
+                        searchController.searchQuery,
+                        currentUserId: nickName,
+                      );
+                    }).toList()
+                  : sharedCategories;
+
+              // 필터링된 결과가 없으면
+              if (displayCategories.isEmpty) {
+                // 초기 로딩 완료 표시
+                if (_isInitialLoad) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _isInitialLoad = false;
+                        _previousCategoryCount = 0; // 빈 상태도 저장
+                      });
+                    }
+                  });
+                }
+
+                return Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 40.h),
+                    child: Text(
+                      searchController.searchQuery.isNotEmpty
+                          ? '검색 결과가 없습니다.'
+                          : '공유된 카테고리가 없습니다.',
+                      style: TextStyle(color: Colors.white, fontSize: 16.sp),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+
               // ✅ FadeIn 애니메이션으로 부드럽게 표시
               return AnimatedOpacity(
                 opacity: _isInitialLoad ? 0.0 : 1.0,
@@ -229,8 +228,8 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                 curve: Curves.easeIn,
                 child:
                     widget.layoutMode == ArchiveLayoutMode.grid
-                        ? _buildGridView(searchController, sharedCategories)
-                        : _buildListView(searchController, sharedCategories),
+                        ? _buildGridView(searchController, displayCategories)
+                        : _buildListView(searchController, displayCategories),
               );
             },
           );

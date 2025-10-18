@@ -189,48 +189,6 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                 });
               }
 
-              // 데이터 없으면
-              if (categories.isEmpty) {
-                // 초기 로딩 완료 표시
-                if (_isInitialLoad) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      setState(() {
-                        _isInitialLoad = false;
-
-                        // 빈 상태도 저장
-                        _previousCategoryCount = 0;
-                      });
-                    }
-                  });
-                }
-
-                // 검색 중인데 결과가 없는 경우
-                if (searchController.searchQuery.isNotEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 40.h),
-                      child: Text(
-                        '검색 결과가 없습니다.',
-                        style: TextStyle(color: Colors.white, fontSize: 16.sp),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  );
-                }
-
-                return Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 40.h),
-                    child: Text(
-                      '등록된 카테고리가 없습니다.',
-                      style: TextStyle(color: Colors.white, fontSize: 16.sp),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-
               // 모든 카테고리에 대해 프로필 이미지 로드 요청
               for (var category in categories) {
                 final categoryId = category.id;
@@ -249,6 +207,51 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                 });
               }
 
+              // 검색어가 있으면 카테고리 필터링
+              final displayCategories = searchController.searchQuery.isNotEmpty
+                  ? categories.where((category) {
+                      final userId = _authController?.getUserId;
+                      return userId != null
+                          ? searchController.matchesSearchQuery(
+                              category,
+                              searchController.searchQuery,
+                              currentUserId: userId,
+                            )
+                          : category.name
+                              .toLowerCase()
+                              .contains(searchController.searchQuery.toLowerCase());
+                    }).toList()
+                  : categories;
+
+              // 필터링 후 결과가 없는 경우 체크
+              if (displayCategories.isEmpty) {
+                // 검색 중인데 결과가 없는 경우
+                if (searchController.searchQuery.isNotEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 40.h),
+                      child: Text(
+                        '검색 결과가 없습니다.',
+                        style: TextStyle(color: Colors.white, fontSize: 16.sp),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
+
+                // 원본 카테고리가 없는 경우
+                return Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 40.h),
+                    child: Text(
+                      '등록된 카테고리가 없습니다.',
+                      style: TextStyle(color: Colors.white, fontSize: 16.sp),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+
               // FadeIn 애니메이션으로 부드럽게 표시
               return AnimatedOpacity(
                 opacity: _isInitialLoad ? 0.0 : 1.0,
@@ -256,8 +259,8 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                 curve: Curves.easeIn,
                 child:
                     widget.layoutMode == ArchiveLayoutMode.grid
-                        ? _buildGridView(searchController, categories)
-                        : _buildListView(searchController, categories),
+                        ? _buildGridView(searchController, displayCategories)
+                        : _buildListView(searchController, displayCategories),
               );
             },
           );

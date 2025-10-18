@@ -161,8 +161,37 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
                 });
               }
 
-              // 데이터 없으면
-              if (userCategories.isEmpty) {
+              // 모든 카테고리에 대해 프로필 이미지 로드 요청
+              for (var category in userCategories) {
+                final categoryId = category.id;
+                final mates = category.mates;
+                _loadProfileImages(categoryId, mates);
+              }
+
+              // 초기 로딩 완료 표시
+              if (_isInitialLoad) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    setState(() {
+                      _isInitialLoad = false;
+                    });
+                  }
+                });
+              }
+
+              // 검색어가 있으면 카테고리 필터링
+              final displayCategories = searchController.searchQuery.isNotEmpty
+                  ? userCategories.where((category) {
+                      return searchController.matchesSearchQuery(
+                        category,
+                        searchController.searchQuery,
+                        currentUserId: uID,
+                      );
+                    }).toList()
+                  : userCategories;
+
+              // 필터링된 결과가 없으면
+              if (displayCategories.isEmpty) {
                 // 초기 로딩 완료 표시
                 if (_isInitialLoad) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -188,23 +217,6 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
                   ),
                 );
               }
-              // 모든 카테고리에 대해 프로필 이미지 로드 요청
-              for (var category in userCategories) {
-                final categoryId = category.id;
-                final mates = category.mates;
-                _loadProfileImages(categoryId, mates);
-              }
-
-              // 초기 로딩 완료 표시
-              if (_isInitialLoad) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    setState(() {
-                      _isInitialLoad = false;
-                    });
-                  }
-                });
-              }
 
               // ✅ FadeIn 애니메이션으로 부드럽게 표시
               return AnimatedOpacity(
@@ -213,8 +225,8 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
                 curve: Curves.easeIn,
                 child:
                     widget.layoutMode == ArchiveLayoutMode.grid
-                        ? _buildGridView(searchController, userCategories)
-                        : _buildListView(searchController, userCategories),
+                        ? _buildGridView(searchController, displayCategories)
+                        : _buildListView(searchController, displayCategories),
               );
             },
           );
