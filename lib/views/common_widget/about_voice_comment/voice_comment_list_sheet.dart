@@ -175,10 +175,9 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                         );
                       }
                       final allComments = commentSnap.data ?? [];
-                      final comments = allComments;
                       final total =
                           (hasCommentFilter ? 0 : reactions.length) +
-                          comments.length;
+                          allComments.length;
                       if (total == 0) {
                         return SizedBox(
                           height: 120.h,
@@ -197,7 +196,7 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                       }
 
                       // 자동 스크롤 실행
-                      _scrollToSelectedComment(comments, reactions);
+                      _scrollToSelectedComment(allComments, reactions);
 
                       return Flexible(
                         child: ListView.separated(
@@ -214,7 +213,7 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                               CommentRecordModel? commentForReaction;
                               if (reactionUserId.isNotEmpty) {
                                 try {
-                                  commentForReaction = comments.firstWhere(
+                                  commentForReaction = allComments.firstWhere(
                                     (c) => c.recorderUser == reactionUserId,
                                   );
                                 } catch (e) {
@@ -233,8 +232,8 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                                 index -
                                 (hasCommentFilter ? 0 : reactions.length);
                             if (commentIndex >= 0 &&
-                                commentIndex < comments.length) {
-                              final comment = comments[commentIndex];
+                                commentIndex < allComments.length) {
+                              final comment = allComments[commentIndex];
                               final isSelected =
                                   widget.selectedCommentId != null &&
                                   comment.id == widget.selectedCommentId;
