@@ -359,10 +359,6 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
                 categoryId: categoryId,
                 index: index,
                 isOwner: isOwner,
-                profileImagePositions:
-                    _voiceCommentStateManager!.profileImagePositions,
-                droppedProfileImageUrls:
-                    _voiceCommentStateManager!.droppedProfileImageUrls,
                 photoComments: _voiceCommentStateManager!.photoComments,
                 userProfileImages: _profileCacheManager!.userProfileImages,
                 profileLoadingStates: _profileCacheManager!.loadingStates,
@@ -371,8 +367,6 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
                     _voiceCommentStateManager!.voiceCommentActiveStates,
                 voiceCommentSavedStates:
                     _voiceCommentStateManager!.voiceCommentSavedStates,
-                commentProfileImageUrls:
-                    _voiceCommentStateManager!.commentProfileImageUrls,
                 pendingTextComments:
                     _voiceCommentStateManager!
                         .pendingTextComments, // Pending 텍스트 댓글 상태 전달

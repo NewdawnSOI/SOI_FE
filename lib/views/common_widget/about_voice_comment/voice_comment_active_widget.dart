@@ -11,7 +11,6 @@ import 'voice_comment_widget.dart';
 class VoiceCommentActiveWidget extends StatelessWidget {
   final PhotoDataModel photo;
   final Map<String, bool> voiceCommentActiveStates;
-  final Map<String, String> commentProfileImageUrls;
   final Map<String, String> userProfileImages;
   final Map<String, List<CommentRecordModel>> photoComments;
   final Function(String, String?, List<double>?, int?) onVoiceCommentCompleted;
@@ -25,7 +24,6 @@ class VoiceCommentActiveWidget extends StatelessWidget {
     super.key,
     required this.photo,
     required this.voiceCommentActiveStates,
-    required this.commentProfileImageUrls,
     required this.userProfileImages,
     required this.photoComments,
     required this.onVoiceCommentCompleted,
@@ -45,11 +43,9 @@ class VoiceCommentActiveWidget extends StatelessWidget {
         builder: (context, authController, child) {
           final currentUserId = authController.currentUser?.uid;
 
-          // comment_records의 profileImageUrl 사용 (우선순위)
-          // 없으면 AuthController의 프로필 이미지 사용 (fallback)
+          // Get profile image directly from AuthController (no cached photoId-based map)
           final currentUserProfileImage =
-              commentProfileImageUrls[photo.id] ??
-              (currentUserId != null ? userProfileImages[currentUserId] : null);
+              currentUserId != null ? userProfileImages[currentUserId] : null;
 
           // 실시간 댓글 데이터로 저장 상태 확인 (우선순위)
           final hasRealTimeComment =

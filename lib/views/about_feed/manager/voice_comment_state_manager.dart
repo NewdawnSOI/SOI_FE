@@ -48,14 +48,10 @@ class VoiceCommentStateManager {
   // 임시 음성 댓글 데이터 (파형 클릭 시 저장용)
   final Map<String, PendingVoiceComment> _pendingVoiceComments = {};
 
-  // 프로필 이미지 관리 (다중 댓글 지원)
-  final Map<String, Offset?> _profileImagePositions = {}; // 임시 위치용 (기존 호환성)
-  final Map<String, String> _commentProfileImageUrls = {}; // 임시용 (기존 호환성)
-  final Map<String, String> _droppedProfileImageUrls = {}; // 임시용 (기존 호환성)
-
-  // 댓글별 개별 관리 (새로운 구조)
-  // 기존에는 댓글 ID 위치를 별도 관리했으나, 주입되는 CommentRecordModel의
-  // relativePosition을 그대로 사용하므로 별도 맵을 유지할 필요가 없다.
+  // Removed: _profileImagePositions, _commentProfileImageUrls, _droppedProfileImageUrls
+  // These were photoId-based and caused conflicts with multiple comments
+  // Pending position is stored in _pendingVoiceComments
+  // Saved comment positions are in each CommentRecordModel.relativePosition
 
   // 실시간 스트림 관리
   final Map<String, List<CommentRecordModel>> _photoComments = {};
@@ -66,9 +62,7 @@ class VoiceCommentStateManager {
   Map<String, bool> get voiceCommentActiveStates => _voiceCommentActiveStates;
   Map<String, bool> get voiceCommentSavedStates => _voiceCommentSavedStates;
   Map<String, List<String>> get savedCommentIds => _savedCommentIds;
-  Map<String, Offset?> get profileImagePositions => _profileImagePositions;
-  Map<String, String> get commentProfileImageUrls => _commentProfileImageUrls;
-  Map<String, String> get droppedProfileImageUrls => _droppedProfileImageUrls;
+  // Removed: profileImagePositions, commentProfileImageUrls, droppedProfileImageUrls
   Map<String, List<CommentRecordModel>> get photoComments => _photoComments;
 
   /// Pending 댓글이 있는지 확인
@@ -180,9 +174,8 @@ class VoiceCommentStateManager {
       final profileImageUrl = await authController
           .getUserProfileImageUrlWithCache(currentUserId);
 
-      // 현재 드래그된 위치를 사용 (각 댓글마다 고유한 위치)
-      final currentProfilePosition =
-          _profileImagePositions[photoId] ?? pendingComment.relativePosition;
+      // Pending comment already has the position
+      final currentProfilePosition = pendingComment.relativePosition;
 
       if (currentProfilePosition == null) {
         throw StateError('음성 댓글 저장 위치를 찾을 수 없습니다. photoId: $photoId');
@@ -242,7 +235,7 @@ class VoiceCommentStateManager {
       _pendingVoiceComments.remove(photoId);
 
       // 다음 댓글을 위해 위치 초기화 (기존 댓글은 건드리지 않음)
-      _profileImagePositions[photoId] = null;
+      // Each comment stores its own position in relativePosition field
 
       _notifyStateChanged();
     } catch (e) {
@@ -255,7 +248,7 @@ class VoiceCommentStateManager {
   void onVoiceCommentDeleted(String photoId) {
     _voiceCommentActiveStates[photoId] = false;
     _voiceCommentSavedStates[photoId] = false;
-    _profileImagePositions[photoId] = null;
+    // Position stored in each comment's relativePosition field
     _notifyStateChanged();
   }
 
@@ -280,8 +273,7 @@ class VoiceCommentStateManager {
       imageSize,
     );
 
-    // UI에 즉시 반영 (임시 위치)
-    _profileImagePositions[photoId] = relativePosition;
+    // UI에 즉시 반영 (임시 위치) - stored in pendingComment
     final pendingComment = _pendingVoiceComments[photoId];
     if (pendingComment != null) {
       _pendingVoiceComments[photoId] = pendingComment.withPosition(
@@ -367,35 +359,13 @@ class VoiceCommentStateManager {
 
       _savedCommentIds[photoId] = mergedIds.toSet().toList();
 
-      // 기존 호환성을 위해 마지막 댓글의 정보를 기존 변수에도 저장
-      final lastComment = userComments.last;
-      if (lastComment.profileImageUrl.isNotEmpty) {
-        _commentProfileImageUrls[photoId] = lastComment.profileImageUrl;
-      }
-
-      if (lastComment.relativePosition != null) {
-        // relativePosition 필드에서 상대 위치 데이터를 읽어옴
-        Offset relativePosition;
-
-        if (lastComment.relativePosition is Map<String, dynamic>) {
-          // Map 형태의 상대 위치 데이터를 Offset으로 변환
-          relativePosition = PositionConverter.mapToRelativePosition(
-            lastComment.relativePosition as Map<String, dynamic>,
-          );
-        } else {
-          // 이미 Offset 형태
-          relativePosition = lastComment.relativePosition!;
-        }
-
-        _profileImagePositions[photoId] = relativePosition;
-        _droppedProfileImageUrls[photoId] = lastComment.profileImageUrl;
-      }
+      // Each comment stores its own position in relativePosition field
+      // No need to extract or store position separately
     } else {
       // 현재 사용자의 댓글이 없는 경우 상태 초기화
       _voiceCommentSavedStates[photoId] = false;
       _savedCommentIds.remove(photoId);
-      _profileImagePositions[photoId] = null;
-      _commentProfileImageUrls.remove(photoId);
+      // Position and profile image stored in each comment
       // 다른 사용자의 댓글은 유지하되 현재 사용자 관련 상태만 초기화
       if (comments.isEmpty) {
         _photoComments[photoId] = [];
@@ -424,7 +394,7 @@ class VoiceCommentStateManager {
           );
 
       if (success) {
-        _profileImagePositions[photoId] = position;
+        // Position updated in Firestore comment
         _notifyStateChanged();
       }
     } catch (e) {

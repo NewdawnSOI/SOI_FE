@@ -18,15 +18,12 @@ class PhotoCardWidgetCommon extends StatefulWidget {
   final bool isCategory;
 
   // 상태 관리 관련
-  final Map<String, Offset?> profileImagePositions;
-  final Map<String, String> droppedProfileImageUrls;
   final Map<String, List<CommentRecordModel>> photoComments;
   final Map<String, String> userProfileImages;
   final Map<String, bool> profileLoadingStates;
   final Map<String, String> userNames;
   final Map<String, bool> voiceCommentActiveStates;
   final Map<String, bool> voiceCommentSavedStates;
-  final Map<String, String> commentProfileImageUrls;
   final Map<String, bool>? pendingTextComments; // Pending 텍스트 댓글 상태
 
   // 콜백 함수들
@@ -50,15 +47,12 @@ class PhotoCardWidgetCommon extends StatefulWidget {
     required this.isOwner,
     this.isArchive = false,
     this.isCategory = false,
-    required this.profileImagePositions,
-    required this.droppedProfileImageUrls,
     required this.photoComments,
     required this.userProfileImages,
     required this.profileLoadingStates,
     required this.userNames,
     required this.voiceCommentActiveStates,
     required this.voiceCommentSavedStates,
-    required this.commentProfileImageUrls,
     this.pendingTextComments, // Pending 텍스트 댓글 상태 추가
     required this.onToggleAudio,
     required this.onToggleVoiceComment,
@@ -117,8 +111,6 @@ class _PhotoCardWidgetCommonState extends State<PhotoCardWidgetCommon> {
                 photo: widget.photo,
                 categoryName: widget.categoryName,
                 isArchive: widget.isArchive,
-                profileImagePositions: widget.profileImagePositions,
-                droppedProfileImageUrls: widget.droppedProfileImageUrls,
                 photoComments: widget.photoComments,
                 userProfileImages: widget.userProfileImages,
                 profileLoadingStates: widget.profileLoadingStates,
@@ -152,7 +144,6 @@ class _PhotoCardWidgetCommonState extends State<PhotoCardWidgetCommon> {
             photo: widget.photo,
             voiceCommentActiveStates: widget.voiceCommentActiveStates,
             voiceCommentSavedStates: widget.voiceCommentSavedStates,
-            commentProfileImageUrls: widget.commentProfileImageUrls,
             userProfileImages: widget.userProfileImages,
             photoComments: widget.photoComments,
             onToggleVoiceComment: widget.onToggleVoiceComment,

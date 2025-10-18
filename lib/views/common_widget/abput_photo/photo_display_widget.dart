@@ -21,8 +21,6 @@ class PhotoDisplayWidget extends StatefulWidget {
   final String categoryName;
   // Archive 여부에 따라 카테고리 라벨 숨김
   final bool isArchive;
-  final Map<String, Offset?> profileImagePositions;
-  final Map<String, String> droppedProfileImageUrls;
   final Map<String, List<CommentRecordModel>> photoComments;
   final Map<String, String> userProfileImages;
   final Map<String, bool> profileLoadingStates;
@@ -34,8 +32,6 @@ class PhotoDisplayWidget extends StatefulWidget {
     required this.photo,
     required this.categoryName,
     this.isArchive = false,
-    required this.profileImagePositions,
-    required this.droppedProfileImageUrls,
     required this.photoComments,
     required this.userProfileImages,
     required this.profileLoadingStates,

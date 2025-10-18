@@ -45,11 +45,10 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
   // 상태 맵 (Feed 구조와 동일)
   final Map<String, List<CommentRecordModel>> _photoComments = {};
-  final Map<String, Offset?> _profileImagePositions = {};
-  final Map<String, String> _droppedProfileImageUrls = {};
+  // Removed: _profileImagePositions, _droppedProfileImageUrls, _commentProfileImageUrls
+  // These were photoId-based and caused conflicts with multiple comments
   final Map<String, bool> _voiceCommentActiveStates = {};
   final Map<String, bool> _voiceCommentSavedStates = {};
-  final Map<String, String> _commentProfileImageUrls = {};
   final Map<String, String> _userProfileImages = {};
   final Map<String, bool> _profileLoadingStates = {};
   final Map<String, String> _userNames = {};
@@ -182,15 +181,12 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
             isOwner: isOwner,
             isArchive: true,
             isCategory: true,
-            profileImagePositions: _profileImagePositions,
-            droppedProfileImageUrls: _droppedProfileImageUrls,
             photoComments: _photoComments,
             userProfileImages: _userProfileImages,
             profileLoadingStates: _profileLoadingStates,
             userNames: _userNames,
             voiceCommentActiveStates: _voiceCommentActiveStates,
             voiceCommentSavedStates: _voiceCommentSavedStates,
-            commentProfileImageUrls: _commentProfileImageUrls,
             pendingTextComments: _pendingTextComments, // 텍스트 댓글 pending 상태 전달
             onToggleAudio: _toggleAudio,
             onToggleVoiceComment: _toggleVoiceComment,
@@ -358,28 +354,16 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
           if (relative != null) {
             _commentPositions[comment.id] = relative;
           }
-          if (comment.profileImageUrl.isNotEmpty) {
-            _commentProfileImageUrls[photoId] = comment.profileImageUrl;
-          }
+          // Removed: _commentProfileImageUrls - no longer needed
         }
 
-        final lastComment = userComments.last;
-        final lastPosition = _extractRelativeOffset(
-          lastComment.relativePosition,
-        );
-        if (lastComment.profileImageUrl.isNotEmpty) {
-          _droppedProfileImageUrls[photoId] = lastComment.profileImageUrl;
-        }
-        if (lastPosition != null) {
-          _profileImagePositions[photoId] = lastPosition;
-        }
+        // Removed: _droppedProfileImageUrls and _profileImagePositions
+        // These were photoId-based and caused conflicts with multiple comments
       } else {
         _voiceCommentSavedStates[photoId] = false;
         final previousIds = _savedCommentIds[photoId] ?? const <String>[];
         _savedCommentIds.remove(photoId);
-        _profileImagePositions.remove(photoId);
-        _commentProfileImageUrls.remove(photoId);
-        _droppedProfileImageUrls.remove(photoId);
+        // Removed: _profileImagePositions, _commentProfileImageUrls, _droppedProfileImageUrls
         _pendingProfilePositions.remove(photoId);
         _autoPlacementIndices.remove(photoId);
         for (final commentId in previousIds) {
@@ -400,11 +384,8 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       imageSize,
     );
 
-    if (mounted) {
-      setState(() {
-        _profileImagePositions[photoId] = relativePosition;
-      });
-    }
+    // Removed: _profileImagePositions[photoId] = relativePosition
+    // This was photoId-based and caused conflicts with multiple comments
 
     _pendingProfilePositions[photoId] = relativePosition;
 
@@ -492,8 +473,8 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         setState(() {
           _pendingTextComments[photoId] = true;
           _voiceCommentSavedStates[photoId] = false;
-          _profileImagePositions[photoId] = autoPosition;
-          _commentProfileImageUrls[photoId] = currentUserProfileImageUrl;
+          // Removed: _profileImagePositions and _commentProfileImageUrls
+          // Pending position is already stored in _pendingVoiceComments and _pendingProfilePositions
         });
       }
     } catch (e) {
@@ -534,8 +515,8 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         setState(() {
           _voiceCommentSavedStates[photoId] = false;
           _voiceCommentActiveStates[photoId] = true; // 위젯 유지
-          _profileImagePositions[photoId] = autoPosition;
-          _commentProfileImageUrls[photoId] = currentUserProfileImageUrl;
+          // Removed: _profileImagePositions and _commentProfileImageUrls
+          // Pending data is stored in _pendingVoiceComments and _pendingProfilePositions
         });
       }
     } catch (e) {
@@ -606,9 +587,8 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
       void applyUpdates() {
         _savedCommentIds[photoId] = updatedIds;
-        _commentProfileImageUrls[photoId] = comment.profileImageUrl;
-        _droppedProfileImageUrls[photoId] = comment.profileImageUrl;
-        _profileImagePositions.remove(photoId);
+        // Removed: _commentProfileImageUrls and _droppedProfileImageUrls
+        // Profile image is stored in each comment's profileImageUrl field
         _pendingProfilePositions.remove(photoId);
         _pendingVoiceComments.remove(photoId);
         _pendingTextComments.remove(photoId); // 텍스트 댓글 pending 상태 제거
@@ -637,7 +617,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       _pendingVoiceComments.remove(photoId);
       _pendingTextComments.remove(photoId); // 텍스트 댓글 pending 상태 제거
       _pendingProfilePositions.remove(photoId);
-      _profileImagePositions.remove(photoId);
+      // Removed: _profileImagePositions - no longer needed
     });
   }
 
@@ -673,10 +653,8 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       }
     }
 
-    final previewPosition = _profileImagePositions[photoId];
-    if (previewPosition != null) {
-      occupiedPositions.add(previewPosition);
-    }
+    // Removed: _profileImagePositions[photoId] check
+    // Pending position is already in _pendingProfilePositions
 
     final pendingPosition = _pendingProfilePositions[photoId];
     if (pendingPosition != null) {

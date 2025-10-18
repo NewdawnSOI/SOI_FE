@@ -12,7 +12,6 @@ class VoiceRecordingWidget extends StatelessWidget {
   final PhotoDataModel photo;
   final Map<String, bool> voiceCommentActiveStates;
   final Map<String, bool> voiceCommentSavedStates;
-  final Map<String, String> commentProfileImageUrls;
   final Map<String, String> userProfileImages;
   final Map<String, List<CommentRecordModel>> photoComments;
   final Function(String) onToggleVoiceComment;
@@ -30,7 +29,6 @@ class VoiceRecordingWidget extends StatelessWidget {
     required this.photo,
     required this.voiceCommentActiveStates,
     required this.voiceCommentSavedStates,
-    required this.commentProfileImageUrls,
     required this.userProfileImages,
     required this.photoComments,
     required this.onToggleVoiceComment,
@@ -60,7 +58,6 @@ class VoiceRecordingWidget extends StatelessWidget {
                 ? VoiceCommentActiveWidget(
                   photo: photo,
                   voiceCommentActiveStates: voiceCommentActiveStates,
-                  commentProfileImageUrls: commentProfileImageUrls,
                   userProfileImages: userProfileImages,
                   photoComments: photoComments,
                   onVoiceCommentCompleted: onVoiceCommentCompleted,
