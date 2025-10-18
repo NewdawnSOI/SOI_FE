@@ -582,11 +582,14 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                                           builder: (sheetContext) {
                                             return ChangeNotifierProvider.value(
                                               value: recordController,
-                                              child: VoiceCommentListSheet(
-                                                photoId: widget.photo.id,
-                                                categoryId:
-                                                    widget.photo.categoryId,
-                                                commentIdFilter: comment.id,
+                                              child: SizedBox(
+                                                height: 480.h,
+                                                child: VoiceCommentListSheet(
+                                                  photoId: widget.photo.id,
+                                                  categoryId:
+                                                      widget.photo.categoryId,
+                                                  selectedCommentId: comment.id,
+                                                ),
                                               ),
                                             );
                                           },

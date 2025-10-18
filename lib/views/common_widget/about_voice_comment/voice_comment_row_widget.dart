@@ -30,183 +30,191 @@ class VoiceCommentRow extends StatelessWidget {
 
   /// 텍스트 댓글 UI
   Widget _buildTextCommentRow(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isHighlighted ? Colors.white : null, // 하이라이트 배경색
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: EdgeInsets.all(isHighlighted ? 12 : 0),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 프로필 이미지
-              ClipOval(
-                child:
-                    comment.profileImageUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                          imageUrl: comment.profileImageUrl,
-                          width: 44.w,
-                          height: 44.w,
-                          memCacheHeight: (44 * 2).toInt(),
-                          memCacheWidth: (44 * 2).toInt(),
-                          fit: BoxFit.cover,
-                        )
-                        : Container(
-                          width: 44.w,
-                          height: 44.w,
-                          color: const Color(0xFF4E4E4E),
-                          child: const Icon(Icons.person, color: Colors.white),
-                        ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    UserDisplayName(userId: comment.recorderUser),
-                    SizedBox(height: 8.h),
-                    // 텍스트 댓글 내용
-                    Text(
-                      comment.text ?? '',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14.sp,
-                        fontFamily: 'Pretendard',
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: -0.5,
+    final content = Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 프로필 이미지
+            ClipOval(
+              child:
+                  comment.profileImageUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                        imageUrl: comment.profileImageUrl,
+                        width: 44.w,
+                        height: 44.w,
+                        memCacheHeight: (44 * 2).toInt(),
+                        memCacheWidth: (44 * 2).toInt(),
+                        fit: BoxFit.cover,
+                      )
+                      : Container(
+                        width: 44.w,
+                        height: 44.w,
+                        color: const Color(0xFF4E4E4E),
+                        child: const Icon(Icons.person, color: Colors.white),
                       ),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  UserDisplayName(userId: comment.recorderUser),
+                  SizedBox(height: 8.h),
+                  // 텍스트 댓글 내용
+                  Text(
+                    comment.text ?? '',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.sp,
+                      fontFamily: 'Pretendard',
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: -0.5,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              SizedBox(width: 10.w),
-            ],
-          ),
-          SizedBox(height: 7.h),
-          Row(
-            children: [
-              Spacer(),
-              Text(
-                FormatUtils.formatRelativeTime(comment.createdAt),
-                style: TextStyle(
-                  color: const Color(0xFFC4C4C4),
-                  fontSize: 10.sp,
-                  fontFamily: 'Pretendard',
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: -0.40,
-                ),
+            ),
+            SizedBox(width: 10.w),
+          ],
+        ),
+        SizedBox(height: 7.h),
+        Row(
+          children: [
+            Spacer(),
+            Text(
+              FormatUtils.formatRelativeTime(comment.createdAt),
+              style: TextStyle(
+                color: const Color(0xFFC4C4C4),
+                fontSize: 10.sp,
+                fontFamily: 'Pretendard',
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.40,
               ),
-              SizedBox(width: 12.w),
-            ],
-          ),
-        ],
-      ),
+            ),
+            SizedBox(width: 12.w),
+          ],
+        ),
+      ],
+    );
+
+    // 하이라이트: 배경 전체 + 내부 패딩 | 일반: 좌우 패딩만
+    if (isHighlighted) {
+      return Container(
+        color: Color(0xff000000).withValues(alpha: 0.23),
+        padding: EdgeInsets.symmetric(horizontal: 27.w, vertical: 10.h),
+        child: content,
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 27.w),
+      child: content,
     );
   }
 
   /// 음성 댓글 UI (기존 로직)
   Widget _buildAudioCommentRow(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isHighlighted ? Colors.black : null, // 하이라이트 배경색
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: EdgeInsets.all(isHighlighted ? 12 : 0),
-      child: Consumer<CommentAudioController>(
-        builder: (context, commentAudioController, child) {
-          final isPlaying = commentAudioController.isCommentPlaying(comment.id);
-          final progress = commentAudioController.getCommentProgress(
-            comment.id,
-          );
-          final position = commentAudioController.getCommentPosition(
-            comment.id,
-          );
-          final duration = commentAudioController.getCommentDuration(
-            comment.id,
-          );
-          return Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  // 프로필 이미지
-                  ClipOval(
-                    child:
-                        comment.profileImageUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                              imageUrl: comment.profileImageUrl,
-                              width: 44.w,
-                              height: 44.w,
-                              memCacheHeight: (44 * 2).toInt(),
-                              memCacheWidth: (44 * 2).toInt(),
-                              fit: BoxFit.cover,
-                            )
-                            : Container(
-                              width: 44.w,
-                              height: 44.w,
-                              color: const Color(0xFF4E4E4E),
-                              child: const Icon(
-                                Icons.person,
-                                color: Colors.white,
-                              ),
+    final content = Consumer<CommentAudioController>(
+      builder: (context, commentAudioController, child) {
+        final isPlaying = commentAudioController.isCommentPlaying(comment.id);
+        final progress = commentAudioController.getCommentProgress(comment.id);
+        final position = commentAudioController.getCommentPosition(comment.id);
+        final duration = commentAudioController.getCommentDuration(comment.id);
+        return Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                // 프로필 이미지
+                ClipOval(
+                  child:
+                      comment.profileImageUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                            imageUrl: comment.profileImageUrl,
+                            width: 44.w,
+                            height: 44.w,
+                            memCacheHeight: (44 * 2).toInt(),
+                            memCacheWidth: (44 * 2).toInt(),
+                            fit: BoxFit.cover,
+                          )
+                          : Container(
+                            width: 44.w,
+                            height: 44.w,
+                            color: const Color(0xFF4E4E4E),
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white,
                             ),
+                          ),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      UserDisplayName(userId: comment.recorderUser),
+                      SizedBox(height: 4.h),
+                      _WaveformPlaybackBar(
+                        isPlaying: isPlaying,
+                        progress: progress,
+                        onPlayPause: () async {
+                          if (isPlaying) {
+                            await commentAudioController.pauseComment(
+                              comment.id,
+                            );
+                          } else {
+                            await commentAudioController.playComment(
+                              comment.id,
+                              comment.audioUrl,
+                            );
+                          }
+                        },
+                        position: position,
+                        duration: duration,
+                        waveformData: comment.waveformData,
+                      ),
+                    ],
                   ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        UserDisplayName(userId: comment.recorderUser),
-                        SizedBox(height: 4.h),
-                        _WaveformPlaybackBar(
-                          isPlaying: isPlaying,
-                          progress: progress,
-                          onPlayPause: () async {
-                            if (isPlaying) {
-                              await commentAudioController.pauseComment(
-                                comment.id,
-                              );
-                            } else {
-                              await commentAudioController.playComment(
-                                comment.id,
-                                comment.audioUrl,
-                              );
-                            }
-                          },
-                          position: position,
-                          duration: duration,
-                          waveformData: comment.waveformData,
-                        ),
-                      ],
-                    ),
+                ),
+                SizedBox(width: 10.w),
+              ],
+            ),
+            SizedBox(height: 7.h),
+            Row(
+              children: [
+                Spacer(),
+                Text(
+                  FormatUtils.formatRelativeTime(comment.createdAt),
+                  style: TextStyle(
+                    color: const Color(0xFFC4C4C4),
+                    fontSize: 10.sp,
+                    fontFamily: 'Pretendard',
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.40,
                   ),
-                  SizedBox(width: 10.w),
-                ],
-              ),
-              SizedBox(height: 7.h),
-              Row(
-                children: [
-                  Spacer(),
-                  Text(
-                    FormatUtils.formatRelativeTime(comment.createdAt),
-                    style: TextStyle(
-                      color: const Color(0xFFC4C4C4),
-                      fontSize: 10.sp,
-                      fontFamily: 'Pretendard',
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: -0.40,
-                    ),
-                  ),
-                  SizedBox(width: 12.w),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
+                ),
+                SizedBox(width: 12.w),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    // 하이라이트: 배경 전체 + 내부 패딩 | 일반: 좌우 패딩만
+    if (isHighlighted) {
+      return Container(
+        color: Color(0xff000000).withValues(alpha: 0.23),
+        padding: EdgeInsets.symmetric(horizontal: 27.w, vertical: 10.h),
+        child: content,
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 27.w),
+      child: content,
     );
   }
 }

@@ -13,14 +13,18 @@ class VoiceCommentListSheet extends StatefulWidget {
   final String photoId;
   final String? categoryId;
   final String? commentIdFilter;
-  final String? selectedCommentId; // 선택된 댓글 ID (하이라이트용)
+
+  // 선택된 댓글 ID (하이라이트용)
+  final String? selectedCommentId;
 
   const VoiceCommentListSheet({
     super.key,
     required this.photoId,
     this.categoryId,
     this.commentIdFilter,
-    this.selectedCommentId, // 선택된 댓글 ID 추가
+
+    // 선택된 댓글 ID 추가
+    this.selectedCommentId,
   });
 
   @override
@@ -65,14 +69,22 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
           // 아이템 높이 추정 (각 댓글 행의 대략적인 높이 + separator)
-          const itemHeight = 80.0; // 댓글 행 높이 추정
+          // 댓글 행 높이 추정
+          const itemHeight = 80.0;
           const separatorHeight = 12.0;
           final scrollOffset = targetIndex! * (itemHeight + separatorHeight);
 
-          _scrollController.animateTo(
-            scrollOffset,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
+          // 선택된 댓글이 화면 중앙에 오도록 오프셋 조정
+          final viewportHeight = _scrollController.position.viewportDimension;
+          final centeredOffset =
+              scrollOffset - (viewportHeight / 2) + (itemHeight / 2);
+
+          // jumpTo를 사용하여 애니메이션 없이 즉시 중앙 위치로 이동
+          _scrollController.jumpTo(
+            centeredOffset.clamp(
+              0.0,
+              _scrollController.position.maxScrollExtent,
+            ),
           );
         }
       });
@@ -90,12 +102,7 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
           topRight: Radius.circular(24.8),
         ),
       ),
-      padding: EdgeInsets.only(
-        top: 18.h,
-        bottom: 18.h,
-        left: 27.w,
-        right: 27.w,
-      ),
+      padding: EdgeInsets.only(top: 18.h, bottom: 18.h),
       child: Column(
         mainAxisSize: MainAxisSize.min,
 
@@ -168,15 +175,7 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                         );
                       }
                       final allComments = commentSnap.data ?? [];
-                      final comments =
-                          hasCommentFilter
-                              ? allComments
-                                  .where(
-                                    (comment) =>
-                                        comment.id == widget.commentIdFilter,
-                                  )
-                                  .toList()
-                              : allComments;
+                      final comments = allComments;
                       final total =
                           (hasCommentFilter ? 0 : reactions.length) +
                           comments.length;
@@ -241,7 +240,9 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                                   comment.id == widget.selectedCommentId;
                               return VoiceCommentRow(
                                 comment: comment,
-                                isHighlighted: isSelected, // 하이라이트 상태 전달
+
+                                // 하이라이트 상태 전달
+                                isHighlighted: isSelected,
                               );
                             }
                             return const SizedBox.shrink();
