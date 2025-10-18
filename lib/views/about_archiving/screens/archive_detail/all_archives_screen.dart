@@ -177,7 +177,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
 
               final categories = snapshot.data ?? [];
 
-              // ✅ 카테고리 개수 저장 (다음 로딩 시 사용)
+              // 카테고리 개수 저장 (다음 로딩 시 사용)
               if (categories.isNotEmpty &&
                   _previousCategoryCount != categories.length) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -197,7 +197,9 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                     if (mounted) {
                       setState(() {
                         _isInitialLoad = false;
-                        _previousCategoryCount = 0; // 빈 상태도 저장
+
+                        // 빈 상태도 저장
+                        _previousCategoryCount = 0;
                       });
                     }
                   });
@@ -247,7 +249,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                 });
               }
 
-              // ✅ FadeIn 애니메이션으로 부드럽게 표시
+              // FadeIn 애니메이션으로 부드럽게 표시
               return AnimatedOpacity(
                 opacity: _isInitialLoad ? 0.0 : 1.0,
                 duration: const Duration(milliseconds: 300),

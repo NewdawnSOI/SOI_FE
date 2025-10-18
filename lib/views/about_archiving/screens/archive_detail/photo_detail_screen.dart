@@ -53,7 +53,8 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
   final Map<String, bool> _profileLoadingStates = {};
   final Map<String, String> _userNames = {};
   final Map<String, CommentRecordModel> _pendingVoiceComments = {};
-  final Map<String, Offset> _pendingProfilePositions = {};
+  // Removed: _pendingProfilePositions - photoId-based Map caused conflicts
+  // Each pending comment stores its position in CommentRecordModel.relativePosition
   final Map<String, bool> _pendingTextComments = {}; // 텍스트 댓글 pending 상태
   final Map<String, List<String>> _savedCommentIds = {};
   final Map<String, Offset> _commentPositions = {};
@@ -215,7 +216,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
               setState(() {
                 _voiceCommentActiveStates[photoId] = false;
                 _pendingVoiceComments.remove(photoId);
-                _pendingProfilePositions.remove(photoId);
+                // Removed: _pendingProfilePositions - position in pending comment
               });
             },
             onProfileImageDragged: (photoId, absolutePosition) {
@@ -364,7 +365,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         final previousIds = _savedCommentIds[photoId] ?? const <String>[];
         _savedCommentIds.remove(photoId);
         // Removed: _profileImagePositions, _commentProfileImageUrls, _droppedProfileImageUrls
-        _pendingProfilePositions.remove(photoId);
+        // Removed: _pendingProfilePositions - position stored in pending comment
         _autoPlacementIndices.remove(photoId);
         for (final commentId in previousIds) {
           _commentPositions.remove(commentId);
@@ -387,8 +388,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
     // Removed: _profileImagePositions[photoId] = relativePosition
     // This was photoId-based and caused conflicts with multiple comments
 
-    _pendingProfilePositions[photoId] = relativePosition;
-
+    // Store position in pending comment object (not in photoId-based Map)
     final pending = _pendingVoiceComments[photoId];
     if (pending != null) {
       _pendingVoiceComments[photoId] = pending.copyWith(
@@ -464,7 +464,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         createdAt: DateTime.now(),
         relativePosition: autoPosition,
       );
-      _pendingProfilePositions[photoId] = autoPosition;
+      // Position stored in pending comment object above
 
       debugPrint('✅ 텍스트 댓글 임시 저장 완료');
 
@@ -510,13 +510,13 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         createdAt: DateTime.now(),
         relativePosition: autoPosition,
       );
-      _pendingProfilePositions[photoId] = autoPosition;
+      // Position stored in pending comment object above
       if (mounted) {
         setState(() {
           _voiceCommentSavedStates[photoId] = false;
           _voiceCommentActiveStates[photoId] = true; // 위젯 유지
           // Removed: _profileImagePositions and _commentProfileImageUrls
-          // Pending data is stored in _pendingVoiceComments and _pendingProfilePositions
+          // Pending data is stored in _pendingVoiceComments
         });
       }
     } catch (e) {
@@ -539,12 +539,9 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       final currentUserProfileImageUrl = await _authController!
           .getUserProfileImageUrlWithCache(userId);
 
+      // Use position from pending comment (not from photoId-based Map)
       final relativePosition =
-          _pendingProfilePositions[photoId] ??
-          pending.relativePosition ??
-          _generateAutoProfilePosition(photoId);
-
-      _pendingProfilePositions[photoId] = relativePosition;
+          pending.relativePosition ?? _generateAutoProfilePosition(photoId);
 
       final controller = CommentRecordController();
 
@@ -589,7 +586,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         _savedCommentIds[photoId] = updatedIds;
         // Removed: _commentProfileImageUrls and _droppedProfileImageUrls
         // Profile image is stored in each comment's profileImageUrl field
-        _pendingProfilePositions.remove(photoId);
+        // Removed: _pendingProfilePositions - position stored in pending comment
         _pendingVoiceComments.remove(photoId);
         _pendingTextComments.remove(photoId); // 텍스트 댓글 pending 상태 제거
 
@@ -616,7 +613,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       _voiceCommentActiveStates[photoId] = false;
       _pendingVoiceComments.remove(photoId);
       _pendingTextComments.remove(photoId); // 텍스트 댓글 pending 상태 제거
-      _pendingProfilePositions.remove(photoId);
+      // Removed: _pendingProfilePositions - position stored in pending comment
       // Removed: _profileImagePositions - no longer needed
     });
   }
@@ -654,9 +651,10 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
     }
 
     // Removed: _profileImagePositions[photoId] check
-    // Pending position is already in _pendingProfilePositions
+    // Check pending position from pending comment object
 
-    final pendingPosition = _pendingProfilePositions[photoId];
+    final pending = _pendingVoiceComments[photoId];
+    final pendingPosition = pending?.relativePosition;
     if (pendingPosition != null) {
       occupiedPositions.add(pendingPosition);
     }

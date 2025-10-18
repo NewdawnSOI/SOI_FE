@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../../controllers/auth_controller.dart';
 import '../../../../controllers/category_controller.dart';
-
 import '../../../../models/category_data_model.dart';
 import '../../screens/archive_detail/category_photos_screen.dart';
 import 'archive_profile_row_widget.dart';
@@ -102,6 +101,8 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
         userId != null ? category.hasNewPhotoForUser(userId) : false;
 
     return Container(
+      width: 168,
+      height: 229,
       key: ValueKey('grid_${category.id}'),
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C1C),
@@ -145,6 +146,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
                 _buildNewBadge(category, top: 3.43.h, left: 130.w),
               ],
             ),
+            SizedBox(height: (8.7).h),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -161,7 +163,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
                 _buildPopupMenu(category),
               ],
             ),
-            SizedBox(height: 8.h),
+            SizedBox(height: (16.87).h),
             Padding(
               padding: EdgeInsets.only(left: 14.w),
               child: ArchiveProfileRowWidget(mates: category.mates),
@@ -475,7 +477,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
       period: const Duration(milliseconds: 1500),
       child: Container(
         decoration: ShapeDecoration(
-          color: Colors.grey.shade800,
+          color: Color(0xff1c1c1c),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(6.61),
             side: BorderSide(
