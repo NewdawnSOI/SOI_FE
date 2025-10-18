@@ -116,7 +116,6 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
         ),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(6.61),
         onTap:
             widget.isEditMode
                 ? null

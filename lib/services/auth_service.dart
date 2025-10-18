@@ -29,6 +29,34 @@ class AuthService {
     }
   }
 
+  /// 여러 사용자의 프로필 이미지를 실시간으로 가져오는 스트림
+  ///
+  /// [userIds]: 사용자 UID 리스트
+  /// Returns: Stream<Map<userId, profileImageUrl>>
+  Stream<Map<String, String>> getMultipleUserProfileImagesStream(
+    List<String> userIds,
+  ) {
+    try {
+      return _repository.getMultipleUserProfileImagesStream(userIds);
+    } catch (e) {
+      debugPrint('여러 사용자 프로필 이미지 Stream 가져오기 실패: $e');
+      return Stream.value({});
+    }
+  }
+
+  /// 단일 사용자의 프로필 이미지를 실시간으로 가져오는 스트림
+  ///
+  /// [userId]: 사용자 UID
+  /// Returns: Stream<String> - 프로필 이미지 URL
+  Stream<String> getUserProfileImageStream(String userId) {
+    try {
+      return _repository.getUserProfileImageStream(userId);
+    } catch (e) {
+      debugPrint('사용자 프로필 이미지 Stream 가져오기 실패: $e');
+      return Stream.value('');
+    }
+  }
+
   Future<AuthModel?> getUserInfo(String userId) async {
     try {
       return await _repository.getUserInfo(userId);

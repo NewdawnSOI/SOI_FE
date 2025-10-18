@@ -19,36 +19,33 @@ class ArchiveProfileRowWidget extends StatefulWidget {
 
 class _ArchiveProfileRowWidgetState extends State<ArchiveProfileRowWidget>
     with AutomaticKeepAliveClientMixin {
-  final Map<String, Stream<String>> _profileStreams = {};
+  Stream<Map<String, String>>? _profileImagesStream;
   AuthController? _authController;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _authController ??= Provider.of<AuthController>(context, listen: false);
-    _ensureStreams(widget.mates);
+    _initializeStream();
   }
 
   @override
   void didUpdateWidget(covariant ArchiveProfileRowWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!listEquals(oldWidget.mates, widget.mates)) {
-      _releaseUnusedStreams(oldWidget.mates, widget.mates);
-      _ensureStreams(widget.mates);
+      _initializeStream();
     }
   }
 
-  @override
-  void dispose() {
-    // 모든 Stream 참조 해제
+  void _initializeStream() {
     final auth = _authController;
-    if (auth != null) {
-      for (final mateUid in _profileStreams.keys) {
-        auth.releaseProfileStream(mateUid);
-      }
-    }
-    _profileStreams.clear();
-    super.dispose();
+    if (auth == null || widget.mates.isEmpty) return;
+
+    // 최대 3명만 표시하므로 3명의 프로필만 가져옴
+    final displayMates = widget.mates.take(3).toList();
+    _profileImagesStream = auth.getMultipleUserProfileImagesStream(
+      displayMates,
+    );
   }
 
   @override
@@ -60,87 +57,72 @@ class _ArchiveProfileRowWidgetState extends State<ArchiveProfileRowWidget>
     }
 
     final displayMates = widget.mates.take(3).toList();
-    _ensureStreams(displayMates);
 
     return Align(
       alignment: Alignment.centerLeft,
       child: SizedBox(
         height: 19,
         width: (displayMates.length - 1) * 12.0 + 19.0,
-        child: Stack(
-          children:
-              displayMates.asMap().entries.map<Widget>((entry) {
-                final index = entry.key;
-                final mateUid = entry.value;
-
-                return Positioned(
-                  left: index * 12.0,
-                  child: StreamBuilder<String>(
-                    stream: _profileStreams[mateUid],
-                    builder: (context, snapshot) {
-                      // 연결 대기 중이고 데이터가 없을 때만 로딩 표시
-                      if (!snapshot.hasData &&
-                          snapshot.connectionState == ConnectionState.waiting) {
-                        return _buildShimmerCircle();
-                      }
-
-                      final imageUrl = snapshot.data ?? '';
-
-                      if (imageUrl.isEmpty) {
-                        return _buildDefaultCircle();
-                      }
-
-                      return ClipOval(
-                        child: CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          width: 19,
-                          height: 19,
-                          fadeInDuration: Duration.zero,
-                          fadeOutDuration: Duration.zero,
-                          useOldImageOnUrlChange: true,
-                          memCacheHeight: (19 * 3).toInt(),
-                          memCacheWidth: (19 * 3).toInt(),
-                          maxHeightDiskCache: 150,
-                          maxWidthDiskCache: 150,
-                          placeholder: (context, url) => _buildShimmerCircle(),
-                          errorWidget:
-                              (context, url, error) => _buildDefaultCircle(),
-                        ),
+        child: StreamBuilder<Map<String, String>>(
+          stream: _profileImagesStream,
+          builder: (context, snapshot) {
+            // 로딩 중
+            if (!snapshot.hasData &&
+                snapshot.connectionState == ConnectionState.waiting) {
+              return Stack(
+                children:
+                    displayMates.asMap().entries.map<Widget>((entry) {
+                      final index = entry.key;
+                      return Positioned(
+                        left: index * 12.0,
+                        child: _buildShimmerCircle(),
                       );
-                    },
-                  ),
-                );
-              }).toList(),
+                    }).toList(),
+              );
+            }
+
+            // 프로필 이미지 Map 가져오기
+            final profileImages = snapshot.data ?? {};
+
+            return Stack(
+              children:
+                  displayMates.asMap().entries.map<Widget>((entry) {
+                    final index = entry.key;
+                    final mateUid = entry.value;
+                    final imageUrl = profileImages[mateUid] ?? '';
+
+                    return Positioned(
+                      left: index * 12.0,
+                      child:
+                          imageUrl.isEmpty
+                              ? _buildDefaultCircle()
+                              : ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.cover,
+                                  width: 19,
+                                  height: 19,
+                                  fadeInDuration: Duration.zero,
+                                  fadeOutDuration: Duration.zero,
+                                  useOldImageOnUrlChange: true,
+                                  memCacheHeight: (19 * 3).toInt(),
+                                  memCacheWidth: (19 * 3).toInt(),
+                                  maxHeightDiskCache: 150,
+                                  maxWidthDiskCache: 150,
+                                  placeholder:
+                                      (context, url) => _buildShimmerCircle(),
+                                  errorWidget:
+                                      (context, url, error) =>
+                                          _buildDefaultCircle(),
+                                ),
+                              ),
+                    );
+                  }).toList(),
+            );
+          },
         ),
       ),
     );
-  }
-
-  /// Stream 확보 (필요한 것만 생성)
-  void _ensureStreams(List<String> mates) {
-    final auth = _authController;
-    if (auth == null) return;
-
-    for (final mateUid in mates) {
-      if (!_profileStreams.containsKey(mateUid)) {
-        _profileStreams[mateUid] = auth.getUserProfileImageUrlStream(mateUid);
-      }
-    }
-  }
-
-  /// 사용하지 않는 Stream 해제 (메모리 최적화)
-  void _releaseUnusedStreams(List<String> oldMates, List<String> newMates) {
-    final auth = _authController;
-    if (auth == null) return;
-
-    // 더 이상 사용하지 않는 mate들의 Stream 해제
-    for (final oldMate in oldMates) {
-      if (!newMates.contains(oldMate) && _profileStreams.containsKey(oldMate)) {
-        auth.releaseProfileStream(oldMate);
-        _profileStreams.remove(oldMate);
-      }
-    }
   }
 
   Widget _buildEmptyShimmer() {

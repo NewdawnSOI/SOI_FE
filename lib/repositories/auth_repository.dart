@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -186,21 +187,89 @@ class AuthRepository {
         .toList();
   }
 
-  // 프로필 이미지 스트림
-  Stream<List<String>> getProfileImagesStream(List<String> userIds) {
-    if (userIds.isEmpty) return Stream.value([]);
+  /// 여러 사용자의 프로필 이미지를 실시간으로 가져오는 스트림 (UID 기반)
+  ///
+  /// [userIds]: 사용자 UID 리스트 (문서 ID)
+  /// Returns: Stream<Map<userId, profileImageUrl>>
+  Stream<Map<String, String>> getMultipleUserProfileImagesStream(
+    List<String> userIds,
+  ) {
+    if (userIds.isEmpty) {
+      return Stream.value({});
+    }
 
+    final controller = StreamController<Map<String, String>>();
+    final Map<String, String> profileCache = {};
+    final List<StreamSubscription<DocumentSnapshot>> subscriptions = [];
+
+    // 각 사용자의 프로필 이미지를 실시간으로 구독
+    for (final userId in userIds) {
+      final sub = _firestore
+          .collection('users')
+          .doc(userId)
+          .snapshots()
+          .listen(
+            (doc) {
+              if (doc.exists) {
+                final data = doc.data();
+                // 두 가지 필드명 지원 (기존 호환성)
+                final url =
+                    data?['profileImageUrl'] ?? data?['profile_image'] ?? '';
+                profileCache[userId] = url;
+              } else {
+                // 문서가 없으면 빈 문자열
+                profileCache[userId] = '';
+              }
+
+              // 변경사항을 Map으로 emit
+              if (!controller.isClosed) {
+                controller.add(Map.from(profileCache));
+              }
+            },
+            onError: (error) {
+              debugPrint('프로필 이미지 Stream 오류 - UserId: $userId, Error: $error');
+              // 에러 발생 시 빈 문자열로 처리
+              profileCache[userId] = '';
+              if (!controller.isClosed) {
+                controller.add(Map.from(profileCache));
+              }
+            },
+          );
+
+      subscriptions.add(sub);
+    }
+
+    // Stream이 취소되면 모든 Firestore 구독 해제
+    controller.onCancel = () {
+      for (var sub in subscriptions) {
+        sub.cancel();
+      }
+      subscriptions.clear();
+    };
+
+    return controller.stream;
+  }
+
+  /// 단일 사용자의 프로필 이미지를 실시간으로 가져오는 스트림 (UID 기반)
+  ///
+  /// [userId]: 사용자 UID (문서 ID)
+  /// Returns: Stream<String> - 프로필 이미지 URL
+  Stream<String> getUserProfileImageStream(String userId) {
     return _firestore
         .collection('users')
-        .where('id', whereIn: userIds)
+        .doc(userId)
         .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs
-                  .map((doc) => doc['profile_image'] as String)
-                  .where((url) => url.isNotEmpty)
-                  .toList(),
-        );
+        .map<String>((snapshot) {
+          if (!snapshot.exists) return '';
+
+          final data = snapshot.data();
+          // 두 가지 필드명 지원 (기존 호환성)
+          final url = data?['profileImageUrl'] ?? data?['profile_image'] ?? '';
+          return url is String ? url : '';
+        })
+        .handleError((error) {
+          debugPrint('프로필 이미지 Stream 오류 - UserId: $userId, Error: $error');
+        });
   }
 
   // 사용자 삭제

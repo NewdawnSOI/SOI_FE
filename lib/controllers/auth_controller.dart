@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:soi/models/auth_model.dart';
@@ -36,8 +35,7 @@ class AuthController extends ChangeNotifier {
 
   // Stream 관리를 위한 변수들
   final Map<String, StreamController<String>> _profileStreamControllers = {};
-  final Map<String, StreamSubscription<DocumentSnapshot>>
-  _firestoreSubscriptions = {};
+  final Map<String, StreamSubscription<String>> _profileSubscriptions = {};
   final Map<String, int> _streamRefCounts = {};
 
   // Getters
@@ -75,7 +73,17 @@ class AuthController extends ChangeNotifier {
     return await _authService.getUserProfileImageUrlById(userId);
   }
 
-  /// 프로필 이미지 URL Stream 가져오기 (실시간 업데이트)
+  /// 여러 사용자의 프로필 이미지를 실시간으로 가져오는 스트림
+  ///
+  /// [userIds]: 사용자 UID 리스트
+  /// Returns: Stream<Map<userId, profileImageUrl>>
+  Stream<Map<String, String>> getMultipleUserProfileImagesStream(
+    List<String> userIds,
+  ) {
+    return _authService.getMultipleUserProfileImagesStream(userIds);
+  }
+
+  /// 프로필 이미지 URL Stream 가져오기 (실시간 업데이트) - 단일 사용자용
   Stream<String> getUserProfileImageUrlStream(String userId) {
     // 참조 카운트 증가
     _streamRefCounts[userId] = (_streamRefCounts[userId] ?? 0) + 1;
@@ -94,26 +102,17 @@ class AuthController extends ChangeNotifier {
       controller.add(_profileImageCache[userId]!);
     }
 
-    // Firestore 실시간 리스너 설정
-    final subscription = FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .snapshots()
+    // Service를 통해 Firestore 실시간 리스너 설정 (Repository -> Service -> Controller 구조)
+    final subscription = _authService
+        .getUserProfileImageStream(userId)
         .listen(
-          (snapshot) {
-            if (snapshot.exists) {
-              final data = snapshot.data();
-              // 두 가지 필드명 지원 (기존 호환성)
-              final url =
-                  data?['profileImageUrl'] ?? data?['profile_image'] ?? '';
+          (url) {
+            // 캐시 업데이트
+            _profileImageCache[userId] = url;
 
-              // 캐시 업데이트
-              _profileImageCache[userId] = url;
-
-              // Stream에 새 값 emit
-              if (!controller.isClosed) {
-                controller.add(url);
-              }
+            // Stream에 새 값 emit
+            if (!controller.isClosed) {
+              controller.add(url);
             }
           },
           onError: (error) {
@@ -124,7 +123,7 @@ class AuthController extends ChangeNotifier {
           },
         );
 
-    _firestoreSubscriptions[userId] = subscription;
+    _profileSubscriptions[userId] = subscription;
     return controller.stream;
   }
 
@@ -134,9 +133,9 @@ class AuthController extends ChangeNotifier {
 
     if (refCount <= 0) {
       // 참조가 없으면 리소스 정리
-      _firestoreSubscriptions[userId]?.cancel();
+      _profileSubscriptions[userId]?.cancel();
       _profileStreamControllers[userId]?.close();
-      _firestoreSubscriptions.remove(userId);
+      _profileSubscriptions.remove(userId);
       _profileStreamControllers.remove(userId);
       _streamRefCounts.remove(userId);
     } else {
@@ -147,13 +146,13 @@ class AuthController extends ChangeNotifier {
   @override
   void dispose() {
     // 모든 Stream 리소스 정리
-    for (final subscription in _firestoreSubscriptions.values) {
+    for (final subscription in _profileSubscriptions.values) {
       subscription.cancel();
     }
     for (final controller in _profileStreamControllers.values) {
       controller.close();
     }
-    _firestoreSubscriptions.clear();
+    _profileSubscriptions.clear();
     _profileStreamControllers.clear();
     _streamRefCounts.clear();
 
