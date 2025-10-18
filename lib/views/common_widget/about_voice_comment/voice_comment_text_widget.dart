@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-/// 음성 녹음이 비활성화된 상태의 댓글 입력 필드 위젯
-///
-/// 마이크 아이콘과 텍스트 입력 필드를 표시합니다.
+/// 텍스트 댓글을 입력하는 위젯입니다.
+/// 음성 댓글 입력 모드와 전환할 수 있습니다.
+/// 텍스트 댓글을 댓글 바텀 sheet에 표시하는 위젯이 아닙니다.
 class VoiceCommentTextWidget extends StatefulWidget {
   final String photoId;
   final Function(String) onToggleVoiceComment;

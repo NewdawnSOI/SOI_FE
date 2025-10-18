@@ -1,10 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../../../models/comment_record_model.dart';
 import '../../../controllers/emoji_reaction_controller.dart';
 import '../../../controllers/comment_record_controller.dart';
-import '../about_emoji/reaction_row_widget.dart';
 import 'voice_comment_row_widget.dart';
 
 /// 재사용 가능한 음성 댓글 리스트 Bottom Sheet
@@ -109,7 +109,7 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
         children: [
           SizedBox(height: 3.h),
           Text(
-            "댓글",
+            "공감",
             style: TextStyle(
               color: const Color(0xFFF8F8F8),
               fontSize: 18,
@@ -117,7 +117,7 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
               fontWeight: FontWeight.w700,
             ),
           ),
-
+          SizedBox(height: 19.h),
           // 통합 ListView: (리액션들 + 음성 댓글) 하나의 스크롤
           Consumer2<EmojiReactionController, CommentRecordController>(
             builder: (context, reactionController, recordController, _) {
@@ -210,6 +210,7 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                               final reactionUserId =
                                   reaction['uid'] as String? ?? '';
 
+                              // 리액션에 해당하는 댓글 찾기 (프로필 이미지용)
                               CommentRecordModel? commentForReaction;
                               if (reactionUserId.isNotEmpty) {
                                 try {
@@ -221,10 +222,39 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                                 }
                               }
 
-                              return ReactionRow(
-                                data: reaction,
+                              // 리액션을 CommentRecordModel로 변환하여 VoiceCommentRow 사용
+                              final fallbackProfile =
+                                  reaction['profileImageUrl'] as String? ?? '';
+                              final profileImageUrl =
+                                  (commentForReaction
+                                              ?.profileImageUrl
+                                              .isNotEmpty ??
+                                          false)
+                                      ? commentForReaction!.profileImageUrl
+                                      : fallbackProfile;
+
+                              final createdAt = reaction['createdAt'];
+                              final createdDate =
+                                  createdAt is Timestamp
+                                      ? createdAt.toDate()
+                                      : DateTime.now();
+
+                              final reactionComment = CommentRecordModel(
+                                id: reaction['id'] as String? ?? '',
+                                audioUrl: '',
+                                photoId: widget.photoId,
+                                recorderUser: reactionUserId,
+                                createdAt: createdDate,
+                                waveformData: [],
+                                duration: 0,
+                                profileImageUrl: profileImageUrl,
+                                type: CommentType.emoji,
+                                text: reaction['emoji'] as String? ?? '😊',
+                              );
+
+                              return VoiceCommentRow(
+                                comment: reactionComment,
                                 emoji: reaction['emoji'] as String? ?? '',
-                                comment: commentForReaction,
                                 userName: reaction['id'] as String?,
                               );
                             }

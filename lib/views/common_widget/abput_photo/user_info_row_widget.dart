@@ -67,7 +67,7 @@ class UserInfoWidget extends StatelessWidget {
         // 좋아요 버튼 (이모티콘 선택 기능 추가)
         SizedBox(
           height: 50.h,
-          child: LikeButton(photoId: photo.id, categoryId: photo.categoryId),
+          child: EmojiButton(photoId: photo.id, categoryId: photo.categoryId),
         ),
 
         IconButton(

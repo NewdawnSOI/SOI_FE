@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
@@ -6,26 +7,38 @@ import '../../../controllers/comment_audio_controller.dart';
 import '../../../models/comment_record_model.dart';
 import '../../../utils/format_utils.dart';
 import '../abput_photo/user_display_widget.dart';
+import 'reaction_row_widget.dart';
 
 class VoiceCommentRow extends StatelessWidget {
   final CommentRecordModel comment;
   final bool isHighlighted; // 하이라이트 여부
 
+  // 리액션(이모지) 표시를 위한 추가 파라미터
+  final String? emoji;
+  final String? userName;
+
   const VoiceCommentRow({
     super.key,
     required this.comment,
     this.isHighlighted = false, // 기본값 false
+    this.emoji,
+    this.userName,
   });
 
   @override
   Widget build(BuildContext context) {
+    // 이모지 리액션인 경우
+    if (comment.type == CommentType.emoji) {
+      return _buildEmojiReactionRow(context);
+    }
     // 텍스트 댓글인 경우
-    if (comment.type == CommentType.text) {
+    else if (comment.type == CommentType.text) {
       return _buildTextCommentRow(context);
     }
-
     // 음성 댓글인 경우 (기존 로직)
-    return _buildAudioCommentRow(context);
+    else {
+      return _buildAudioCommentRow(context);
+    }
   }
 
   /// 텍스트 댓글 UI
@@ -106,6 +119,29 @@ class VoiceCommentRow extends StatelessWidget {
         child: content,
       );
     }
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 27.w),
+      child: content,
+    );
+  }
+
+  /// 이모지 리액션 UI
+  Widget _buildEmojiReactionRow(BuildContext context) {
+    // ReactionRow 위젯 재사용
+    final reactionData = {
+      'profileImageUrl': comment.profileImageUrl,
+      'uid': comment.recorderUser,
+      'createdAt': Timestamp.fromDate(comment.createdAt),
+      'id': userName ?? comment.recorderUser,
+      'emoji': emoji ?? comment.text ?? '😊',
+    };
+
+    var content = ReactionRow(
+      data: reactionData,
+      emoji: emoji ?? comment.text ?? '😊',
+      userName: userName,
+    );
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 27.w),

@@ -5,6 +5,7 @@ import 'package:flutter/painting.dart'; // Offset를 위한 import
 enum CommentType {
   audio, // 음성 댓글
   text, // 텍스트 댓글
+  emoji, // 이모지 댓글
 }
 
 class CommentRecordModel {

@@ -1,28 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_reaction_button/flutter_reaction_button.dart';
 
 import '../../../controllers/emoji_reaction_controller.dart';
 import '../../../controllers/auth_controller.dart';
-import '../about_emoji/emoji_overay_manager.dart';
+import '../../../models/emoji_reaction_model.dart';
 
-class LikeButton extends StatefulWidget {
+class EmojiButton extends StatefulWidget {
   final String photoId;
   final String categoryId; // Firestore 경로 계산용
 
-  const LikeButton({
+  const EmojiButton({
     super.key,
     required this.photoId,
     required this.categoryId,
   });
 
   @override
-  State<LikeButton> createState() => _LikeButtonState();
+  State<EmojiButton> createState() => _EmojiButtonState();
 }
 
-class _LikeButtonState extends State<LikeButton> {
-  final GlobalKey _buttonKey = GlobalKey();
-
+class _EmojiButtonState extends State<EmojiButton> {
   @override
   void initState() {
     super.initState();
@@ -41,7 +40,6 @@ class _LikeButtonState extends State<LikeButton> {
           );
         }
       }
-      // 초기 로드 완료 후 별도 상태 사용 불필요
     });
   }
 
@@ -52,78 +50,104 @@ class _LikeButtonState extends State<LikeButton> {
         final selectedReaction = reactionController.getPhotoReaction(
           widget.photoId,
         );
-        final hasReaction = selectedReaction != null;
 
-        return GestureDetector(
-          key: _buttonKey,
-          onTap: () async {
+        // flutter_reaction_button을 위한 Reaction 리스트 생성
+        final reactions =
+            EmojiConstants.availableEmojis.map((emoji) {
+              return Reaction<EmojiReactionModel>(
+                value: emoji,
+                icon: Text(emoji.emoji, style: TextStyle(fontSize: 22.sp)),
+              );
+            }).toList();
+
+        // 초기 선택된 리액션 찾기
+        Reaction<EmojiReactionModel>? selectedReactionObj;
+        if (selectedReaction != null) {
+          try {
+            selectedReactionObj = reactions.firstWhere(
+              (r) => r.value?.emoji == selectedReaction.emoji,
+            );
+          } catch (_) {}
+        }
+
+        return ReactionButton<EmojiReactionModel>(
+          onReactionChanged: (Reaction<EmojiReactionModel>? reaction) async {
             final auth = context.read<AuthController>();
             final userId = auth.getUserId;
-            if (userId == null || userId.isEmpty) return; // 로그인 전
+            if (userId == null || userId.isEmpty) return;
 
-            if (hasReaction) {
+            if (reaction == null || reaction.value == null) {
+              // 리액션 제거
               reactionController.removePhotoReaction(
                 categoryId: widget.categoryId,
                 photoId: widget.photoId,
                 userId: userId,
               );
             } else {
-              // 사용자 메타 미리 로드
+              // 리액션 설정
               String userHandle = '';
               String userName = '';
+              String profileUrl = '';
+
               try {
                 userHandle = await auth.getUserID();
               } catch (_) {}
               try {
                 userName = await auth.getUserName();
               } catch (_) {}
-              EmojiOverlayManager.showEmojiPicker(
-                context: context,
-                buttonKey: _buttonKey,
-                onEmojiSelected: (emoji) async {
-                  String profileUrl = '';
-                  try {
-                    profileUrl = await auth.getUserProfileImageUrl();
-                  } catch (_) {}
-                  reactionController.setPhotoReaction(
-                    categoryId: widget.categoryId,
-                    photoId: widget.photoId,
-                    userId: userId,
-                    userHandle: userHandle,
-                    userName: userName,
-                    profileImageUrl: profileUrl,
-                    reaction: emoji,
-                  );
-                },
+              try {
+                profileUrl = await auth.getUserProfileImageUrl();
+              } catch (_) {}
+
+              reactionController.setPhotoReaction(
+                categoryId: widget.categoryId,
+                photoId: widget.photoId,
+                userId: userId,
+                userHandle: userHandle,
+                userName: userName,
+                profileImageUrl: profileUrl,
+                reaction: reaction.value!,
               );
             }
           },
-          child: SizedBox(
-            width: 40.w,
-            height: 40.h,
-            child: Center(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 150),
-                switchInCurve: Curves.easeOutBack,
-                switchOutCurve: Curves.easeIn,
-                transitionBuilder:
-                    (widget, anim) =>
-                        ScaleTransition(scale: anim, child: widget),
-                child:
-                    hasReaction
-                        ? Text(
-                          selectedReaction.emoji,
-                          key: const ValueKey('emoji'),
-                          style: TextStyle(fontSize: 33.sp),
-                        )
-                        : Image.asset(
-                          'assets/like_icon.png',
-                          key: const ValueKey('like_icon'),
-                          width: 33.w,
-                          height: 33.h,
-                        ),
-              ),
+          reactions: reactions,
+          selectedReaction: selectedReactionObj,
+          boxColor: const Color(0xFF2A2A2A),
+          boxRadius: (13.56).r,
+          boxPadding: EdgeInsets.only(left: 8.w, right: 12.w),
+          boxElevation: 0,
+          itemSize: Size(20.w, 33.h),
+          itemsSpacing: 15,
+
+          // 0.0 < itemScale < 1.0 범위 안에 있어야 함.
+          itemScale: 0.9,
+          direction: ReactionsBoxAlignment.rtl,
+          // toggle을 false로 설정하면 탭으로 오버레이 표시
+          toggle: false,
+          child: Container(
+            width: 33.w,
+            height: 33.h,
+            decoration: BoxDecoration(
+              color: const Color(0xFF323232),
+              shape: BoxShape.circle,
             ),
+            alignment: Alignment.center,
+            child:
+                selectedReaction != null
+                    ? Text(
+                      selectedReaction.emoji,
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 25,
+                        fontFamily: 'Pretendard Variable',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                    : Image.asset(
+                      'assets/like_icon.png',
+                      width: (25.38).w,
+                      height: (25.38).h,
+                    ),
           ),
         );
       },

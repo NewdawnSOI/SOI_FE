@@ -105,7 +105,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      resizeToAvoidBottomInset: true, // 키보드가 올라올 때 레이아웃 조정
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: Colors.black,
@@ -188,7 +188,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
             userNames: _userNames,
             voiceCommentActiveStates: _voiceCommentActiveStates,
             voiceCommentSavedStates: _voiceCommentSavedStates,
-            pendingTextComments: _pendingTextComments, // 텍스트 댓글 pending 상태 전달
+            pendingTextComments: _pendingTextComments,
             onToggleAudio: _toggleAudio,
             onToggleVoiceComment: _toggleVoiceComment,
             onVoiceCommentCompleted: (
@@ -216,7 +216,6 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
               setState(() {
                 _voiceCommentActiveStates[photoId] = false;
                 _pendingVoiceComments.remove(photoId);
-                // Removed: _pendingProfilePositions - position in pending comment
               });
             },
             onProfileImageDragged: (photoId, absolutePosition) {
@@ -355,17 +354,12 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
           if (relative != null) {
             _commentPositions[comment.id] = relative;
           }
-          // Removed: _commentProfileImageUrls - no longer needed
         }
-
-        // Removed: _droppedProfileImageUrls and _profileImagePositions
-        // These were photoId-based and caused conflicts with multiple comments
       } else {
         _voiceCommentSavedStates[photoId] = false;
         final previousIds = _savedCommentIds[photoId] ?? const <String>[];
         _savedCommentIds.remove(photoId);
-        // Removed: _profileImagePositions, _commentProfileImageUrls, _droppedProfileImageUrls
-        // Removed: _pendingProfilePositions - position stored in pending comment
+
         _autoPlacementIndices.remove(photoId);
         for (final commentId in previousIds) {
           _commentPositions.remove(commentId);
@@ -384,9 +378,6 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       absolutePosition,
       imageSize,
     );
-
-    // Removed: _profileImagePositions[photoId] = relativePosition
-    // This was photoId-based and caused conflicts with multiple comments
 
     // Store position in pending comment object (not in photoId-based Map)
     final pending = _pendingVoiceComments[photoId];
@@ -473,8 +464,6 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         setState(() {
           _pendingTextComments[photoId] = true;
           _voiceCommentSavedStates[photoId] = false;
-          // Removed: _profileImagePositions and _commentProfileImageUrls
-          // Pending position is already stored in _pendingVoiceComments and _pendingProfilePositions
         });
       }
     } catch (e) {
@@ -515,8 +504,6 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         setState(() {
           _voiceCommentSavedStates[photoId] = false;
           _voiceCommentActiveStates[photoId] = true; // 위젯 유지
-          // Removed: _profileImagePositions and _commentProfileImageUrls
-          // Pending data is stored in _pendingVoiceComments
         });
       }
     } catch (e) {
@@ -584,11 +571,11 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
       void applyUpdates() {
         _savedCommentIds[photoId] = updatedIds;
-        // Removed: _commentProfileImageUrls and _droppedProfileImageUrls
-        // Profile image is stored in each comment's profileImageUrl field
-        // Removed: _pendingProfilePositions - position stored in pending comment
+
+        // 텍스트 댓글 pending 상태 제거
+        // 음성 댓글도 동일하게 제거
         _pendingVoiceComments.remove(photoId);
-        _pendingTextComments.remove(photoId); // 텍스트 댓글 pending 상태 제거
+        _pendingTextComments.remove(photoId);
 
         /// 추가: 저장 직후 다시 아이콘 모드로 돌려주기
         _voiceCommentActiveStates[photoId] = false;
@@ -613,8 +600,6 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       _voiceCommentActiveStates[photoId] = false;
       _pendingVoiceComments.remove(photoId);
       _pendingTextComments.remove(photoId); // 텍스트 댓글 pending 상태 제거
-      // Removed: _pendingProfilePositions - position stored in pending comment
-      // Removed: _profileImagePositions - no longer needed
     });
   }
 
@@ -649,9 +634,6 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
         occupiedPositions.add(cachedPosition);
       }
     }
-
-    // Removed: _profileImagePositions[photoId] check
-    // Check pending position from pending comment object
 
     final pending = _pendingVoiceComments[photoId];
     final pendingPosition = pending?.relativePosition;
