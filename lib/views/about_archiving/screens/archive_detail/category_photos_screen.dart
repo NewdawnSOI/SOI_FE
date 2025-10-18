@@ -15,6 +15,7 @@ import '../../components/category_members_bottom_sheet.dart';
 import '../category_edit/category_editor_screen.dart';
 
 // 카테고리 사진 화면
+// 카태고리 내에서 사진 하나를 개별적으로 보여주는 화면
 class CategoryPhotosScreen extends StatefulWidget {
   final CategoryDataModel category;
 

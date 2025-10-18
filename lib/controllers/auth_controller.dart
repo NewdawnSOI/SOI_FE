@@ -33,11 +33,6 @@ class AuthController extends ChangeNotifier {
   static const int _maxCacheSize = 100;
   final Map<String, bool> _loadingStates = {}; // 로딩 상태 관리
 
-  // Stream 관리를 위한 변수들
-  final Map<String, StreamController<String>> _profileStreamControllers = {};
-  final Map<String, StreamSubscription<String>> _profileSubscriptions = {};
-  final Map<String, int> _streamRefCounts = {};
-
   // Getters
   String get verificationId => _verificationId;
   List<String> get searchResults => _searchResults;
@@ -84,79 +79,9 @@ class AuthController extends ChangeNotifier {
   }
 
   /// 프로필 이미지 URL Stream 가져오기 (실시간 업데이트) - 단일 사용자용
+  /// Service에서 제공하는 Stream을 그대로 전달
   Stream<String> getUserProfileImageUrlStream(String userId) {
-    // 참조 카운트 증가
-    _streamRefCounts[userId] = (_streamRefCounts[userId] ?? 0) + 1;
-
-    // 이미 StreamController가 존재하면 기존 stream 반환
-    if (_profileStreamControllers.containsKey(userId)) {
-      return _profileStreamControllers[userId]!.stream;
-    }
-
-    // 새 BroadcastStreamController 생성 (여러 리스너 허용)
-    final controller = StreamController<String>.broadcast();
-    _profileStreamControllers[userId] = controller;
-
-    // 캐시된 값이 있으면 즉시 emit (빠른 초기 로딩)
-    if (_profileImageCache.containsKey(userId)) {
-      controller.add(_profileImageCache[userId]!);
-    }
-
-    // Service를 통해 Firestore 실시간 리스너 설정 (Repository -> Service -> Controller 구조)
-    final subscription = _authService
-        .getUserProfileImageStream(userId)
-        .listen(
-          (url) {
-            // 캐시 업데이트
-            _profileImageCache[userId] = url;
-
-            // Stream에 새 값 emit
-            if (!controller.isClosed) {
-              controller.add(url);
-            }
-          },
-          onError: (error) {
-            debugPrint('프로필 이미지 Stream 오류 - UserId: $userId, Error: $error');
-            if (!controller.isClosed) {
-              controller.add(''); // 에러 시 빈 문자열
-            }
-          },
-        );
-
-    _profileSubscriptions[userId] = subscription;
-    return controller.stream;
-  }
-
-  /// 프로필 이미지 Stream 참조 해제
-  void releaseProfileStream(String userId) {
-    final refCount = (_streamRefCounts[userId] ?? 1) - 1;
-
-    if (refCount <= 0) {
-      // 참조가 없으면 리소스 정리
-      _profileSubscriptions[userId]?.cancel();
-      _profileStreamControllers[userId]?.close();
-      _profileSubscriptions.remove(userId);
-      _profileStreamControllers.remove(userId);
-      _streamRefCounts.remove(userId);
-    } else {
-      _streamRefCounts[userId] = refCount;
-    }
-  }
-
-  @override
-  void dispose() {
-    // 모든 Stream 리소스 정리
-    for (final subscription in _profileSubscriptions.values) {
-      subscription.cancel();
-    }
-    for (final controller in _profileStreamControllers.values) {
-      controller.close();
-    }
-    _profileSubscriptions.clear();
-    _profileStreamControllers.clear();
-    _streamRefCounts.clear();
-
-    super.dispose();
+    return _authService.getUserProfileImageStream(userId);
   }
 
   /// 사용자 정보 가져오기

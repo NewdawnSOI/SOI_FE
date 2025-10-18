@@ -30,43 +30,16 @@ class PhotoGridItem extends StatefulWidget {
 }
 
 class _PhotoGridItemState extends State<PhotoGridItem> {
-  String _userProfileImageUrl = '';
-  bool _isLoadingProfile = true;
-  bool _hasLoadedOnce = false; // 한 번 로드했는지 추적
-
   // AuthController 참조 저장용
   AuthController? _authController;
-
-  // 메모리 최적화: static 캐시 크기 대폭 축소
-  static final Map<String, String> _profileImageCache = {};
-  static const int _maxCacheSize = 20; // ❌ 100 -> ✅ 20으로 대폭 축소
 
   // 오디오 관련 상태
   bool _hasAudio = false;
   List<double>? _waveformData;
 
-  // 메모리 최적화된 프로필 이미지 캐시 관리
-  static String? _getCachedProfileImage(String userId) {
-    return _profileImageCache[userId];
-  }
-
-  static void _setCachedProfileImage(String userId, String imageUrl) {
-    // LRU 방식: 캐시가 가득 차면 가장 오래된 항목 제거
-    if (_profileImageCache.length >= _maxCacheSize) {
-      String oldestKey = _profileImageCache.keys.first;
-      _profileImageCache.remove(oldestKey);
-      debugPrint('Profile cache cleaned - removed: $oldestKey');
-    }
-    _profileImageCache[userId] = imageUrl;
-  }
-
   @override
   void initState() {
     super.initState();
-    if (!_hasLoadedOnce) {
-      _loadUserProfileImage();
-      _hasLoadedOnce = true;
-    }
 
     // 파형 데이터 초기화
     _initializeWaveformData();
@@ -76,27 +49,8 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // AuthController 참조 저장 및 리스너 등록
-    if (_authController == null) {
-      _authController = Provider.of<AuthController>(context, listen: false);
-      _authController!.addListener(_onAuthControllerChanged);
-    }
-  }
-
-  @override
-  void dispose() {
-    // AuthController 리스너 제거 (저장된 참조 사용)
-    _authController?.removeListener(_onAuthControllerChanged);
-    super.dispose();
-  }
-
-  /// AuthController 변경 감지 시 프로필 이미지 캐시 무효화
-  void _onAuthControllerChanged() async {
-    // 개선된 캐시에서 해당 사용자 제거
-    _profileImageCache.remove(widget.photo.userID);
-
-    // 프로필 이미지 다시 로드
-    await _loadUserProfileImage();
+    // AuthController 참조 저장
+    _authController ??= Provider.of<AuthController>(context, listen: false);
   }
 
   void _initializeWaveformData() {
@@ -123,45 +77,6 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
       setState(() {
         _hasAudio = false;
       });
-    }
-  }
-
-  Future<void> _loadUserProfileImage() async {
-    // 먼저 캐시 확인
-    String? cachedUrl = _getCachedProfileImage(widget.photo.userID);
-    if (cachedUrl != null) {
-      setState(() {
-        _userProfileImageUrl = cachedUrl;
-        _isLoadingProfile = false;
-      });
-      return;
-    }
-
-    try {
-      final authController = Provider.of<AuthController>(
-        context,
-        listen: false,
-      );
-
-      // AuthController의 캐싱 메서드 사용 (feed_home과 동일)
-      final profileImageUrl = await authController
-          .getUserProfileImageUrlWithCache(widget.photo.userID);
-
-      // 개선된 캐시에 저장
-      _setCachedProfileImage(widget.photo.userID, profileImageUrl);
-
-      if (mounted) {
-        setState(() {
-          _userProfileImageUrl = profileImageUrl;
-          _isLoadingProfile = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingProfile = false;
-        });
-      }
     }
   }
 
@@ -229,80 +144,81 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
                     width: 28.w,
                     height: 28.h,
                     decoration: BoxDecoration(shape: BoxShape.circle),
-                    child:
-                        _isLoadingProfile
-                            ? Shimmer.fromColors(
-                              baseColor: Colors.grey.shade800,
-                              highlightColor: Colors.grey.shade700,
-                              period: const Duration(milliseconds: 1500),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
+                    child: StreamBuilder<String>(
+                      stream: _authController?.getUserProfileImageUrlStream(
+                        widget.photo.userID,
+                      ),
+                      builder: (context, snapshot) {
+                        // 로딩 중이거나 데이터가 없을 때
+                        if (!snapshot.hasData) {
+                          return Shimmer.fromColors(
+                            baseColor: Colors.grey.shade800,
+                            highlightColor: Colors.grey.shade700,
+                            period: const Duration(milliseconds: 1500),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade800,
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  width: 1,
                                 ),
-                                clipBehavior: Clip.antiAlias,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade800,
-                                    border: Border.all(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                      width: 1,
-                                    ),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                            )
-                            : _userProfileImageUrl.isNotEmpty
-                            ? Consumer<AuthController>(
-                              builder: (context, authController, child) {
-                                return CachedNetworkImage(
-                                  key: ValueKey(
-                                    'profile_${widget.photo.userID}_${_userProfileImageUrl.hashCode}',
-                                  ),
-                                  imageUrl: _userProfileImageUrl,
-                                  memCacheHeight: ((28.w) * 1).toInt(),
-                                  memCacheWidth: ((28.h) * 1).toInt(),
-                                  imageBuilder:
-                                      (context, imageProvider) => CircleAvatar(
-                                        radius: 16,
-                                        backgroundImage: imageProvider,
-                                      ),
-                                  placeholder:
-                                      (context, url) => Shimmer.fromColors(
-                                        baseColor: Colors.grey.shade800,
-                                        highlightColor: Colors.grey.shade700,
-                                        period: const Duration(
-                                          milliseconds: 1500,
-                                        ),
-                                        child: CircleAvatar(
-                                          radius: 16,
-                                          backgroundColor: Colors.grey.shade800,
-                                        ),
-                                      ),
-                                  errorWidget:
-                                      (context, url, error) => CircleAvatar(
-                                        radius: 16,
-                                        backgroundColor: Colors.grey.shade700,
-                                        child: Icon(
-                                          Icons.person,
-                                          color: Colors.white,
-                                          size: 18.sp,
-                                        ),
-                                      ),
-                                );
-                              },
-                            )
-                            : CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Colors.grey.shade700,
-                              child: Icon(
-                                Icons.person,
-                                color: Colors.white,
-                                size: 18.sp,
+                                shape: BoxShape.circle,
                               ),
                             ),
+                          );
+                        }
+
+                        final imageUrl = snapshot.data!;
+
+                        // URL이 비어있으면 기본 아이콘
+                        if (imageUrl.isEmpty) {
+                          return CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Colors.grey.shade700,
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 18.sp,
+                            ),
+                          );
+                        }
+
+                        // 프로필 이미지 표시
+                        return CachedNetworkImage(
+                          key: ValueKey(
+                            'profile_${widget.photo.userID}_${imageUrl.hashCode}',
+                          ),
+                          imageUrl: imageUrl,
+                          memCacheHeight: (28.w * 2).toInt(),
+                          memCacheWidth: (28.h * 2).toInt(),
+                          imageBuilder:
+                              (context, imageProvider) => CircleAvatar(
+                                radius: 14,
+                                backgroundImage: imageProvider,
+                              ),
+                          placeholder:
+                              (context, url) => Shimmer.fromColors(
+                                baseColor: Colors.grey.shade800,
+                                highlightColor: Colors.grey.shade700,
+                                period: const Duration(milliseconds: 1500),
+                                child: CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: Colors.grey.shade800,
+                                ),
+                              ),
+                          errorWidget:
+                              (context, url, error) => CircleAvatar(
+                                radius: 14,
+                                backgroundColor: Colors.grey.shade700,
+                                child: Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 18.sp,
+                                ),
+                              ),
+                        );
+                      },
+                    ),
                   ),
                   SizedBox(width: 7.w), // 반응형 간격
                   Expanded(
