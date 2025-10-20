@@ -76,7 +76,17 @@ class _EmojiButtonState extends State<EmojiButton> {
             final userId = auth.getUserId;
             if (userId == null || userId.isEmpty) return;
 
-            if (reaction == null || reaction.value == null) {
+            final currentReaction = reactionController.getPhotoReaction(
+              widget.photoId,
+            );
+
+            final bool shouldRemove =
+                reaction == null ||
+                reaction.value == null ||
+                (currentReaction != null &&
+                    reaction.value?.emoji == currentReaction.emoji);
+
+            if (shouldRemove) {
               // 리액션 제거
               reactionController.removePhotoReaction(
                 categoryId: widget.categoryId,
@@ -122,6 +132,7 @@ class _EmojiButtonState extends State<EmojiButton> {
           // 0.0 < itemScale < 1.0 범위 안에 있어야 함.
           itemScale: 0.9,
           direction: ReactionsBoxAlignment.rtl,
+
           // toggle을 false로 설정하면 탭으로 오버레이 표시
           toggle: false,
           child: Container(
@@ -134,13 +145,17 @@ class _EmojiButtonState extends State<EmojiButton> {
             alignment: Alignment.center,
             child:
                 selectedReaction != null
-                    ? Text(
-                      selectedReaction.emoji,
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 25,
-                        fontFamily: 'Pretendard Variable',
-                        fontWeight: FontWeight.w600,
+                    ? Padding(
+                      padding: EdgeInsets.only(top: 1.h),
+                      child: Text(
+                        selectedReaction.emoji,
+
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: (25.38).sp,
+                          fontFamily: 'Pretendard Variable',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     )
                     : Image.asset(

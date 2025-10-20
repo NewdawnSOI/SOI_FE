@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -10,6 +11,8 @@ import '../../controllers/auth_controller.dart';
 import 'photo_editor_screen.dart';
 import 'package:eva_icons_flutter/eva_icons_flutter.dart';
 import 'package:photo_manager/photo_manager.dart';
+
+enum _PendingVideoAction { none, stop, cancel }
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -52,6 +55,21 @@ class _CameraScreenState extends State<CameraScreen>
   bool _isLoadingGallery = false;
   String? _galleryError;
 
+  // 비디오 녹화 상태 관리
+  bool _isVideoRecording = false;
+
+  // 비디오 녹화 후 처리
+  StreamSubscription<String>? _videoRecordedSubscription;
+
+  // 비디오 녹화 오류 처리
+  StreamSubscription<String>? _videoErrorSubscription;
+
+  // 비디오 녹화 중 상태 관리
+  _PendingVideoAction _pendingVideoAction = _PendingVideoAction.none;
+
+  // 비디오 녹화 중 상태 관리
+  bool _videoStartInFlight = false;
+
   // IndexedStack에서 상태 유지
   @override
   bool get wantKeepAlive => true;
@@ -61,6 +79,8 @@ class _CameraScreenState extends State<CameraScreen>
   void initState() {
     super.initState();
 
+    _setupVideoListeners();
+
     // 앱 라이프사이클 옵저버 등록
     WidgetsBinding.instance.addObserver(this);
 
@@ -68,7 +88,9 @@ class _CameraScreenState extends State<CameraScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // FutureBuilder 연동을 위해 Future 보관
       _cameraInitialization = _initializeCameraAsync();
+
       // 알림 초기화는 전환에 영향 없도록 지연 실행
+      // microtask로 실행하여 다른 작업과 상관없이 실행되도록 한다.
       Future.microtask(_initializeNotifications);
     });
   }
@@ -87,11 +109,13 @@ class _CameraScreenState extends State<CameraScreen>
           });
         }
 
-        // 부가 작업은 화면 노출 후 지연 실행 (체감 속도 개선)
+        // 갤러리 첫 이미지를 microtask로 가져온다.
+        // 다른 작업과 상관없이 실행되도록 한다.
         Future.microtask(() => _loadFirstGalleryImage());
+
+        // 디바이스별 사용 가능한 줌 레벨을 가져온다.
         Future.microtask(() => _loadAvailableZoomLevels());
       } catch (e) {
-        // Camera initialization failed with error: $e
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -154,6 +178,68 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
+  // 비디오 녹화 이벤트 리스너 설정
+  /// 이 코드는 비디오 녹화 기능을 위한 이벤트 리스너를 정의합니다.
+  /// 카메라 화면 내에서 비디오 녹화 프로세스의 시작, 중지 또는 관리를
+  /// 관련된 특정 이벤트를 수신 대기합니다. 이 리스너는 사용자 상호작용이나
+  /// 시스템 트리거와 관련된 비디오 녹화를 효과적으로 처리할 수 있도록 보장합니다.
+  void _setupVideoListeners() {
+    // 비디오 녹화 시에 처리
+    _videoRecordedSubscription = _cameraService.onVideoRecorded.listen((
+      String path,
+    ) {
+      if (!mounted) return;
+
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+
+      setState(() {
+        _isVideoRecording = false;
+      });
+      _videoStartInFlight = false;
+      _pendingVideoAction = _PendingVideoAction.none;
+
+      if (path.isNotEmpty) {
+        // 동영상 저장 후 처리
+        Future.microtask(() => _cameraService.refreshGalleryPreview());
+
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('동영상이 저장되었습니다.'),
+            backgroundColor: const Color(0xFF5A5A5A),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    });
+
+    // 비디오 녹화 오류시에 처리
+    _videoErrorSubscription = _cameraService.onVideoError.listen((
+      String message,
+    ) {
+      if (!mounted) return;
+
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+
+      setState(() {
+        _isVideoRecording = false;
+      });
+      _videoStartInFlight = false;
+      _pendingVideoAction = _PendingVideoAction.none;
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: const Color(0xFFD9534F),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    });
+  }
+
   // 개선된 갤러리 첫 번째 이미지 로딩
   Future<void> _loadFirstGalleryImage() async {
     if (_isLoadingGallery) return;
@@ -189,6 +275,15 @@ class _CameraScreenState extends State<CameraScreen>
     // 앱 라이프사이클 옵저버 해제
     WidgetsBinding.instance.removeObserver(this);
 
+    _videoRecordedSubscription?.cancel();
+    _videoErrorSubscription?.cancel();
+
+    if (_isVideoRecording) {
+      unawaited(_cameraService.cancelVideoRecording());
+    }
+    _videoStartInFlight = false;
+    _pendingVideoAction = _PendingVideoAction.none;
+
     PaintingBinding.instance.imageCache.clear();
 
     super.dispose();
@@ -209,6 +304,11 @@ class _CameraScreenState extends State<CameraScreen>
     // 앱이 비활성화될 때 카메라 리소스 정리
     else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
+      if (_isVideoRecording ||
+          _videoStartInFlight ||
+          _pendingVideoAction != _PendingVideoAction.none) {
+        unawaited(_stopVideoRecording(isCancelled: true));
+      }
       _cameraService.pauseCamera();
     }
   }
@@ -272,6 +372,76 @@ class _CameraScreenState extends State<CameraScreen>
       // 추가 예외 처리
       // Unexpected error occurred during picture taking: $e
     }
+  }
+
+  Future<void> _startVideoRecording() async {
+    if (_isVideoRecording) {
+      return;
+    }
+
+    _videoStartInFlight = true;
+    final bool started = await _cameraService.startVideoRecording();
+    if (!mounted) {
+      _videoStartInFlight = false;
+      return;
+    }
+
+    _videoStartInFlight = false;
+    if (started) {
+      setState(() {
+        _isVideoRecording = true;
+      });
+
+      if (_pendingVideoAction != _PendingVideoAction.none) {
+        final nextAction = _pendingVideoAction;
+        _pendingVideoAction = _PendingVideoAction.none;
+
+        if (nextAction == _PendingVideoAction.stop) {
+          await _stopVideoRecording();
+        } else if (nextAction == _PendingVideoAction.cancel) {
+          await _stopVideoRecording(isCancelled: true);
+        }
+      }
+    } else {
+      setState(() {
+        _isVideoRecording = false;
+      });
+      _pendingVideoAction = _PendingVideoAction.none;
+
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('동영상 녹화를 시작할 수 없습니다.'),
+          backgroundColor: Color(0xFFD9534F),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _stopVideoRecording({bool isCancelled = false}) async {
+    if (!_isVideoRecording) {
+      if (!_videoStartInFlight) {
+        return;
+      }
+      _pendingVideoAction =
+          isCancelled ? _PendingVideoAction.cancel : _PendingVideoAction.stop;
+      return;
+    }
+
+    if (isCancelled) {
+      await _cameraService.cancelVideoRecording();
+    } else {
+      await _cameraService.stopVideoRecording();
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isVideoRecording = false;
+    });
+    _pendingVideoAction = _PendingVideoAction.none;
   }
 
   /// 갤러리 콘텐츠 빌드 (로딩/에러/이미지 상태 처리)
@@ -402,6 +572,40 @@ class _CameraScreenState extends State<CameraScreen>
     } on PlatformException {
       // Camera switching error occurred: ${e.message}
     }
+  }
+
+  // 녹화 상태를 표시하는 위젯
+  Widget _buildRecordingIndicator() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 10.w,
+            height: 10.w,
+            decoration: const BoxDecoration(
+              color: Colors.redAccent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          SizedBox(width: 8.w),
+          Text(
+            'REC',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14.sp,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // 줌 레벨 변경 요청
@@ -645,6 +849,12 @@ class _CameraScreenState extends State<CameraScreen>
                         ),
                       ),
 
+                      if (_isVideoRecording)
+                        Positioned(
+                          top: 12.h,
+                          child: _buildRecordingIndicator(),
+                        ),
+
                       // 플래시 버튼
                       IconButton(
                         onPressed: _toggleFlash,
@@ -712,13 +922,51 @@ class _CameraScreenState extends State<CameraScreen>
                   ),
                 ),
 
-                // 촬영 버튼 - 개선된 반응형
-                IconButton(
-                  onPressed: _takePicture,
-                  icon: Image.asset(
-                    "assets/take_picture.png",
-                    width: 65,
-                    height: 65,
+                // 촬영 버튼 및 비디오 녹화 제스처
+                SizedBox(
+                  width: 90.w,
+                  child: Center(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _takePicture,
+                      onLongPressStart: (_) async {
+                        await _startVideoRecording();
+                      },
+                      onLongPressEnd: (_) async {
+                        await _stopVideoRecording();
+                      },
+                      onLongPressCancel: () async {
+                        if (!_isVideoRecording &&
+                            !_videoStartInFlight &&
+                            _pendingVideoAction == _PendingVideoAction.none) {
+                          return;
+                        }
+                        await _stopVideoRecording(isCancelled: true);
+                      },
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Image.asset(
+                            "assets/take_picture.png",
+                            width: 65,
+                            height: 65,
+                          ),
+                          if (_isVideoRecording)
+                            Container(
+                              width: 65,
+                              height: 65,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.red.withOpacity(0.25),
+                                border: Border.all(
+                                  color: Colors.redAccent,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
 

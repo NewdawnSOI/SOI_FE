@@ -1,13 +1,20 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'package:photo_manager/photo_manager.dart';
 
 // 🎯 네이티브 카메라 & 오디오 서비스
 // Android CameraX와 MediaRecorder를 Flutter MethodChannel로 연동
 class CameraService {
   static const MethodChannel _cameraChannel = MethodChannel('com.soi.camera');
+  static const Duration _defaultVideoMaxDuration = Duration(seconds: 30);
+
+  CameraService() {
+    _cameraChannel.setMethodCallHandler(_handleNativeMethodCall);
+  }
 
   // 카메라 세션 상태 추적
   bool _isSessionActive = false;
@@ -29,11 +36,53 @@ class CameraService {
   final bool _isRecording = false;
   String? _currentRecordingPath;
 
+  // 비디오 녹화 상태 관리
+  bool _isVideoRecording = false;
+
+  // 녹화된 비디오 경로 및 이벤트 스트림
+  String? _currentVideoPath;
+  final StreamController<String> _videoRecordedController =
+      StreamController<String>.broadcast();
+  final StreamController<String> _videoErrorController =
+      StreamController<String>.broadcast();
+
   // Getters
   String? get latestGalleryImagePath => _latestGalleryImagePath;
   bool get isLoadingGalleryImage => _isLoadingGalleryImage;
   bool get isRecording => _isRecording;
   String? get currentRecordingPath => _currentRecordingPath;
+  bool get isVideoRecording => _isVideoRecording;
+  String? get currentVideoPath => _currentVideoPath;
+  Stream<String> get onVideoRecorded => _videoRecordedController.stream;
+  Stream<String> get onVideoError => _videoErrorController.stream;
+
+  Future<void> _handleNativeMethodCall(MethodCall call) async {
+    switch (call.method) {
+      case 'onVideoRecorded':
+        final Map<dynamic, dynamic>? args =
+            call.arguments as Map<dynamic, dynamic>?;
+        final String? path = args?['path'] as String?;
+        _isVideoRecording = false;
+        if (path != null && path.isNotEmpty) {
+          _currentVideoPath = path;
+          if (!_videoRecordedController.isClosed) {
+            _videoRecordedController.add(path);
+          }
+        }
+        break;
+      case 'onVideoError':
+        final Map<dynamic, dynamic>? args =
+            call.arguments as Map<dynamic, dynamic>?;
+        final String message =
+            (args?['message'] as String?) ?? 'Unknown video error';
+        _isVideoRecording = false;
+        _currentVideoPath = null;
+        if (!_videoErrorController.isClosed) {
+          _videoErrorController.add(message);
+        }
+        break;
+    }
+  }
 
   // 이미지 선택기 인스턴스
   final ImagePicker _imagePicker = ImagePicker();
@@ -87,12 +136,12 @@ class CameraService {
     }
   }
 
-  // ✅ 갤러리 미리보기 캐시 새로고침 (사진 촬영 후 호출)
+  // 갤러리 미리보기 캐시 새로고침 (사진 촬영 후 호출)
   Future<void> refreshGalleryPreview() async {
     await loadLatestGalleryImage();
   }
 
-  // ✅ 개선된 갤러리 첫 번째 이미지 로딩 (권한 처리 포함)
+  // 개선된 갤러리 첫 번째 이미지 로딩 (권한 처리 포함)
   Future<AssetEntity?> getFirstGalleryImage() async {
     try {
       // 1. 갤러리 접근 권한 요청
@@ -417,7 +466,7 @@ class CameraService {
     }
   }
 
-  // ✅ 개선된 사진 촬영 (안정성 강화 + 전면 카메라 좌우반전은 네이티브에서 처리)
+  // 개선된 사진 촬영 (안정성 강화 + 전면 카메라 좌우반전은 네이티브에서 처리)
   Future<String> takePicture() async {
     try {
       // 카메라가 초기화되지 않았으면 먼저 초기화
@@ -447,7 +496,84 @@ class CameraService {
     } on PlatformException {
       return '';
     }
-  } // ✅ 개선된 카메라 전환 (안정성 강화 + 전면/후면 상태 추적)
+  }
+
+  // ==================== 비디오 녹화 ====================
+
+  Future<bool> startVideoRecording({
+    Duration maxDuration = _defaultVideoMaxDuration,
+  }) async {
+    if (_isVideoRecording) {
+      return true;
+    }
+
+    _currentVideoPath = null;
+
+    // 카메라가 초기화되지 않았으면 먼저 초기화
+    if (!_isSessionActive) {
+      final initialized = await initCamera();
+      if (!initialized) {
+        return false;
+      }
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+
+    try {
+      // 비디오 녹화를 위한 네이티브 메서드 호출
+      // 녹화 시작이 성공하면 true 반환
+      final bool? started = await _cameraChannel.invokeMethod<bool>(
+        'startVideoRecording',
+        {'maxDurationMs': maxDuration.inMilliseconds},
+      );
+
+      if (started == true) {
+        _isVideoRecording = true;
+        return true;
+      }
+    } on PlatformException catch (e) {
+      debugPrint("비디오 녹화 시작 실패: ${e.message}");
+    }
+
+    _isVideoRecording = false;
+    return false;
+  }
+
+  // 비디오 녹화 중지
+  Future<String?> stopVideoRecording() async {
+    try {
+      // 비디오 녹화 중지를 위한 네이티브 메서드 호출
+      final String? path = await _cameraChannel.invokeMethod<String>(
+        'stopVideoRecording',
+      );
+      _isVideoRecording = false;
+
+      if (path != null && path.isNotEmpty) {
+        _currentVideoPath = path;
+        return path;
+      }
+      return null;
+    } on PlatformException catch (e) {
+      debugPrint("비디오 녹화 중지 실패: ${e.message}");
+      _isVideoRecording = false;
+      return null;
+    }
+  }
+
+  // 비디오 녹화 취소
+  Future<bool> cancelVideoRecording() async {
+    try {
+      // 비디오 녹화 취소를 위한 네이티브 메서드 호출
+      await _cameraChannel.invokeMethod<String>('cancelVideoRecording');
+      _isVideoRecording = false;
+      _currentVideoPath = null;
+      return true;
+    } on PlatformException catch (e) {
+      debugPrint("비디오 녹화 취소 실패: ${e.message}");
+      return false;
+    }
+  }
+
+  // 개선된 카메라 전환 (안정성 강화 + 전면/후면 상태 추적)
 
   Future<void> switchCamera() async {
     try {
@@ -476,11 +602,11 @@ class CameraService {
       await _cameraChannel.invokeMethod('disposeCamera');
       // _cameraView = null;
 
-      // ✅ 상태 리셋
+      // 상태 리셋
       _isSessionActive = false;
       _isFrontCamera = false;
     } on PlatformException {
-      // ✅ 에러가 나도 상태는 리셋
+      // 에러가 나도 상태는 리셋
       _isSessionActive = false;
       _isFrontCamera = false;
     }

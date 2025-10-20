@@ -3,7 +3,7 @@ import UIKit
 import AVFoundation
 
 // 간단한 카메라 플러그인 구현
-public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDelegate {
+public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
     var captureSession: AVCaptureSession?
     var photoOutput: AVCapturePhotoOutput?
     var currentDevice: AVCaptureDevice?
@@ -11,11 +11,20 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
     var isUsingFrontCamera: Bool = false
     var photoCaptureResult: FlutterResult?
     var currentZoomLevel: Double = 1.0  // 현재 줌 레벨 추적
+    var movieOutput: AVCaptureMovieFileOutput?
+    var audioInput: AVCaptureDeviceInput?
+    var videoRecordingResult: FlutterResult?
+    var activeVideoURL: URL?
+    var videoRecordingTimer: DispatchSourceTimer?
+    var isCancellingRecording: Bool = false
+    var previousSessionPreset: AVCaptureSession.Preset?
+    var methodChannel: FlutterMethodChannel?
     
     public static func register(with registrar: FlutterPluginRegistrar) {
         // 플랫폼 채널 등록 및 핸들러 설정
         let channel = FlutterMethodChannel(name: "com.soi.camera", binaryMessenger: registrar.messenger())
         let instance = SwiftCameraPlugin()
+        instance.methodChannel = channel
         registrar.addMethodCallDelegate(instance, channel: channel)
         
         // 카메라 초기화
@@ -123,6 +132,12 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
             optimizeCamera(result: result)
         case "getAvailableZoomLevels":
             getAvailableZoomLevels(result: result)
+        case "startVideoRecording":
+            startVideoRecording(call: call, result: result)
+        case "stopVideoRecording":
+            stopVideoRecording(result: result)
+        case "cancelVideoRecording":
+            cancelVideoRecording(result: result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -224,6 +239,242 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
         }
     }
     
+    // MARK: - Video Recording
+    func startVideoRecording(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let captureSession = captureSession else {
+            result(FlutterError(code: "SESSION_ERROR", message: "Camera session is not initialized", details: nil))
+            return
+        }
+        
+        if movieOutput?.isRecording == true {
+            result(FlutterError(code: "ALREADY_RECORDING", message: "Video recording already in progress", details: nil))
+            return
+        }
+        
+        let args = call.arguments as? [String: Any]
+        let requestedDurationMs = args?["maxDurationMs"] as? Int ?? 30_000
+        let durationSeconds = max(1.0, min(Double(requestedDurationMs) / 1000.0, 30.0))
+        
+        previousSessionPreset = captureSession.sessionPreset
+        if captureSession.sessionPreset != .high {
+            captureSession.beginConfiguration()
+            if captureSession.canSetSessionPreset(.high) {
+                captureSession.sessionPreset = .high
+            }
+            captureSession.commitConfiguration()
+        }
+        
+        do {
+            try attachAudioInputIfNeeded()
+        } catch {
+            result(FlutterError(code: "AUDIO_ERROR", message: "Failed to attach audio input", details: error.localizedDescription))
+            return
+        }
+        
+        guard let movieOutput = prepareMovieOutputIfNeeded() else {
+            result(FlutterError(code: "VIDEO_OUTPUT_ERROR", message: "Unable to prepare movie output", details: nil))
+            return
+        }
+        
+        configureMovieOutputConnection(movieOutput)
+        videoRecordingResult = nil
+        
+        if captureSession.isRunning == false {
+            DispatchQueue.global(qos: .userInitiated).async {
+                captureSession.startRunning()
+            }
+        }
+        
+        let tempDir = NSTemporaryDirectory()
+        let fileURL = URL(fileURLWithPath: tempDir).appendingPathComponent("\(UUID().uuidString).mov")
+        activeVideoURL = fileURL
+        isCancellingRecording = false
+        
+        movieOutput.maxRecordedDuration = CMTimeMakeWithSeconds(durationSeconds, preferredTimescale: 600)
+        startVideoTimeoutTimer(duration: durationSeconds + 0.5)
+        
+        movieOutput.startRecording(to: fileURL, recordingDelegate: self)
+        result(true)
+    }
+    
+    func stopVideoRecording(result: @escaping FlutterResult) {
+        guard let movieOutput = movieOutput, movieOutput.isRecording else {
+            result(FlutterError(code: "NO_ACTIVE_RECORDING", message: "No active video recording to stop", details: nil))
+            return
+        }
+        
+        videoRecordingResult = result
+        isCancellingRecording = false
+        stopVideoTimeoutTimer()
+        movieOutput.stopRecording()
+    }
+    
+    func cancelVideoRecording(result: @escaping FlutterResult) {
+        guard let movieOutput = movieOutput, movieOutput.isRecording else {
+            result(FlutterError(code: "NO_ACTIVE_RECORDING", message: "No active video recording to cancel", details: nil))
+            return
+        }
+        
+        videoRecordingResult = result
+        isCancellingRecording = true
+        stopVideoTimeoutTimer()
+        movieOutput.stopRecording()
+    }
+    
+    private func attachAudioInputIfNeeded() throws {
+        guard let captureSession = captureSession else { return }
+        
+        if audioInput != nil {
+            return
+        }
+        
+        guard let audioDevice = AVCaptureDevice.default(for: .audio) else {
+            throw NSError(domain: "SwiftCameraPlugin", code: -1, userInfo: [NSLocalizedDescriptionKey: "Audio device unavailable"])
+        }
+        
+        let input = try AVCaptureDeviceInput(device: audioDevice)
+        
+        captureSession.beginConfiguration()
+        if captureSession.canAddInput(input) {
+            captureSession.addInput(input)
+            captureSession.commitConfiguration()
+            audioInput = input
+        } else {
+            captureSession.commitConfiguration()
+            throw NSError(domain: "SwiftCameraPlugin", code: -2, userInfo: [NSLocalizedDescriptionKey: "Unable to attach audio input"])
+        }
+    }
+    
+    private func detachAudioInputIfNeeded() {
+        guard let captureSession = captureSession, let audioInput = audioInput else { return }
+        
+        captureSession.beginConfiguration()
+        captureSession.removeInput(audioInput)
+        captureSession.commitConfiguration()
+        self.audioInput = nil
+    }
+    
+    private func prepareMovieOutputIfNeeded() -> AVCaptureMovieFileOutput? {
+        if let movieOutput = movieOutput {
+            return movieOutput
+        }
+        
+        guard let captureSession = captureSession else { return nil }
+        let output = AVCaptureMovieFileOutput()
+        
+        captureSession.beginConfiguration()
+        if captureSession.canAddOutput(output) {
+            captureSession.addOutput(output)
+            captureSession.commitConfiguration()
+            movieOutput = output
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                self?.applyMirroringToAllConnections()
+            }
+            return output
+        } else {
+            captureSession.commitConfiguration()
+            return nil
+        }
+    }
+    
+    private func configureMovieOutputConnection(_ movieOutput: AVCaptureMovieFileOutput) {
+        guard let connection = movieOutput.connection(with: .video) else { return }
+        
+        if connection.isVideoOrientationSupported {
+            connection.videoOrientation = .portrait
+        }
+        
+        if connection.isVideoStabilizationSupported {
+            connection.preferredVideoStabilizationMode = .cinematic
+        }
+        
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = false
+        }
+    }
+    
+    private func restoreSessionPresetIfNeeded() {
+        guard let captureSession = captureSession else { return }
+        
+        if let previousPreset = previousSessionPreset, captureSession.canSetSessionPreset(previousPreset) {
+            captureSession.beginConfiguration()
+            captureSession.sessionPreset = previousPreset
+            captureSession.commitConfiguration()
+        } else if captureSession.sessionPreset != .photo && captureSession.canSetSessionPreset(.photo) {
+            captureSession.beginConfiguration()
+            captureSession.sessionPreset = .photo
+            captureSession.commitConfiguration()
+        }
+        
+        previousSessionPreset = nil
+    }
+    
+    private func startVideoTimeoutTimer(duration: TimeInterval) {
+        stopVideoTimeoutTimer()
+        
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
+        timer.schedule(deadline: .now() + duration)
+        timer.setEventHandler { [weak self] in
+            guard let self = self, let movieOutput = self.movieOutput else { return }
+            if movieOutput.isRecording {
+                self.isCancellingRecording = false
+                movieOutput.stopRecording()
+            }
+        }
+        videoRecordingTimer = timer
+        timer.resume()
+    }
+    
+    private func stopVideoTimeoutTimer() {
+        videoRecordingTimer?.setEventHandler {}
+        videoRecordingTimer?.cancel()
+        videoRecordingTimer = nil
+    }
+    
+    private func cleanupAfterVideoRecording() {
+        stopVideoTimeoutTimer()
+        restoreSessionPresetIfNeeded()
+        detachAudioInputIfNeeded()
+        movieOutput?.maxRecordedDuration = CMTime.invalid
+        activeVideoURL = nil
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.applyMirroringToAllConnections()
+        }
+    }
+    
+    // AVCaptureFileOutputRecordingDelegate
+    public func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        let pendingResult = videoRecordingResult
+        videoRecordingResult = nil
+        let wasCancelled = isCancellingRecording
+        isCancellingRecording = false
+        
+        cleanupAfterVideoRecording()
+        
+        if let error = error {
+            try? FileManager.default.removeItem(at: outputFileURL)
+            pendingResult?(FlutterError(code: "VIDEO_RECORDING_ERROR", message: error.localizedDescription, details: nil))
+            DispatchQueue.main.async { [weak self] in
+                self?.methodChannel?.invokeMethod("onVideoError", arguments: ["message": error.localizedDescription])
+            }
+            return
+        }
+        
+        if wasCancelled {
+            try? FileManager.default.removeItem(at: outputFileURL)
+            pendingResult?("")
+            return
+        }
+        
+        pendingResult?(outputFileURL.path)
+        DispatchQueue.main.async { [weak self] in
+            self?.methodChannel?.invokeMethod("onVideoRecorded", arguments: ["path": outputFileURL.path])
+        }
+    }
+    
     // 이미지 좌우반전 처리 - 최종 개선 버전
     func flipImageHorizontally(_ image: UIImage) -> UIImage {
         // 1. UIImage orientation 방법 시도
@@ -300,13 +551,13 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
         
         // 모든 출력의 연결을 확인하고 적절히 미러링 적용
         for output in captureSession.outputs {
-            // 사진 출력은 항상 미러링 비활성화 (원본 이미지 유지)
-            if output is AVCapturePhotoOutput {
+            // 사진 및 동영상 출력은 항상 미러링 비활성화 (원본 미디어 유지)
+            if output is AVCapturePhotoOutput || output is AVCaptureMovieFileOutput {
                 for connection in output.connections {
                     if connection.isVideoMirroringSupported {
                         connection.automaticallyAdjustsVideoMirroring = false
                         connection.isVideoMirrored = false
-                        print("🔧 사진 출력 연결 미러링 비활성화")
+                        print("🔧 캡처 출력 연결 미러링 비활성화")
                     }
                 }
             } else {
@@ -541,6 +792,18 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
         guard let captureSession = captureSession else {
             result(FlutterError(code: "SESSION_ERROR", message: "Camera session is not initialized", details: nil))
             return
+        }
+        
+        if let movieOutput = movieOutput, movieOutput.isRecording {
+            movieOutput.stopRecording()
+        }
+        cleanupAfterVideoRecording()
+        
+        if let movieOutput = movieOutput {
+            captureSession.beginConfiguration()
+            captureSession.removeOutput(movieOutput)
+            captureSession.commitConfiguration()
+            self.movieOutput = nil
         }
         
         captureSession.stopRunning()
