@@ -101,8 +101,6 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
         userId != null ? category.hasNewPhotoForUser(userId) : false;
 
     return Container(
-      width: 168,
-      height: 229,
       key: ValueKey('grid_${category.id}'),
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C1C),
@@ -137,12 +135,12 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
               children: [
                 _buildCategoryImage(
                   category,
-                  width: 146.7.w,
-                  height: 146.8.h,
+                  width: 146.7,
+                  height: 146.8,
                   borderRadius: 6.61,
                 ),
-                _buildPinnedBadge(category, top: 5.h, left: 5.w),
-                _buildNewBadge(category, top: 3.43.h, left: 130.w),
+                _buildPinnedBadge(category, top: 5, left: 5),
+                _buildNewBadge(category, top: 3.43, left: 130),
               ],
             ),
             SizedBox(height: (8.7).h),
@@ -151,12 +149,8 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
               children: [
                 Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(left: 14.w, right: 8.w),
-                    child: _buildTitleWidget(
-                      context,
-                      category,
-                      fontSize: 14.sp,
-                    ),
+                    padding: EdgeInsets.only(left: 14, right: 8),
+                    child: _buildTitleWidget(context, category, fontSize: 14),
                   ),
                 ),
                 _buildPopupMenu(category),
@@ -164,7 +158,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
             ),
             SizedBox(height: (16.87).h),
             Padding(
-              padding: EdgeInsets.only(left: 14.w),
+              padding: EdgeInsets.only(left: 14),
               child: ArchiveProfileRowWidget(mates: category.mates),
             ),
           ],
@@ -285,7 +279,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
         controller: widget.editingController,
         style: TextStyle(
           color: const Color(0xFFF8F8F8),
-          fontSize: 14.sp,
+          fontSize: 14,
           fontFamily: 'Pretendard ',
           fontWeight: FontWeight.w400,
           letterSpacing: -0.40,
@@ -322,7 +316,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
       displayName,
       style: TextStyle(
         color: const Color(0xFFF9F9F9),
-        fontSize: 14.sp,
+        fontSize: 14,
         fontWeight: FontWeight.bold,
         fontFamily: 'Pretendard',
         letterSpacing: -0.4,
@@ -334,13 +328,13 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
 
   Widget _buildPopupMenu(CategoryDataModel category) {
     if (widget.isEditMode) {
-      return SizedBox(width: 30.w, height: 30.h);
+      return SizedBox(width: 30, height: 30);
     }
 
     return ArchivePopupMenuWidget(
       category: category,
       onEditName: widget.onStartEdit,
-      child: Icon(Icons.more_vert, color: Colors.white, size: 22.sp),
+      child: Icon(Icons.more_vert, color: Colors.white, size: 22),
     );
   }
 
@@ -395,7 +389,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
                 child: Icon(
                   Icons.image,
                   color: const Color(0xff5a5a5a),
-                  size: 32.sp,
+                  size: 32,
                 ),
               ),
         ),
@@ -408,7 +402,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
         width: width,
         height: height,
         color: const Color(0xFFCACACA).withValues(alpha: 0.9),
-        child: Icon(Icons.image, color: const Color(0xff5a5a5a), size: 32.sp),
+        child: Icon(Icons.image, color: const Color(0xff5a5a5a), size: 32),
       ),
     );
   }
@@ -437,7 +431,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
           color: Colors.black.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(12.0),
         ),
-        child: Image.asset('assets/pin_icon.png', width: 9.w, height: 9.h),
+        child: Image.asset('assets/pin_icon.png', width: 9, height: 9),
       ),
     );
   }
@@ -461,78 +455,27 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
       top: top,
       left: left,
       right: right,
-      child: Image.asset(
-        'assets/new_icon.png',
-        width: 13.87.w,
-        height: 13.87.h,
-      ),
+      child: Image.asset('assets/new_icon.png', width: 13.87, height: 13.87),
     );
   }
 
   Widget _buildLoadingGridCard() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade800,
-      highlightColor: Colors.grey.shade700,
-      period: const Duration(milliseconds: 1500),
-      child: Container(
-        decoration: ShapeDecoration(
-          color: Color(0xff1c1c1c),
-          shape: RoundedRectangleBorder(
+    return SizedBox(
+      width: 168,
+      height: 229,
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey.shade800,
+        highlightColor: Colors.grey.shade700,
+        period: const Duration(milliseconds: 1500),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1C),
             borderRadius: BorderRadius.circular(6.61),
-            side: BorderSide(
+            border: Border.all(
               color: Colors.white.withValues(alpha: 0.12),
               width: 1,
             ),
           ),
-        ),
-        padding: EdgeInsets.symmetric(vertical: 8.h),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6.61),
-              child: Container(
-                width: 146.7.w,
-                height: 146.8.h,
-                color: Colors.grey.shade800,
-              ),
-            ),
-            SizedBox(height: 10.h),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: EdgeInsets.only(left: 14.w),
-                child: Container(
-                  width: 90.w,
-                  height: 12.h,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade700,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: 12.h),
-            Padding(
-              padding: EdgeInsets.only(left: 14.w),
-              child: Row(
-                children: List.generate(
-                  3,
-                  (index) => Padding(
-                    padding: EdgeInsets.only(right: 6.w),
-                    child: Container(
-                      width: 20.w,
-                      height: 20.h,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade700,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -548,32 +491,32 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
           color: Colors.grey.shade800,
           borderRadius: BorderRadius.circular(16),
         ),
-        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Container(
-              width: 74.w,
-              height: 74.w,
+              width: 74,
+              height: 74,
               decoration: BoxDecoration(
                 color: Colors.grey.shade700,
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            SizedBox(width: 16.w),
+            SizedBox(width: 16),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 130.w,
-                    height: 14.h,
+                    width: 130,
+                    height: 14,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade700,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
-                  SizedBox(height: 14.h),
+                  SizedBox(height: 14),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Row(
@@ -581,10 +524,10 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
                       children: List.generate(
                         3,
                         (index) => Padding(
-                          padding: EdgeInsets.only(left: index == 0 ? 0 : 6.w),
+                          padding: EdgeInsets.only(left: index == 0 ? 0 : 6),
                           child: Container(
-                            width: 20.w,
-                            height: 20.h,
+                            width: 20,
+                            height: 20,
                             decoration: BoxDecoration(
                               color: Colors.grey.shade700,
                               shape: BoxShape.circle,

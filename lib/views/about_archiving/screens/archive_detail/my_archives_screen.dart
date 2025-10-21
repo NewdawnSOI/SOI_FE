@@ -295,9 +295,9 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
               shrinkWrap: true,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: (168.w / 229.h),
-                mainAxisSpacing: 15.h,
-                crossAxisSpacing: 15.w,
+                childAspectRatio: (168 / 229),
+                mainAxisSpacing: 15.sp,
+                crossAxisSpacing: 15.sp,
               ),
               itemCount: userCategories.length,
               itemBuilder: (context, index) {

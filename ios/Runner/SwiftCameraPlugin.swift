@@ -340,6 +340,11 @@ public class SwiftCameraPlugin: NSObject,
         ]
         let vIn = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         vIn.expectsMediaDataInRealTime = true
+        
+        // Portrait 비디오를 위한 transform 설정 (90도 시계방향 회전)
+        // iOS 카메라는 landscape로 캡처하므로 portrait로 보이려면 90도 회전 필요
+        vIn.transform = CGAffineTransform(rotationAngle: .pi / 2)
+        
         writerVideoInput = vIn
         writer?.add(vIn)
 

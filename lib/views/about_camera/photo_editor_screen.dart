@@ -21,8 +21,14 @@ import 'widgets/photo_display_widget.dart';
 
 class PhotoEditorScreen extends StatefulWidget {
   final String? downloadUrl;
-  final String? imagePath;
-  const PhotoEditorScreen({super.key, this.downloadUrl, this.imagePath});
+  final String? filePath;
+  final bool? isVideo;
+  const PhotoEditorScreen({
+    super.key,
+    this.downloadUrl,
+    this.filePath,
+    this.isVideo,
+  });
   @override
   State<PhotoEditorScreen> createState() => _PhotoEditorScreenState();
 }
@@ -50,7 +56,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   List<double>? _recordedWaveformData;
   String? _recordedAudioPath;
   bool _isCaptionEmpty = true;
-  bool _showAudioRecorder = false; // 음성 녹음 UI 표시 여부
+
+  // 음성 녹음 UI 표시 여부
+  bool _showAudioRecorder = false;
 
   // 키보드 높이
   double get keyboardHeight => MediaQuery.of(context).viewInsets.bottom;
@@ -138,7 +146,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 
   void _handleWidgetUpdate(PhotoEditorScreen oldWidget) {
-    if (oldWidget.imagePath != widget.imagePath ||
+    if (oldWidget.filePath != widget.filePath ||
         oldWidget.downloadUrl != widget.downloadUrl) {
       _categoriesLoaded = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -161,8 +169,8 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       _errorMessage = null;
     });
     try {
-      if (widget.imagePath != null && widget.imagePath!.isNotEmpty) {
-        final file = File(widget.imagePath!);
+      if (widget.filePath != null && widget.filePath!.isNotEmpty) {
+        final file = File(widget.filePath!);
         if (await file.exists()) {
           setState(() {
             _useLocalImage = true;
@@ -416,15 +424,15 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 
   Map<String, dynamic>? _extractUploadData(String categoryId) {
-    final imagePath = widget.imagePath;
+    final filePath = widget.filePath;
     final userId = _authController.getUserId;
     final audioPath =
         _recordedAudioPath ?? _audioController.currentRecordingPath;
     final waveformData = _recordedWaveformData;
-    if (imagePath == null || userId == null) return null;
+    if (filePath == null || userId == null) return null;
     return {
       'categoryId': categoryId,
-      'imagePath': imagePath,
+      'filePath': filePath,
       'userId': userId,
       'audioPath': audioPath,
       'waveformData': waveformData,
@@ -439,14 +447,16 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     Map<String, dynamic> data,
   ) async {
     final categoryId = data['categoryId'] as String;
-    final imagePath = data['imagePath'] as String;
+    final filePath = data['filePath'] as String;
     final userId = data['userId'] as String;
     final audioPath = data['audioPath'] as String?;
     final waveformData = data['waveformData'] as List<double>? ?? const [];
-    final imageFile = File(imagePath);
+    final imageFile = File(filePath);
+
     if (!await imageFile.exists()) {
-      throw Exception('이미지 파일을 찾을 수 없습니다: $imagePath');
+      throw Exception('이미지 파일을 찾을 수 없습니다: $filePath');
     }
+
     File? audioFile;
     if (audioPath != null && audioPath.isNotEmpty) {
       audioFile = File(audioPath);
@@ -454,25 +464,55 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         audioFile = null;
       }
     }
-    if (audioFile != null && waveformData.isNotEmpty) {
-      await _photoController.uploadPhotoWithAudio(
-        imageFilePath: imageFile.path,
-        audioFilePath: audioFile.path,
-        userID: userId,
-        userIds: [userId],
-        categoryId: categoryId,
-        waveformData: waveformData,
-        duration: Duration(seconds: _audioController.recordingDuration),
-      );
-    } else {
-      await _photoController.uploadPhoto(
-        imageFile: imageFile,
-        categoryId: categoryId,
-        userId: userId,
-        userIds: [userId],
-        audioFile: null,
-        caption: data['caption'] as String?,
-      );
+
+    try {
+      if (audioFile != null && waveformData.isNotEmpty) {
+        await _photoController.uploadPhotoWithAudio(
+          imageFilePath: imageFile.path,
+          audioFilePath: audioFile.path,
+          userID: userId,
+          userIds: [userId],
+          categoryId: categoryId,
+          waveformData: waveformData,
+          duration: Duration(seconds: _audioController.recordingDuration),
+        );
+      } else {
+        await _photoController.uploadPhoto(
+          imageFile: imageFile,
+          categoryId: categoryId,
+          userId: userId,
+          userIds: [userId],
+          audioFile: null,
+          caption: data['caption'] as String?,
+        );
+      }
+
+      // 업로드 성공 후 임시 파일 삭제
+      if (filePath.contains('/tmp/')) {
+        try {
+          if (await imageFile.exists()) {
+            await imageFile.delete();
+            debugPrint('🗑️ 업로드 완료 후 임시 파일 삭제: $filePath');
+          }
+        } catch (e) {
+          debugPrint('⚠️ 임시 파일 삭제 실패: $e');
+        }
+      }
+
+      // 오디오 파일도 삭제
+      if (audioFile != null && audioPath!.contains('/tmp/')) {
+        try {
+          if (await audioFile.exists()) {
+            await audioFile.delete();
+            debugPrint('🗑️ 업로드 완료 후 임시 오디오 파일 삭제: $audioPath');
+          }
+        } catch (e) {
+          debugPrint('⚠️ 임시 오디오 파일 삭제 실패: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ 업로드 실패: $e');
+      rethrow;
     }
   }
 
@@ -536,12 +576,13 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           PhotoDisplayWidget(
-                            imagePath: widget.imagePath,
+                            filePath: widget.filePath,
                             downloadUrl: widget.downloadUrl,
                             useLocalImage: _useLocalImage,
                             useDownloadUrl: _useDownloadUrl,
                             width: 354.w,
                             height: 500.h,
+                            isVideo: widget.isVideo ?? false,
                             onCancel: _resetBottomSheetIfNeeded,
                           ),
                         ],
@@ -740,9 +781,11 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     });
     _recordedWaveformData = null;
     _recordedAudioPath = null;
-    if (widget.imagePath != null) {
+
+    // 이미지 캐시 제거
+    if (widget.filePath != null) {
       PaintingBinding.instance.imageCache.evict(
-        FileImage(File(widget.imagePath!)),
+        FileImage(File(widget.filePath!)),
       );
     }
     if (widget.downloadUrl != null) {

@@ -74,6 +74,8 @@ class _CameraScreenState extends State<CameraScreen>
   // 비디오 녹화 Progress 관리
   Timer? _videoProgressTimer;
 
+  String? _videoPath;
+
   // 0.0 ~ 1.0을 기준으로 두고, 30초로 나누어 증가시킴
   // ValueNotifier로 변경하여 Progress 업데이트 시 전체 위젯 리빌드 방지
   final ValueNotifier<double> _videoProgress = ValueNotifier<double>(0.0);
@@ -190,10 +192,6 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   // 비디오 녹화 이벤트 리스너 설정
-  /// 이 코드는 비디오 녹화 기능을 위한 이벤트 리스너를 정의합니다.
-  /// 카메라 화면 내에서 비디오 녹화 프로세스의 시작, 중지 또는 관리를
-  /// 관련된 특정 이벤트를 수신 대기합니다. 이 리스너는 사용자 상호작용이나
-  /// 시스템 트리거와 관련된 비디오 녹화를 효과적으로 처리할 수 있도록 보장합니다.
   void _setupVideoListeners() {
     // 비디오 녹화 시에 처리
     _videoRecordedSubscription = _cameraService.onVideoRecorded.listen((
@@ -372,7 +370,7 @@ class _CameraScreenState extends State<CameraScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PhotoEditorScreen(imagePath: result),
+            builder: (context) => PhotoEditorScreen(filePath: result),
           ),
         );
         // 사진 촬영 후 갤러리 미리보기 새로고침 (백그라운드에서)
@@ -461,8 +459,9 @@ class _CameraScreenState extends State<CameraScreen>
 
     if (isCancelled) {
       await _cameraService.cancelVideoRecording();
+      _videoPath = null;
     } else {
-      await _cameraService.stopVideoRecording();
+      _videoPath = await _cameraService.stopVideoRecording();
     }
 
     if (!mounted) return;
@@ -473,6 +472,23 @@ class _CameraScreenState extends State<CameraScreen>
 
     // Progress 타이머 중지
     _stopVideoProgressTimer();
+
+    // 비디오 녹화 성공 시 편집 화면으로 이동
+    if (!isCancelled &&
+        _videoPath != null &&
+        _videoPath!.isNotEmpty &&
+        mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) =>
+                  PhotoEditorScreen(filePath: _videoPath, isVideo: true),
+        ),
+      );
+      // 갤러리 미리보기 새로고침
+      Future.microtask(() => _loadFirstGalleryImage());
+    }
   }
 
   /// 비디오 녹화 Progress 타이머 시작
@@ -958,7 +974,7 @@ class _CameraScreenState extends State<CameraScreen>
                               MaterialPageRoute(
                                 builder:
                                     (context) =>
-                                        PhotoEditorScreen(imagePath: result),
+                                        PhotoEditorScreen(filePath: result),
                               ),
                             );
                           } else {
@@ -1011,7 +1027,20 @@ class _CameraScreenState extends State<CameraScreen>
                                       valueListenable: _videoProgress,
                                       builder: (context, progress, child) {
                                         return GestureDetector(
-                                          onTap: () => _stopVideoRecording(),
+                                          onTap: () {
+                                            _stopVideoRecording();
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder:
+                                                    (context) =>
+                                                        PhotoEditorScreen(
+                                                          filePath: _videoPath,
+                                                          isVideo: true,
+                                                        ),
+                                              ),
+                                            );
+                                          },
                                           child: CircularVideoProgressIndicator(
                                             progress: progress,
                                             innerSize: 40.42,

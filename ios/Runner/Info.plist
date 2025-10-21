@@ -97,6 +97,11 @@
 					<key>NSExceptionMinimumTLSVersion</key>
 					<string>TLSv1.0</string>
 				</dict>
+				<key>NSAppTransportSecurity</key>
+				<dict>
+  					<key>NSAllowsArbitraryLoads</key>
+  					<true/>
+				</dict>
 			</dict>
 		</dict>
 		<key>NSCameraUsageDescription</key>
@@ -144,6 +149,7 @@
 			<string>https</string>
 		</array>
 	<key>UIStatusBarHidden</key>
+	
 	<false/>
 	<key>FLTEnableWideGamut</key>
 	<false/>
