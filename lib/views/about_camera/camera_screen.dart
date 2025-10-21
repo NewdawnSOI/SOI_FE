@@ -317,15 +317,24 @@ class _CameraScreenState extends State<CameraScreen>
         _loadFirstGalleryImage();
       }
     }
-    // 앱이 비활성화될 때 카메라 리소스 정리
-    else if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
+    // 앱이 완전히 백그라운드로 갈 때만 비디오 녹화 중지
+    // inactive는 일시적 상태이므로 무시 (알림 센터, 화면 전환 등)
+    else if (state == AppLifecycleState.paused) {
+      // paused: 앱이 완전히 백그라운드로 갔을 때만 녹화 중지
       if (_isVideoRecording ||
           _videoStartInFlight ||
           _pendingVideoAction != _PendingVideoAction.none) {
         unawaited(_stopVideoRecording(isCancelled: true));
       }
       _cameraService.pauseCamera();
+    }
+    // inactive 상태에서는 카메라만 일시 정지 (비디오 녹화는 유지)
+    else if (state == AppLifecycleState.inactive) {
+      // inactive: 일시적 비활성화 (알림, 전화 등)
+      // 비디오 녹화는 중지하지 않고 카메라만 일시 정지
+      if (!_isVideoRecording) {
+        _cameraService.pauseCamera();
+      }
     }
   }
 
