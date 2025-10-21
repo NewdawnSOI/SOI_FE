@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../services/camera_service.dart';
 import '../../controllers/notification_controller.dart';
 import '../../controllers/auth_controller.dart';
+import 'widgets/circular_video_progress_indicator.dart';
 import 'photo_editor_screen.dart';
 import 'package:eva_icons_flutter/eva_icons_flutter.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -69,6 +70,16 @@ class _CameraScreenState extends State<CameraScreen>
 
   // 비디오 녹화 중 상태 관리
   bool _videoStartInFlight = false;
+
+  // 비디오 녹화 Progress 관리
+  Timer? _videoProgressTimer;
+
+  // 0.0 ~ 1.0을 기준으로 두고, 30초로 나누어 증가시킴
+  // ValueNotifier로 변경하여 Progress 업데이트 시 전체 위젯 리빌드 방지
+  final ValueNotifier<double> _videoProgress = ValueNotifier<double>(0.0);
+
+  // 최대 녹화 시간 --> 30초
+  static const int _maxVideoDurationSeconds = 30;
 
   // IndexedStack에서 상태 유지
   @override
@@ -242,7 +253,8 @@ class _CameraScreenState extends State<CameraScreen>
 
   // 개선된 갤러리 첫 번째 이미지 로딩
   Future<void> _loadFirstGalleryImage() async {
-    if (_isLoadingGallery) return;
+    // 비디오 녹화 중에는 갤러리 이미지 로드하지 않음
+    if (_isLoadingGallery || _isVideoRecording) return;
 
     setState(() {
       _isLoadingGallery = true;
@@ -277,6 +289,10 @@ class _CameraScreenState extends State<CameraScreen>
 
     _videoRecordedSubscription?.cancel();
     _videoErrorSubscription?.cancel();
+
+    // Progress 타이머 정리
+    _videoProgressTimer?.cancel();
+    _videoProgress.dispose();
 
     if (_isVideoRecording) {
       unawaited(_cameraService.cancelVideoRecording());
@@ -392,6 +408,9 @@ class _CameraScreenState extends State<CameraScreen>
         _isVideoRecording = true;
       });
 
+      // Progress 타이머 시작
+      _startVideoProgressTimer();
+
       if (_pendingVideoAction != _PendingVideoAction.none) {
         final nextAction = _pendingVideoAction;
         _pendingVideoAction = _PendingVideoAction.none;
@@ -442,6 +461,42 @@ class _CameraScreenState extends State<CameraScreen>
       _isVideoRecording = false;
     });
     _pendingVideoAction = _PendingVideoAction.none;
+
+    // Progress 타이머 중지
+    _stopVideoProgressTimer();
+  }
+
+  /// 비디오 녹화 Progress 타이머 시작
+  void _startVideoProgressTimer() {
+    _videoProgress.value = 0.0;
+    _videoProgressTimer?.cancel();
+
+    _videoProgressTimer = Timer.periodic(
+      const Duration(milliseconds: 100), // 0.1초마다 업데이트
+      (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        // ValueNotifier 사용으로 전체 위젯 리빌드 방지
+        _videoProgress.value += 0.1 / _maxVideoDurationSeconds;
+
+        // 30초 도달 시 자동으로 녹화 중지
+        if (_videoProgress.value >= 1.0) {
+          _videoProgress.value = 1.0;
+          _stopVideoProgressTimer();
+          // 자동 중지는 Swift 플러그인에서 처리됨
+        }
+      },
+    );
+  }
+
+  /// 비디오 녹화 Progress 타이머 중지
+  void _stopVideoProgressTimer() {
+    _videoProgressTimer?.cancel();
+    _videoProgressTimer = null;
+    _videoProgress.value = 0.0;
   }
 
   /// 갤러리 콘텐츠 빌드 (로딩/에러/이미지 상태 처리)
@@ -839,7 +894,7 @@ class _CameraScreenState extends State<CameraScreen>
                               _cameraService.getCameraView(),
 
                               // 줌 컨트롤 (줌 레벨이 있을 때만 표시)
-                              if (zoomLevels.isNotEmpty)
+                              if (zoomLevels.isNotEmpty && !_isVideoRecording)
                                 Padding(
                                   padding: EdgeInsets.only(bottom: 26.h),
                                   child: _buildZoomControls(),
@@ -856,15 +911,17 @@ class _CameraScreenState extends State<CameraScreen>
                         ),
 
                       // 플래시 버튼
-                      IconButton(
-                        onPressed: _toggleFlash,
-                        icon: Icon(
-                          isFlashOn ? EvaIcons.flash : EvaIcons.flashOff,
-                          color: Colors.white,
-                          size: 28.sp,
-                        ),
-                        padding: EdgeInsets.zero,
-                      ),
+                      (_isVideoRecording)
+                          ? SizedBox()
+                          : IconButton(
+                            onPressed: _toggleFlash,
+                            icon: Icon(
+                              isFlashOn ? EvaIcons.flash : EvaIcons.flashOff,
+                              color: Colors.white,
+                              size: 28.sp,
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
                     ],
                   );
                 },
@@ -929,41 +986,38 @@ class _CameraScreenState extends State<CameraScreen>
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: _takePicture,
-                      onLongPressStart: (_) async {
+                      onLongPress: () async {
                         await _startVideoRecording();
                       },
-                      onLongPressEnd: (_) async {
-                        await _stopVideoRecording();
-                      },
-                      onLongPressCancel: () async {
-                        if (!_isVideoRecording &&
-                            !_videoStartInFlight &&
-                            _pendingVideoAction == _PendingVideoAction.none) {
-                          return;
-                        }
-                        await _stopVideoRecording(isCancelled: true);
-                      },
+
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          Image.asset(
-                            "assets/take_picture.png",
-                            width: 65,
-                            height: 65,
+                          SizedBox(
+                            height: 90.h,
+                            child:
+                                // 비디오 녹화 모드가 ON이 되면, 진행률 표시기로 전환
+                                (_isVideoRecording)
+                                    ? ValueListenableBuilder<double>(
+                                      valueListenable: _videoProgress,
+                                      builder: (context, progress, child) {
+                                        return GestureDetector(
+                                          onTap: () => _stopVideoRecording(),
+                                          child: CircularVideoProgressIndicator(
+                                            progress: progress,
+                                            innerSize: 40.42,
+                                            gap: 15.29,
+                                            strokeWidth: 3.0,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                    : Image.asset(
+                                      "assets/take_picture.png",
+                                      width: 65,
+                                      height: 65,
+                                    ),
                           ),
-                          if (_isVideoRecording)
-                            Container(
-                              width: 65,
-                              height: 65,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.red.withOpacity(0.25),
-                                border: Border.all(
-                                  color: Colors.redAccent,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                     ),
