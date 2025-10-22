@@ -30,7 +30,7 @@ class AuthRepository {
     required Function(String) onTimeout,
   }) async {
     try {
-      // ⭐ reCAPTCHA 우회를 위한 강화된 설정
+      // reCAPTCHA 우회를 위한 강화된 설정
       await _auth.setSettings(
         appVerificationDisabledForTesting: false, // 실제 SMS 사용
         forceRecaptchaFlow: false, // reCAPTCHA 강제 사용 안함

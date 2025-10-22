@@ -153,7 +153,10 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
                     child: _buildTitleWidget(context, category, fontSize: 14),
                   ),
                 ),
-                _buildPopupMenu(category),
+                Padding(
+                  padding: EdgeInsets.only(right: 5),
+                  child: _buildPopupMenu(category),
+                ),
               ],
             ),
             SizedBox(height: (16.87).h),

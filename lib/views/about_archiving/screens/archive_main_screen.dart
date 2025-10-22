@@ -521,12 +521,20 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: Colors.black,
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
+                          padding: EdgeInsets.symmetric(vertical: 10.h),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(26.9),
                           ),
                         ),
-                        child: Text('확인'),
+                        child: Text(
+                          '확인',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 20.sp,
+                            fontFamily: 'Pretendard',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
                     SizedBox(width: 12.w),
@@ -536,12 +544,20 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF323232),
                           foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
+                          padding: EdgeInsets.symmetric(vertical: 10.h),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(26.9),
                           ),
                         ),
-                        child: Text('취소'),
+                        child: Text(
+                          '취소',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20.sp,
+                            fontFamily: 'Pretendard',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
                   ],

@@ -57,7 +57,7 @@ class _ArchivePopupMenuWidgetState extends State<ArchivePopupMenuWidget> {
     );
   }
 
-  /// 🔧 메뉴 아이템들 생성
+  /// 메뉴 아이템들 생성
   List<Widget> _buildMenuItems() {
     final authController = AuthController();
     final userId = authController.getUserId;

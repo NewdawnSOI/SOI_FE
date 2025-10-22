@@ -2,884 +2,945 @@ import Flutter
 import UIKit
 import AVFoundation
 
-// MARK: - SwiftCameraPlugin (Photo: AVCapturePhotoOutput as-is, Video: AVAssetWriter + *DataOutput)
-public class SwiftCameraPlugin: NSObject,
-    FlutterPlugin,
-    AVCapturePhotoCaptureDelegate,
-    AVCaptureVideoDataOutputSampleBufferDelegate,
-    AVCaptureAudioDataOutputSampleBufferDelegate
-{
-    // MARK: Session & Outputs
-    var captureSession: AVCaptureSession?
-    var photoOutput: AVCapturePhotoOutput?
-    var currentDevice: AVCaptureDevice?
-    var flashMode: AVCaptureDevice.FlashMode = .off
-    var isUsingFrontCamera: Bool = false
-    var photoCaptureResult: FlutterResult?
-    var currentZoomLevel: Double = 1.0
+// MARK: - Flutter Plugin Entry Point
+public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
+    private static let channelName = "com.soi.camera"
 
-    // NOTE: MovieFileOutput is not used anymore for video; kept for compatibility
-    var movieOutput: AVCaptureMovieFileOutput?
+    private let sessionManager = CameraSessionManager()
+    private var methodChannel: FlutterMethodChannel?
 
-    var audioInput: AVCaptureDeviceInput?
-    var methodChannel: FlutterMethodChannel?
-
-    // MARK: Video (AVAssetWriter pipeline)
-    let isMultiCamSupported: Bool = AVCaptureMultiCamSession.isMultiCamSupported
-    enum ActiveCamera { case front, back }
-    var activeCamera: ActiveCamera = .back
-
-    var backVideoOutput: AVCaptureVideoDataOutput?
-    var frontVideoOutput: AVCaptureVideoDataOutput? // only used when MultiCam
-    var audioDataOutput: AVCaptureAudioDataOutput?
-
-    var writer: AVAssetWriter?
-    var writerVideoInput: AVAssetWriterInput?
-    var writerAudioInput: AVAssetWriterInput?
-    var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
-
-    var writerQueue = DispatchQueue(label: "com.soi.camera.writer")
-    var isRecordingWithWriter = false
-    var recordedVideoURL: URL?
-
-    // Track last video timing/format for black-frame bridging (single-cam switch)
-    var lastVideoSample: CMSampleBuffer?
-    var lastVideoPTS: CMTime?
-    var lastVideoFormatDesc: CMFormatDescription?
-
-    // Timer reused from previous code for optional time limit
-    var videoRecordingTimer: DispatchSourceTimer?
-
-    // MARK: - Flutter registration
-    public static func register(with registrar: FlutterPluginRegistrar) {
-        let channel = FlutterMethodChannel(name: "com.soi.camera", binaryMessenger: registrar.messenger())
-        let instance = SwiftCameraPlugin()
-        instance.methodChannel = channel
-        registrar.addMethodCallDelegate(instance, channel: channel)
-
-        // init camera now
-        instance.setupCamera()
-
-        guard let captureSession = instance.captureSession else {
-            print("⚠️ 카메라 세션이 초기화되지 않았습니다")
-            return
+    private func resolve(_ result: @escaping FlutterResult, with value: Any) {
+        DispatchQueue.main.async {
+            result(value)
         }
+    }
+
+    private func reject(_ result: @escaping FlutterResult, code: String, message: String) {
+        DispatchQueue.main.async {
+            result(FlutterError(code: code, message: message, details: nil))
+        }
+    }
+
+    public static func register(with registrar: FlutterPluginRegistrar) {
+        let instance = SwiftCameraPlugin()
+        let channel = FlutterMethodChannel(name: channelName, binaryMessenger: registrar.messenger())
+        instance.methodChannel = channel
+        instance.sessionManager.delegate = instance
+        registrar.addMethodCallDelegate(instance, channel: channel)
         registrar.register(
-            CameraPreviewFactory(captureSession: captureSession),
+            CameraPreviewFactory(sessionManager: instance.sessionManager),
             withId: "com.soi.camera/preview"
         )
     }
 
-    // MARK: - Camera setup
-    func setupCamera() {
-        if isMultiCamSupported {
-            captureSession = AVCaptureMultiCamSession()
-            // MultiCam 세션은 프리셋을 지원하지 않음 - 각 카메라의 activeFormat으로 제어
-            print("📱 MultiCam 지원 기기 - 프리셋 설정 생략")
-        } else {
-            captureSession = AVCaptureSession()
-            captureSession?.sessionPreset = .high
-            print("📱 일반 카메라 세션 - .high 프리셋 설정")
-        }
-
-        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
-            currentDevice = device
-            beginSession()
-        }
-    }
-
-    func beginSession() {
-        guard let session = captureSession, let device = currentDevice else { return }
-        do {
-            // Video input (current camera)
-            let input = try AVCaptureDeviceInput(device: device)
-            if session.canAddInput(input) { session.addInput(input) }
-
-            // Photo output (kept as-is)
-            photoOutput = AVCapturePhotoOutput()
-            if let photoOutput = photoOutput, session.canAddOutput(photoOutput) {
-                if #available(iOS 11.0, *) {
-                    if photoOutput.availablePhotoPixelFormatTypes.contains(kCVPixelFormatType_32BGRA) {
-                        photoOutput.setPreparedPhotoSettingsArray([
-                            AVCapturePhotoSettings(format: [
-                                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-                            ])
-                        ], completionHandler: nil)
-                        print("🎨 Photo output color space set: sRGB (32BGRA)")
-                    }
-                }
-                session.addOutput(photoOutput)
-                if let connection = photoOutput.connection(with: .video), connection.isVideoMirroringSupported {
-                    connection.automaticallyAdjustsVideoMirroring = false
-                    connection.isVideoMirrored = false
-                }
-            }
-
-            // ===== Video/Audio DATA OUTPUTS for AVAssetWriter =====
-            session.beginConfiguration()
-            if isMultiCamSupported, let multi = session as? AVCaptureMultiCamSession {
-                // Front cam input in parallel
-                if let front = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) {
-                    let frontInput = try AVCaptureDeviceInput(device: front)
-                    if multi.canAddInput(frontInput) { multi.addInput(frontInput) }
-                }
-                // back video output
-                let backOut = AVCaptureVideoDataOutput()
-                backOut.alwaysDiscardsLateVideoFrames = true
-                backOut.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.back.video"))
-                if multi.canAddOutput(backOut) { multi.addOutput(backOut) }
-                self.backVideoOutput = backOut
-
-                // front video output
-                let frontOut = AVCaptureVideoDataOutput()
-                frontOut.alwaysDiscardsLateVideoFrames = true
-                frontOut.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.front.video"))
-                if multi.canAddOutput(frontOut) { multi.addOutput(frontOut) }
-                self.frontVideoOutput = frontOut
-
-                // audio data output
-                let audioOut = AVCaptureAudioDataOutput()
-                audioOut.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.audio"))
-                if multi.canAddOutput(audioOut) { multi.addOutput(audioOut) }
-                self.audioDataOutput = audioOut
-
-            } else {
-                // Single-cam: one video data output from current camera
-                let vOut = AVCaptureVideoDataOutput()
-                vOut.alwaysDiscardsLateVideoFrames = true
-                vOut.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.video"))
-                if session.canAddOutput(vOut) { session.addOutput(vOut) }
-                self.backVideoOutput = vOut
-
-                // Ensure audio device input + audio data output
-                try attachAudioInputIfNeeded()
-                let audioOut = AVCaptureAudioDataOutput()
-                audioOut.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.audio"))
-                if session.canAddOutput(audioOut) { session.addOutput(audioOut) }
-                self.audioDataOutput = audioOut
-            }
-            session.commitConfiguration()
-
-            // Start session
-            DispatchQueue.global(qos: .userInitiated).async {
-                session.startRunning()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    self.applyMirroringToAllConnections()
-                    print("🔧 Session started & mirroring applied")
-                }
-            }
-        } catch {
-            print("카메라 세션 설정 오류: \(error)")
-        }
-    }
-
-    // MARK: Flutter method handling
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "initCamera":
-            initCamera(result: result)
+            sessionManager.ensureSessionConfigured { [weak self] configurationResult in
+                guard let self else { return }
+                switch configurationResult {
+                case .success:
+                    self.resolve(result, with: true)
+                case .failure(let error):
+                    self.reject(result, code: "INIT_ERROR", message: error.localizedDescription)
+                }
+            }
+
         case "takePicture":
-            takePicture(result: result)
+            sessionManager.capturePhoto { [weak self] captureResult in
+                guard let self else { return }
+                switch captureResult {
+                case .success(let path):
+                    self.resolve(result, with: path)
+                case .failure(let error):
+                    self.reject(result, code: "CAPTURE_ERROR", message: error.localizedDescription)
+                }
+            }
+
         case "switchCamera":
-            switchCamera(result: result)
+            sessionManager.switchCamera { [weak self] switchResult in
+                guard let self else { return }
+                switch switchResult {
+                case .success:
+                    self.resolve(result, with: "Camera switched")
+                case .failure(let error):
+                    self.reject(result, code: "SWITCH_ERROR", message: error.localizedDescription)
+                }
+            }
+
         case "setFlash":
-            setFlash(call: call, result: result)
+            guard let args = call.arguments as? [String: Any],
+                  let isOn = args["isOn"] as? Bool else {
+                result(FlutterError(code: "INVALID_ARGS", message: "Missing isOn", details: nil))
+                return
+            }
+            sessionManager.setFlash(enabled: isOn) { [weak self] flashResult in
+                guard let self else { return }
+                switch flashResult {
+                case .success:
+                    self.resolve(result, with: "Flash set")
+                case .failure(let error):
+                    self.reject(result, code: "FLASH_ERROR", message: error.localizedDescription)
+                }
+            }
+
         case "setZoom":
-            setZoom(call: call, result: result)
+            guard let args = call.arguments as? [String: Any],
+                  let zoomValue = args["zoomValue"] as? Double else {
+                result(FlutterError(code: "INVALID_ARGS", message: "Missing zoomValue", details: nil))
+                return
+            }
+            sessionManager.setZoom(to: zoomValue) { [weak self] zoomResult in
+                guard let self else { return }
+                switch zoomResult {
+                case .success:
+                    self.resolve(result, with: "Zoom set")
+                case .failure(let error):
+                    self.reject(result, code: "ZOOM_ERROR", message: error.localizedDescription)
+                }
+            }
+
+        case "setBrightness":
+            guard let args = call.arguments as? [String: Any],
+                  let value = args["value"] as? Double else {
+                result(FlutterError(code: "INVALID_ARGS", message: "Missing value", details: nil))
+                return
+            }
+            sessionManager.setBrightness(value) { [weak self] brightnessResult in
+                guard let self else { return }
+                switch brightnessResult {
+                case .success:
+                    self.resolve(result, with: "Brightness set")
+                case .failure(let error):
+                    self.reject(result, code: "BRIGHTNESS_ERROR", message: error.localizedDescription)
+                }
+            }
+
         case "pauseCamera":
-            pauseCamera(result: result)
+            sessionManager.pauseSession()
+            result("Camera paused")
+
         case "resumeCamera":
-            resumeCamera(result: result)
+            sessionManager.resumeSession()
+            result("Camera resumed")
+
         case "disposeCamera":
-            disposeCamera(result: result)
+            sessionManager.dispose()
+            result("Camera disposed")
+
         case "optimizeCamera":
-            optimizeCamera(result: result)
+            sessionManager.optimizeForCapture { [weak self] optimizeResult in
+                guard let self else { return }
+                switch optimizeResult {
+                case .success:
+                    self.resolve(result, with: "Camera optimized")
+                case .failure(let error):
+                    self.reject(result, code: "OPTIMIZE_ERROR", message: error.localizedDescription)
+                }
+            }
+
         case "getAvailableZoomLevels":
-            getAvailableZoomLevels(result: result)
+            sessionManager.availableZoomLevels { [weak self] levels in
+                guard let self else { return }
+                self.resolve(result, with: levels)
+            }
+
         case "startVideoRecording":
-            startVideoRecording(call: call, result: result)
+            let durationMs = (call.arguments as? [String: Any])?["maxDurationMs"] as? Int
+            sessionManager.startRecording(maxDurationMs: durationMs) { [weak self] startResult in
+                guard let self else { return }
+                switch startResult {
+                case .success:
+                    self.resolve(result, with: true)
+                case .failure(let error):
+                    self.reject(result, code: "RECORDING_ERROR", message: error.localizedDescription)
+                }
+            }
+
         case "stopVideoRecording":
-            stopVideoRecording(result: result)
+            sessionManager.stopRecording(cancel: false) { [weak self] stopResult in
+                guard let self else { return }
+                switch stopResult {
+                case .success(let path):
+                    self.resolve(result, with: path)
+                case .failure(let error):
+                    self.reject(result, code: "STOP_ERROR", message: error.localizedDescription)
+                }
+            }
+
         case "cancelVideoRecording":
-            cancelVideoRecording(result: result)
+            sessionManager.stopRecording(cancel: true) { [weak self] stopResult in
+                guard let self else { return }
+                switch stopResult {
+                case .success:
+                    self.resolve(result, with: "")
+                case .failure(let error):
+                    self.reject(result, code: "STOP_ERROR", message: error.localizedDescription)
+                }
+            }
+
         default:
             result(FlutterMethodNotImplemented)
         }
     }
+}
 
-    // MARK: - Init & Photo pipeline (unchanged)
-    func initCamera(result: @escaping FlutterResult) {
-        if captureSession == nil { setupCamera() }
-        result("Camera initialized")
+// MARK: - Session Delegate bridge
+extension SwiftCameraPlugin: CameraSessionManagerDelegate {
+    func cameraSessionManager(_ manager: CameraSessionManager, didFinishRecording path: String) {
+        methodChannel?.invokeMethod("onVideoRecorded", arguments: ["path": path])
     }
 
-    func takePicture(result: @escaping FlutterResult) {
-        guard let photoOutput = self.photoOutput else {
-            result(FlutterError(code: "NO_PHOTO_OUTPUT", message: "Photo output not available", details: nil))
-            return
-        }
-        let settings = AVCapturePhotoSettings()
-        settings.flashMode = flashMode
-        if #available(iOS 13.0, *) {
-            let desired: AVCapturePhotoOutput.QualityPrioritization = .quality
-            let maxSupported = photoOutput.maxPhotoQualityPrioritization
-            settings.photoQualityPrioritization = (desired.rawValue <= maxSupported.rawValue) ? desired : maxSupported
-        }
-        if currentDevice?.position == .front { print("🔧 Front camera photo settings applied") }
-        photoCaptureResult = result
-        photoOutput.capturePhoto(with: settings, delegate: self)
+    func cameraSessionManager(_ manager: CameraSessionManager, didFailRecording error: Error) {
+        methodChannel?.invokeMethod("onVideoError", arguments: ["message": error.localizedDescription])
     }
+}
 
-    public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        if let error = error {
-            photoCaptureResult?(FlutterError(code: "CAPTURE_ERROR", message: error.localizedDescription, details: nil))
-            return
-        }
-        guard let data = photo.fileDataRepresentation(), let uiImage = UIImage(data: data) else {
-            photoCaptureResult?(FlutterError(code: "NO_IMAGE_DATA", message: "Could not get image data", details: nil))
-            return
-        }
-        guard let jpg = uiImage.jpegData(compressionQuality: 0.9) else {
-            photoCaptureResult?(FlutterError(code: "IMAGE_PROCESSING_ERROR", message: "JPEG conversion failed", details: nil))
-            return
-        }
-        let temp = NSTemporaryDirectory()
-        let path = temp + "/\(UUID().uuidString).jpg"
-        let url = URL(fileURLWithPath: path)
-        do { try jpg.write(to: url); photoCaptureResult?(path) } catch {
-            photoCaptureResult?(FlutterError(code: "FILE_SAVE_ERROR", message: error.localizedDescription, details: nil))
+// MARK: - Camera Session Manager
+protocol CameraSessionManagerDelegate: AnyObject {
+    func cameraSessionManager(_ manager: CameraSessionManager, didFinishRecording path: String)
+    func cameraSessionManager(_ manager: CameraSessionManager, didFailRecording error: Error)
+}
+
+enum CameraSessionError: LocalizedError {
+    case deviceUnavailable
+    case configurationFailed
+    case alreadyRecording
+    case notRecording
+    case writerSetupFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .deviceUnavailable:
+            return "Camera device is unavailable"
+        case .configurationFailed:
+            return "Failed to configure camera session"
+        case .alreadyRecording:
+            return "Video recording already in progress"
+        case .notRecording:
+            return "No active recording"
+        case .writerSetupFailed(let reason):
+            return reason
         }
     }
+}
 
-    // MARK: - Video recording (AVAssetWriter)
-    func startVideoRecording(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard let session = captureSession else {
-            result(FlutterError(code: "SESSION_ERROR", message: "Camera session is not initialized", details: nil))
-            return
+final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
+    // MARK: Session state
+    weak var delegate: CameraSessionManagerDelegate?
+
+    private let sessionQueue = DispatchQueue(label: "com.soi.camera.session")
+    private let writerQueue = DispatchQueue(label: "com.soi.camera.writer")
+
+    private let isMultiCamSupported = AVCaptureMultiCamSession.isMultiCamSupported
+    private(set) var captureSession: AVCaptureSession
+
+    private var isConfigured = false
+    private var currentPosition: AVCaptureDevice.Position = .back
+    private var activeCamera: AVCaptureDevice.Position = .back
+
+    private var backDeviceInput: AVCaptureDeviceInput?
+    private var frontDeviceInput: AVCaptureDeviceInput?
+    private var currentDeviceInput: AVCaptureDeviceInput? { didSet { currentDevice = currentDeviceInput?.device } }
+    private var currentDevice: AVCaptureDevice?
+
+    private var photoOutput: AVCapturePhotoOutput?
+    private var backVideoOutput: AVCaptureVideoDataOutput?
+    private var frontVideoOutput: AVCaptureVideoDataOutput?
+    private var audioOutput: AVCaptureAudioDataOutput?
+    private var audioInput: AVCaptureDeviceInput?
+
+    private var previewLayers = NSHashTable<AVCaptureVideoPreviewLayer>.weakObjects()
+
+    // Recording state
+    private var isRecording = false
+    private var assetWriter: AVAssetWriter?
+    private var writerVideoInput: AVAssetWriterInput?
+    private var writerAudioInput: AVAssetWriterInput?
+    private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var recordingURL: URL?
+    private var recordingCompletion: ((Result<String, Error>) -> Void)?
+    private var recordingTimer: DispatchSourceTimer?
+    private var lastVideoPTS: CMTime?
+
+    private var flashMode: AVCaptureDevice.FlashMode = .off
+    private var photoCompletion: ((Result<String, Error>) -> Void)?
+
+    override init() {
+        if AVCaptureMultiCamSession.isMultiCamSupported {
+            captureSession = AVCaptureMultiCamSession()
+        } else {
+            let session = AVCaptureSession()
+            session.sessionPreset = .high
+            captureSession = session
         }
-        if isRecordingWithWriter {
-            result(FlutterError(code: "ALREADY_RECORDING", message: "Recording already in progress", details: nil))
-            return
-        }
-        let args = call.arguments as? [String: Any]
-        let requestedDurationMs = args?["maxDurationMs"] as? Int ?? 30_000
-        let durationSeconds = max(1.0, min(Double(requestedDurationMs) / 1000.0, 30.0))
-
-        let tempDir = NSTemporaryDirectory()
-        let fileURL = URL(fileURLWithPath: tempDir).appendingPathComponent("\(UUID().uuidString).mov")
-        recordedVideoURL = fileURL
-
-        do {
-            try prepareWriter(at: fileURL, sourceFormat: nil) // actual session start happens at first frame
-        } catch {
-            result(FlutterError(code: "WRITER_ERROR", message: "Failed to prepare writer", details: error.localizedDescription))
-            return
-        }
-        isRecordingWithWriter = true
-
-        startVideoTimeoutTimer(duration: durationSeconds + 0.5)
-        if !session.isRunning { DispatchQueue.global(qos: .userInitiated).async { session.startRunning() } }
-        result(true)
+        super.init()
     }
 
-    func stopVideoRecording(result: @escaping FlutterResult) {
-        guard isRecordingWithWriter else {
-            result(FlutterError(code: "NO_ACTIVE_RECORDING", message: "No active video recording to stop", details: nil))
-            return
-        }
-        stopVideoTimeoutTimer()
-        finishWriter { [weak self] url, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    self?.methodChannel?.invokeMethod("onVideoError", arguments: ["message": error.localizedDescription])
-                }
-                result(FlutterError(code: "VIDEO_RECORDING_ERROR", message: error.localizedDescription, details: nil))
+    // MARK: Public API
+    func ensureSessionConfigured(completion: @escaping (Result<Void, Error>) -> Void) {
+        sessionQueue.async {
+            if self.isConfigured {
+                self.startSessionIfNeeded()
+                completion(.success(()))
                 return
             }
-            result(url?.path ?? "")
-            if let path = url?.path {
-                DispatchQueue.main.async {
-                    self?.methodChannel?.invokeMethod("onVideoRecorded", arguments: ["path": path])
+
+            do {
+                try self.configureSession()
+                self.isConfigured = true
+                self.startSessionIfNeeded()
+                completion(.success(()))
+            } catch {
+                completion(.failure(error))
+            }
+        }
+    }
+
+    func capturePhoto(completion: @escaping (Result<String, Error>) -> Void) {
+        ensureSessionConfigured { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success:
+                self.sessionQueue.async {
+                    guard let photoOutput = self.photoOutput else {
+                        completion(.failure(CameraSessionError.configurationFailed))
+                        return
+                    }
+
+                    let settings = AVCapturePhotoSettings()
+                    if photoOutput.supportedFlashModes.contains(self.flashMode) {
+                        settings.flashMode = self.flashMode
+                    } else if photoOutput.supportedFlashModes.contains(.off) {
+                        settings.flashMode = .off
+                    }
+
+                    self.photoCompletion = completion
+                    photoOutput.capturePhoto(with: settings, delegate: self)
                 }
             }
         }
     }
 
-    func cancelVideoRecording(result: @escaping FlutterResult) {
-        guard isRecordingWithWriter else {
-            result(FlutterError(code: "NO_ACTIVE_RECORDING", message: "No active video recording to cancel", details: nil))
-            return
-        }
-        stopVideoTimeoutTimer()
-        finishWriter { [weak self] url, _ in
-            if let url = url { try? FileManager.default.removeItem(at: url) }
-            result("")
+    func switchCamera(completion: @escaping (Result<Void, Error>) -> Void) {
+        ensureSessionConfigured { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success:
+                self.sessionQueue.async {
+                    if self.isMultiCamSupported {
+                        self.activeCamera = self.activeCamera == .back ? .front : .back
+                        self.updatePreviewMirroring()
+                        completion(.success(()))
+                        return
+                    }
+
+                    guard let currentInput = self.currentDeviceInput else {
+                        completion(.failure(CameraSessionError.configurationFailed))
+                        return
+                    }
+
+                    let targetPosition: AVCaptureDevice.Position = (self.currentPosition == .back) ? .front : .back
+                    guard let newDevice = self.cameraDevice(for: targetPosition) else {
+                        completion(.failure(CameraSessionError.deviceUnavailable))
+                        return
+                    }
+
+                    do {
+                        let newInput = try AVCaptureDeviceInput(device: newDevice)
+                        let wasRunning = self.captureSession.isRunning
+                        if wasRunning { self.captureSession.stopRunning() }
+
+                        self.captureSession.beginConfiguration()
+                        self.captureSession.removeInput(currentInput)
+                        if self.captureSession.canAddInput(newInput) {
+                            self.captureSession.addInput(newInput)
+                            self.currentDeviceInput = newInput
+                            self.currentPosition = targetPosition
+                        } else {
+                            self.captureSession.addInput(currentInput)
+                            self.captureSession.commitConfiguration()
+                            if wasRunning { self.captureSession.startRunning() }
+                            completion(.failure(CameraSessionError.configurationFailed))
+                            return
+                        }
+                        self.captureSession.commitConfiguration()
+
+                        if wasRunning { self.captureSession.startRunning() }
+                        self.updatePreviewMirroring()
+
+                        if self.isRecording {
+                            self.appendBridgeFrames(durationMs: 150)
+                        }
+                        completion(.success(()))
+                    } catch {
+                        completion(.failure(error))
+                    }
+                }
+            }
         }
     }
 
-    // MARK: - Writer helpers
-    private func prepareWriter(at url: URL, sourceFormat: CMFormatDescription?) throws {
-        writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+    func setFlash(enabled: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
+        sessionQueue.async {
+            self.flashMode = enabled ? .on : .off
+            completion(.success(()))
+        }
+    }
 
-        // Dimensions: use source if known, else default 1080x1920
-        let dims: CMVideoDimensions
-        if let fmt = sourceFormat {
-            dims = CMVideoFormatDescriptionGetDimensions(fmt)
+    func setZoom(to factor: Double, completion: @escaping (Result<Void, Error>) -> Void) {
+        sessionQueue.async {
+            guard let device = self.currentDevice else {
+                completion(.failure(CameraSessionError.deviceUnavailable))
+                return
+            }
+            do {
+                try device.lockForConfiguration()
+                let maxFactor = min(device.activeFormat.videoMaxZoomFactor, CGFloat(max(factor, 1.0)))
+                device.ramp(toVideoZoomFactor: maxFactor, withRate: 4.0)
+                device.unlockForConfiguration()
+                completion(.success(()))
+            } catch {
+                completion(.failure(error))
+            }
+        }
+    }
+
+    func setBrightness(_ value: Double, completion: @escaping (Result<Void, Error>) -> Void) {
+        sessionQueue.async {
+            guard let device = self.currentDevice else {
+                completion(.failure(CameraSessionError.deviceUnavailable))
+                return
+            }
+            do {
+                try device.lockForConfiguration()
+                let bias = max(min(Float(value), device.maxExposureTargetBias), device.minExposureTargetBias)
+                device.setExposureTargetBias(bias) { _ in }
+                device.unlockForConfiguration()
+                completion(.success(()))
+            } catch {
+                completion(.failure(error))
+            }
+        }
+    }
+
+    func availableZoomLevels(completion: @escaping ([Double]) -> Void) {
+        sessionQueue.async {
+            var levels: Set<Double> = [1.0]
+            if let device = self.device(for: .back) {
+                if device.minAvailableVideoZoomFactor <= 0.5 && device.maxAvailableVideoZoomFactor >= 0.5 {
+                    levels.insert(0.5)
+                }
+                if device.maxAvailableVideoZoomFactor >= 2.0 { levels.insert(2.0) }
+                if device.maxAvailableVideoZoomFactor >= 3.0 { levels.insert(3.0) }
+            }
+            completion(levels.sorted())
+        }
+    }
+
+    func startRecording(maxDurationMs: Int?, completion: @escaping (Result<Void, Error>) -> Void) {
+        ensureSessionConfigured { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success:
+                self.sessionQueue.async {
+                    guard !self.isRecording else {
+                        completion(.failure(CameraSessionError.alreadyRecording))
+                        return
+                    }
+                    do {
+                        try self.prepareWriter()
+                        self.isRecording = true
+                        self.startRecordingTimerIfNeeded(maxDurationMs)
+                        completion(.success(()))
+                    } catch {
+                        self.resetWriter()
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+    }
+
+    func stopRecording(cancel: Bool, completion: @escaping (Result<String, Error>) -> Void) {
+        sessionQueue.async {
+            guard self.isRecording else {
+                completion(.failure(CameraSessionError.notRecording))
+                return
+            }
+            self.recordingCompletion = completion
+            self.finishRecording(cancelled: cancel)
+        }
+    }
+
+    func pauseSession() {
+        sessionQueue.async {
+            if self.captureSession.isRunning { self.captureSession.stopRunning() }
+        }
+    }
+
+    func resumeSession() {
+        ensureSessionConfigured { _ in }
+    }
+
+    func dispose() {
+        sessionQueue.sync {
+            if self.captureSession.isRunning { self.captureSession.stopRunning() }
+            self.captureSession.inputs.forEach { self.captureSession.removeInput($0) }
+            self.captureSession.outputs.forEach { self.captureSession.removeOutput($0) }
+            self.resetWriter()
+            self.isConfigured = false
+        }
+    }
+
+    func optimizeForCapture(completion: @escaping (Result<Void, Error>) -> Void) {
+        sessionQueue.async {
+            guard let device = self.currentDevice else {
+                completion(.failure(CameraSessionError.deviceUnavailable))
+                return
+            }
+            do {
+                try device.lockForConfiguration()
+                if device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusMode = .continuousAutoFocus
+                }
+                if device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposureMode = .continuousAutoExposure
+                }
+                if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
+                    device.whiteBalanceMode = .continuousAutoWhiteBalance
+                }
+                device.unlockForConfiguration()
+                completion(.success(()))
+            } catch {
+                completion(.failure(error))
+            }
+        }
+    }
+
+    func registerPreviewLayer(_ layer: AVCaptureVideoPreviewLayer) {
+        previewLayers.add(layer)
+        layer.session = captureSession
+        layer.videoGravity = .resizeAspectFill
+        DispatchQueue.main.async {
+            layer.connection?.videoOrientation = .portrait
+        }
+        ensureSessionConfigured { _ in }
+    }
+
+    // MARK: Private helpers
+    private func configureSession() throws {
+        captureSession.beginConfiguration()
+
+        if isMultiCamSupported {
+            try configureMultiCamSession()
         } else {
-            dims = CMVideoDimensions(width: 1080, height: 1920)
+            try configureSingleCamSession()
         }
 
-        let videoSettings: [String: Any] = [
+        try configurePhotoOutput()
+        try configureAudioIfNeeded()
+
+        captureSession.commitConfiguration()
+        updatePreviewMirroring()
+    }
+
+    private func configureSingleCamSession() throws {
+        let initialPosition: AVCaptureDevice.Position = .back
+        guard let device = cameraDevice(for: initialPosition) else { throw CameraSessionError.deviceUnavailable }
+        let input = try AVCaptureDeviceInput(device: device)
+        guard captureSession.canAddInput(input) else { throw CameraSessionError.configurationFailed }
+        captureSession.addInput(input)
+        currentDeviceInput = input
+        currentDevice = device
+        currentPosition = initialPosition
+
+        let videoOutput = AVCaptureVideoDataOutput()
+        videoOutput.alwaysDiscardsLateVideoFrames = false
+        videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.video"))
+        guard captureSession.canAddOutput(videoOutput) else { throw CameraSessionError.configurationFailed }
+        captureSession.addOutput(videoOutput)
+        backVideoOutput = videoOutput
+    }
+
+    private func configureMultiCamSession() throws {
+        guard let multiSession = captureSession as? AVCaptureMultiCamSession else {
+            throw CameraSessionError.configurationFailed
+        }
+
+        guard let backDevice = cameraDevice(for: .back) else { throw CameraSessionError.deviceUnavailable }
+        let backInput = try AVCaptureDeviceInput(device: backDevice)
+        if multiSession.canAddInput(backInput) { multiSession.addInput(backInput) }
+        backDeviceInput = backInput
+        currentDeviceInput = backInput
+        currentDevice = backDevice
+        currentPosition = .back
+        activeCamera = .back
+
+        guard let frontDevice = cameraDevice(for: .front) else { throw CameraSessionError.deviceUnavailable }
+        let frontInput = try AVCaptureDeviceInput(device: frontDevice)
+        if multiSession.canAddInput(frontInput) { multiSession.addInput(frontInput) }
+        frontDeviceInput = frontInput
+
+        let backOutput = AVCaptureVideoDataOutput()
+        backOutput.alwaysDiscardsLateVideoFrames = false
+        backOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.video.back"))
+        if multiSession.canAddOutput(backOutput) { multiSession.addOutput(backOutput) }
+        backVideoOutput = backOutput
+
+        let frontOutput = AVCaptureVideoDataOutput()
+        frontOutput.alwaysDiscardsLateVideoFrames = false
+        frontOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.video.front"))
+        if multiSession.canAddOutput(frontOutput) { multiSession.addOutput(frontOutput) }
+        frontVideoOutput = frontOutput
+    }
+
+    private func configurePhotoOutput() throws {
+        let output = AVCapturePhotoOutput()
+        guard captureSession.canAddOutput(output) else { throw CameraSessionError.configurationFailed }
+        captureSession.addOutput(output)
+        photoOutput = output
+    }
+
+    private func configureAudioIfNeeded() throws {
+        if audioInput != nil { return }
+        guard let audioDevice = AVCaptureDevice.default(for: .audio) else { return }
+        let input = try AVCaptureDeviceInput(device: audioDevice)
+        if captureSession.canAddInput(input) { captureSession.addInput(input); audioInput = input }
+
+        let audioDataOutput = AVCaptureAudioDataOutput()
+        audioDataOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.audio"))
+        if captureSession.canAddOutput(audioDataOutput) { captureSession.addOutput(audioDataOutput) }
+        audioOutput = audioDataOutput
+    }
+
+    private func startSessionIfNeeded() {
+        if !captureSession.isRunning {
+            captureSession.startRunning()
+        }
+    }
+
+    private func updatePreviewMirroring() {
+        let isFront = (isMultiCamSupported && activeCamera == .front) || (!isMultiCamSupported && currentPosition == .front)
+
+        for layer in previewLayers.allObjects {
+            guard let connection = layer.connection else { continue }
+            if connection.isVideoMirroringSupported {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = isFront
+            }
+        }
+
+        for output in captureSession.outputs {
+            for connection in output.connections where connection.isVideoMirroringSupported {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = false
+            }
+        }
+    }
+
+    private func cameraDevice(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+        let deviceTypes: [AVCaptureDevice.DeviceType]
+        if #available(iOS 13.0, *) {
+            switch position {
+            case .front:
+                deviceTypes = [.builtInTrueDepthCamera, .builtInWideAngleCamera, .builtInUltraWideCamera]
+            case .back:
+                deviceTypes = [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera, .builtInUltraWideCamera, .builtInTelephotoCamera]
+            default:
+                deviceTypes = [.builtInWideAngleCamera]
+            }
+        } else {
+            deviceTypes = [.builtInWideAngleCamera, .builtInTelephotoCamera, .builtInDualCamera]
+        }
+
+        let discovery = AVCaptureDevice.DiscoverySession(deviceTypes: deviceTypes, mediaType: .video, position: position)
+        if let device = discovery.devices.first { return device }
+        return AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position)
+    }
+
+    private func device(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+        if currentDevice?.position == position { return currentDevice }
+        return cameraDevice(for: position)
+    }
+
+    // MARK: Photo delegate
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        if let error {
+            photoCompletion?(.failure(error))
+            photoCompletion = nil
+            return
+        }
+
+        guard let data = photo.fileDataRepresentation() else {
+            photoCompletion?(.failure(CameraSessionError.configurationFailed))
+            photoCompletion = nil
+            return
+        }
+
+        let fileURL = temporaryFileURL(extension: "jpg")
+        do {
+            try data.write(to: fileURL)
+            photoCompletion?(.success(fileURL.path))
+        } catch {
+            photoCompletion?(.failure(error))
+        }
+        photoCompletion = nil
+    }
+
+    // MARK: Recording helpers
+    private func prepareWriter() throws {
+        let outputURL = temporaryFileURL(extension: "mov")
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+
+        guard let videoOutput = isMultiCamSupported ? (activeCamera == .front ? frontVideoOutput : backVideoOutput) : backVideoOutput else {
+            throw CameraSessionError.writerSetupFailed("Missing video output")
+        }
+
+        let videoSettings = videoOutput.recommendedVideoSettingsForAssetWriter(writingTo: .mov) as? [String: Any] ?? [
             AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: Int(dims.width),
-            AVVideoHeightKey: Int(dims.height),
-            AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: 8_000_000,
-                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
-            ]
+            AVVideoWidthKey: 1080,
+            AVVideoHeightKey: 1920
         ]
-        let vIn = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-        vIn.expectsMediaDataInRealTime = true
-        
-        // Portrait 비디오를 위한 transform 설정 (90도 시계방향 회전)
-        // iOS 카메라는 landscape로 캡처하므로 portrait로 보이려면 90도 회전 필요
-        vIn.transform = CGAffineTransform(rotationAngle: .pi / 2)
-        
-        writerVideoInput = vIn
-        writer?.add(vIn)
 
-        // Pixel buffer adaptor (used for black frames bridging)
-        let attrs: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: Int(dims.width),
-            kCVPixelBufferHeightKey as String: Int(dims.height)
-        ]
-        pixelBufferAdaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: vIn,
-                                                                  sourcePixelBufferAttributes: attrs)
+        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+        videoInput.expectsMediaDataInRealTime = true
 
-        // Audio input
-        let audioSettings: [String: Any] = [
+        if writer.canAdd(videoInput) {
+            writer.add(videoInput)
+        } else {
+            throw CameraSessionError.writerSetupFailed("Cannot add video input")
+        }
+
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: videoInput, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+        ])
+
+        guard let audioOutput = audioOutput else {
+            throw CameraSessionError.writerSetupFailed("Missing audio output")
+        }
+
+        let audioSettings = audioOutput.recommendedAudioSettingsForAssetWriter(writingTo: .mov) as? [String: Any] ?? [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVNumberOfChannelsKey: 1,
             AVSampleRateKey: 44100,
-            AVEncoderBitRateKey: 128_000
+            AVEncoderBitRateKey: 128000
         ]
-        let aIn = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
-        aIn.expectsMediaDataInRealTime = true
-        writerAudioInput = aIn
-        writer?.add(aIn)
 
-        lastVideoSample = nil
+        let audioInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
+        audioInput.expectsMediaDataInRealTime = true
+        if writer.canAdd(audioInput) {
+            writer.add(audioInput)
+        }
+
+        assetWriter = writer
+        writerVideoInput = videoInput
+        writerAudioInput = audioInput
+        pixelBufferAdaptor = adaptor
+        recordingURL = outputURL
         lastVideoPTS = nil
-        lastVideoFormatDesc = sourceFormat
     }
 
-    private func startWriterSessionIfNeeded(with sampleBuffer: CMSampleBuffer) {
-        guard let writer = writer, writer.status == .unknown else { return }
-        let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        writer.startWriting()
-        writer.startSession(atSourceTime: ts)
-        lastVideoPTS = ts
+    private func startRecordingTimerIfNeeded(_ maxDurationMs: Int?) {
+        recordingTimer?.cancel()
+        recordingTimer = nil
+
+        guard let maxDurationMs, maxDurationMs > 0 else { return }
+
+        let timer = DispatchSource.makeTimerSource(queue: sessionQueue)
+        timer.schedule(deadline: .now() + .milliseconds(maxDurationMs))
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.finishRecording(cancelled: false)
+        }
+        recordingTimer = timer
+        timer.resume()
     }
 
-    private func finishWriter(completion: @escaping (URL?, Error?) -> Void) {
-        guard let writer = writer else { completion(nil, nil); return }
-        isRecordingWithWriter = false
-        writerVideoInput?.markAsFinished()
-        writerAudioInput?.markAsFinished()
-        writer.finishWriting { [weak self] in
-            let url = self?.recordedVideoURL
-            let err = (writer.status == .failed) ? writer.error : nil
-            self?.writer = nil
-            self?.writerVideoInput = nil
-            self?.writerAudioInput = nil
-            self?.pixelBufferAdaptor = nil
-            self?.lastVideoSample = nil
-            self?.lastVideoPTS = nil
-            completion(url, err)
+    private func finishRecording(cancelled: Bool) {
+        recordingTimer?.cancel()
+        recordingTimer = nil
+        let writer = assetWriter
+        let completion = recordingCompletion
+        recordingCompletion = nil
+        isRecording = false
+
+        guard let writer else {
+            completion?(.failure(CameraSessionError.writerSetupFailed("Writer missing")))
+            return
+        }
+
+        writerQueue.async { [weak self] in
+            guard let self else { return }
+
+            if cancelled {
+                writer.cancelWriting()
+                if let url = self.recordingURL {
+                    try? FileManager.default.removeItem(at: url)
+                }
+                DispatchQueue.main.async {
+                    completion?(.success("") )
+                }
+                self.resetWriter()
+                return
+            }
+
+            self.writerVideoInput?.markAsFinished()
+            self.writerAudioInput?.markAsFinished()
+            writer.finishWriting {
+                DispatchQueue.main.async {
+                    if writer.status == .completed, let path = self.recordingURL?.path {
+                        completion?(.success(path))
+                        self.delegate?.cameraSessionManager(self, didFinishRecording: path)
+                    } else {
+                        let error = writer.error ?? CameraSessionError.writerSetupFailed("Unknown writer error")
+                        completion?(.failure(error))
+                        self.delegate?.cameraSessionManager(self, didFailRecording: error)
+                    }
+                }
+                self.resetWriter()
+            }
         }
     }
 
-    // Add ~150ms of black frames to smooth single-cam input switch
-    private func appendBlackFramesBridge(durationMs: Int = 150) {
-        guard !isMultiCamSupported, isRecordingWithWriter,
+    private func resetWriter() {
+        assetWriter = nil
+        writerVideoInput = nil
+        writerAudioInput = nil
+        pixelBufferAdaptor = nil
+        recordingURL = nil
+        lastVideoPTS = nil
+    }
+
+    private func appendBridgeFrames(durationMs: Int) {
+        guard !isMultiCamSupported,
+              isRecording,
               let adaptor = pixelBufferAdaptor,
-              let vIn = writerVideoInput,
+              let videoInput = writerVideoInput,
               let lastPTS = lastVideoPTS else { return }
 
-        // 30 fps bridge
         let fps: Int32 = 30
         let frameDuration = CMTime(value: 1, timescale: fps)
-        let frames = max(1, (durationMs * Int(fps)) / 1000)
+        let frameCount = max(1, (durationMs * Int(fps)) / 1000)
 
-        for i in 1...frames {
-            autoreleasepool {
-                var pb: CVPixelBuffer?
-                let attrs: [String: Any] = [
-                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                    kCVPixelBufferWidthKey as String: adaptor.sourcePixelBufferAttributes?[kCVPixelBufferWidthKey as String] as? Int ?? 1080,
-                    kCVPixelBufferHeightKey as String: adaptor.sourcePixelBufferAttributes?[kCVPixelBufferHeightKey as String] as? Int ?? 1920
-                ]
-                CVPixelBufferCreate(kCFAllocatorDefault,
-                                    attrs[kCVPixelBufferWidthKey as String] as! Int,
-                                    attrs[kCVPixelBufferHeightKey as String] as! Int,
-                                    kCVPixelFormatType_32BGRA,
-                                    attrs as CFDictionary,
-                                    &pb)
-                if let buffer = pb {
+        writerQueue.async {
+            for frameIndex in 1...frameCount {
+                autoreleasepool {
+                    var pixelBuffer: CVPixelBuffer?
+                    CVPixelBufferCreate(kCFAllocatorDefault, 1080, 1920, kCVPixelFormatType_32BGRA, nil, &pixelBuffer)
+                    guard let buffer = pixelBuffer else { return }
                     CVPixelBufferLockBaseAddress(buffer, [])
                     if let base = CVPixelBufferGetBaseAddress(buffer) {
-                        memset(base, 0, CVPixelBufferGetDataSize(buffer)) // black
+                        memset(base, 0, CVPixelBufferGetDataSize(buffer))
                     }
                     CVPixelBufferUnlockBaseAddress(buffer, [])
 
-                    let pts = CMTimeAdd(lastPTS, CMTimeMultiply(frameDuration, multiplier: Int32(i)))
-                    while !vIn.isReadyForMoreMediaData { usleep(1000) }
+                    let pts = CMTimeAdd(lastPTS, CMTimeMultiply(frameDuration, multiplier: Int32(frameIndex)))
+                    while !videoInput.isReadyForMoreMediaData {
+                        usleep(1_000)
+                    }
                     adaptor.append(buffer, withPresentationTime: pts)
-                    lastVideoPTS = pts
+                    self.lastVideoPTS = pts
                 }
             }
         }
     }
 
-    // MARK: - SampleBuffer delegates
-    public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard isRecordingWithWriter, let writer = writer else { return }
-        let desc = CMSampleBufferGetFormatDescription(sampleBuffer)!
-        let mediaType = CMFormatDescriptionGetMediaType(desc)
+    private func temporaryFileURL(extension ext: String) -> URL {
+        let filename = UUID().uuidString + "." + ext
+        return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(filename)
+    }
+
+    // MARK: Sample buffer delegates
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard isRecording,
+              let writer = assetWriter,
+              writer.status != .failed,
+              let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else { return }
+
+        let mediaType = CMFormatDescriptionGetMediaType(formatDescription)
 
         if mediaType == kCMMediaType_Video {
-            // MultiCam: only append from active camera
             if isMultiCamSupported {
-                let isFrontFeed = (output === frontVideoOutput)
-                if !((activeCamera == .front && isFrontFeed) || (activeCamera == .back && !isFrontFeed)) {
+                let isFrontBuffer = (output === frontVideoOutput)
+                if (activeCamera == .front && !isFrontBuffer) || (activeCamera == .back && isFrontBuffer) {
                     return
                 }
             }
-            if writer.status == .unknown { startWriterSessionIfNeeded(with: sampleBuffer) }
-            if writer.status == .writing, writerVideoInput?.isReadyForMoreMediaData == true {
-                writerVideoInput?.append(sampleBuffer)
-                lastVideoSample = sampleBuffer
-                lastVideoPTS = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-                lastVideoFormatDesc = desc
+            writerQueue.async {
+                guard let videoInput = self.writerVideoInput, videoInput.isReadyForMoreMediaData else { return }
+                if writer.status == .unknown {
+                    let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                    writer.startWriting()
+                    writer.startSession(atSourceTime: timestamp)
+                    self.lastVideoPTS = timestamp
+                }
+                if writer.status == .writing {
+                    videoInput.append(sampleBuffer)
+                    self.lastVideoPTS = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                }
             }
         } else if mediaType == kCMMediaType_Audio {
-            if writer.status == .writing, writerAudioInput?.isReadyForMoreMediaData == true {
-                writerAudioInput?.append(sampleBuffer)
-            }
-        }
-    }
-
-    // MARK: - Camera switching (seamless when MultiCam)
-    func switchCamera(result: @escaping FlutterResult) {
-        guard let captureSession = captureSession else {
-            result(FlutterError(code: "NO_CAMERA", message: "No camera session", details: nil))
-            return
-        }
-
-        // MultiCam 녹화 중: activeCamera만 토글 (입력은 그대로 유지)
-        if isRecordingWithWriter && isMultiCamSupported {
-            isUsingFrontCamera.toggle()
-            activeCamera = isUsingFrontCamera ? .front : .back
-            
-            // 프리뷰 연결 전환
-            updatePreviewConnection()
-            
-            // 프리뷰 미러링 업데이트
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                guard let self = self else { return }
-                self.applyMirroringToAllConnections()
-                print("🔁 MultiCam live switch → \(self.isUsingFrontCamera ? "front" : "back")")
-            }
-            
-            result("Camera switched (MultiCam, seamless)")
-            return
-        }
-
-        // Fallback: single-cam (replace input). Writer keeps running → same file
-        // --- original-like logic below ---
-
-        // Find current video input
-        var videoInput: AVCaptureDeviceInput?
-        for input in captureSession.inputs {
-            if let deviceInput = input as? AVCaptureDeviceInput, deviceInput.device.hasMediaType(.video) {
-                videoInput = deviceInput
-                break
-            }
-        }
-        guard let currentInput = videoInput else {
-            result(FlutterError(code: "NO_CAMERA", message: "No current camera input", details: nil))
-            return
-        }
-
-        isUsingFrontCamera.toggle()
-        let newPosition: AVCaptureDevice.Position = isUsingFrontCamera ? .front : .back
-        guard let newDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: newPosition) else {
-            isUsingFrontCamera.toggle()
-            result(FlutterError(code: "NO_DEVICE", message: "Target camera not available", details: nil))
-            return
-        }
-
-        captureSession.beginConfiguration()
-        captureSession.removeInput(currentInput)
-        do {
-            currentDevice = newDevice
-            let newInput = try AVCaptureDeviceInput(device: newDevice)
-            if captureSession.canAddInput(newInput) { captureSession.addInput(newInput) }
-            else {
-                captureSession.addInput(currentInput)
-                isUsingFrontCamera.toggle()
-                captureSession.commitConfiguration()
-                result(FlutterError(code: "ADD_INPUT_FAILED", message: "Cannot add new camera input", details: nil))
-                return
-            }
-        } catch {
-            captureSession.addInput(currentInput)
-            isUsingFrontCamera.toggle()
-            captureSession.commitConfiguration()
-            result(FlutterError(code: "SWITCH_ERROR", message: error.localizedDescription, details: nil))
-            return
-        }
-        captureSession.commitConfiguration()
-
-        // Re-apply mirroring for preview
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            self?.applyMirroringToAllConnections()
-        }
-
-        // Bridge tiny gap with black frames so the file feels continuous
-        appendBlackFramesBridge(durationMs: 150)
-
-        result("Camera switched")
-    }
-    
-    // MARK: - MultiCam 프리뷰 전환 (사용하지 않음 - 입력 교체 방식으로 대체)
-    private func updatePreviewConnection() {
-        guard let captureSession = captureSession, isMultiCamSupported else { return }
-        
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            // 프리뷰 레이어의 연결 찾기 및 업데이트
-            for output in captureSession.outputs {
-                for connection in output.connections {
-                    if let previewLayer = connection.videoPreviewLayer {
-                        captureSession.beginConfiguration()
-                        
-                        // 타겟 카메라 포지션
-                        let targetPosition: AVCaptureDevice.Position = self.isUsingFrontCamera ? .front : .back
-                        
-                        // 타겟 카메라 입력 찾기
-                        var targetInput: AVCaptureDeviceInput?
-                        for input in captureSession.inputs {
-                            if let deviceInput = input as? AVCaptureDeviceInput,
-                               deviceInput.device.hasMediaType(.video),
-                               deviceInput.device.position == targetPosition {
-                                targetInput = deviceInput
-                                break
-                            }
-                        }
-                        
-                        if let targetInput = targetInput,
-                           let videoPort = targetInput.ports(for: .video,
-                                                            sourceDeviceType: targetInput.device.deviceType,
-                                                            sourceDevicePosition: targetInput.device.position).first {
-                            
-                            // 기존 연결 제거
-                            captureSession.removeConnection(connection)
-                            
-                            // 새 연결 생성
-                            let newConnection = AVCaptureConnection(inputPort: videoPort, videoPreviewLayer: previewLayer)
-                            if captureSession.canAddConnection(newConnection) {
-                                captureSession.addConnection(newConnection)
-                                newConnection.videoOrientation = .portrait
-                                print("✅ 프리뷰 연결 전환: \(targetPosition == .front ? "전면" : "후면")")
-                            }
-                        }
-                        
-                        captureSession.commitConfiguration()
-                        return
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Flash / Zoom / Pause / Resume / Dispose / Optimize (mostly unchanged)
-    func setFlash(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard let args = call.arguments as? [String: Any], let isOn = args["isOn"] as? Bool else {
-            result(FlutterError(code: "INVALID_ARGS", message: "Missing or invalid isOn parameter", details: nil))
-            return
-        }
-        flashMode = isOn ? .on : .off
-        result("Flash set to \(isOn ? "on" : "off")")
-    }
-
-    func setZoom(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard let args = call.arguments as? [String: Any], let zoomValue = args["zoomValue"] as? Double else {
-            result(FlutterError(code: "INVALID_ARGS", message: "Missing or invalid zoomValue parameter", details: nil))
-            return
-        }
-        guard let captureSession = captureSession else {
-            result(FlutterError(code: "NO_SESSION", message: "No capture session available", details: nil))
-            return
-        }
-        if isUsingFrontCamera { result("Front camera does not support zoom"); return }
-        currentZoomLevel = zoomValue
-
-        let hasTelephoto = AVCaptureDevice.default(.builtInTelephotoCamera, for: .video, position: .back) != nil
-        let targetType: AVCaptureDevice.DeviceType
-        let digitalFactor: CGFloat
-        if zoomValue < 0.75 {
-            targetType = .builtInUltraWideCamera
-            digitalFactor = CGFloat(zoomValue * 2.0)
-        } else if zoomValue < 1.5 {
-            targetType = .builtInWideAngleCamera
-            digitalFactor = CGFloat(zoomValue)
-        } else if zoomValue < 2.5 && hasTelephoto {
-            targetType = .builtInTelephotoCamera
-            digitalFactor = 1.0
-        } else if zoomValue >= 3.0 && hasTelephoto {
-            targetType = .builtInTelephotoCamera
-            digitalFactor = CGFloat(zoomValue / 2.0)
-        } else {
-            targetType = .builtInWideAngleCamera
-            digitalFactor = CGFloat(zoomValue)
-        }
-        guard let newDevice = AVCaptureDevice.default(targetType, for: .video, position: .back) else {
-            if let currentDevice = currentDevice {
-                do {
-                    try currentDevice.lockForConfiguration()
-                    let maxZoom = currentDevice.activeFormat.videoMaxZoomFactor
-                    let finalZoom = min(CGFloat(zoomValue), maxZoom)
-                    currentDevice.ramp(toVideoZoomFactor: finalZoom, withRate: 2.0)
-                    currentDevice.unlockForConfiguration()
-                    result("Digital zoom set to \(zoomValue)x")
-                } catch {
-                    result(FlutterError(code: "ZOOM_ERROR", message: error.localizedDescription, details: nil))
-                }
-            }
-            return
-        }
-
-        if newDevice != currentDevice {
-            captureSession.beginConfiguration()
-            if let currentInput = captureSession.inputs.first as? AVCaptureDeviceInput { captureSession.removeInput(currentInput) }
-            do {
-                let newInput = try AVCaptureDeviceInput(device: newDevice)
-                if captureSession.canAddInput(newInput) {
-                    captureSession.addInput(newInput)
-                    currentDevice = newDevice
-                }
-                try newDevice.lockForConfiguration()
-                let maxZoom = newDevice.activeFormat.videoMaxZoomFactor
-                let finalZoom = min(digitalFactor, maxZoom)
-                newDevice.videoZoomFactor = finalZoom
-                newDevice.unlockForConfiguration()
-            } catch {
-                result(FlutterError(code: "CAMERA_SWITCH_ERROR", message: error.localizedDescription, details: nil))
-                captureSession.commitConfiguration()
-                return
-            }
-            captureSession.commitConfiguration()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.applyMirroringToAllConnections() }
-            result("Zoom set to \(zoomValue)x with camera switch")
-        } else {
-            do {
-                try currentDevice?.lockForConfiguration()
-                let maxZoom = currentDevice?.activeFormat.videoMaxZoomFactor ?? 1.0
-                let finalZoom = min(digitalFactor, maxZoom)
-                currentDevice?.videoZoomFactor = finalZoom
-                currentDevice?.unlockForConfiguration()
-                result("Zoom adjusted to \(zoomValue)x")
-            } catch {
-                result(FlutterError(code: "ZOOM_ERROR", message: error.localizedDescription, details: nil))
-            }
-        }
-    }
-
-    func pauseCamera(result: @escaping FlutterResult) {
-        guard let captureSession = captureSession else {
-            result(FlutterError(code: "SESSION_ERROR", message: "Camera session is not initialized", details: nil))
-            return
-        }
-        if captureSession.isRunning { captureSession.stopRunning() }
-        result("Camera paused")
-    }
-
-    func resumeCamera(result: @escaping FlutterResult) {
-        guard let captureSession = captureSession else {
-            result(FlutterError(code: "SESSION_ERROR", message: "Camera session is not initialized", details: nil))
-            return
-        }
-        if !captureSession.isRunning {
-            DispatchQueue.global(qos: .userInitiated).async {
-                captureSession.startRunning()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    self.applyMirroringToAllConnections()
-                    print("🔧 Session resumed & mirroring applied")
-                }
-            }
-        }
-        result("Camera resumed")
-    }
-
-    func disposeCamera(result: @escaping FlutterResult) {
-        guard let captureSession = captureSession else {
-            result(FlutterError(code: "SESSION_ERROR", message: "Camera session is not initialized", details: nil))
-            return
-        }
-        // Ensure writer finishes
-        if isRecordingWithWriter { stopVideoTimeoutTimer(); finishWriter { _,_ in } }
-        captureSession.stopRunning()
-        result("Camera disposed")
-    }
-
-    func optimizeCamera(result: @escaping FlutterResult) {
-        guard let currentDevice = currentDevice else {
-            result(FlutterError(code: "NO_CAMERA", message: "No camera available", details: nil))
-            return
-        }
-        do {
-            try currentDevice.lockForConfiguration()
-            if currentDevice.isFocusModeSupported(.continuousAutoFocus) { currentDevice.focusMode = .continuousAutoFocus }
-            if currentDevice.isExposureModeSupported(.continuousAutoExposure) { currentDevice.exposureMode = .continuousAutoExposure }
-            currentDevice.unlockForConfiguration()
-            result("Camera optimized")
-        } catch {
-            result(FlutterError(code: "OPTIMIZATION_ERROR", message: error.localizedDescription, details: nil))
-        }
-    }
-
-    func getAvailableZoomLevels(result: @escaping FlutterResult) {
-        var levels: [Double] = []
-        var hasUltraWide = false
-        var hasTelephoto = false
-        if !isUsingFrontCamera {
-            if AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back) != nil { hasUltraWide = true; levels.append(0.5) }
-            levels.append(1.0)
-            let telephoto = AVCaptureDevice.default(.builtInTelephotoCamera, for: .video, position: .back)
-            if let tele = telephoto {
-                hasTelephoto = true
-                let minZ = Double(tele.minAvailableVideoZoomFactor)
-                let maxZ = Double(tele.maxAvailableVideoZoomFactor)
-                if minZ <= 2.0 && maxZ >= 2.0 { levels.append(2.0) }
-                if minZ <= 3.0 && maxZ >= 3.0 { levels.append(3.0) }
-            } else if let wide = currentDevice {
-                let maxDigital = Double(wide.maxAvailableVideoZoomFactor)
-                if maxDigital >= 2.0 { levels.append(2.0) }
-                if maxDigital >= 3.0 { levels.append(3.0) }
-            }
-        }
-        levels.sort()
-        if levels.count > 3 { levels = Array(levels.prefix(3)) }
-        print("📱 Device cameras → ultraWide: \(hasUltraWide), tele: \(hasTelephoto), levels: \(levels)")
-        result(levels)
-    }
-
-    // MARK: - Helpers reused from original
-    private func attachAudioInputIfNeeded() throws {
-        guard let captureSession = captureSession else { return }
-        if audioInput != nil { return }
-        guard let audioDevice = AVCaptureDevice.default(for: .audio) else {
-            throw NSError(domain: "SwiftCameraPlugin", code: -1, userInfo: [NSLocalizedDescriptionKey: "Audio device unavailable"])
-        }
-        let input = try AVCaptureDeviceInput(device: audioDevice)
-        captureSession.beginConfiguration()
-        if captureSession.canAddInput(input) {
-            captureSession.addInput(input)
-            captureSession.commitConfiguration()
-            audioInput = input
-        } else {
-            captureSession.commitConfiguration()
-            throw NSError(domain: "SwiftCameraPlugin", code: -2, userInfo: [NSLocalizedDescriptionKey: "Unable to attach audio input"])
-        }
-    }
-
-    private func startVideoTimeoutTimer(duration: TimeInterval) {
-        stopVideoTimeoutTimer()
-        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
-        timer.schedule(deadline: .now() + duration)
-        timer.setEventHandler { [weak self] in
-            guard let self = self else { return }
-            if self.isRecordingWithWriter {
-                self.stopVideoRecording { _ in }
-            }
-        }
-        videoRecordingTimer = timer
-        timer.resume()
-    }
-    private func stopVideoTimeoutTimer() {
-        videoRecordingTimer?.setEventHandler {}
-        videoRecordingTimer?.cancel()
-        videoRecordingTimer = nil
-    }
-
-    // MARK: - Mirroring policy (preview only)
-    func applyMirroringToAllConnections() {
-        guard let captureSession = captureSession else { return }
-        let isFront = (activeCamera == .front) || isUsingFrontCamera
-        for output in captureSession.outputs {
-            if output is AVCapturePhotoOutput || output is AVCaptureMovieFileOutput || output is AVCaptureVideoDataOutput {
-                for connection in output.connections {
-                    if connection.isVideoMirroringSupported {
-                        connection.automaticallyAdjustsVideoMirroring = false
-                        connection.isVideoMirrored = false // never mirror actual capture
-                    }
-                }
-            } else {
-                for connection in output.connections {
-                    if connection.isVideoMirroringSupported {
-                        connection.automaticallyAdjustsVideoMirroring = false
-                        connection.isVideoMirrored = isFront // preview only
-                    }
+            writerQueue.async {
+                guard let audioInput = self.writerAudioInput, audioInput.isReadyForMoreMediaData else { return }
+                if self.assetWriter?.status == .writing {
+                    audioInput.append(sampleBuffer)
                 }
             }
         }
     }
 }
 
-// MARK: - Preview view classes
-class CameraPreviewFactory: NSObject, FlutterPlatformViewFactory {
-    private let captureSession: AVCaptureSession
-    init(captureSession: AVCaptureSession) {
-        self.captureSession = captureSession
+// MARK: - Preview bridge
+private final class CameraPreviewFactory: NSObject, FlutterPlatformViewFactory {
+    private let sessionManager: CameraSessionManager
+
+    init(sessionManager: CameraSessionManager) {
+        self.sessionManager = sessionManager
         super.init()
     }
+
     func create(withFrame frame: CGRect, viewIdentifier viewId: Int64, arguments args: Any?) -> FlutterPlatformView {
-        return CameraPreviewView(frame: frame, viewIdentifier: viewId, arguments: args, captureSession: captureSession)
+        return CameraPreviewView(frame: frame, sessionManager: sessionManager)
     }
-    func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol { FlutterStandardMessageCodec.sharedInstance() }
+
+    func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol {
+        FlutterStandardMessageCodec.sharedInstance()
+    }
 }
 
-class PreviewView: UIView {
+private final class PreviewView: UIView {
+    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+
+    var previewLayer: AVCaptureVideoPreviewLayer {
+        layer as! AVCaptureVideoPreviewLayer
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
-        if let layer = layer as? AVCaptureVideoPreviewLayer {
-            layer.videoGravity = .resizeAspectFill
-            layer.connection?.videoOrientation = .portrait
-            print("🔧 PreviewView layoutSubviews — mirroring handled by plugin")
-        }
+        previewLayer.videoGravity = .resizeAspectFill
+        previewLayer.connection?.videoOrientation = .portrait
     }
-    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
 }
 
-class CameraPreviewView: NSObject, FlutterPlatformView {
-    private var _view: PreviewView
-    init(frame: CGRect, viewIdentifier: Int64, arguments args: Any?, captureSession: AVCaptureSession) {
-        _view = PreviewView(frame: frame)
+private final class CameraPreviewView: NSObject, FlutterPlatformView {
+    private let previewView: PreviewView
+
+    init(frame: CGRect, sessionManager: CameraSessionManager) {
+        previewView = PreviewView(frame: frame)
         super.init()
-        if let previewLayer = _view.layer as? AVCaptureVideoPreviewLayer {
-            previewLayer.session = captureSession
-            previewLayer.videoGravity = .resizeAspectFill
-            previewLayer.connection?.videoOrientation = .portrait
-            print("🔧 CameraPreviewView init — preview mirroring handled by plugin")
-        }
-        _view.frame = frame
-        _view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        if !captureSession.isRunning {
-            DispatchQueue.global(qos: .userInitiated).async { captureSession.startRunning() }
-        }
+        sessionManager.registerPreviewLayer(previewView.previewLayer)
+        previewView.frame = frame
+        previewView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     }
-    func view() -> UIView { _view }
+
+    func view() -> UIView {
+        previewView
+    }
 }

@@ -18,7 +18,9 @@ class CategoryController extends ChangeNotifier {
   // Getters
   List<String> get selectedNames => _selectedNames;
   List<CategoryDataModel> get userCategories => _userCategories;
-  List<CategoryDataModel> get userCategoryList => _userCategories; // 레거시 호환
+
+  // 레거시 호환
+  List<CategoryDataModel> get userCategoryList => _userCategories;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -30,7 +32,6 @@ class CategoryController extends ChangeNotifier {
     bool forceReload = false,
   }) async {
     if (userId.isEmpty) {
-      debugPrint('[CategoryController] userId가 비어있음 - 로드 중단');
       return;
     }
 
@@ -39,7 +40,6 @@ class CategoryController extends ChangeNotifier {
         _lastLoadTime != null && now.difference(_lastLoadTime!) < _cacheTimeout;
 
     if (!forceReload && _lastLoadedUserId == userId && isCacheValid) {
-      debugPrint('[CategoryController] 캐시된 데이터 사용 - userId: $userId');
       return;
     }
 

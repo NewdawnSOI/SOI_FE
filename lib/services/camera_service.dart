@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
 
-// 🎯 네이티브 카메라 & 오디오 서비스
+// 네이티브 카메라 & 오디오 서비스
 // Android CameraX와 MediaRecorder를 Flutter MethodChannel로 연동
 class CameraService {
   static const MethodChannel _cameraChannel = MethodChannel('com.soi.camera');
@@ -180,7 +180,7 @@ class CameraService {
     }
   }
 
-  // ✅ AssetEntity를 File로 변환
+  // AssetEntity를 File로 변환
   Future<File?> assetToFile(AssetEntity asset) async {
     try {
       final File? file = await asset.file;
@@ -277,12 +277,12 @@ class CameraService {
     }
   }
 
-  // ✅ 개선된 세션 활성화 (SurfaceProvider 준비 대기)
+  // 개선된 세션 활성화 (SurfaceProvider 준비 대기)
   Future<void> activateSession() async {
     try {
       // 카메라 세션 활성화 시작
 
-      // ✅ 안전한 세션 상태 확인
+      // 안전한 세션 상태 확인
       bool needsReactivation = false;
 
       try {
@@ -302,7 +302,7 @@ class CameraService {
         }
       }
 
-      // ✅ 재활성화가 필요한 경우에만 실행
+      // 재활성화가 필요한 경우에만 실행
       if (needsReactivation) {
         // SurfaceProvider 준비를 위한 지연
         await Future.delayed(Duration(milliseconds: 200));
@@ -315,12 +315,12 @@ class CameraService {
     } on PlatformException {
       _isSessionActive = false;
 
-      // ✅ 오류 발생 시 세션 상태 강제 리셋
+      // 오류 발생 시 세션 상태 강제 리셋
       await _forceResetSession();
     }
   }
 
-  // ✅ 세션 상태 강제 리셋 메서드 추가
+  // 세션 상태 강제 리셋 메서드 추가
   Future<void> _forceResetSession() async {
     try {
       _isSessionActive = false;
@@ -337,7 +337,7 @@ class CameraService {
   }
 
   Future<void> deactivateSession() async {
-    // ✅ 이미 비활성화된 세션은 다시 비활성화하지 않음
+    // 이미 비활성화된 세션은 다시 비활성화하지 않음
     if (!_isSessionActive) {
       return;
     }
@@ -349,7 +349,7 @@ class CameraService {
   }
 
   Future<void> pauseCamera() async {
-    // ✅ 이미 비활성화된 세션은 다시 일시중지하지 않음
+    // 이미 비활성화된 세션은 다시 일시중지하지 않음
     if (!_isSessionActive) {
       return;
     }
@@ -427,7 +427,7 @@ class CameraService {
     }
   }
 
-  // ✅ 개선된 카메라 초기화 (타이밍 이슈 해결)
+  // 개선된 카메라 초기화 (타이밍 이슈 해결)
   Future<bool> initCamera() async {
     try {
       // SurfaceProvider 준비 확인을 위한 재시도 로직
@@ -483,9 +483,6 @@ class CameraService {
       final String result = await _cameraChannel.invokeMethod('takePicture');
 
       if (result.isNotEmpty) {
-        // 전면 카메라 좌우반전은 iOS/Android 네이티브 코드에서 처리됨
-        // Flutter에서는 추가 처리 없이 바로 결과 반환
-
         // 갤러리 미리보기 새로고침 (비동기)
         Future.microtask(() => refreshGalleryPreview());
 

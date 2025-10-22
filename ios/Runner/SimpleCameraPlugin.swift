@@ -44,7 +44,7 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
         captureSession?.sessionPreset = .photo
         
         // 기본 후면 카메라 설정
-        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
+        if let device = cameraDevice(for: .back) {
             currentDevice = device
             beginSession()
         }
@@ -105,7 +105,7 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
         if captureSession == nil {
             setupCamera()
         }
-        result("Camera initialized")
+        result(true)
     }
     
     // 사진 촬영
@@ -222,31 +222,110 @@ public class SwiftCameraPlugin: NSObject, FlutterPlugin, AVCapturePhotoCaptureDe
             return
         }
         
-        captureSession.beginConfiguration()
-        captureSession.removeInput(currentInput)
-        
+        let restartSession = captureSession.isRunning
+        if restartSession { captureSession.stopRunning() }
+
+        let previousState = isUsingFrontCamera
+        let previousDevice = currentDevice
+
         // 전/후면 카메라 전환
         isUsingFrontCamera.toggle()
         let newPosition: AVCaptureDevice.Position = isUsingFrontCamera ? .front : .back
-        
-        if let newDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: newPosition) {
-            currentDevice = newDevice
-            do {
-                let newInput = try AVCaptureDeviceInput(device: newDevice)
-                if captureSession.canAddInput(newInput) {
-                    captureSession.addInput(newInput)
-                }
-            } catch {
-                result(FlutterError(code: "SWITCH_ERROR", message: error.localizedDescription, details: nil))
+
+        guard let newDevice = cameraDevice(for: newPosition) else {
+            isUsingFrontCamera = previousState
+            result(FlutterError(code: "NO_DEVICE", message: "Target camera not available", details: nil))
+            return
+        }
+
+        let wasRunning = captureSession.isRunning
+        if wasRunning { captureSession.stopRunning() }
+
+        captureSession.beginConfiguration()
+        captureSession.removeInput(currentInput)
+
+        do {
+            let newInput = try AVCaptureDeviceInput(device: newDevice)
+            if captureSession.canAddInput(newInput) {
+                captureSession.addInput(newInput)
+                currentDevice = newDevice
+            } else {
+                captureSession.addInput(currentInput)
                 captureSession.commitConfiguration()
+                isUsingFrontCamera = previousState
+                currentDevice = previousDevice
+                if wasRunning {
+                    DispatchQueue.global(qos: .userInitiated).async { captureSession.startRunning() }
+                }
+                result(FlutterError(code: "ADD_INPUT_FAILED", message: "Cannot add new camera input", details: nil))
                 return
             }
+        } catch {
+            captureSession.addInput(currentInput)
+            captureSession.commitConfiguration()
+            isUsingFrontCamera = previousState
+            currentDevice = previousDevice
+            if wasRunning {
+                DispatchQueue.global(qos: .userInitiated).async { captureSession.startRunning() }
+            }
+            result(FlutterError(code: "SWITCH_ERROR", message: error.localizedDescription, details: nil))
+            return
         }
-        
+
         captureSession.commitConfiguration()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            if !captureSession.isRunning { captureSession.startRunning() }
+        }
+
         result("Camera switched")
     }
-    
+
+    private func cameraDevice(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+        var deviceTypes: [AVCaptureDevice.DeviceType] = []
+
+        switch position {
+        case .front:
+            if #available(iOS 13.0, *) {
+                deviceTypes = [.builtInTrueDepthCamera, .builtInWideAngleCamera, .builtInUltraWideCamera]
+            } else {
+                deviceTypes = [.builtInTrueDepthCamera, .builtInWideAngleCamera]
+            }
+        case .back:
+            if #available(iOS 13.0, *) {
+                deviceTypes = [
+                    .builtInTripleCamera,
+                    .builtInDualWideCamera,
+                    .builtInDualCamera,
+                    .builtInWideAngleCamera,
+                    .builtInUltraWideCamera,
+                    .builtInTelephotoCamera
+                ]
+            } else {
+                deviceTypes = [
+                    .builtInDualCamera,
+                    .builtInWideAngleCamera,
+                    .builtInUltraWideCamera,
+                    .builtInTelephotoCamera
+                ]
+            }
+        default:
+            deviceTypes = [.builtInWideAngleCamera]
+        }
+
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: deviceTypes,
+            mediaType: .video,
+            position: position
+        )
+
+        if let device = discovery.devices.first {
+            return device
+        }
+
+        return AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position)
+    }
+
     // 플래시 설정
     func setFlash(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard let args = call.arguments as? [String: Any],
