@@ -208,6 +208,7 @@ enum CameraSessionError: LocalizedError {
     case alreadyRecording
     case notRecording
     case writerSetupFailed(String)
+    case switchNotSupportedWhileRecording
 
     var errorDescription: String? {
         switch self {
@@ -221,6 +222,8 @@ enum CameraSessionError: LocalizedError {
             return "No active recording"
         case .writerSetupFailed(let reason):
             return reason
+        case .switchNotSupportedWhileRecording:
+            return "Switching cameras while recording isn't supported on this device"
         }
     }
 }
@@ -251,6 +254,9 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
     private var audioInput: AVCaptureDeviceInput?
 
     private var previewLayers = NSHashTable<AVCaptureVideoPreviewLayer>.weakObjects()
+    private var preferredFormatDimensions: NormalizedDimensions?
+    private var preferredFrameRate: Double = 30.0
+    private var hasDeterminedConstraints = false
 
     // Recording state
     private var isRecording = false
@@ -262,12 +268,14 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
     private var recordingCompletion: ((Result<String, Error>) -> Void)?
     private var recordingTimer: DispatchSourceTimer?
     private var lastVideoPTS: CMTime?
+    private var writerVideoDimensions: CMVideoDimensions?
 
     private var flashMode: AVCaptureDevice.FlashMode = .off
     private var photoCompletion: ((Result<String, Error>) -> Void)?
 
     override init() {
-        if AVCaptureMultiCamSession.isMultiCamSupported {
+        if isMultiCamSupported,
+           AVCaptureMultiCamSession.isMultiCamSupported {
             captureSession = AVCaptureMultiCamSession()
         } else {
             let session = AVCaptureSession()
@@ -339,6 +347,11 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
                         return
                     }
 
+                    if self.isRecording {
+                        completion(.failure(CameraSessionError.switchNotSupportedWhileRecording))
+                        return
+                    }
+
                     guard let currentInput = self.currentDeviceInput else {
                         completion(.failure(CameraSessionError.configurationFailed))
                         return
@@ -351,6 +364,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
                     }
 
                     do {
+                        try self.applyPreferredFormat(to: newDevice)
                         let newInput = try AVCaptureDeviceInput(device: newDevice)
                         let wasRunning = self.captureSession.isRunning
                         if wasRunning { self.captureSession.stopRunning() }
@@ -496,6 +510,9 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
             self.captureSession.outputs.forEach { self.captureSession.removeOutput($0) }
             self.resetWriter()
             self.isConfigured = false
+            self.preferredFormatDimensions = nil
+            self.preferredFrameRate = 30.0
+            self.hasDeterminedConstraints = false
         }
     }
 
@@ -536,6 +553,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
 
     // MARK: Private helpers
     private func configureSession() throws {
+        determineCaptureConstraints()
         captureSession.beginConfiguration()
 
         if isMultiCamSupported {
@@ -554,6 +572,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
     private func configureSingleCamSession() throws {
         let initialPosition: AVCaptureDevice.Position = .back
         guard let device = cameraDevice(for: initialPosition) else { throw CameraSessionError.deviceUnavailable }
+        try applyPreferredFormat(to: device)
         let input = try AVCaptureDeviceInput(device: device)
         guard captureSession.canAddInput(input) else { throw CameraSessionError.configurationFailed }
         captureSession.addInput(input)
@@ -575,6 +594,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         }
 
         guard let backDevice = cameraDevice(for: .back) else { throw CameraSessionError.deviceUnavailable }
+        try applyPreferredFormat(to: backDevice)
         let backInput = try AVCaptureDeviceInput(device: backDevice)
         if multiSession.canAddInput(backInput) { multiSession.addInput(backInput) }
         backDeviceInput = backInput
@@ -584,6 +604,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         activeCamera = .back
 
         guard let frontDevice = cameraDevice(for: .front) else { throw CameraSessionError.deviceUnavailable }
+        try applyPreferredFormat(to: frontDevice)
         let frontInput = try AVCaptureDeviceInput(device: frontDevice)
         if multiSession.canAddInput(frontInput) { multiSession.addInput(frontInput) }
         frontDeviceInput = frontInput
@@ -670,6 +691,210 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         return cameraDevice(for: position)
     }
 
+    private func applyPreferredFormat(to device: AVCaptureDevice) throws {
+        if !hasDeterminedConstraints {
+            determineCaptureConstraints()
+        }
+
+        try device.lockForConfiguration()
+        defer { device.unlockForConfiguration() }
+
+        let format: AVCaptureDevice.Format
+        var targetFrameRate = preferredFrameRate
+
+        if let dims = preferredFormatDimensions,
+           let match = bestFormat(for: device, matching: dims, minimumFrameRate: preferredFrameRate) {
+            format = match.format
+            targetFrameRate = match.frameRate
+        } else if preferredFormatDimensions == nil {
+            let fallback = chooseBestFormat(for: device)
+            format = fallback.format
+            targetFrameRate = fallback.frameRate
+            preferredFormatDimensions = normalizeDimensions(CMVideoFormatDescriptionGetDimensions(format.formatDescription))
+            hasDeterminedConstraints = true
+        } else {
+            // Recompute constraints once more in case formats have changed (e.g., front camera fallback)
+            let previousDims = preferredFormatDimensions
+            preferredFormatDimensions = nil
+            hasDeterminedConstraints = false
+            determineCaptureConstraints()
+
+            if let dims = preferredFormatDimensions,
+               let retry = bestFormat(for: device, matching: dims, minimumFrameRate: preferredFrameRate) {
+                format = retry.format
+                targetFrameRate = retry.frameRate
+            } else {
+                preferredFormatDimensions = previousDims
+                hasDeterminedConstraints = true
+                throw CameraSessionError.configurationFailed
+            }
+        }
+
+        device.activeFormat = format
+        setDevice(device, toFrameRate: targetFrameRate, using: format)
+    }
+
+    private func bestFormat(
+        for device: AVCaptureDevice,
+        matching dims: NormalizedDimensions,
+        minimumFrameRate: Double
+    ) -> (format: AVCaptureDevice.Format, frameRate: Double)? {
+        let candidates = device.formats
+            .filter { normalizeDimensions(CMVideoFormatDescriptionGetDimensions($0.formatDescription)) == dims }
+            .sorted { maximumFrameRate(for: $0) > maximumFrameRate(for: $1) }
+
+        for format in candidates {
+            let maxRate = maximumFrameRate(for: format)
+            if maxRate < 15 { continue }
+            let targetRate = min(maxRate, min(60.0, minimumFrameRate))
+            if targetRate >= 15 {
+                return (format, targetRate)
+            }
+        }
+        return nil
+    }
+
+    private func chooseBestFormat(for device: AVCaptureDevice) -> (format: AVCaptureDevice.Format, frameRate: Double) {
+        var bestFormat = device.activeFormat
+        var bestRate = maximumFrameRate(for: bestFormat)
+        var bestArea = area(of: normalizeDimensions(CMVideoFormatDescriptionGetDimensions(bestFormat.formatDescription)))
+
+        for format in device.formats {
+            let dims = normalizeDimensions(CMVideoFormatDescriptionGetDimensions(format.formatDescription))
+            let maxRate = maximumFrameRate(for: format)
+            if maxRate < 15 { continue }
+            let formatArea = area(of: dims)
+            if formatArea > bestArea || (formatArea == bestArea && maxRate > bestRate) {
+                bestFormat = format
+                bestRate = maxRate
+                bestArea = formatArea
+            }
+        }
+
+        let targetRate = min(bestRate, 60.0)
+        return (bestFormat, targetRate)
+    }
+
+    private func maximumFrameRate(for format: AVCaptureDevice.Format) -> Double {
+        return format.videoSupportedFrameRateRanges.map { $0.maxFrameRate }.max() ?? 0.0
+    }
+
+    private func setDevice(_ device: AVCaptureDevice, toFrameRate frameRate: Double, using format: AVCaptureDevice.Format) {
+        let ranges = format.videoSupportedFrameRateRanges
+        guard let range = ranges
+            .sorted(by: { $0.maxFrameRate > $1.maxFrameRate })
+            .first(where: { $0.minFrameRate <= frameRate && frameRate <= $0.maxFrameRate }) ?? ranges.first else {
+            return
+        }
+
+        let clamped = max(range.minFrameRate, min(range.maxFrameRate, frameRate))
+        preferredFrameRate = clamped
+        let duration = CMTimeMakeWithSeconds(1.0 / clamped, preferredTimescale: 600)
+        device.activeVideoMinFrameDuration = duration
+        device.activeVideoMaxFrameDuration = duration
+    }
+
+    private func determineCaptureConstraints() {
+        guard !hasDeterminedConstraints else { return }
+
+        let backDevice = rawVideoDevice(for: .back)
+        let frontDevice = rawVideoDevice(for: .front)
+
+        var selectedDims: NormalizedDimensions?
+        var selectedRate: Double = preferredFrameRate
+
+        if let back = backDevice {
+            let backFormats = formatsMap(for: back)
+
+            if let front = frontDevice {
+                let frontFormats = formatsMap(for: front)
+                let commonDims = Array(Set(backFormats.keys).intersection(Set(frontFormats.keys)))
+                    .sorted { area(of: $0) > area(of: $1) }
+
+                let ratePreferences: [Double] = [60.0, 30.0, 24.0, 15.0]
+                for dims in commonDims {
+                    guard let backRate = backFormats[dims], let frontRate = frontFormats[dims] else { continue }
+                    let minRate = min(backRate, frontRate)
+                    guard minRate >= 15 else { continue }
+                    let chosenRate: Double
+                    if minRate >= 29.0 {
+                        chosenRate = 30.0
+                    } else {
+                        chosenRate = ratePreferences.first(where: { $0 <= minRate }) ?? minRate
+                    }
+                    selectedDims = dims
+                    selectedRate = chosenRate
+                    break
+                }
+
+                if selectedDims == nil, let fallbackDims = commonDims.first,
+                   let backRate = backFormats[fallbackDims], let frontRate = frontFormats[fallbackDims] {
+                    selectedDims = fallbackDims
+                    let minRate = min(backRate, frontRate)
+                    if minRate >= 29.0 {
+                        selectedRate = 30.0
+                    } else {
+                        selectedRate = minRate
+                    }
+                }
+            } else {
+                let orderedDims = Array(backFormats.keys)
+                    .sorted { area(of: $0) > area(of: $1) }
+                if let dims = orderedDims.first, let rate = backFormats[dims] {
+                    selectedDims = dims
+                    selectedRate = rate >= 29.0 ? 30.0 : rate
+                }
+            }
+        }
+
+        if selectedDims == nil {
+            selectedDims = normalizeDimensions(CMVideoDimensions(width: 1280, height: 720))
+            selectedRate = 30.0
+        }
+
+        preferredFormatDimensions = selectedDims
+        preferredFrameRate = min(selectedRate, 30.0)
+        preferredFrameRate = max(preferredFrameRate, 15.0)
+        hasDeterminedConstraints = true
+    }
+
+    private func formatsMap(for device: AVCaptureDevice) -> [NormalizedDimensions: Double] {
+        var map: [NormalizedDimensions: Double] = [:]
+        for format in device.formats {
+            let dims = normalizeDimensions(CMVideoFormatDescriptionGetDimensions(format.formatDescription))
+            let maxRate = maximumFrameRate(for: format)
+            if maxRate < 15 { continue }
+            if let existing = map[dims], existing >= maxRate { continue }
+            map[dims] = maxRate
+        }
+        return map
+    }
+
+    private func rawVideoDevice(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+        let deviceTypes: [AVCaptureDevice.DeviceType]
+        if #available(iOS 13.0, *) {
+            switch position {
+            case .front:
+                deviceTypes = [.builtInTrueDepthCamera, .builtInWideAngleCamera, .builtInUltraWideCamera]
+            case .back:
+                deviceTypes = [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera, .builtInUltraWideCamera, .builtInTelephotoCamera]
+            default:
+                deviceTypes = [.builtInWideAngleCamera]
+            }
+        } else {
+            deviceTypes = [.builtInWideAngleCamera, .builtInTelephotoCamera, .builtInDualCamera]
+        }
+
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: deviceTypes,
+            mediaType: .video,
+            position: position
+        )
+
+        if let device = discovery.devices.first { return device }
+        return AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position)
+    }
+
     // MARK: Photo delegate
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         if let error {
@@ -708,6 +933,21 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
             AVVideoWidthKey: 1080,
             AVVideoHeightKey: 1920
         ]
+
+        if let widthNumber = videoSettings[AVVideoWidthKey] as? NSNumber,
+           let heightNumber = videoSettings[AVVideoHeightKey] as? NSNumber {
+            writerVideoDimensions = CMVideoDimensions(width: Int32(widthNumber.intValue), height: Int32(heightNumber.intValue))
+        } else if let widthInt = videoSettings[AVVideoWidthKey] as? Int,
+                  let heightInt = videoSettings[AVVideoHeightKey] as? Int {
+            writerVideoDimensions = CMVideoDimensions(width: Int32(widthInt), height: Int32(heightInt))
+        } else if let widthDouble = videoSettings[AVVideoWidthKey] as? Double,
+                  let heightDouble = videoSettings[AVVideoHeightKey] as? Double {
+            writerVideoDimensions = CMVideoDimensions(width: Int32(widthDouble.rounded()), height: Int32(heightDouble.rounded()))
+        } else if let activeFormat = currentDevice?.activeFormat {
+            writerVideoDimensions = CMVideoFormatDescriptionGetDimensions(activeFormat.formatDescription)
+        } else {
+            writerVideoDimensions = nil
+        }
 
         let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         videoInput.expectsMediaDataInRealTime = true
@@ -791,6 +1031,29 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
                 return
             }
 
+            if writer.status == .unknown {
+                writer.cancelWriting()
+                let error = CameraSessionError.writerSetupFailed("Recording stopped before frames were captured")
+                if let url = self.recordingURL {
+                    try? FileManager.default.removeItem(at: url)
+                }
+                DispatchQueue.main.async {
+                    completion?(.success(""))
+                }
+                self.resetWriter()
+                return
+            }
+
+            if writer.status == .failed {
+                let error = writer.error ?? CameraSessionError.writerSetupFailed("Writer failed")
+                DispatchQueue.main.async {
+                    completion?(.failure(error))
+                    self.delegate?.cameraSessionManager(self, didFailRecording: error)
+                }
+                self.resetWriter()
+                return
+            }
+
             self.writerVideoInput?.markAsFinished()
             self.writerAudioInput?.markAsFinished()
             writer.finishWriting {
@@ -816,6 +1079,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         pixelBufferAdaptor = nil
         recordingURL = nil
         lastVideoPTS = nil
+        writerVideoDimensions = nil
     }
 
     private func appendBridgeFrames(durationMs: Int) {
@@ -823,9 +1087,12 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
               isRecording,
               let adaptor = pixelBufferAdaptor,
               let videoInput = writerVideoInput,
-              let lastPTS = lastVideoPTS else { return }
+              let lastPTS = lastVideoPTS,
+              let dims = writerVideoDimensions,
+              dims.width > 0,
+              dims.height > 0 else { return }
 
-        let fps: Int32 = 30
+        let fps: Int32 = Int32(preferredFrameRate.rounded()) > 0 ? Int32(preferredFrameRate.rounded()) : 30
         let frameDuration = CMTime(value: 1, timescale: fps)
         let frameCount = max(1, (durationMs * Int(fps)) / 1000)
 
@@ -833,7 +1100,12 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
             for frameIndex in 1...frameCount {
                 autoreleasepool {
                     var pixelBuffer: CVPixelBuffer?
-                    CVPixelBufferCreate(kCFAllocatorDefault, 1080, 1920, kCVPixelFormatType_32BGRA, nil, &pixelBuffer)
+                    CVPixelBufferCreate(kCFAllocatorDefault,
+                                        Int(dims.width),
+                                        Int(dims.height),
+                                        kCVPixelFormatType_32BGRA,
+                                        nil,
+                                        &pixelBuffer)
                     guard let buffer = pixelBuffer else { return }
                     CVPixelBufferLockBaseAddress(buffer, [])
                     if let base = CVPixelBufferGetBaseAddress(buffer) {
@@ -874,24 +1146,38 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
                 }
             }
             writerQueue.async {
-                guard let videoInput = self.writerVideoInput, videoInput.isReadyForMoreMediaData else { return }
+                guard let writer = self.assetWriter,
+                      let videoInput = self.writerVideoInput else { return }
+
+                if writer.status == .failed { return }
+
                 if writer.status == .unknown {
                     let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
                     writer.startWriting()
                     writer.startSession(atSourceTime: timestamp)
                     self.lastVideoPTS = timestamp
                 }
+
                 if writer.status == .writing {
-                    videoInput.append(sampleBuffer)
-                    self.lastVideoPTS = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                    while !videoInput.isReadyForMoreMediaData {
+                        usleep(1_000)
+                    }
+                    if videoInput.append(sampleBuffer) {
+                        self.lastVideoPTS = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                    }
                 }
             }
         } else if mediaType == kCMMediaType_Audio {
             writerQueue.async {
-                guard let audioInput = self.writerAudioInput, audioInput.isReadyForMoreMediaData else { return }
-                if self.assetWriter?.status == .writing {
-                    audioInput.append(sampleBuffer)
+                guard let writer = self.assetWriter,
+                      let audioInput = self.writerAudioInput else { return }
+
+                if writer.status != .writing { return }
+
+                while !audioInput.isReadyForMoreMediaData {
+                    usleep(1_000)
                 }
+                audioInput.append(sampleBuffer)
             }
         }
     }
@@ -943,4 +1229,32 @@ private final class CameraPreviewView: NSObject, FlutterPlatformView {
     func view() -> UIView {
         previewView
     }
+}
+
+private extension AVCaptureDevice.Format {
+    func supportsFrameRate(_ frameRate: Double) -> Bool {
+        for range in videoSupportedFrameRateRanges {
+            if range.minFrameRate <= frameRate && frameRate <= range.maxFrameRate {
+                return true
+            }
+        }
+        return false
+    }
+}
+
+private struct NormalizedDimensions: Hashable {
+    let width: Int32
+    let height: Int32
+}
+
+private func normalizeDimensions(_ dims: CMVideoDimensions) -> NormalizedDimensions {
+    let absWidth = abs(dims.width)
+    let absHeight = abs(dims.height)
+    let maxSide = max(absWidth, absHeight)
+    let minSide = min(absWidth, absHeight)
+    return NormalizedDimensions(width: maxSide, height: minSide)
+}
+
+private func area(of dims: NormalizedDimensions) -> Int64 {
+    return Int64(dims.width) * Int64(dims.height)
 }

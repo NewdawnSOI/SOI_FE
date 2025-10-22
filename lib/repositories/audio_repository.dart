@@ -33,7 +33,6 @@ class AudioRepository {
   /// 마이크 권한 요청 (네이티브에서 처리)
   static Future<bool> requestMicrophonePermission() async {
     try {
-      // debugPrint('🎤 네이티브에서 마이크 권한을 요청합니다...');
       final bool granted = await _channel.invokeMethod(
         'requestMicrophonePermission',
       );
@@ -148,7 +147,7 @@ class AudioRepository {
       try {
         await file.delete();
       } catch (e) {
-        // print('임시 파일 삭제 실패: $e');
+        debugPrint('임시 파일 삭제 실패: $e');
       }
     }
   }
@@ -298,7 +297,7 @@ class AudioRepository {
       final ref = _storage.refFromURL(downloadUrl);
       await ref.delete();
     } catch (e) {
-      // print('오디오 파일 삭제 실패: $e');
+      debugPrint('오디오 파일 삭제 실패: $e');
     }
   }
 
@@ -321,8 +320,6 @@ class AudioRepository {
 
   /// 오디오 파일에서 파형 데이터 추출
   Future<List<double>> extractWaveformData(String audioFilePath) async {
-    // debugPrint('🌊 파형 데이터 추출 시작 - 파일: $audioFilePath');
-
     final controller = PlayerController();
 
     try {
@@ -336,7 +333,6 @@ class AudioRepository {
       int attempts = 0;
       const maxAttempts = 200; // 20초 대기 (업로드 시에는 더 오래 기다림)
 
-      // debugPrint('⏳ 파형 추출 완료 대기 중...');
       while (attempts < maxAttempts && rawData.isEmpty) {
         await Future.delayed(const Duration(milliseconds: 100));
         attempts++;
@@ -350,29 +346,20 @@ class AudioRepository {
           }
         } catch (e) {
           // 아직 준비되지 않음, 계속 대기
-        }
-
-        // 진행률 로그 (5초마다)
-        if (attempts % 50 == 0) {
-          // debugPrint('⏳ 파형 추출 대기 중... ${attempts * 100}ms');
+          rethrow;
         }
       }
 
-      // debugPrint('📊 원본 파형 데이터 길이: ${rawData.length}');
-
       if (rawData.isEmpty) {
-        // debugPrint('❌ 파형 데이터 추출 시간 초과 또는 실패');
         return [];
       }
 
       // 데이터 최적화 (100개 포인트로 압축)
       final compressedData = _compressWaveformData(rawData, targetLength: 100);
-      // debugPrint('🗜️ 압축된 파형 데이터 길이: ${compressedData.length}');
-      // debugPrint('📈 파형 샘플: ${compressedData.take(5).toList()}...');
 
       return compressedData;
     } catch (e) {
-      // debugPrint('❌ 파형 데이터 추출 실패: $e');
+      debugPrint('❌ 파형 데이터 추출 실패: $e');
       return [];
     } finally {
       controller.dispose();
@@ -408,7 +395,7 @@ class AudioRepository {
       final duration = controller.maxDuration;
       return duration / 1000.0; // 밀리초를 초로 변환
     } catch (e) {
-      // debugPrint('오디오 길이 계산 실패: $e');
+      debugPrint('오디오 길이 계산 실패: $e');
       return 0.0;
     } finally {
       controller.dispose();

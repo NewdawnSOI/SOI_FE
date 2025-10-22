@@ -75,6 +75,7 @@ class _CameraScreenState extends State<CameraScreen>
   Timer? _videoProgressTimer;
 
   String? _videoPath;
+  bool _isNavigatingToEditor = false;
 
   // 0.0 ~ 1.0을 기준으로 두고, 30초로 나누어 증가시킴
   // ValueNotifier로 변경하여 Progress 업데이트 시 전체 위젯 리빌드 방지
@@ -209,8 +210,11 @@ class _CameraScreenState extends State<CameraScreen>
       _pendingVideoAction = _PendingVideoAction.none;
 
       if (path.isNotEmpty) {
+        _videoPath = path;
         // 동영상 저장 후 처리
         Future.microtask(() => _cameraService.refreshGalleryPreview());
+
+        _openVideoEditor(path);
 
         messenger.showSnackBar(
           SnackBar(
@@ -478,17 +482,37 @@ class _CameraScreenState extends State<CameraScreen>
         _videoPath != null &&
         _videoPath!.isNotEmpty &&
         mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) =>
-                  PhotoEditorScreen(filePath: _videoPath, isVideo: true),
-        ),
-      );
+      _openVideoEditor(_videoPath!);
       // 갤러리 미리보기 새로고침
       Future.microtask(() => _loadFirstGalleryImage());
     }
+  }
+
+  void _openVideoEditor(String path) {
+    if (!mounted || path.isEmpty || _isNavigatingToEditor) {
+      return;
+    }
+
+    _isNavigatingToEditor = true;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => PhotoEditorScreen(
+              filePath: path,
+              isVideo: true,
+            ),
+      ),
+    ).whenComplete(() {
+      if (mounted) {
+        setState(() {
+          _isNavigatingToEditor = false;
+        });
+      } else {
+        _isNavigatingToEditor = false;
+      }
+    });
   }
 
   /// 비디오 녹화 Progress 타이머 시작
@@ -643,14 +667,24 @@ class _CameraScreenState extends State<CameraScreen>
       // 현재 줌이 새 카메라에서 지원되지 않으면 1x로 리셋
       final supportedValues =
           zoomLevels.map((z) => z['value'] as double).toList();
-      if (!supportedValues.contains(currentZoomValue)) {
+      if (!supportedValues.contains(currentZoomValue) && mounted) {
         setState(() {
           currentZoomValue = 1.0;
           currentZoom = '1x';
         });
       }
-    } on PlatformException {
-      // Camera switching error occurred: ${e.message}
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? '카메라를 전환할 수 없습니다.'),
+          backgroundColor: const Color(0xFF5A5A5A),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -1029,17 +1063,6 @@ class _CameraScreenState extends State<CameraScreen>
                                         return GestureDetector(
                                           onTap: () {
                                             _stopVideoRecording();
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder:
-                                                    (context) =>
-                                                        PhotoEditorScreen(
-                                                          filePath: _videoPath,
-                                                          isVideo: true,
-                                                        ),
-                                              ),
-                                            );
                                           },
                                           child: CircularVideoProgressIndicator(
                                             progress: progress,
