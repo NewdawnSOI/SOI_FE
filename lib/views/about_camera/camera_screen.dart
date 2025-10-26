@@ -667,24 +667,14 @@ class _CameraScreenState extends State<CameraScreen>
       // 현재 줌이 새 카메라에서 지원되지 않으면 1x로 리셋
       final supportedValues =
           zoomLevels.map((z) => z['value'] as double).toList();
-      if (!supportedValues.contains(currentZoomValue) && mounted) {
+      if (!supportedValues.contains(currentZoomValue)) {
         setState(() {
           currentZoomValue = 1.0;
           currentZoom = '1x';
         });
       }
-    } on PlatformException catch (e) {
-      if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? '카메라를 전환할 수 없습니다.'),
-          backgroundColor: const Color(0xFF5A5A5A),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    } on PlatformException {
+      // Camera switching error occurred: ${e.message}
     }
   }
 

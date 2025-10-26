@@ -24,6 +24,10 @@ class CameraService {
   bool _isFrontCamera = false;
   bool get isFrontCamera => _isFrontCamera;
 
+  bool _supportsLiveSwitch = false;
+  bool _capabilitiesLoaded = false;
+  bool get supportsLiveSwitch => _supportsLiveSwitch;
+
   // 사용 가능한 줌 레벨 캐시
   List<double> _availableZoomLevels = [1.0];
   List<double> get availableZoomLevels => _availableZoomLevels;
@@ -279,6 +283,7 @@ class CameraService {
 
   // 개선된 세션 활성화 (SurfaceProvider 준비 대기)
   Future<void> activateSession() async {
+    await _ensureCapabilitiesLoaded();
     try {
       // 카메라 세션 활성화 시작
 
@@ -317,6 +322,21 @@ class CameraService {
 
       // 오류 발생 시 세션 상태 강제 리셋
       await _forceResetSession();
+    }
+  }
+
+  Future<void> _ensureCapabilitiesLoaded() async {
+    if (_capabilitiesLoaded) {
+      return;
+    }
+
+    try {
+      final bool? supported = await _cameraChannel.invokeMethod<bool>('supportsLiveSwitch');
+      _supportsLiveSwitch = supported ?? false;
+    } catch (_) {
+      _supportsLiveSwitch = false;
+    } finally {
+      _capabilitiesLoaded = true;
     }
   }
 
@@ -574,6 +594,7 @@ class CameraService {
 
   Future<void> switchCamera() async {
     try {
+      await _ensureCapabilitiesLoaded();
       // 카메라가 초기화되지 않았으면 먼저 초기화
       if (!_isSessionActive) {
         final initialized = await initCamera();
@@ -602,10 +623,14 @@ class CameraService {
       // 상태 리셋
       _isSessionActive = false;
       _isFrontCamera = false;
+      _capabilitiesLoaded = false;
+      _supportsLiveSwitch = false;
     } on PlatformException {
       // 에러가 나도 상태는 리셋
       _isSessionActive = false;
       _isFrontCamera = false;
+      _capabilitiesLoaded = false;
+      _supportsLiveSwitch = false;
     }
   }
 }
