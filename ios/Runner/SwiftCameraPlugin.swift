@@ -248,12 +248,14 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
     private var currentDevice: AVCaptureDevice?
 
     private var photoOutput: AVCapturePhotoOutput?
+    private var photoConnection: AVCaptureConnection?
     private var backVideoOutput: AVCaptureVideoDataOutput?
     private var frontVideoOutput: AVCaptureVideoDataOutput?
     private var audioOutput: AVCaptureAudioDataOutput?
     private var audioInput: AVCaptureDeviceInput?
 
     private var previewLayers = NSHashTable<AVCaptureVideoPreviewLayer>.weakObjects()
+    private var previewConnections = NSMapTable<AVCaptureVideoPreviewLayer, AVCaptureConnection>(keyOptions: .weakMemory, valueOptions: .strongMemory, capacity: 0)
     private var preferredFormatDimensions: NormalizedDimensions?
     private var preferredFrameRate: Double = 30.0
     private var hasDeterminedConstraints = false
@@ -327,6 +329,11 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
                         settings.flashMode = .off
                     }
 
+                    if self.isMultiCamSupported,
+                       let multiSession = self.captureSession as? AVCaptureMultiCamSession {
+                        self.configurePhotoConnection(for: self.activeCamera, in: multiSession)
+                    }
+
                     self.photoCompletion = completion
                     photoOutput.capturePhoto(with: settings, delegate: self)
                 }
@@ -344,6 +351,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
                 self.sessionQueue.async {
                     if self.isMultiCamSupported {
                         self.activeCamera = self.activeCamera == .back ? .front : .back
+                        self.refreshMultiCamConnections(for: self.activeCamera)
                         self.updatePreviewMirroring()
                         completion(.success(()))
                         return
@@ -505,8 +513,14 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
             if self.captureSession.isRunning { self.captureSession.stopRunning() }
             self.captureSession.inputs.forEach { self.captureSession.removeInput($0) }
             self.captureSession.outputs.forEach { self.captureSession.removeOutput($0) }
+            if let multiSession = self.captureSession as? AVCaptureMultiCamSession {
+                let connections = multiSession.connections
+                connections.forEach { multiSession.removeConnection($0) }
+            }
             self.resetWriter()
             self.isConfigured = false
+            self.previewConnections.removeAllObjects()
+            self.photoConnection = nil
         }
     }
 
@@ -537,12 +551,30 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
 
     func registerPreviewLayer(_ layer: AVCaptureVideoPreviewLayer) {
         previewLayers.add(layer)
-        layer.session = captureSession
         layer.videoGravity = .resizeAspectFill
-        DispatchQueue.main.async {
-            layer.connection?.videoOrientation = .portrait
+        if isMultiCamSupported {
+            layer.setSessionWithNoConnection(captureSession)
+        } else {
+            layer.session = captureSession
         }
-        ensureSessionConfigured { _ in }
+
+        ensureSessionConfigured { [weak self] _ in
+            guard let self else { return }
+            if self.isMultiCamSupported {
+                self.sessionQueue.async {
+                    self.refreshMultiCamConnections(for: self.activeCamera)
+                }
+            } else {
+                DispatchQueue.main.async {
+                    guard let connection = layer.connection else { return }
+                    connection.applyPortraitOrientation()
+                    if connection.isVideoMirroringSupported {
+                        connection.automaticallyAdjustsVideoMirroring = false
+                        connection.isVideoMirrored = self.currentPosition == .front
+                    }
+                }
+            }
+        }
     }
 
     // MARK: Private helpers
@@ -559,6 +591,9 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         try configureAudioIfNeeded()
 
         captureSession.commitConfiguration()
+        if isMultiCamSupported {
+            refreshMultiCamConnections(for: activeCamera)
+        }
         updatePreviewMirroring()
     }
 
@@ -645,6 +680,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
 
         for layer in previewLayers.allObjects {
             guard let connection = layer.connection else { continue }
+            connection.applyPortraitOrientation()
             if connection.isVideoMirroringSupported {
                 connection.automaticallyAdjustsVideoMirroring = false
                 connection.isVideoMirrored = isFront
@@ -652,10 +688,78 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         }
 
         for output in captureSession.outputs {
-            for connection in output.connections where connection.isVideoMirroringSupported {
-                connection.automaticallyAdjustsVideoMirroring = false
-                connection.isVideoMirrored = false
+            for connection in output.connections {
+                connection.applyPortraitOrientation()
+                if connection.isVideoMirroringSupported {
+                    connection.automaticallyAdjustsVideoMirroring = false
+                    connection.isVideoMirrored = false
+                }
             }
+        }
+    }
+
+    private func configurePreviewConnection(for layer: AVCaptureVideoPreviewLayer,
+                                            in session: AVCaptureMultiCamSession,
+                                            position: AVCaptureDevice.Position) {
+        if let existing = previewConnections.object(forKey: layer) {
+            if session.connections.contains(where: { $0 === existing }) {
+                session.removeConnection(existing)
+            }
+            previewConnections.removeObject(forKey: layer)
+        }
+
+        guard let input = input(for: position) else { return }
+        let videoPorts = input.ports.filter { $0.mediaType == .video }
+        guard !videoPorts.isEmpty else { return }
+
+        let connection = AVCaptureConnection(inputPorts: videoPorts, videoPreviewLayer: layer)
+        guard session.canAddConnection(connection) else { return }
+        session.addConnection(connection)
+        previewConnections.setObject(connection, forKey: layer)
+
+        connection.applyPortraitOrientation()
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = position == .front
+        }
+    }
+
+    private func configurePhotoConnection(for position: AVCaptureDevice.Position,
+                                          in session: AVCaptureMultiCamSession) {
+        guard let photoOutput else { return }
+
+        if let existing = photoConnection,
+           session.connections.contains(where: { $0 === existing }) {
+            session.removeConnection(existing)
+        }
+
+        if let dangling = photoOutput.connection(with: .video), dangling !== photoConnection,
+           session.connections.contains(where: { $0 === dangling }) {
+            session.removeConnection(dangling)
+        }
+
+        guard let input = input(for: position) else { return }
+        let videoPorts = input.ports.filter { $0.mediaType == .video }
+        guard !videoPorts.isEmpty else { return }
+
+        let connection = AVCaptureConnection(inputPorts: videoPorts, output: photoOutput)
+        guard session.canAddConnection(connection) else { return }
+        session.addConnection(connection)
+
+        connection.applyPortraitOrientation()
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = position == .front
+        }
+
+        photoConnection = connection
+    }
+
+    private func refreshMultiCamConnections(for position: AVCaptureDevice.Position) {
+        guard isMultiCamSupported, let multiSession = captureSession as? AVCaptureMultiCamSession else { return }
+        configurePhotoConnection(for: position, in: multiSession)
+        for layer in previewLayers.allObjects {
+            configurePreviewConnection(for: layer, in: multiSession, position: position)
         }
     }
 
@@ -682,6 +786,20 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
     private func device(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
         if currentDevice?.position == position { return currentDevice }
         return cameraDevice(for: position)
+    }
+
+    private func input(for position: AVCaptureDevice.Position) -> AVCaptureDeviceInput? {
+        if isMultiCamSupported {
+            switch position {
+            case .front:
+                return frontDeviceInput
+            case .back:
+                return backDeviceInput ?? currentDeviceInput
+            default:
+                return nil
+            }
+        }
+        return currentDeviceInput
     }
 
     private func applyPreferredFormat(to device: AVCaptureDevice) throws {
@@ -1202,7 +1320,7 @@ private final class PreviewView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         previewLayer.videoGravity = .resizeAspectFill
-        previewLayer.connection?.videoOrientation = .portrait
+        previewLayer.connection?.applyPortraitOrientation()
     }
 }
 
@@ -1219,6 +1337,22 @@ private final class CameraPreviewView: NSObject, FlutterPlatformView {
 
     func view() -> UIView {
         previewView
+    }
+}
+
+private extension AVCaptureConnection {
+    func applyPortraitOrientation() {
+        #if swift(>=5.9)
+        if #available(iOS 17.0, *) {
+            if isVideoRotationAngleSupported(90) {
+                videoRotationAngle = 90
+            }
+            return
+        }
+        #endif
+        if isVideoOrientationSupported {
+            videoOrientation = .portrait
+        }
     }
 }
 

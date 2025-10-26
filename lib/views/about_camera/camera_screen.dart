@@ -58,6 +58,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   // 비디오 녹화 상태 관리
   bool _isVideoRecording = false;
+  bool _supportsLiveSwitch = false;
 
   // 비디오 녹화 후 처리
   StreamSubscription<String>? _videoRecordedSubscription;
@@ -120,6 +121,7 @@ class _CameraScreenState extends State<CameraScreen>
           setState(() {
             _isLoading = false;
             _isInitialized = true;
+            _supportsLiveSwitch = _cameraService.supportsLiveSwitch;
           });
         }
 
@@ -658,6 +660,20 @@ class _CameraScreenState extends State<CameraScreen>
 
   // cameraservice에 카메라 전환 요청
   Future<void> _switchCamera() async {
+    if (_isVideoRecording && !_supportsLiveSwitch) {
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('이 기기에서는 녹화 중 카메라 전환을 지원하지 않습니다.'),
+          backgroundColor: Color(0xFF5A5A5A),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     try {
       await _cameraService.switchCamera();
 
@@ -1078,7 +1094,10 @@ class _CameraScreenState extends State<CameraScreen>
                 // 카메라 전환 버튼 - 개선된 반응형
                 Expanded(
                   child: IconButton(
-                    onPressed: _switchCamera,
+                    onPressed:
+                        (_isVideoRecording && !_supportsLiveSwitch)
+                            ? null
+                            : _switchCamera,
                     color: Color(0xffd9d9d9),
                     icon: Image.asset(
                       "assets/switch.png",

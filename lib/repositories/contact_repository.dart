@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,7 +12,7 @@ class ContactRepository {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getBool(_contactSyncKey) ?? false;
     } catch (e) {
-      // debugPrint('연락처 설정 로드 실패: $e');
+      debugPrint('연락처 설정 로드 실패: $e');
       return false;
     }
   }
@@ -22,7 +23,7 @@ class ContactRepository {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_contactSyncKey, value);
     } catch (e) {
-      // debugPrint('연락처 설정 저장 실패: $e');
+      debugPrint('연락처 설정 저장 실패: $e');
     }
   }
 
@@ -31,7 +32,7 @@ class ContactRepository {
     try {
       return await FlutterContacts.requestPermission();
     } catch (e) {
-      // debugPrint('연락처 권한 요청 실패: $e');
+      debugPrint('연락처 권한 요청 실패: $e');
       return false;
     }
   }
@@ -49,7 +50,7 @@ class ContactRepository {
         throw Exception('연락처 권한이 없습니다');
       }
     } catch (e) {
-      // debugPrint('연락처 목록 가져오기 실패: $e');
+      debugPrint('연락처 목록 가져오기 실패: $e');
       throw Exception('연락처 목록을 가져오는데 실패했습니다: $e');
     }
   }
@@ -63,7 +64,7 @@ class ContactRepository {
         throw Exception('연락처 권한이 없습니다');
       }
     } catch (e) {
-      // debugPrint('연락처 정보 가져오기 실패: $e');
+      debugPrint('연락처 정보 가져오기 실패: $e');
       throw Exception('연락처 정보를 가져오는데 실패했습니다: $e');
     }
   }
@@ -86,7 +87,7 @@ class ContactRepository {
         throw Exception('연락처 권한이 없습니다');
       }
     } catch (e) {
-      // debugPrint('연락처 검색 실패: $e');
+      debugPrint('연락처 검색 실패: $e');
       throw Exception('연락처 검색에 실패했습니다: $e');
     }
   }

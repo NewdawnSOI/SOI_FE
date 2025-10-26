@@ -2,14 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 사진 데이터 모델 (순수 데이터 클래스)
 class PhotoDataModel {
-  final String id;
-  final String imageUrl;
-  final String audioUrl;
-  final String userID;
-  final List<String> userIds;
-  final String categoryId;
-  final DateTime createdAt;
-  final PhotoStatus status;
+  final String id; // 사진 문서 ID
+  final String imageUrl; // 사진 URL
+  final String audioUrl; // 사진을 올릴 때, 함께 올린 음성 URL
+  final String userID; // 사진을 올린 사용자 UID
+  final List<String> userIds; // 사진에 태그된 사용자 UIDs
+  final String categoryId; // 사진이 속한 카테고리 ID
+  final DateTime createdAt; // 사진 업로드 시간
+  final PhotoStatus status; // 사진 상태
   final List<double>? waveformData; // 실제 오디오 파형 데이터 추가
   final Duration duration; // 음성 길이 (초 단위) 추가
   final bool unactive; // 사용자 비활성화 상태
@@ -158,23 +158,4 @@ class PhotoUploadResult {
   factory PhotoUploadResult.failure(String error) {
     return PhotoUploadResult(isSuccess: false, error: error);
   }
-}
-
-/// 사진 검색 필터
-class PhotoSearchFilter {
-  final String? categoryId;
-  final String? userId;
-  final DateTime? startDate;
-  final DateTime? endDate;
-  final PhotoStatus? status;
-  final bool? hasAudio;
-
-  PhotoSearchFilter({
-    this.categoryId,
-    this.userId,
-    this.startDate,
-    this.endDate,
-    this.status,
-    this.hasAudio,
-  });
 }

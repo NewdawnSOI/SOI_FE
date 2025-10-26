@@ -175,7 +175,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     await _notificationController.onNotificationTap(notification);
 
     try {
-      final List<String> pendingMembers =
+      final List<String> unknownMembers =
           notification.pendingCategoryMemberIds != null
               ? List<String>.from(notification.pendingCategoryMemberIds!)
               : await _notificationController.getUnknownCategoryMembers(
@@ -183,7 +183,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 currentUserId: currentUser.uid,
               );
 
-      if (pendingMembers.isEmpty && !notification.requiresAcceptance) {
+      if (unknownMembers.isEmpty && !notification.requiresAcceptance) {
         _navigateToCategory(notification);
         return;
       }
@@ -200,7 +200,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return;
       }
 
-      final inviteeInfos = await _fetchInviteeInfos(pendingMembers);
+      final memberIds = category.mates.toSet().toList();
+      final inviteeTargets =
+          memberIds.isNotEmpty ? memberIds : unknownMembers;
+
+      final inviteeInfos = await _fetchInviteeInfos(inviteeTargets);
 
       if (!mounted) {
         return;

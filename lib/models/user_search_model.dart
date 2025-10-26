@@ -2,25 +2,25 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 사용자 검색 결과 데이터 모델
 class UserSearchModel {
-  /// 사용자 UID
+  /// Firebase Auth에 등록된 고유 UID (백엔드 식별자)
   final String uid;
 
-  /// 사용자 id
+  /// SOI 내부에서 노출되는 사용자 ID(닉네임 역할, 검색/표시용)
   final String id;
 
-  /// 사용자 실명
+  /// 가입 시 입력한 실명 (프로필 상세 등에서 사용)
   final String name;
 
-  /// 사용자 프로필 이미지 URL
+  /// 프로필 이미지의 공개 URL (없으면 기본 아바타 적용)
   final String? profileImageUrl;
 
-  /// 전화번호 (해시화된 값)
+  /// 연락처 기반 친구추천을 위한 전화번호 해시 값(원본 번호는 저장하지 않음)
   final String? phoneNumber;
 
-  /// 전화번호 검색 허용 여부
+  /// 전화번호로 자신을 검색하도록 허용하는지 여부
   final bool allowPhoneSearch;
 
-  /// 계정 생성일
+  /// 계정이 생성된 시각 (최신 순 정렬/필터링에 활용)
   final DateTime createdAt;
 
   const UserSearchModel({

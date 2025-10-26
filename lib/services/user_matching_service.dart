@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_contacts/contact.dart';
 import '../repositories/user_search_repository.dart';
 import '../repositories/friend_repository.dart';
@@ -133,23 +134,20 @@ class UserMatchingService {
   /// [contact] 검색할 연락처
   Future<UserSearchModel?> findUserForContact(Contact contact) async {
     try {
-      // debugPrint('연락처 매칭 시작: ${contact.displayName}');
       for (final phone in contact.phones) {
         if (phone.number.isNotEmpty) {
-          // debugPrint('전화번호로 검색 시도: ${phone.number}');
           final user = await _userSearchRepository.searchUserByPhoneNumber(
             phone.number,
           );
           if (user != null) {
-            // debugPrint('사용자 발견: ${user.id}');
             return user;
           }
         }
       }
-      // debugPrint('매칭되는 사용자 없음');
+      debugPrint('매칭되는 사용자 없음');
       return null;
     } catch (e) {
-      // debugPrint('연락처 매칭 중 오류: $e');
+      debugPrint('연락처 매칭 중 오류: $e');
       return null;
     }
   }

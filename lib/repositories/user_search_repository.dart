@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import '../models/user_search_model.dart';
 
 /// 사용자 검색 Repository 클래스
@@ -18,15 +19,12 @@ class UserSearchRepository {
   /// 전화번호를 해시화하는 함수
   String _hashPhoneNumber(String phoneNumber) {
     // 전화번호에서 숫자만 추출
-    // debugPrint('건네받은 전화번호: $phoneNumber');
     var cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
 
     // 앞자리 0 제거 (Firestore 데이터와 일치시키기 위해)
     if (cleanNumber.startsWith('0')) {
       cleanNumber = cleanNumber.substring(1);
     }
-
-    // debugPrint('정리된 전화번호: $cleanNumber');
 
     // 현재 Firestore에는 해시값이 아닌 전화번호가 저장되어 있으므로
     // 일단 전화번호를 그대로 반환 (추후 해시 마이그레이션 필요)
@@ -43,13 +41,10 @@ class UserSearchRepository {
   /// [phoneNumber] 검색할 전화번호
   Future<UserSearchModel?> searchUserByPhoneNumber(String phoneNumber) async {
     try {
-      // debugPrint('건네받은 전화번호2: $phoneNumber');
       final hashedPhoneNumber = _hashPhoneNumber(phoneNumber);
-      // debugPrint('생성된 해시값: $hashedPhoneNumber');
 
       // 먼저 전체 사용자 중 phone 필드가 있는 문서 확인
       final allUsersSnapshot = await _usersCollection.limit(10).get();
-      // debugPrint('전체 사용자 수: ${allUsersSnapshot.docs.length}');
       for (final doc in allUsersSnapshot.docs) {
         final data = doc.data();
 
@@ -62,7 +57,6 @@ class UserSearchRepository {
           await _usersCollection
               .where('phone', isEqualTo: hashedPhoneNumber)
               .get();
-      // debugPrint('allowPhoneSearch 조건 없이 검색: ${testQuery.docs.length}개 발견');
       if (testQuery.docs.isNotEmpty) {
         testQuery.docs.first.data();
       }
@@ -82,11 +76,7 @@ class UserSearchRepository {
             return allowSearch != false; // null이거나 true인 경우 허용
           }).toList();
 
-      // debugPrint('검색 결과: ${querySnapshot.docs.length}개 문서 발견');
-      // debugPrint('필터링 후: ${filteredDocs.length}개 문서');
-
       if (filteredDocs.isEmpty) {
-        // debugPrint('해당 전화번호로 등록된 사용자가 없거나 검색이 허용되지 않음');
         return null;
       }
 
@@ -95,7 +85,7 @@ class UserSearchRepository {
 
       return UserSearchModel.fromFirestore(userDoc);
     } catch (e) {
-      // debugPrint('전화번호 검색 중 오류 발생: $e');
+      debugPrint('전화번호 검색 중 오류 발생: $e');
       throw Exception('전화번호 검색 실패: $e');
     }
   }

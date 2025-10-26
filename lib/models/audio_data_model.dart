@@ -2,19 +2,43 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 오디오 데이터 모델 (순수 데이터 클래스)
 class AudioDataModel {
+  /// Firestore 문서 ID
   final String id;
+
+  /// 오디오가 속한 카테고리 ID
   final String categoryId;
+
+  /// 업로드한 사용자 ID
   final String userId;
+
+  /// 원본 파일 이름
   final String fileName;
+
+  /// 변환 전 파일 경로
   final String originalPath;
-  final String? convertedPath;
+
+  /// Firebase Storage에 업로드된 오디오의 URL
   final String? firebaseUrl;
+
+  /// 녹음 길이(초)
   final int durationInSeconds;
+
+  /// 파일 용량(MB)
   final double fileSizeInMB;
+
+  /// 오디오 포맷
   final AudioFormat format;
+
+  /// 녹음/업로드 상태
   final AudioStatus status;
+
+  /// 레코드 생성 시각
   final DateTime createdAt;
+
+  /// 업로드 완료 시각
   final DateTime? uploadedAt;
+
+  /// 설명 텍스트
   final String? description;
 
   AudioDataModel({
@@ -23,7 +47,7 @@ class AudioDataModel {
     required this.userId,
     required this.fileName,
     required this.originalPath,
-    this.convertedPath,
+
     this.firebaseUrl,
     required this.durationInSeconds,
     required this.fileSizeInMB,
@@ -42,7 +66,6 @@ class AudioDataModel {
       userId: data['userId'] ?? '',
       fileName: data['fileName'] ?? '',
       originalPath: data['originalPath'] ?? '',
-      convertedPath: data['convertedPath'],
       firebaseUrl: data['firebaseUrl'],
       durationInSeconds: data['durationInSeconds'] ?? 0,
       fileSizeInMB: (data['fileSizeInMB'] ?? 0.0).toDouble(),
@@ -67,7 +90,6 @@ class AudioDataModel {
       'userId': userId,
       'fileName': fileName,
       'originalPath': originalPath,
-      'convertedPath': convertedPath,
       'firebaseUrl': firebaseUrl,
       'durationInSeconds': durationInSeconds,
       'fileSizeInMB': fileSizeInMB,
@@ -102,7 +124,6 @@ class AudioDataModel {
       userId: userId ?? this.userId,
       fileName: fileName ?? this.fileName,
       originalPath: originalPath ?? this.originalPath,
-      convertedPath: convertedPath ?? this.convertedPath,
       firebaseUrl: firebaseUrl ?? this.firebaseUrl,
       durationInSeconds: durationInSeconds ?? this.durationInSeconds,
       fileSizeInMB: fileSizeInMB ?? this.fileSizeInMB,

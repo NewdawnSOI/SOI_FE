@@ -16,30 +16,26 @@ class NotificationModel {
   final NotificationType type; // 알림 유형
   final String title; // 알림 제목
 
-  // 관련 ID들
-  final String? categoryId;
-  final String? categoryName;
-  final String? photoId;
-  final String? commentId;
-
-  // 타임스탬프 및 상태
-  final DateTime createdAt;
-  final bool isRead; // 읽음 여부
-
-  // 카테고리 대표 사진
-  final String? categoryThumbnailUrl;
-
-  // 사진 썸네일 URL
-  final String? photoThumbnailUrl;
-
-  // 사용자 정보 (성능 최적화용 중복 저장)
-  final String? actorName;
-  final String? actorProfileImage; // 알림을 보낸 주체의 프로필 이미지 URL
-
-  // 카테고리 초대 수락 관련 상태
+  // 카테고리 초대 관련
+  final String? categoryId; // 내가 초대된 카테고리의 ID
+  final String? categoryName; // 내가 초대된 카테고리의 이름
+  final String? categoryThumbnailUrl; // 내가 초대된 카테고리의 대표 사진 URL
   final bool requiresAcceptance; // 수락 대기 여부
   final String? categoryInviteId; // categoryInvites 문서 ID
   final List<String>? pendingCategoryMemberIds; // 친구가 아닌 기존 멤버 IDs
+
+  // 사진 관련
+  final String? photoId; // 내가 속하여져 있는 카테고리에 올라온 사진의 ID
+  final String? photoThumbnailUrl; // 내가 속하여져 있는 카테고리에 올라온 사진의 썸네일 URL
+
+  // 댓글 관련
+  final String? commentId; // 내가 속하여져 있는 카테고리에 올라온 사진의 댓글 ID --> 사용x
+
+  // 기타
+  final DateTime createdAt; // 생성 일시
+  final bool isRead; // 알림 읽음 여부 --> 사용x
+  final String? actorName; // 알림을 보낸 주체의 이름
+  final String? actorProfileImage; // 알림을 보낸 주체의 프로필 이미지 URL
 
   NotificationModel({
     required this.id,
@@ -49,17 +45,17 @@ class NotificationModel {
     required this.title,
     this.categoryId,
     this.categoryName,
-    this.photoId,
-    this.commentId,
-    required this.createdAt,
-    this.isRead = false,
     this.categoryThumbnailUrl,
-    this.photoThumbnailUrl,
-    this.actorName,
-    this.actorProfileImage,
     this.requiresAcceptance = false,
     this.categoryInviteId,
     this.pendingCategoryMemberIds,
+    this.photoId,
+    this.photoThumbnailUrl,
+    this.commentId,
+    required this.createdAt,
+    this.isRead = false,
+    this.actorName,
+    this.actorProfileImage,
   });
 
   /// Firestore 문서에서 NotificationModel 생성
@@ -78,21 +74,19 @@ class NotificationModel {
       title: data['title'] ?? '',
       categoryId: data['categoryId'],
       categoryName: data['categoryName'],
-      photoId: data['photoId'],
-      commentId: data['commentId'],
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      isRead: data['isRead'] ?? false,
-
       categoryThumbnailUrl: data['categoryThumbnailUrl'],
-      photoThumbnailUrl: data['photoThumbnailUrl'],
-      actorName: data['actorName'],
-      actorProfileImage: data['actorProfileImage'],
       requiresAcceptance: data['requiresAcceptance'] ?? false,
       categoryInviteId: data['categoryInviteId'],
       pendingCategoryMemberIds:
           data['pendingCategoryMemberIds'] != null
               ? List<String>.from(data['pendingCategoryMemberIds'] as List)
               : null,
+      photoId: data['photoId'],
+      commentId: data['commentId'],
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      isRead: data['isRead'] ?? false,
+      actorName: data['actorName'],
+      actorProfileImage: data['actorProfileImage'],
     );
   }
 
@@ -105,17 +99,16 @@ class NotificationModel {
       'title': title,
       'categoryId': categoryId,
       'categoryName': categoryName,
+      'categoryThumbnailUrl': categoryThumbnailUrl,
+      'requiresAcceptance': requiresAcceptance,
+      'categoryInviteId': categoryInviteId,
+      'pendingCategoryMemberIds': pendingCategoryMemberIds,
       'photoId': photoId,
       'commentId': commentId,
       'createdAt': Timestamp.fromDate(createdAt),
       'isRead': isRead,
-      'categoryThumbnailUrl': categoryThumbnailUrl,
-      'photoThumbnailUrl': photoThumbnailUrl,
       'actorName': actorName,
       'actorProfileImage': actorProfileImage,
-      'requiresAcceptance': requiresAcceptance,
-      'categoryInviteId': categoryInviteId,
-      'pendingCategoryMemberIds': pendingCategoryMemberIds,
     };
   }
 
@@ -156,18 +149,17 @@ class NotificationModel {
       title: title ?? this.title,
       categoryId: categoryId ?? this.categoryId,
       categoryName: categoryName ?? this.categoryName,
-      photoId: photoId ?? this.photoId,
-      commentId: commentId ?? this.commentId,
-      createdAt: createdAt ?? this.createdAt,
-      isRead: isRead ?? this.isRead,
       categoryThumbnailUrl: categoryThumbnailUrl ?? this.categoryThumbnailUrl,
-      photoThumbnailUrl: photoThumbnailUrl ?? this.photoThumbnailUrl,
-      actorName: actorName ?? this.actorName,
-      actorProfileImage: actorProfileImage ?? this.actorProfileImage,
       requiresAcceptance: requiresAcceptance ?? this.requiresAcceptance,
       categoryInviteId: categoryInviteId ?? this.categoryInviteId,
       pendingCategoryMemberIds:
           pendingCategoryMemberIds ?? this.pendingCategoryMemberIds,
+      photoId: photoId ?? this.photoId,
+      commentId: commentId ?? this.commentId,
+      createdAt: createdAt ?? this.createdAt,
+      isRead: isRead ?? this.isRead,
+      actorName: actorName ?? this.actorName,
+      actorProfileImage: actorProfileImage ?? this.actorProfileImage,
     );
   }
 

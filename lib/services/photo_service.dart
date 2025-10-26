@@ -691,7 +691,7 @@ class PhotoService {
 
       return deletedPhotos;
     } catch (e) {
-      debugPrint('❌ PhotoService: 삭제된 사진 조회 실패 - $e');
+      debugPrint('PhotoService: 삭제된 사진 조회 실패 - $e');
       throw Exception('삭제된 사진을 불러오는 중 오류가 발생했습니다: ${e.toString()}');
     }
   }
@@ -740,15 +740,12 @@ class PhotoService {
       );
 
       if (success) {
-        // 4. 필요시 알림 생성 (복원 알림은 선택사항)
-        // await _createPhotoRestoredNotification(categoryId, photoId, userId);
-
         return true;
       } else {
         throw Exception('사진 복원에 실패했습니다.');
       }
     } catch (e) {
-      debugPrint('❌ PhotoService: 사진 복원 실패 - $e');
+      debugPrint('PhotoService: 사진 복원 실패 - $e');
       return false;
     }
   }
@@ -773,7 +770,7 @@ class PhotoService {
 
       return false;
     } catch (e) {
-      debugPrint('❌ 사용자 권한 확인 실패: $e');
+      debugPrint('사용자 권한 확인 실패: $e');
       return false;
     }
   }
