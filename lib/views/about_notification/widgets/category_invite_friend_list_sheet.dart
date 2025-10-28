@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'category_invitee_preview.dart';
 
@@ -121,7 +122,7 @@ class _FriendAvatar extends StatelessWidget {
                   memCacheWidth: (44 * 4).round(),
                   maxWidthDiskCache: (44 * 4).round(),
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => _placeholder(),
+                  placeholder: (context, url) => _shimmerPlaceholder(),
                   errorWidget: (context, url, error) => _placeholder(),
                 )
                 : _placeholder(),
@@ -131,8 +132,24 @@ class _FriendAvatar extends StatelessWidget {
 
   Widget _placeholder() {
     return Container(
-      color: const Color(0xFF3A3A3A),
-      child: const Icon(Icons.person, color: Color(0xFF858585)),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFFd9d9d9),
+      ),
+      child: Icon(Icons.person, color: Colors.white, size: 26),
+    );
+  }
+
+  Widget _shimmerPlaceholder() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF2A2A2A),
+      highlightColor: const Color(0xFF3A3A3A),
+      child: Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFF2A2A2A),
+        ),
+      ),
     );
   }
 }

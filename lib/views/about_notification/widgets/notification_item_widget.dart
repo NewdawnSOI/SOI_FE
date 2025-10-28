@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../models/notification_model.dart';
 
 /// 개별 알림 아이템 위젯
@@ -155,16 +156,29 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
           memCacheHeight: (44 * 4).round(),
           maxWidthDiskCache: (44 * 4).round(),
           fit: BoxFit.cover,
-          placeholder:
-              (context, url) => Container(
-                color: Colors.grey[700],
-                child: Icon(Icons.person, size: 20.sp, color: Colors.grey[500]),
-              ),
+          placeholder: (context, url) => _shimmerWidget(),
           errorWidget:
               (context, url, error) => Container(
-                color: Colors.grey[700],
-                child: Icon(Icons.person, size: 20.sp, color: Colors.grey[500]),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xffd9d9d9),
+                ),
+                child: Icon(Icons.person, size: 26, color: Colors.white),
               ),
+        ),
+      ),
+    );
+  }
+
+  // 로딩시에 사용할 shimmer 위젯
+  Widget _shimmerWidget() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF2A2A2A),
+      highlightColor: const Color(0xFF3A3A3A),
+      child: Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFF2A2A2A),
         ),
       ),
     );
@@ -229,8 +243,8 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
     final categoryImageUrl = widget.notification.categoryThumbnailUrl;
 
     return Container(
-      width: 44.w,
-      height: 44.h,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8.r),
         color: Colors.grey[700],
@@ -241,12 +255,12 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
             categoryImageUrl != null && categoryImageUrl.isNotEmpty
                 ? CachedNetworkImage(
                   imageUrl: categoryImageUrl,
-                  width: 44.w,
-                  height: 44.h,
+                  width: 44,
+                  height: 44,
                   memCacheHeight: (44 * 2).round(),
                   maxWidthDiskCache: (44 * 2).round(),
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => _buildPlaceholder(),
+                  placeholder: (context, url) => _shimmerWidget(),
                   errorWidget: (context, url, error) => _buildCategoryIcon(),
                 )
                 : _buildCategoryIcon(),
@@ -259,8 +273,8 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
     final thumbnailUrl = widget.notification.photoThumbnailUrl;
 
     return Container(
-      width: 44.w,
-      height: 44.h,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8.r),
         color: Colors.grey[700],
@@ -271,12 +285,12 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
             thumbnailUrl != null && thumbnailUrl.isNotEmpty
                 ? CachedNetworkImage(
                   imageUrl: thumbnailUrl,
-                  width: 44.w,
-                  height: 44.h,
+                  width: 44,
+                  height: 44,
                   memCacheHeight: (44 * 2).round(),
                   maxWidthDiskCache: (44 * 2).round(),
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => _buildPlaceholder(),
+                  placeholder: (context, url) => _shimmerWidget(),
                   errorWidget: (context, url, error) => _buildPhotoIcon(),
                 )
                 : _buildPhotoIcon(),
@@ -287,14 +301,10 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
   /// 음성 댓글 썸네일
   Widget _buildVoiceCommentThumbnail() {
     return SizedBox(
-      width: 44.w,
-      height: 44.h,
+      width: 44,
+      height: 44,
       child: ClipRRect(
-        child: Image.asset(
-          "assets/record_notification_icon.png",
-          width: 44.w,
-          height: 44.h,
-        ),
+        child: Image.asset("assets/record_notification_icon.png"),
       ),
     );
   }
@@ -302,13 +312,13 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
   /// 친구 요청 썸네일
   Widget _buildFriendRequestThumbnail() {
     return Container(
-      width: 44.sp,
-      height: 44.sp,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8.r),
         color: const Color(0xFF323232),
       ),
-      child: Icon(Icons.person_add_alt, size: 24.sp),
+      child: Icon(Icons.person_add_alt, size: 24, color: Color(0xffd9d9d9)),
     );
   }
 
@@ -357,18 +367,10 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
 
   /// 공통 위젯들
   Widget _buildCategoryIcon() {
-    return Icon(
-      Icons.folder_outlined,
-      size: 24.sp,
-      color: const Color(0xff634D45),
-    );
+    return Icon(Icons.folder_outlined, size: 24.sp, color: Color(0xffd9d9d9));
   }
 
   Widget _buildPhotoIcon() {
-    return Icon(Icons.photo_outlined, size: 24.sp, color: Colors.blue[400]!);
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(color: Colors.grey[700]);
+    return Icon(Icons.photo_outlined, size: 24.sp, color: Color(0xffd9d9d9));
   }
 }

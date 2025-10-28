@@ -577,9 +577,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                         children: [
                           PhotoDisplayWidget(
                             filePath: widget.filePath,
-                            downloadUrl: widget.downloadUrl,
                             useLocalImage: _useLocalImage,
-                            useDownloadUrl: _useDownloadUrl,
                             width: 354.w,
                             height: 500.h,
                             isVideo: widget.isVideo ?? false,

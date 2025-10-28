@@ -315,9 +315,9 @@ class _UserResultTile extends StatelessWidget {
       height: 44.w,
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        color: Color(0xff323232),
+        color: Color(0xffd9d9d9),
       ),
-      child: Center(
+      /* child: Center(
         child: Text(
           user.name.isNotEmpty ? user.name.characters.first : 'U',
           style: TextStyle(
@@ -326,7 +326,8 @@ class _UserResultTile extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-      ),
+      ),*/
+      child: Icon(Icons.person, size: 26, color: Colors.white),
     );
     if (user.profileImageUrl == null || user.profileImageUrl!.isEmpty) {
       return placeholder;

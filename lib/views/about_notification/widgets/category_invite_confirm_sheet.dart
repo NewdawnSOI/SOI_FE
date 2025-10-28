@@ -285,7 +285,7 @@ class CategoryInviteConfirmSheet extends StatelessWidget {
                   memCacheWidth: (19.31 * 4).round(),
                   maxWidthDiskCache: (19.31 * 4).round(),
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => _avatarPlaceholder(),
+                  placeholder: (context, url) => _shimmerAvatarPlaceholder(),
                   errorWidget: (context, url, error) => _avatarPlaceholder(),
                 )
                 : _avatarPlaceholder(),
@@ -295,8 +295,24 @@ class CategoryInviteConfirmSheet extends StatelessWidget {
 
   Widget _avatarPlaceholder() {
     return Container(
-      color: const Color(0xFF3A3A3A),
-      child: Icon(Icons.person, size: 24.sp, color: const Color(0xFF858585)),
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFFd9d9d9),
+      ),
+      child: Icon(Icons.person, size: 16.sp, color: Colors.white),
+    );
+  }
+
+  Widget _shimmerAvatarPlaceholder() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF2A2A2A),
+      highlightColor: const Color(0xFF3A3A3A),
+      child: Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFF2A2A2A),
+        ),
+      ),
     );
   }
 }

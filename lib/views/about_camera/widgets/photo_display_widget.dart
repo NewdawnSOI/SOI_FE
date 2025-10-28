@@ -1,9 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:video_player/video_player.dart';
 
@@ -13,7 +10,6 @@ class PhotoDisplayWidget extends StatefulWidget {
   final String? filePath;
   final String? downloadUrl;
   final bool useLocalImage;
-  final bool useDownloadUrl;
   final double width;
   final double height;
   final bool isVideo;
@@ -24,7 +20,6 @@ class PhotoDisplayWidget extends StatefulWidget {
     this.filePath,
     this.downloadUrl,
     required this.useLocalImage,
-    required this.useDownloadUrl,
     this.width = 354,
     this.height = 471,
     this.isVideo = false,
@@ -120,16 +115,35 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
         alignment: Alignment.topLeft,
         children: [
           Image.file(
-            File(widget.filePath!),
+            //TODO: 수정 필요
+            File(""),
             width: widget.width,
             height: widget.height,
             fit: BoxFit.cover,
             // 메모리 최적화: 이미지 캐시 크기 제한
             cacheWidth: (widget.width * 2).round(),
-            cacheHeight: (widget.height * 2).round(),
 
+            // 사진을 제대로 가지고 오지 못한 경우, 에러 아이콘 표시
             errorBuilder: (context, error, stackTrace) {
-              return const Icon(Icons.error, color: Colors.white);
+              return Center(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error, color: Color(0xffc1c1c1), size: 50.sp),
+                    SizedBox(height: 10.h),
+                    Text(
+                      "이미지를 불러오지 못헀습니다.\n다시 시도해주세요.",
+                      style: TextStyle(
+                        color: Color(0xffc1c1c1),
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: "Pretendard",
+                      ),
+                    ),
+                  ],
+                ),
+              );
             },
           ),
           IconButton(
@@ -137,39 +151,6 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
               await _handleCancel(doublePop: true);
             },
             icon: Icon(Icons.cancel, color: Color(0xff1c1b1f), size: 35.sp),
-          ),
-        ],
-      );
-    }
-    // 사진 보여주기
-    else if (widget.useDownloadUrl && widget.downloadUrl != null) {
-      return Stack(
-        alignment: Alignment.topLeft,
-        children: [
-          CachedNetworkImage(
-            imageUrl: widget.downloadUrl!,
-            width: widget.width, // 354.w
-            height: widget.height, // 500.h
-            fit: BoxFit.cover,
-            // 메모리 최적화: 실제 표시 크기의 2배로 레티나 디스플레이 대응
-            memCacheWidth: (widget.width * 2).round(),
-            maxWidthDiskCache: (widget.width * 2).round(),
-            placeholder:
-                (context, url) =>
-                    const Center(child: CircularProgressIndicator()),
-            errorWidget:
-                (context, url, error) =>
-                    const Icon(Icons.error, color: Colors.white),
-          ),
-          IconButton(
-            onPressed: () async {
-              await _handleCancel(doublePop: false);
-            },
-            icon: Icon(
-              Icons.cancel,
-              color: Color.fromARGB(255, 17, 15, 22).withValues(alpha: 0.8),
-              size: 30.sp,
-            ),
           ),
         ],
       );

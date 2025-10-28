@@ -151,7 +151,7 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
           height: dimensions.containerSize,
           memCacheWidth: (dimensions.containerSize * 2).round(),
           maxWidthDiskCache: (dimensions.containerSize * 2).round(),
-          placeholder: (context, url) => _buildLoadingIndicator(dimensions),
+          placeholder: (context, url) => _buildShimmer(dimensions),
           errorWidget: (context, url, error) => _buildErrorIcon(dimensions),
         ),
       );
@@ -193,7 +193,7 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
   }
 
   /// 로딩 인디케이터 빌드
-  Widget _buildLoadingIndicator(_CategoryDimensions dimensions) {
+  Widget _buildShimmer(_CategoryDimensions dimensions) {
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade600,
       highlightColor: Colors.grey.shade400,
