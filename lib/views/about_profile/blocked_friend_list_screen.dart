@@ -242,16 +242,29 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
                               ),
                           errorWidget:
                               (context, url, error) => Container(
-                                color: const Color(0xFF333333),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFFd9d9d9),
+                                ),
                                 child: Icon(
                                   Icons.person,
-                                  color: Colors.white54,
-                                  size: 24.sp,
+                                  color: Colors.white,
+                                  size: 26,
                                 ),
                               ),
                         ),
                       )
-                      : Icon(Icons.person, color: Colors.white54, size: 24.sp),
+                      : Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFd9d9d9),
+                        ),
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      ),
             );
           },
         ),

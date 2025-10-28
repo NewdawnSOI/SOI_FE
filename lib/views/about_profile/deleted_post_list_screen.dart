@@ -269,7 +269,7 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
                     (context, url, error) => Container(
                       color: const Color(0xFF333333),
                       child: Icon(
-                        Icons.broken_image,
+                        Icons.image,
                         color: Colors.white54,
                         size: 48.sp,
                       ),

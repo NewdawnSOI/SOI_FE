@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../controllers/auth_controller.dart';
 import '../../../controllers/audio_controller.dart';
@@ -146,15 +147,31 @@ class AudioControlWidget extends StatelessWidget {
                         maxWidthDiskCache: (profileSize * 4).round(),
 
                         placeholder:
-                            (context, url) =>
-                                Container(color: Colors.grey[700]),
+                            (context, url) => Shimmer.fromColors(
+                              baseColor: const Color(0xFF2A2A2A),
+                              highlightColor: const Color(0xFF3A3A3A),
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Color(0xFF2A2A2A),
+                                ),
+                              ),
+                            ),
                         errorWidget:
-                            (context, url, error) =>
-                                Container(color: Colors.grey[700]),
+                            (context, url, error) => Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFFd9d9d9),
+                              ),
+                              child: Icon(Icons.person, size: 20),
+                            ),
                       )
                       : Container(
-                        color: Colors.grey[700],
-                        child: Icon(Icons.person, size: 20.h),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFd9d9d9),
+                        ),
+                        child: Icon(Icons.person, size: 20),
                       ),
             );
           },

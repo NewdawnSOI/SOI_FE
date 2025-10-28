@@ -429,7 +429,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             errorWidget: (context, error, stackTrace) {
                               return Icon(
                                 Icons.person,
-                                size: 96.sp,
+                                size: 76.sp,
                                 color: Colors.white,
                               );
                             },
@@ -438,7 +438,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         : Center(
                           child: Icon(
                             Icons.person,
-                            size: 96.sp,
+                            size: 76.sp,
                             color: Colors.white,
                           ),
                         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:soi/controllers/comment_record_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -126,15 +127,35 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                         memCacheWidth: (profileSize * 4).round(),
                         maxWidthDiskCache: (profileSize * 4).round(),
                         placeholder:
-                            (context, url) =>
-                                Container(color: Colors.grey[700]),
+                            (context, url) => Shimmer.fromColors(
+                              baseColor: const Color(0xFF2A2A2A),
+                              highlightColor: const Color(0xFF3A3A3A),
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Color(0xFF2A2A2A),
+                                ),
+                              ),
+                            ),
                         errorWidget:
-                            (context, url, error) =>
-                                Container(color: Colors.grey[700]),
+                            (context, url, error) => Container(
+                              width: profileSize,
+                              height: profileSize,
+                              decoration: BoxDecoration(
+                                color: Color(0xffd9d9d9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.person, color: Colors.white),
+                            ),
                       )
                       : Container(
-                        color: Colors.grey[700],
-                        child: Icon(Icons.person, size: 20.h),
+                        width: profileSize,
+                        height: profileSize,
+                        decoration: BoxDecoration(
+                          color: Color(0xffd9d9d9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.person, color: Colors.white),
                       ),
             );
           },
@@ -642,16 +663,25 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                                                           (
                                                             context,
                                                             url,
-                                                          ) => Container(
-                                                            width: 27,
-                                                            height: 27,
-                                                            decoration: BoxDecoration(
-                                                              color:
-                                                                  Colors
-                                                                      .grey[700],
-                                                              shape:
-                                                                  BoxShape
-                                                                      .circle,
+                                                          ) => Shimmer.fromColors(
+                                                            baseColor:
+                                                                const Color(
+                                                                  0xFF2A2A2A,
+                                                                ),
+                                                            highlightColor:
+                                                                const Color(
+                                                                  0xFF3A3A3A,
+                                                                ),
+                                                            child: Container(
+                                                              decoration:
+                                                                  const BoxDecoration(
+                                                                    shape:
+                                                                        BoxShape
+                                                                            .circle,
+                                                                    color: Color(
+                                                                      0xFF2A2A2A,
+                                                                    ),
+                                                                  ),
                                                             ),
                                                           ),
                                                       errorWidget:
@@ -662,21 +692,29 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                                                           ) => Container(
                                                             width: 27,
                                                             height: 27,
-                                                            decoration: BoxDecoration(
+                                                            decoration:
+                                                                BoxDecoration(
+                                                                  color: Color(
+                                                                    0xffd9d9d9,
+                                                                  ),
+                                                                  shape:
+                                                                      BoxShape
+                                                                          .circle,
+                                                                ),
+                                                            child: Icon(
+                                                              Icons.person,
                                                               color:
-                                                                  Colors
-                                                                      .grey[700],
-                                                              shape:
-                                                                  BoxShape
-                                                                      .circle,
+                                                                  Colors.white,
                                                             ),
                                                           ),
                                                     )
                                                     : Container(
-                                                      width: 27.w,
-                                                      height: 27.h,
+                                                      width: 27,
+                                                      height: 27,
                                                       decoration: BoxDecoration(
-                                                        color: Colors.grey[700],
+                                                        color: Color(
+                                                          0xffd9d9d9,
+                                                        ),
                                                         shape: BoxShape.circle,
                                                       ),
                                                       child: Icon(

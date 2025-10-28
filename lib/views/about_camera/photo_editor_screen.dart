@@ -38,7 +38,6 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   // ========== 상태 관리 변수들 ==========
   bool _isLoading = true;
   String? _errorMessage;
-  bool _useDownloadUrl = false;
   bool _useLocalImage = false;
   bool _showAddCategoryUI = false;
   String? _selectedCategoryId;
@@ -182,7 +181,6 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         }
       } else if (widget.downloadUrl != null && widget.downloadUrl!.isNotEmpty) {
         setState(() {
-          _useDownloadUrl = true;
           _isLoading = false;
         });
         return;
