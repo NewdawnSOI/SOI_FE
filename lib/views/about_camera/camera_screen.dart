@@ -25,37 +25,51 @@ class CameraScreen extends StatefulWidget {
 
 class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+  // Swift와 통신할 플랫폼 채널
   final CameraService _cameraService = CameraService();
 
+  // 플래시 상태 추적
   bool isFlashOn = false;
 
+  // 추가: 줌 레벨 관리
+  // 기본 줌 레벨
   String currentZoom = '1x';
   double currentZoomValue = 1.0;
 
+  // 동적 줌 레벨 (디바이스별로 결정됨)
   List<Map<String, dynamic>> zoomLevels = [
     {'label': '1x', 'value': 1.0}, // 기본값
   ];
 
+  // 카메라 초기화 Future 추가
   Future<void>? _cameraInitialization;
   bool _isInitialized = false;
 
+  // 카메라 로딩 중 상태
   bool _isLoading = true;
 
+  // 갤러리 미리보기 상태 관리
   AssetEntity? _firstGalleryImage;
   bool _isLoadingGallery = false;
   String? _galleryError;
 
+  // 비디오 녹화 상태 관리
   bool _isVideoRecording = false;
   bool _supportsLiveSwitch = false;
 
+  // 비디오 녹화 후 처리
   StreamSubscription<String>? _videoRecordedSubscription;
 
+  // 비디오 녹화 오류 처리
   StreamSubscription<String>? _videoErrorSubscription;
 
+  // 비디오 녹화 중 상태 관리
   _PendingVideoAction _pendingVideoAction = _PendingVideoAction.none;
 
+  // 비디오 녹화 중 상태 관리
   bool _videoStartInFlight = false;
 
+  // 비디오 녹화 Progress 관리
   Timer? _videoProgressTimer;
 
   String? _videoPath;
@@ -343,10 +357,9 @@ class _CameraScreenState extends State<CameraScreen>
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => PhotoEditorScreen(
-            filePath: result,
-            initialImage: fileImage,
-          ),
+          builder:
+              (context) =>
+                  PhotoEditorScreen(filePath: result, initialImage: fileImage),
         ),
       );
       // 사진 촬영 후 갤러리 미리보기 새로고침 (백그라운드에서)

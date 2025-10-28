@@ -87,6 +87,7 @@ dependencies:
   flutter_dotenv: ^6.0.0
   flutter_reaction_button: ^3.0.0+3
   video_player: ^2.10.0
+  camerawesome: ^2.5.0
 
 dev_dependencies:
   flutter_test:

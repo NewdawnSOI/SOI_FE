@@ -197,26 +197,27 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
 
 // MARK: - Delegate Bridge
 extension SwiftCameraPlugin: CameraSessionManagerDelegate {
-    func cameraSessionManager(_ manager: CameraSessionManager, didFinishRecording path: String) {
+    fileprivate func cameraSessionManager(_ manager: CameraSessionManager, didFinishRecording path: String) {
         channel?.invokeMethod("onVideoRecorded", arguments: ["path": path])
     }
 
-    func cameraSessionManager(_ manager: CameraSessionManager, didFailRecording error: Error) {
+    fileprivate func cameraSessionManager(_ manager: CameraSessionManager, didFailRecording error: Error) {
         channel?.invokeMethod("onVideoError", arguments: ["message": error.localizedDescription])
     }
 }
 
 // MARK: - Camera Session Manager
-private protocol CameraSessionManagerDelegate: AnyObject {
+fileprivate protocol CameraSessionManagerDelegate: AnyObject {
     func cameraSessionManager(_ manager: CameraSessionManager, didFinishRecording path: String)
     func cameraSessionManager(_ manager: CameraSessionManager, didFailRecording error: Error)
 }
 
-private enum CameraSessionError: LocalizedError {
+fileprivate enum CameraSessionError: LocalizedError {
     case deviceUnavailable
     case configurationFailed
     case alreadyRecording
     case notRecording
+    case cannotSwitchWhileRecording
 
     var errorDescription: String? {
         switch self {
@@ -228,11 +229,13 @@ private enum CameraSessionError: LocalizedError {
             return "Video recording already in progress"
         case .notRecording:
             return "No active recording"
+        case .cannotSwitchWhileRecording:
+            return "Cannot switch camera while recording"
         }
     }
 }
 
-private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
+fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
     weak var delegate: CameraSessionManagerDelegate?
 
     private let sessionQueue = DispatchQueue(label: "com.soi.camera.session")
@@ -301,24 +304,31 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
         }
     }
 
+    // 🔥 수정된 카메라 전환 로직 - 녹화 중에도 가능하도록
     func switchCamera(completion: @escaping (Result<Void, Error>) -> Void) {
-        ensureConfigured { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .failure(let error):
-                completion(.failure(error))
-            case .success:
-                self.sessionQueue.async {
-                    let target: AVCaptureDevice.Position = (self.currentPosition == .back) ? .front : .back
-                    let previousZoom = self.videoInput?.device.videoZoomFactor ?? 1.0
-                    do {
-                        try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
-                        self.updateConnectionMirroring()
-                        completion(.success(()))
-                    } catch {
-                        completion(.failure(error))
-                    }
+        sessionQueue.async {
+            // ✅ 세션이 실행 중인지만 확인, 녹화 상태는 체크하지 않음
+            guard self.captureSession.isRunning else {
+                completion(.failure(CameraSessionError.configurationFailed))
+                return
+            }
+
+            let target: AVCaptureDevice.Position = (self.currentPosition == .back) ? .front : .back
+            let previousZoom = self.videoInput?.device.videoZoomFactor ?? 1.0
+
+            do {
+                // ✅ 녹화 중이라면 configuration 없이 직접 input 교체
+                if self.movieOutput.isRecording {
+                    try self.replaceVideoInputWhileRecording(position: target, desiredZoomFactor: previousZoom)
+                } else {
+                    try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
                 }
+                
+                // ✅ 연결 설정 업데이트 (미러링 등)
+                self.updateConnectionMirroring()
+                completion(.success(()))
+            } catch {
+                completion(.failure(error))
             }
         }
     }
@@ -373,12 +383,24 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
                 completion([1.0])
                 return
             }
-            var levels: Set<Double> = [1.0]
-            let maxFactor = Double(device.activeFormat.videoMaxZoomFactor)
-            if maxFactor >= 2.0 { levels.insert(2.0) }
-            if maxFactor >= 3.0 { levels.insert(3.0) }
-            if maxFactor >= 0.5 { levels.insert(0.5) }
-            completion(levels.sorted())
+
+            let minZoom = Double(device.minAvailableVideoZoomFactor)
+            let maxZoom = Double(device.activeFormat.videoMaxZoomFactor)
+
+            // Define preferred zoom levels in priority order
+            let preferredLevels: [Double] = [0.5, 1.0, 2.0, 3.0, 5.0]
+
+            // Filter to only include levels within the device's supported range
+            let supportedLevels = preferredLevels.filter { level in
+                level >= minZoom && level <= maxZoom
+            }
+
+            // Ensure we have at least the min zoom level
+            var finalLevels = Set(supportedLevels)
+            finalLevels.insert(minZoom)
+
+            // Return up to 3 levels, sorted
+            completion(Array(finalLevels.sorted().prefix(3)))
         }
     }
 
@@ -435,6 +457,7 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
         }
     }
 
+    // 🔥 수정된 녹화 시작 로직 - 전면 카메라 지원 강화
     func startRecording(maxDurationMs: Int?, completion: @escaping (Result<Void, Error>) -> Void) {
         ensureConfigured { [weak self] result in
             guard let self else { return }
@@ -448,14 +471,30 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
                         return
                     }
 
+                    // ✅ 비디오 연결이 있는지 확인
+                    guard let connection = self.movieOutput.connection(with: .video) else {
+                        completion(.failure(CameraSessionError.configurationFailed))
+                        return
+                    }
+
+                    // ✅ 연결 설정 (orientation과 mirroring)
+                    if connection.isVideoOrientationSupported {
+                        connection.videoOrientation = .portrait
+                    }
+                    
+                    // ✅ 전면 카메라일 경우 미러링 설정
+                    if connection.isVideoMirroringSupported {
+                        connection.isVideoMirrored = (self.currentPosition == .front)
+                    }
+                    
+                    // ✅ 비디오 안정화 설정 (가능한 경우)
+                    if connection.isVideoStabilizationSupported {
+                        connection.preferredVideoStabilizationMode = .auto
+                    }
+
                     let url = self.temporaryURL(extension: "mov")
                     self.currentMovieURL = url
                     self.isCancellingRecording = false
-
-                    if let connection = self.movieOutput.connection(with: .video) {
-                        connection.videoOrientation = .portrait
-                        connection.isVideoMirrored = self.currentPosition == .front
-                    }
 
                     self.movieOutput.startRecording(to: url, recordingDelegate: self)
                     self.startRecordingTimerIfNeeded(maxDurationMs: maxDurationMs)
@@ -509,6 +548,7 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
 
         try replaceVideoInput(position: currentPosition, desiredZoomFactor: 1.0)
 
+        // ✅ 오디오 입력 추가 (비디오 녹화에 필수)
         if audioInput == nil, let audioDevice = AVCaptureDevice.default(for: .audio) {
             let input = try AVCaptureDeviceInput(device: audioDevice)
             if captureSession.canAddInput(input) {
@@ -523,11 +563,19 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
 
         if captureSession.canAddOutput(movieOutput) {
             captureSession.addOutput(movieOutput)
+            
+            // ✅ MovieOutput 기본 설정
+            if let connection = movieOutput.connection(with: .video) {
+                if connection.isVideoStabilizationSupported {
+                    connection.preferredVideoStabilizationMode = .auto
+                }
+            }
         }
 
         captureSession.commitConfiguration()
     }
 
+    // ✅ 일반 비디오 입력 교체 (녹화 중이 아닐 때)
     private func replaceVideoInput(position: AVCaptureDevice.Position, desiredZoomFactor: CGFloat) throws {
         guard let device = cameraDevice(position: position) else {
             throw CameraSessionError.deviceUnavailable
@@ -554,6 +602,43 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
         currentPosition = position
     }
 
+    // 🔥 새로운 메서드 - 녹화 중 비디오 입력 교체
+    private func replaceVideoInputWhileRecording(position: AVCaptureDevice.Position, desiredZoomFactor: CGFloat) throws {
+        guard let device = cameraDevice(position: position) else {
+            throw CameraSessionError.deviceUnavailable
+        }
+
+        let newInput = try AVCaptureDeviceInput(device: device)
+
+        // ✅ 녹화 중에는 beginConfiguration을 호출하지 않음
+        // 대신 직접 input만 교체
+        if let existing = videoInput {
+            captureSession.removeInput(existing)
+        }
+
+        guard captureSession.canAddInput(newInput) else {
+            throw CameraSessionError.configurationFailed
+        }
+
+        captureSession.addInput(newInput)
+
+        // ✅ 디바이스 설정 적용
+        applyPreferredConfiguration(to: device, matching: desiredZoomFactor)
+
+        videoInput = newInput
+        currentPosition = position
+
+        // ✅ 녹화 중이므로 movieOutput 연결도 즉시 업데이트
+        if let connection = movieOutput.connection(with: .video) {
+            if connection.isVideoOrientationSupported {
+                connection.videoOrientation = .portrait
+            }
+            if connection.isVideoMirroringSupported {
+                connection.isVideoMirrored = (position == .front)
+            }
+        }
+    }
+
     private func startSessionIfNeeded() {
         if !captureSession.isRunning {
             captureSession.startRunning()
@@ -561,6 +646,7 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
     }
 
     private func cameraDevice(position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+        // ✅ 캐시 확인
         if let cached = deviceCache[position], cached.isConnected {
             return cached
         }
@@ -591,15 +677,26 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
         return discovery.devices.map { $0.position }.filter { $0 == .front || $0 == .back }.uniqued()
     }
 
+    // ✅ 수정된 연결 미러링 업데이트
     private func updateConnectionMirroring() {
+        // Photo output 연결 설정
         if let connection = photoOutput.connection(with: .video) {
-            connection.videoOrientation = .portrait
-            connection.isVideoMirrored = currentPosition == .front
+            if connection.isVideoOrientationSupported {
+                connection.videoOrientation = .portrait
+            }
+            if connection.isVideoMirroringSupported {
+                connection.isVideoMirrored = (currentPosition == .front)
+            }
         }
 
+        // Movie output 연결 설정 (녹화 중일 수도 있음)
         if let connection = movieOutput.connection(with: .video) {
-            connection.videoOrientation = .portrait
-            connection.isVideoMirrored = currentPosition == .front
+            if connection.isVideoOrientationSupported {
+                connection.videoOrientation = .portrait
+            }
+            if connection.isVideoMirroringSupported {
+                connection.isVideoMirrored = (currentPosition == .front)
+            }
         }
     }
 
@@ -710,7 +807,7 @@ private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegat
 }
 
 // MARK: - Preview bridge
-private final class CameraPreviewFactory: NSObject, FlutterPlatformViewFactory {
+fileprivate final class CameraPreviewFactory: NSObject, FlutterPlatformViewFactory {
     private let sessionManager: CameraSessionManager
 
     init(sessionManager: CameraSessionManager) {
@@ -727,7 +824,7 @@ private final class CameraPreviewFactory: NSObject, FlutterPlatformViewFactory {
     }
 }
 
-private final class CameraPreviewView: NSObject, FlutterPlatformView {
+fileprivate final class CameraPreviewView: NSObject, FlutterPlatformView {
     private let previewView = PreviewView()
 
     init(frame: CGRect, sessionManager: CameraSessionManager) {
@@ -742,7 +839,7 @@ private final class CameraPreviewView: NSObject, FlutterPlatformView {
     }
 }
 
-private final class PreviewView: UIView {
+fileprivate final class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
 
     var previewLayer: AVCaptureVideoPreviewLayer {
@@ -756,7 +853,7 @@ private final class PreviewView: UIView {
     }
 }
 
-private extension Array where Element: Hashable {
+fileprivate extension Array where Element: Hashable {
     func uniqued() -> [Element] {
         var seen = Set<Element>()
         return filter { seen.insert($0).inserted }
