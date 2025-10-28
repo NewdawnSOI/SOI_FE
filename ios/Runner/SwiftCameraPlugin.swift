@@ -266,6 +266,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
     private var recordingStartTime: CMTime?
     private var lastVideoTimestamp: CMTime?
     private var lastAudioTimestamp: CMTime?
+    private var isSwitchingCamera = false
 
     var supportsLiveSwitch: Bool {
         availablePositions.count > 1
@@ -325,15 +326,29 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
             let target: AVCaptureDevice.Position = (self.currentPosition == .back) ? .front : .back
             let previousZoom = self.videoInput?.device.videoZoomFactor ?? 1.0
+            let previousLastVideoTimestamp = self.lastVideoTimestamp
+            let previousLastAudioTimestamp = self.lastAudioTimestamp
 
             do {
+                self.isSwitchingCamera = true
+                self.lastVideoTimestamp = nil
+                self.lastAudioTimestamp = nil
+
                 // ✅ AVAssetWriter 사용 시 녹화 중에도 일반 교체 가능
                 try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
 
                 // ✅ 연결 설정 업데이트 (미러링 등)
                 self.updateConnectionMirroring()
+                if self.isRecording {
+                    self.applyCurrentWriterTransform()
+                } else {
+                    self.isSwitchingCamera = false
+                }
                 completion(.success(()))
             } catch {
+                self.isSwitchingCamera = false
+                self.lastVideoTimestamp = previousLastVideoTimestamp
+                self.lastAudioTimestamp = previousLastAudioTimestamp
                 completion(.failure(error))
             }
         }
@@ -500,11 +515,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                         videoInput.expectsMediaDataInRealTime = true
 
                         // Transform for orientation/mirroring
-                        if self.currentPosition == .front {
-                            videoInput.transform = CGAffineTransform(scaleX: -1, y: 1).rotated(by: .pi / 2)
-                        } else {
-                            videoInput.transform = CGAffineTransform(rotationAngle: .pi / 2)
-                        }
+                        videoInput.transform = self.writerTransform(for: self.currentPosition)
 
                         // Audio settings
                         let audioSettings: [String: Any] = [
@@ -539,6 +550,8 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                         self.recordingStartTime = nil
                         self.lastVideoTimestamp = nil
                         self.lastAudioTimestamp = nil
+                        self.isSwitchingCamera = false
+                        self.applyCurrentWriterTransform()
                         self.isRecording = true
 
                         self.startRecordingTimerIfNeeded(maxDurationMs: maxDurationMs)
@@ -771,6 +784,19 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
     }
 
+    private func writerTransform(for position: AVCaptureDevice.Position) -> CGAffineTransform {
+        var transform = CGAffineTransform(rotationAngle: .pi / 2)
+        if position == .front {
+            transform = transform.scaledBy(x: -1, y: 1)
+        }
+        return transform
+    }
+
+    private func applyCurrentWriterTransform() {
+        guard let videoInput = videoWriterInput else { return }
+        videoInput.transform = writerTransform(for: currentPosition)
+    }
+
     private func applyPreferredConfiguration(to device: AVCaptureDevice, matching previousZoom: CGFloat) {
         do {
             try device.lockForConfiguration()
@@ -881,21 +907,30 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
 
         // Check for timestamp discontinuity (camera switch)
+        var detectedSwitch = false
         if let lastTimestamp = lastVideoTimestamp {
             let timeDiff = CMTimeGetSeconds(CMTimeSubtract(timestamp, lastTimestamp))
 
             // If gap is too large (> 0.1s), we switched cameras - just continue
             if timeDiff > 0.1 || timeDiff < 0 {
                 // Skip this frame to avoid timestamp issues
-                lastVideoTimestamp = timestamp
-                return
+                lastVideoTimestamp = nil
+                isSwitchingCamera = true
+                detectedSwitch = true
             }
+        }
+
+        if detectedSwitch {
+            return
         }
 
         // Get pixel buffer and append
         if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
             adaptor.append(pixelBuffer, withPresentationTime: timestamp)
             lastVideoTimestamp = timestamp
+            if isSwitchingCamera {
+                isSwitchingCamera = false
+            }
         }
     }
 
@@ -905,16 +940,19 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             return
         }
 
-        // Only append audio if video has started and sync is reasonable
-        if let lastVideoTime = lastVideoTimestamp {
-            let timeDiff = abs(CMTimeGetSeconds(CMTimeSubtract(timestamp, lastVideoTime)))
+        if isSwitchingCamera {
+            lastAudioTimestamp = nil
+            return
+        }
 
-            // Skip audio samples that are too far from video (> 0.05s)
-            if timeDiff > 0.05 {
-                return
-            }
-        } else {
-            // Wait for first video frame before starting audio
+        guard let lastVideoTime = lastVideoTimestamp else {
+            return
+        }
+
+        let timeDiff = abs(CMTimeGetSeconds(CMTimeSubtract(timestamp, lastVideoTime)))
+
+        // Skip audio samples that are too far from video (> 1.0s)
+        if timeDiff > 1.0 {
             return
         }
 
