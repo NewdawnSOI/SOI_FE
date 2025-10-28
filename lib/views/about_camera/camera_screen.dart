@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -24,55 +25,37 @@ class CameraScreen extends StatefulWidget {
 
 class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
-  // Swift와 통신할 플랫폼 채널
   final CameraService _cameraService = CameraService();
 
-  // 추가: 카메라 관련 상태 변수
-  // 촬영된 이미지 경로
-  String imagePath = '';
-
-  // 플래시 상태 추적
   bool isFlashOn = false;
 
-  // 추가: 줌 레벨 관리
-  // 기본 줌 레벨
   String currentZoom = '1x';
   double currentZoomValue = 1.0;
 
-  // 동적 줌 레벨 (디바이스별로 결정됨)
   List<Map<String, dynamic>> zoomLevels = [
     {'label': '1x', 'value': 1.0}, // 기본값
   ];
 
-  // 카메라 초기화 Future 추가
   Future<void>? _cameraInitialization;
   bool _isInitialized = false;
 
-  // 카메라 로딩 중 상태
   bool _isLoading = true;
 
-  // 갤러리 미리보기 상태 관리
   AssetEntity? _firstGalleryImage;
   bool _isLoadingGallery = false;
   String? _galleryError;
 
-  // 비디오 녹화 상태 관리
   bool _isVideoRecording = false;
   bool _supportsLiveSwitch = false;
 
-  // 비디오 녹화 후 처리
   StreamSubscription<String>? _videoRecordedSubscription;
 
-  // 비디오 녹화 오류 처리
   StreamSubscription<String>? _videoErrorSubscription;
 
-  // 비디오 녹화 중 상태 관리
   _PendingVideoAction _pendingVideoAction = _PendingVideoAction.none;
 
-  // 비디오 녹화 중 상태 관리
   bool _videoStartInFlight = false;
 
-  // 비디오 녹화 Progress 관리
   Timer? _videoProgressTimer;
 
   String? _videoPath;
@@ -167,9 +150,9 @@ class _CameraScreenState extends State<CameraScreen>
               }).toList();
         });
       }
-    } catch (e) {
+    } catch (_) {
       // 줌 레벨 로드 실패 시 기본값 유지
-      debugPrint('❌ 줌 레벨 로드 실패: $e');
+      return;
     }
   }
 
@@ -189,8 +172,8 @@ class _CameraScreenState extends State<CameraScreen>
       if (userId != null && userId.isNotEmpty) {
         await notificationController.startListening(userId);
       }
-    } catch (e) {
-      debugPrint('❌ CameraScreen: 알림 초기화 실패 - $e');
+    } catch (_) {
+      return;
     }
   }
 
@@ -201,9 +184,6 @@ class _CameraScreenState extends State<CameraScreen>
       String path,
     ) {
       if (!mounted) return;
-
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.hideCurrentSnackBar();
 
       setState(() {
         _isVideoRecording = false;
@@ -218,14 +198,7 @@ class _CameraScreenState extends State<CameraScreen>
 
         _openVideoEditor(path);
 
-        messenger.showSnackBar(
-          SnackBar(
-            content: const Text('동영상이 저장되었습니다.'),
-            backgroundColor: const Color(0xFF5A5A5A),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        _showSnackBar('동영상이 저장되었습니다.');
       }
     });
 
@@ -235,23 +208,12 @@ class _CameraScreenState extends State<CameraScreen>
     ) {
       if (!mounted) return;
 
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.hideCurrentSnackBar();
-
       setState(() {
         _isVideoRecording = false;
       });
       _videoStartInFlight = false;
       _pendingVideoAction = _PendingVideoAction.none;
-
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: const Color(0xFFD9534F),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      _showSnackBar(message, backgroundColor: const Color(0xFFD9534F));
     });
   }
 
@@ -366,40 +328,37 @@ class _CameraScreenState extends State<CameraScreen>
       }
 
       final String result = await _cameraService.takePicture();
-      setState(() {
-        imagePath = result;
-      });
 
-      // 사진 촬영 후 처리
-      if (result.isNotEmpty && mounted) {
-        // 즉시 편집 화면으로 이동 (갤러리 새로고침과 독립적)
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PhotoEditorScreen(filePath: result),
-          ),
-        );
-        // 사진 촬영 후 갤러리 미리보기 새로고침 (백그라운드에서)
-        Future.microtask(() => _loadFirstGalleryImage());
+      if (result.isEmpty) {
+        return;
       }
-    } on PlatformException catch (e) {
-      // Picture taking error occurred: ${e.message}
+      final fileImage = FileImage(File(result));
+      await precacheImage(fileImage, context).catchError((_) {});
 
+      if (!mounted) {
+        return;
+      }
+
+      // 즉시 편집 화면으로 이동 (갤러리 새로고침과 독립적)
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PhotoEditorScreen(
+            filePath: result,
+            initialImage: fileImage,
+          ),
+        ),
+      );
+      // 사진 촬영 후 갤러리 미리보기 새로고침 (백그라운드에서)
+      Future.microtask(() => _loadFirstGalleryImage());
+    } on PlatformException catch (e) {
       // iOS에서 "Cannot Record" 오류가 발생한 경우 추가 정보 제공
       if (e.message?.contains("Cannot Record") == true) {
-        // iOS audio session conflict detected - possible audio recording in progress
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('카메라 촬영 중 오류가 발생했습니다. 오디오 녹음을 중지하고 다시 시도해주세요.'),
-              backgroundColor: Color(0xFF5A5A5A),
-            ),
-          );
-        }
+        _showSnackBar('카메라 촬영 중 오류가 발생했습니다. 오디오 녹음을 중지하고 다시 시도해주세요.');
       }
     } catch (e) {
       // 추가 예외 처리
-      // Unexpected error occurred during picture taking: $e
+      rethrow;
     }
   }
 
@@ -439,16 +398,9 @@ class _CameraScreenState extends State<CameraScreen>
         _isVideoRecording = false;
       });
       _pendingVideoAction = _PendingVideoAction.none;
-
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('동영상 녹화를 시작할 수 없습니다.'),
-          backgroundColor: Color(0xFFD9534F),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
+      _showSnackBar(
+        '동영상 녹화를 시작할 수 없습니다.',
+        backgroundColor: const Color(0xFFD9534F),
       );
     }
   }
@@ -500,11 +452,7 @@ class _CameraScreenState extends State<CameraScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => PhotoEditorScreen(
-              filePath: path,
-              isVideo: true,
-            ),
+        builder: (context) => PhotoEditorScreen(filePath: path, isVideo: true),
       ),
     ).whenComplete(() {
       if (mounted) {
@@ -550,29 +498,59 @@ class _CameraScreenState extends State<CameraScreen>
     _videoProgress.value = 0.0;
   }
 
+  void _showSnackBar(
+    String message, {
+    Color backgroundColor = const Color(0xFF5A5A5A),
+    Duration duration = const Duration(seconds: 2),
+  }) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        duration: duration,
+      ),
+    );
+  }
+
+  Widget _buildShimmerBox({
+    required double width,
+    required double height,
+    required double borderRadius,
+  }) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade800,
+      highlightColor: Colors.grey.shade700,
+      period: const Duration(milliseconds: 1500),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade800,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.12),
+              width: 1.0,
+            ),
+            borderRadius: BorderRadius.circular(borderRadius),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 갤러리 콘텐츠 빌드 (로딩/에러/이미지 상태 처리)
   Widget _buildGalleryContent(double gallerySize, double borderRadius) {
     // 로딩 중 - shimmer 효과 적용
     if (_isLoadingGallery) {
-      return Shimmer.fromColors(
-        baseColor: Colors.grey.shade800,
-        highlightColor: Colors.grey.shade700,
-        period: const Duration(milliseconds: 1500),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(borderRadius),
-          child: Container(
-            width: 46.w,
-            height: 46.h,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade800,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.12),
-                width: 1.0,
-              ),
-              borderRadius: BorderRadius.circular(borderRadius),
-            ),
-          ),
-        ),
+      return _buildShimmerBox(
+        width: 46.w,
+        height: 46.h,
+        borderRadius: borderRadius,
       );
     }
 
@@ -604,25 +582,10 @@ class _CameraScreenState extends State<CameraScreen>
               // Gallery thumbnail data load error: ${snapshot.error}
               return _buildPlaceholderGallery(gallerySize);
             } else {
-              return Shimmer.fromColors(
-                baseColor: Colors.grey.shade800,
-                highlightColor: Colors.grey.shade700,
-                period: const Duration(milliseconds: 1500),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(borderRadius),
-                  child: Container(
-                    width: 46.w,
-                    height: 46.h,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade800,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        width: 1.0,
-                      ),
-                      borderRadius: BorderRadius.circular(borderRadius),
-                    ),
-                  ),
-                ),
+              return _buildShimmerBox(
+                width: 46.w,
+                height: 46.h,
+                borderRadius: borderRadius,
               );
             }
           },
@@ -636,41 +599,17 @@ class _CameraScreenState extends State<CameraScreen>
 
   /// 갤러리 플레이스홀더 위젯 - 반응형
   Widget _buildPlaceholderGallery(double gallerySize) {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade800,
-      highlightColor: Colors.grey.shade700,
-      period: const Duration(milliseconds: 1500),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8.0),
-        child: Container(
-          width: gallerySize,
-          height: gallerySize,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade800,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.12),
-              width: 1.0,
-            ),
-            borderRadius: BorderRadius.circular(8.0),
-          ),
-        ),
-      ),
+    return _buildShimmerBox(
+      width: gallerySize,
+      height: gallerySize,
+      borderRadius: 8.0,
     );
   }
 
   // cameraservice에 카메라 전환 요청
   Future<void> _switchCamera() async {
     if (_isVideoRecording && !_supportsLiveSwitch) {
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('이 기기에서는 녹화 중 카메라 전환을 지원하지 않습니다.'),
-          backgroundColor: Color(0xFF5A5A5A),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      _showSnackBar('이 기기에서는 녹화 중 카메라 전환을 지원하지 않습니다.');
       return;
     }
 
@@ -699,7 +638,7 @@ class _CameraScreenState extends State<CameraScreen>
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -737,15 +676,8 @@ class _CameraScreenState extends State<CameraScreen>
         currentZoom = zoomLabel;
       });
     } on PlatformException catch (e) {
-      // Zoom setting error occurred: ${e.message}
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('줌 설정 중 오류가 발생했습니다: ${e.message}'),
-            backgroundColor: const Color(0xFF5A5A5A),
-          ),
-        );
-      }
+      final message = e.message ?? '줌 설정 중 오류가 발생했습니다.';
+      _showSnackBar('줌 설정 중 오류가 발생했습니다: $message');
     }
   }
 
@@ -902,22 +834,10 @@ class _CameraScreenState extends State<CameraScreen>
                 future: _cameraInitialization,
                 builder: (context, snapshot) {
                   if (_isLoading) {
-                    return Shimmer.fromColors(
-                      baseColor: Colors.grey.shade800,
-                      highlightColor: Colors.grey.shade700,
-                      period: const Duration(milliseconds: 1500),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          width: 354.w,
-                          height: 500.h,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade800,
-
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
+                    return _buildShimmerBox(
+                      width: 354.w,
+                      height: 500.h,
+                      borderRadius: 16,
                     );
                   }
 
@@ -1021,15 +941,7 @@ class _CameraScreenState extends State<CameraScreen>
                             // No image was selected from gallery
                           }
                         } catch (e) {
-                          // Error occurred while selecting image from gallery: $e
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('갤러리에서 이미지를 선택할 수 없습니다'),
-                                backgroundColor: const Color(0xFF5A5A5A),
-                              ),
-                            );
-                          }
+                          _showSnackBar('갤러리에서 이미지를 선택할 수 없습니다');
                         }
                       },
                       child: Container(

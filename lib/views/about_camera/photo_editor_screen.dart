@@ -23,11 +23,13 @@ class PhotoEditorScreen extends StatefulWidget {
   final String? downloadUrl;
   final String? filePath;
   final bool? isVideo;
+  final ImageProvider? initialImage;
   const PhotoEditorScreen({
     super.key,
     this.downloadUrl,
     this.filePath,
     this.isVideo,
+    this.initialImage,
   });
   @override
   State<PhotoEditorScreen> createState() => _PhotoEditorScreenState();
@@ -37,8 +39,10 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     with WidgetsBindingObserver {
   // ========== 상태 관리 변수들 ==========
   bool _isLoading = true;
+  bool _showImmediatePreview = false;
   String? _errorMessage;
   bool _useLocalImage = false;
+  ImageProvider? _initialImageProvider;
   bool _showAddCategoryUI = false;
   String? _selectedCategoryId;
   bool _categoriesLoaded = false;
@@ -83,6 +87,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _primeImmediatePreview();
     _initializeScreen();
     _captionController.addListener(_handleCaptionChanged);
   }
@@ -108,7 +113,33 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   // ========== 초기화 메서드들 ==========
   void _initializeScreen() {
-    _loadImage();
+    if (!_showImmediatePreview) {
+      _loadImage();
+    }
+  }
+
+  void _primeImmediatePreview() {
+    if (widget.initialImage != null) {
+      _initialImageProvider = widget.initialImage;
+      _showImmediatePreview = true;
+      _useLocalImage = true;
+      _isLoading = false;
+      return;
+    }
+
+    final localPath = widget.filePath;
+    if (localPath == null || localPath.isEmpty) {
+      return;
+    }
+
+    final file = File(localPath);
+    if (!file.existsSync()) {
+      return;
+    }
+
+    _useLocalImage = true;
+    _showImmediatePreview = true;
+    _isLoading = false;
   }
 
   void _initializeControllers() {
@@ -146,8 +177,15 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   void _handleWidgetUpdate(PhotoEditorScreen oldWidget) {
     if (oldWidget.filePath != widget.filePath ||
-        oldWidget.downloadUrl != widget.downloadUrl) {
+        oldWidget.downloadUrl != widget.downloadUrl ||
+        oldWidget.initialImage != widget.initialImage) {
       _categoriesLoaded = false;
+      if (widget.initialImage != null) {
+        _initialImageProvider = widget.initialImage;
+        _showImmediatePreview = true;
+        _useLocalImage = true;
+        _isLoading = false;
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadUserCategories(forceReload: true);
       });
@@ -163,38 +201,85 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   // ========== 이미지 및 카테고리 로딩 메서드들 ==========
   Future<void> _loadImage() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-    try {
-      if (widget.filePath != null && widget.filePath!.isNotEmpty) {
-        final file = File(widget.filePath!);
-        if (await file.exists()) {
+    _errorMessage = null;
+
+    if (_showImmediatePreview && widget.initialImage != null) {
+      _isLoading = false;
+      if (mounted) setState(() {});
+      return;
+    }
+
+    final primedLocalPath = widget.filePath;
+    if (_showImmediatePreview && primedLocalPath != null && primedLocalPath.isNotEmpty) {
+      final primedFile = File(primedLocalPath);
+      if (primedFile.existsSync()) {
+        _isLoading = false;
+        if (mounted) setState(() {});
+        return;
+      }
+    }
+
+    _showImmediatePreview = false;
+
+    final localPath = widget.filePath;
+    if (localPath != null && localPath.isNotEmpty) {
+      final file = File(localPath);
+
+      if (file.existsSync()) {
+        _useLocalImage = true;
+        _showImmediatePreview = true;
+        _isLoading = false;
+        if (mounted) setState(() {});
+        return;
+      }
+
+      try {
+        final exists = await file.exists();
+        if (!mounted) return;
+        if (exists) {
           setState(() {
             _useLocalImage = true;
+            _showImmediatePreview = true;
             _isLoading = false;
           });
           return;
-        } else {
-          throw Exception('이미지 파일을 찾을 수 없습니다.');
         }
-      } else if (widget.downloadUrl != null && widget.downloadUrl!.isNotEmpty) {
+      } catch (e) {
+        if (!mounted) return;
         setState(() {
+          _errorMessage = "이미지 로딩 중 오류 발생: $e";
           _isLoading = false;
         });
         return;
       }
-    } catch (e) {
-      setState(() {
-        _errorMessage = "이미지 로딩 중 오류 발생: $e";
-        _isLoading = false;
-      });
+
+      if (mounted) {
+        setState(() {
+          _errorMessage = '이미지 파일을 찾을 수 없습니다.';
+          _isLoading = false;
+        });
+      }
       return;
     }
-    setState(() {
+
+    if (widget.downloadUrl != null && widget.downloadUrl!.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        _isLoading = false;
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    } else {
       _isLoading = false;
-    });
+    }
   }
 
   Future<void> _loadUserCategories({bool forceReload = false}) async {
@@ -377,13 +462,13 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       );
       _categoriesLoaded = false;
       await _loadUserCategories(forceReload: true);
+      if (!mounted) return;
       setState(() {
         _showAddCategoryUI = false;
         _categoryNameController.clear();
       });
-      if (!context.mounted) return;
     } catch (e) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('카테고리 생성 중 오류가 발생했습니다')));
@@ -392,6 +477,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   // ========== 업로드 및 화면 전환 관련 메서드들 ==========
   Future<void> _uploadThenNavigate(String categoryId) async {
+    if (!mounted) return;
     LoadingPopupWidget.show(context, message: '사진을 업로드하고 있습니다.\n잠시만 기다려주세요');
     try {
       PaintingBinding.instance.imageCache.clear();
@@ -401,23 +487,29 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       _audioController.clearCurrentRecording();
       await Future.delayed(const Duration(milliseconds: 500));
       final uploadData = _extractUploadData(categoryId);
-      if (uploadData == null && mounted) {
+      if (uploadData == null) {
+        if (!mounted) return;
         LoadingPopupWidget.hide(context);
+        if (!mounted) return;
         _navigateToHome();
         return;
       }
+
+      unawaited(_executeUploadWithExtractedData(uploadData));
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+
+      if (!mounted) return;
+      LoadingPopupWidget.hide(context);
+      if (!mounted) return;
       _navigateToHome();
-      unawaited(_executeUploadWithExtractedData(uploadData!));
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
-      LoadingPopupWidget.hide(context);
     } catch (e) {
-      LoadingPopupWidget.hide(context);
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
-      if (mounted) {
-        _navigateToHome();
-      }
+      if (!mounted) return;
+      LoadingPopupWidget.hide(context);
+      if (!mounted) return;
+      _navigateToHome();
     }
   }
 
@@ -555,7 +647,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         backgroundColor: Colors.black,
       ),
       body:
-          _isLoading
+          _isLoading && !_showImmediatePreview
               ? const Center(child: CircularProgressIndicator())
               : _errorMessage != null
               ? Center(
@@ -579,6 +671,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                             width: 354.w,
                             height: 500.h,
                             isVideo: widget.isVideo ?? false,
+                            initialImage: _initialImageProvider,
                             onCancel: _resetBottomSheetIfNeeded,
                           ),
                         ],

@@ -7,26 +7,14 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
     private static let channelName = "com.soi.camera"
 
     private let sessionManager = CameraSessionManager()
-    private var methodChannel: FlutterMethodChannel?
-
-    private func resolve(_ result: @escaping FlutterResult, with value: Any) {
-        DispatchQueue.main.async {
-            result(value)
-        }
-    }
-
-    private func reject(_ result: @escaping FlutterResult, code: String, message: String) {
-        DispatchQueue.main.async {
-            result(FlutterError(code: code, message: message, details: nil))
-        }
-    }
+    private var channel: FlutterMethodChannel?
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = SwiftCameraPlugin()
-        let channel = FlutterMethodChannel(name: channelName, binaryMessenger: registrar.messenger())
-        instance.methodChannel = channel
+        let methodChannel = FlutterMethodChannel(name: channelName, binaryMessenger: registrar.messenger())
+        instance.channel = methodChannel
         instance.sessionManager.delegate = instance
-        registrar.addMethodCallDelegate(instance, channel: channel)
+        registrar.addMethodCallDelegate(instance, channel: methodChannel)
         registrar.register(
             CameraPreviewFactory(sessionManager: instance.sessionManager),
             withId: "com.soi.camera/preview"
@@ -36,35 +24,38 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "initCamera":
-            sessionManager.ensureSessionConfigured { [weak self] configurationResult in
-                guard let self else { return }
-                switch configurationResult {
-                case .success:
-                    self.resolve(result, with: true)
-                case .failure(let error):
-                    self.reject(result, code: "INIT_ERROR", message: error.localizedDescription)
+            sessionManager.ensureConfigured { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result(true)
+                    case .failure(let error):
+                        result(FlutterError(code: "INIT_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
 
         case "takePicture":
-            sessionManager.capturePhoto { [weak self] captureResult in
-                guard let self else { return }
-                switch captureResult {
-                case .success(let path):
-                    self.resolve(result, with: path)
-                case .failure(let error):
-                    self.reject(result, code: "CAPTURE_ERROR", message: error.localizedDescription)
+            sessionManager.capturePhoto { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success(let path):
+                        result(path)
+                    case .failure(let error):
+                        result(FlutterError(code: "CAPTURE_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
 
         case "switchCamera":
-            sessionManager.switchCamera { [weak self] switchResult in
-                guard let self else { return }
-                switch switchResult {
-                case .success:
-                    self.resolve(result, with: "Camera switched")
-                case .failure(let error):
-                    self.reject(result, code: "SWITCH_ERROR", message: error.localizedDescription)
+            sessionManager.switchCamera { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result("Camera switched")
+                    case .failure(let error):
+                        result(FlutterError(code: "SWITCH_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
 
@@ -74,13 +65,14 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing isOn", details: nil))
                 return
             }
-            sessionManager.setFlash(enabled: isOn) { [weak self] flashResult in
-                guard let self else { return }
-                switch flashResult {
-                case .success:
-                    self.resolve(result, with: "Flash set")
-                case .failure(let error):
-                    self.reject(result, code: "FLASH_ERROR", message: error.localizedDescription)
+            sessionManager.setFlash(isOn: isOn) { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result("Flash updated")
+                    case .failure(let error):
+                        result(FlutterError(code: "FLASH_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
 
@@ -90,13 +82,14 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing zoomValue", details: nil))
                 return
             }
-            sessionManager.setZoom(to: zoomValue) { [weak self] zoomResult in
-                guard let self else { return }
-                switch zoomResult {
-                case .success:
-                    self.resolve(result, with: "Zoom set")
-                case .failure(let error):
-                    self.reject(result, code: "ZOOM_ERROR", message: error.localizedDescription)
+            sessionManager.setZoom(to: zoomValue) { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result("Zoom updated")
+                    case .failure(let error):
+                        result(FlutterError(code: "ZOOM_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
 
@@ -106,13 +99,33 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing value", details: nil))
                 return
             }
-            sessionManager.setBrightness(value) { [weak self] brightnessResult in
-                guard let self else { return }
-                switch brightnessResult {
-                case .success:
-                    self.resolve(result, with: "Brightness set")
-                case .failure(let error):
-                    self.reject(result, code: "BRIGHTNESS_ERROR", message: error.localizedDescription)
+            sessionManager.setBrightness(value) { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result("Brightness updated")
+                    case .failure(let error):
+                        result(FlutterError(code: "BRIGHTNESS_ERROR", message: error.localizedDescription, details: nil))
+                    }
+                }
+            }
+
+        case "getAvailableZoomLevels":
+            sessionManager.availableZoomLevels { levels in
+                DispatchQueue.main.async {
+                    result(levels)
+                }
+            }
+
+        case "optimizeCamera":
+            sessionManager.optimizeForCapture { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result("Camera optimized")
+                    case .failure(let error):
+                        result(FlutterError(code: "OPTIMIZE_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
 
@@ -121,66 +134,60 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
             result("Camera paused")
 
         case "resumeCamera":
-            sessionManager.resumeSession()
-            result("Camera resumed")
+            sessionManager.resumeSession { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result("Camera resumed")
+                    case .failure(let error):
+                        result(FlutterError(code: "RESUME_ERROR", message: error.localizedDescription, details: nil))
+                    }
+                }
+            }
 
         case "disposeCamera":
             sessionManager.dispose()
             result("Camera disposed")
 
-        case "optimizeCamera":
-            sessionManager.optimizeForCapture { [weak self] optimizeResult in
-                guard let self else { return }
-                switch optimizeResult {
-                case .success:
-                    self.resolve(result, with: "Camera optimized")
-                case .failure(let error):
-                    self.reject(result, code: "OPTIMIZE_ERROR", message: error.localizedDescription)
-                }
-            }
-
-        case "getAvailableZoomLevels":
-            sessionManager.availableZoomLevels { [weak self] levels in
-                guard let self else { return }
-                self.resolve(result, with: levels)
-            }
-
-        case "supportsLiveSwitch":
-            resolve(result, with: sessionManager.isLiveSwitchSupported)
-
         case "startVideoRecording":
             let durationMs = (call.arguments as? [String: Any])?["maxDurationMs"] as? Int
-            sessionManager.startRecording(maxDurationMs: durationMs) { [weak self] startResult in
-                guard let self else { return }
-                switch startResult {
-                case .success:
-                    self.resolve(result, with: true)
-                case .failure(let error):
-                    self.reject(result, code: "RECORDING_ERROR", message: error.localizedDescription)
+            sessionManager.startRecording(maxDurationMs: durationMs) { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result(true)
+                    case .failure(let error):
+                        result(FlutterError(code: "RECORDING_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
 
         case "stopVideoRecording":
-            sessionManager.stopRecording(cancel: false) { [weak self] stopResult in
-                guard let self else { return }
-                switch stopResult {
-                case .success(let path):
-                    self.resolve(result, with: path)
-                case .failure(let error):
-                    self.reject(result, code: "STOP_ERROR", message: error.localizedDescription)
+            sessionManager.stopRecording { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success(let path):
+                        result(path)
+                    case .failure(let error):
+                        result(FlutterError(code: "STOP_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
 
         case "cancelVideoRecording":
-            sessionManager.stopRecording(cancel: true) { [weak self] stopResult in
-                guard let self else { return }
-                switch stopResult {
-                case .success:
-                    self.resolve(result, with: "")
-                case .failure(let error):
-                    self.reject(result, code: "STOP_ERROR", message: error.localizedDescription)
+            sessionManager.cancelRecording { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result("")
+                    case .failure(let error):
+                        result(FlutterError(code: "CANCEL_ERROR", message: error.localizedDescription, details: nil))
+                    }
                 }
             }
+
+        case "supportsLiveSwitch":
+            result(sessionManager.supportsLiveSwitch)
 
         default:
             result(FlutterMethodNotImplemented)
@@ -188,29 +195,28 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
     }
 }
 
-// MARK: - Session Delegate bridge
+// MARK: - Delegate Bridge
 extension SwiftCameraPlugin: CameraSessionManagerDelegate {
     func cameraSessionManager(_ manager: CameraSessionManager, didFinishRecording path: String) {
-        methodChannel?.invokeMethod("onVideoRecorded", arguments: ["path": path])
+        channel?.invokeMethod("onVideoRecorded", arguments: ["path": path])
     }
 
     func cameraSessionManager(_ manager: CameraSessionManager, didFailRecording error: Error) {
-        methodChannel?.invokeMethod("onVideoError", arguments: ["message": error.localizedDescription])
+        channel?.invokeMethod("onVideoError", arguments: ["message": error.localizedDescription])
     }
 }
 
 // MARK: - Camera Session Manager
-protocol CameraSessionManagerDelegate: AnyObject {
+private protocol CameraSessionManagerDelegate: AnyObject {
     func cameraSessionManager(_ manager: CameraSessionManager, didFinishRecording path: String)
     func cameraSessionManager(_ manager: CameraSessionManager, didFailRecording error: Error)
 }
 
-enum CameraSessionError: LocalizedError {
+private enum CameraSessionError: LocalizedError {
     case deviceUnavailable
     case configurationFailed
     case alreadyRecording
     case notRecording
-    case writerSetupFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -222,75 +228,36 @@ enum CameraSessionError: LocalizedError {
             return "Video recording already in progress"
         case .notRecording:
             return "No active recording"
-        case .writerSetupFailed(let reason):
-            return reason
         }
     }
 }
 
-final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
-    // MARK: Session state
+private final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
     weak var delegate: CameraSessionManagerDelegate?
 
     private let sessionQueue = DispatchQueue(label: "com.soi.camera.session")
-    private let writerQueue = DispatchQueue(label: "com.soi.camera.writer")
+    private let captureSession = AVCaptureSession()
 
-    private let isMultiCamSupported = AVCaptureMultiCamSession.isMultiCamSupported
-    private(set) var captureSession: AVCaptureSession
+    private var videoInput: AVCaptureDeviceInput?
+    private var audioInput: AVCaptureDeviceInput?
+    private let photoOutput = AVCapturePhotoOutput()
+    private let movieOutput = AVCaptureMovieFileOutput()
+    private var deviceCache: [AVCaptureDevice.Position: AVCaptureDevice] = [:]
 
     private var isConfigured = false
     private var currentPosition: AVCaptureDevice.Position = .back
-    private var activeCamera: AVCaptureDevice.Position = .back
-
-    private var backDeviceInput: AVCaptureDeviceInput?
-    private var frontDeviceInput: AVCaptureDeviceInput?
-    private var currentDeviceInput: AVCaptureDeviceInput? { didSet { currentDevice = currentDeviceInput?.device } }
-    private var currentDevice: AVCaptureDevice?
-
-    private var photoOutput: AVCapturePhotoOutput?
-    private var photoConnection: AVCaptureConnection?
-    private var backVideoOutput: AVCaptureVideoDataOutput?
-    private var frontVideoOutput: AVCaptureVideoDataOutput?
-    private var audioOutput: AVCaptureAudioDataOutput?
-    private var audioInput: AVCaptureDeviceInput?
-
-    private var previewLayers = NSHashTable<AVCaptureVideoPreviewLayer>.weakObjects()
-    private var previewConnections = NSMapTable<AVCaptureVideoPreviewLayer, AVCaptureConnection>(keyOptions: .weakMemory, valueOptions: .strongMemory, capacity: 0)
-    private var preferredFormatDimensions: NormalizedDimensions?
-    private var preferredFrameRate: Double = 30.0
-    private var hasDeterminedConstraints = false
-
-    // Recording state
-    private var isRecording = false
-    private var assetWriter: AVAssetWriter?
-    private var writerVideoInput: AVAssetWriterInput?
-    private var writerAudioInput: AVAssetWriterInput?
-    private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
-    private var recordingURL: URL?
+    private var flashMode: AVCaptureDevice.FlashMode = .auto
+    private var photoCompletion: ((Result<String, Error>) -> Void)?
     private var recordingCompletion: ((Result<String, Error>) -> Void)?
     private var recordingTimer: DispatchSourceTimer?
-    private var lastVideoPTS: CMTime?
-    private var writerVideoDimensions: CMVideoDimensions?
+    private var currentMovieURL: URL?
+    private var isCancellingRecording = false
 
-    private var flashMode: AVCaptureDevice.FlashMode = .off
-    private var photoCompletion: ((Result<String, Error>) -> Void)?
-
-    var isLiveSwitchSupported: Bool { isMultiCamSupported }
-
-    override init() {
-        if isMultiCamSupported,
-           AVCaptureMultiCamSession.isMultiCamSupported {
-            captureSession = AVCaptureMultiCamSession()
-        } else {
-            let session = AVCaptureSession()
-            session.sessionPreset = .high
-            captureSession = session
-        }
-        super.init()
+    var supportsLiveSwitch: Bool {
+        availablePositions.count > 1
     }
 
-    // MARK: Public API
-    func ensureSessionConfigured(completion: @escaping (Result<Void, Error>) -> Void) {
+    func ensureConfigured(completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
             if self.isConfigured {
                 self.startSessionIfNeeded()
@@ -310,91 +277,43 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
     }
 
     func capturePhoto(completion: @escaping (Result<String, Error>) -> Void) {
-        ensureSessionConfigured { [weak self] result in
+        ensureConfigured { [weak self] result in
             guard let self else { return }
             switch result {
             case .failure(let error):
                 completion(.failure(error))
             case .success:
                 self.sessionQueue.async {
-                    guard let photoOutput = self.photoOutput else {
+                    guard self.photoOutput.connection(with: .video) != nil else {
                         completion(.failure(CameraSessionError.configurationFailed))
                         return
                     }
 
-                    let settings = AVCapturePhotoSettings()
-                    if photoOutput.supportedFlashModes.contains(self.flashMode) {
+                    let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
+                    if self.photoOutput.supportedFlashModes.contains(self.flashMode) {
                         settings.flashMode = self.flashMode
-                    } else if photoOutput.supportedFlashModes.contains(.off) {
-                        settings.flashMode = .off
-                    }
-
-                    if self.isMultiCamSupported,
-                       let multiSession = self.captureSession as? AVCaptureMultiCamSession {
-                        self.configurePhotoConnection(for: self.activeCamera, in: multiSession)
                     }
 
                     self.photoCompletion = completion
-                    photoOutput.capturePhoto(with: settings, delegate: self)
+                    self.photoOutput.capturePhoto(with: settings, delegate: self)
                 }
             }
         }
     }
 
     func switchCamera(completion: @escaping (Result<Void, Error>) -> Void) {
-        ensureSessionConfigured { [weak self] result in
+        ensureConfigured { [weak self] result in
             guard let self else { return }
             switch result {
             case .failure(let error):
                 completion(.failure(error))
             case .success:
                 self.sessionQueue.async {
-                    if self.isMultiCamSupported {
-                        self.activeCamera = self.activeCamera == .back ? .front : .back
-                        self.refreshMultiCamConnections(for: self.activeCamera)
-                        self.updatePreviewMirroring()
-                        completion(.success(()))
-                        return
-                    }
-
-                    guard let currentInput = self.currentDeviceInput else {
-                        completion(.failure(CameraSessionError.configurationFailed))
-                        return
-                    }
-
-                    let targetPosition: AVCaptureDevice.Position = (self.currentPosition == .back) ? .front : .back
-                    guard let newDevice = self.cameraDevice(for: targetPosition) else {
-                        completion(.failure(CameraSessionError.deviceUnavailable))
-                        return
-                    }
-
+                    let target: AVCaptureDevice.Position = (self.currentPosition == .back) ? .front : .back
+                    let previousZoom = self.videoInput?.device.videoZoomFactor ?? 1.0
                     do {
-                        try self.applyPreferredFormat(to: newDevice)
-                        let newInput = try AVCaptureDeviceInput(device: newDevice)
-                        let wasRunning = self.captureSession.isRunning
-                        if wasRunning { self.captureSession.stopRunning() }
-
-                        self.captureSession.beginConfiguration()
-                        self.captureSession.removeInput(currentInput)
-                        if self.captureSession.canAddInput(newInput) {
-                            self.captureSession.addInput(newInput)
-                            self.currentDeviceInput = newInput
-                            self.currentPosition = targetPosition
-                        } else {
-                            self.captureSession.addInput(currentInput)
-                            self.captureSession.commitConfiguration()
-                            if wasRunning { self.captureSession.startRunning() }
-                            completion(.failure(CameraSessionError.configurationFailed))
-                            return
-                        }
-                        self.captureSession.commitConfiguration()
-
-                        if wasRunning { self.captureSession.startRunning() }
-                        self.updatePreviewMirroring()
-
-                        if self.isRecording {
-                            self.appendBridgeFrames(durationMs: 150)
-                        }
+                        try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
+                        self.updateConnectionMirroring()
                         completion(.success(()))
                     } catch {
                         completion(.failure(error))
@@ -404,23 +323,24 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         }
     }
 
-    func setFlash(enabled: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
+    func setFlash(isOn: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
-            self.flashMode = enabled ? .on : .off
+            self.flashMode = isOn ? .on : .off
             completion(.success(()))
         }
     }
 
-    func setZoom(to factor: Double, completion: @escaping (Result<Void, Error>) -> Void) {
+    func setZoom(to value: Double, completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
-            guard let device = self.currentDevice else {
+            guard let device = self.videoInput?.device else {
                 completion(.failure(CameraSessionError.deviceUnavailable))
                 return
             }
             do {
                 try device.lockForConfiguration()
-                let maxFactor = min(device.activeFormat.videoMaxZoomFactor, CGFloat(max(factor, 1.0)))
-                device.ramp(toVideoZoomFactor: maxFactor, withRate: 4.0)
+                let minValue = max(1.0, value)
+                let clamped = min(Double(device.activeFormat.videoMaxZoomFactor), minValue)
+                device.videoZoomFactor = CGFloat(clamped)
                 device.unlockForConfiguration()
                 completion(.success(()))
             } catch {
@@ -431,7 +351,7 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
 
     func setBrightness(_ value: Double, completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
-            guard let device = self.currentDevice else {
+            guard let device = self.videoInput?.device else {
                 completion(.failure(CameraSessionError.deviceUnavailable))
                 return
             }
@@ -449,84 +369,22 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
 
     func availableZoomLevels(completion: @escaping ([Double]) -> Void) {
         sessionQueue.async {
-            var levels: Set<Double> = [1.0]
-            if let device = self.device(for: .back) {
-                if device.minAvailableVideoZoomFactor <= 0.5 && device.maxAvailableVideoZoomFactor >= 0.5 {
-                    levels.insert(0.5)
-                }
-                if device.maxAvailableVideoZoomFactor >= 2.0 { levels.insert(2.0) }
-                if device.maxAvailableVideoZoomFactor >= 3.0 { levels.insert(3.0) }
-            }
-            completion(levels.sorted())
-        }
-    }
-
-    func startRecording(maxDurationMs: Int?, completion: @escaping (Result<Void, Error>) -> Void) {
-        ensureSessionConfigured { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .failure(let error):
-                completion(.failure(error))
-            case .success:
-                self.sessionQueue.async {
-                    guard !self.isRecording else {
-                        completion(.failure(CameraSessionError.alreadyRecording))
-                        return
-                    }
-                    do {
-                        try self.prepareWriter()
-                        self.isRecording = true
-                        self.startRecordingTimerIfNeeded(maxDurationMs)
-                        completion(.success(()))
-                    } catch {
-                        self.resetWriter()
-                        completion(.failure(error))
-                    }
-                }
-            }
-        }
-    }
-
-    func stopRecording(cancel: Bool, completion: @escaping (Result<String, Error>) -> Void) {
-        sessionQueue.async {
-            guard self.isRecording else {
-                completion(.failure(CameraSessionError.notRecording))
+            guard let device = self.videoInput?.device else {
+                completion([1.0])
                 return
             }
-            self.recordingCompletion = completion
-            self.finishRecording(cancelled: cancel)
-        }
-    }
-
-    func pauseSession() {
-        sessionQueue.async {
-            if self.captureSession.isRunning { self.captureSession.stopRunning() }
-        }
-    }
-
-    func resumeSession() {
-        ensureSessionConfigured { _ in }
-    }
-
-    func dispose() {
-        sessionQueue.sync {
-            if self.captureSession.isRunning { self.captureSession.stopRunning() }
-            self.captureSession.inputs.forEach { self.captureSession.removeInput($0) }
-            self.captureSession.outputs.forEach { self.captureSession.removeOutput($0) }
-            if let multiSession = self.captureSession as? AVCaptureMultiCamSession {
-                let connections = multiSession.connections
-                connections.forEach { multiSession.removeConnection($0) }
-            }
-            self.resetWriter()
-            self.isConfigured = false
-            self.previewConnections.removeAllObjects()
-            self.photoConnection = nil
+            var levels: Set<Double> = [1.0]
+            let maxFactor = Double(device.activeFormat.videoMaxZoomFactor)
+            if maxFactor >= 2.0 { levels.insert(2.0) }
+            if maxFactor >= 3.0 { levels.insert(3.0) }
+            if maxFactor >= 0.5 { levels.insert(0.5) }
+            completion(levels.sorted())
         }
     }
 
     func optimizeForCapture(completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
-            guard let device = self.currentDevice else {
+            guard let device = self.videoInput?.device else {
                 completion(.failure(CameraSessionError.deviceUnavailable))
                 return
             }
@@ -549,124 +407,151 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         }
     }
 
-    func registerPreviewLayer(_ layer: AVCaptureVideoPreviewLayer) {
-        previewLayers.add(layer)
-        layer.videoGravity = .resizeAspectFill
-        if isMultiCamSupported {
-            layer.setSessionWithNoConnection(captureSession)
-        } else {
-            layer.session = captureSession
+    func pauseSession() {
+        sessionQueue.async {
+            if self.captureSession.isRunning {
+                self.captureSession.stopRunning()
+            }
         }
+    }
 
-        ensureSessionConfigured { [weak self] _ in
+    func resumeSession(completion: @escaping (Result<Void, Error>) -> Void) {
+        ensureConfigured { outcome in
+            completion(outcome)
+        }
+    }
+
+    func dispose() {
+        sessionQueue.sync {
+            recordingTimer?.cancel()
+            recordingTimer = nil
+            if captureSession.isRunning { captureSession.stopRunning() }
+            captureSession.inputs.forEach { captureSession.removeInput($0) }
+            captureSession.outputs.forEach { captureSession.removeOutput($0) }
+            videoInput = nil
+            audioInput = nil
+            isConfigured = false
+            currentMovieURL = nil
+        }
+    }
+
+    func startRecording(maxDurationMs: Int?, completion: @escaping (Result<Void, Error>) -> Void) {
+        ensureConfigured { [weak self] result in
             guard let self else { return }
-            if self.isMultiCamSupported {
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success:
                 self.sessionQueue.async {
-                    self.refreshMultiCamConnections(for: self.activeCamera)
-                }
-            } else {
-                DispatchQueue.main.async {
-                    guard let connection = layer.connection else { return }
-                    connection.applyPortraitOrientation()
-                    if connection.isVideoMirroringSupported {
-                        connection.automaticallyAdjustsVideoMirroring = false
+                    guard !self.movieOutput.isRecording else {
+                        completion(.failure(CameraSessionError.alreadyRecording))
+                        return
+                    }
+
+                    let url = self.temporaryURL(extension: "mov")
+                    self.currentMovieURL = url
+                    self.isCancellingRecording = false
+
+                    if let connection = self.movieOutput.connection(with: .video) {
+                        connection.videoOrientation = .portrait
                         connection.isVideoMirrored = self.currentPosition == .front
                     }
+
+                    self.movieOutput.startRecording(to: url, recordingDelegate: self)
+                    self.startRecordingTimerIfNeeded(maxDurationMs: maxDurationMs)
+                    completion(.success(()))
                 }
             }
         }
     }
 
-    // MARK: Private helpers
+    func stopRecording(completion: @escaping (Result<String, Error>) -> Void) {
+        sessionQueue.async {
+            guard self.movieOutput.isRecording else {
+                completion(.failure(CameraSessionError.notRecording))
+                return
+            }
+            self.recordingCompletion = completion
+            self.isCancellingRecording = false
+            self.movieOutput.stopRecording()
+        }
+    }
+
+    func cancelRecording(completion: @escaping (Result<Void, Error>) -> Void) {
+        sessionQueue.async {
+            guard self.movieOutput.isRecording else {
+                completion(.success(()))
+                return
+            }
+            self.isCancellingRecording = true
+            self.recordingCompletion = { result in
+                switch result {
+                case .success:
+                    completion(.success(()))
+                case .failure(let error):
+                    completion(.failure(error))
+                }
+            }
+            self.movieOutput.stopRecording()
+        }
+    }
+
+    func registerPreviewLayer(_ layer: AVCaptureVideoPreviewLayer) {
+        layer.videoGravity = .resizeAspectFill
+        layer.session = captureSession
+        ensureConfigured { _ in }
+    }
+
+    // MARK: - Private Helpers
     private func configureSession() throws {
         captureSession.beginConfiguration()
+        captureSession.sessionPreset = .high
 
-        if isMultiCamSupported {
-            try configureMultiCamSession()
-        } else {
-            try configureSingleCamSession()
+        try replaceVideoInput(position: currentPosition, desiredZoomFactor: 1.0)
+
+        if audioInput == nil, let audioDevice = AVCaptureDevice.default(for: .audio) {
+            let input = try AVCaptureDeviceInput(device: audioDevice)
+            if captureSession.canAddInput(input) {
+                captureSession.addInput(input)
+                audioInput = input
+            }
         }
 
-        try configurePhotoOutput()
-        try configureAudioIfNeeded()
+        if captureSession.canAddOutput(photoOutput) {
+            captureSession.addOutput(photoOutput)
+        }
+
+        if captureSession.canAddOutput(movieOutput) {
+            captureSession.addOutput(movieOutput)
+        }
 
         captureSession.commitConfiguration()
-        if isMultiCamSupported {
-            refreshMultiCamConnections(for: activeCamera)
+    }
+
+    private func replaceVideoInput(position: AVCaptureDevice.Position, desiredZoomFactor: CGFloat) throws {
+        guard let device = cameraDevice(position: position) else {
+            throw CameraSessionError.deviceUnavailable
         }
-        updatePreviewMirroring()
-    }
 
-    private func configureSingleCamSession() throws {
-        let initialPosition: AVCaptureDevice.Position = .back
-        guard let device = cameraDevice(for: initialPosition) else { throw CameraSessionError.deviceUnavailable }
-        try applyPreferredFormat(to: device)
-        let input = try AVCaptureDeviceInput(device: device)
-        guard captureSession.canAddInput(input) else { throw CameraSessionError.configurationFailed }
-        captureSession.addInput(input)
-        currentDeviceInput = input
-        currentDevice = device
-        currentPosition = initialPosition
+        let newInput = try AVCaptureDeviceInput(device: device)
 
-        let videoOutput = AVCaptureVideoDataOutput()
-        videoOutput.alwaysDiscardsLateVideoFrames = false
-        videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.video"))
-        guard captureSession.canAddOutput(videoOutput) else { throw CameraSessionError.configurationFailed }
-        captureSession.addOutput(videoOutput)
-        backVideoOutput = videoOutput
-    }
+        captureSession.beginConfiguration()
+        if let existing = videoInput {
+            captureSession.removeInput(existing)
+        }
 
-    private func configureMultiCamSession() throws {
-        guard let multiSession = captureSession as? AVCaptureMultiCamSession else {
+        guard captureSession.canAddInput(newInput) else {
+            captureSession.commitConfiguration()
             throw CameraSessionError.configurationFailed
         }
 
-        guard let backDevice = cameraDevice(for: .back) else { throw CameraSessionError.deviceUnavailable }
-        try applyPreferredFormat(to: backDevice)
-        let backInput = try AVCaptureDeviceInput(device: backDevice)
-        if multiSession.canAddInput(backInput) { multiSession.addInput(backInput) }
-        backDeviceInput = backInput
-        currentDeviceInput = backInput
-        currentDevice = backDevice
-        currentPosition = .back
-        activeCamera = .back
+        captureSession.addInput(newInput)
+        captureSession.commitConfiguration()
 
-        guard let frontDevice = cameraDevice(for: .front) else { throw CameraSessionError.deviceUnavailable }
-        try applyPreferredFormat(to: frontDevice)
-        let frontInput = try AVCaptureDeviceInput(device: frontDevice)
-        if multiSession.canAddInput(frontInput) { multiSession.addInput(frontInput) }
-        frontDeviceInput = frontInput
+        applyPreferredConfiguration(to: device, matching: desiredZoomFactor)
 
-        let backOutput = AVCaptureVideoDataOutput()
-        backOutput.alwaysDiscardsLateVideoFrames = false
-        backOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.video.back"))
-        if multiSession.canAddOutput(backOutput) { multiSession.addOutput(backOutput) }
-        backVideoOutput = backOutput
-
-        let frontOutput = AVCaptureVideoDataOutput()
-        frontOutput.alwaysDiscardsLateVideoFrames = false
-        frontOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.video.front"))
-        if multiSession.canAddOutput(frontOutput) { multiSession.addOutput(frontOutput) }
-        frontVideoOutput = frontOutput
-    }
-
-    private func configurePhotoOutput() throws {
-        let output = AVCapturePhotoOutput()
-        guard captureSession.canAddOutput(output) else { throw CameraSessionError.configurationFailed }
-        captureSession.addOutput(output)
-        photoOutput = output
-    }
-
-    private func configureAudioIfNeeded() throws {
-        if audioInput != nil { return }
-        guard let audioDevice = AVCaptureDevice.default(for: .audio) else { return }
-        let input = try AVCaptureDeviceInput(device: audioDevice)
-        if captureSession.canAddInput(input) { captureSession.addInput(input); audioInput = input }
-
-        let audioDataOutput = AVCaptureAudioDataOutput()
-        audioDataOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "com.soi.camera.audio"))
-        if captureSession.canAddOutput(audioDataOutput) { captureSession.addOutput(audioDataOutput) }
-        audioOutput = audioDataOutput
+        videoInput = newInput
+        currentPosition = position
     }
 
     private func startSessionIfNeeded() {
@@ -675,428 +560,73 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         }
     }
 
-    private func updatePreviewMirroring() {
-        let isFront = (isMultiCamSupported && activeCamera == .front) || (!isMultiCamSupported && currentPosition == .front)
-
-        for layer in previewLayers.allObjects {
-            guard let connection = layer.connection else { continue }
-            connection.applyPortraitOrientation()
-            if connection.isVideoMirroringSupported {
-                connection.automaticallyAdjustsVideoMirroring = false
-                connection.isVideoMirrored = isFront
-            }
-        }
-
-        for output in captureSession.outputs {
-            for connection in output.connections {
-                connection.applyPortraitOrientation()
-                if connection.isVideoMirroringSupported {
-                    connection.automaticallyAdjustsVideoMirroring = false
-                    connection.isVideoMirrored = false
-                }
-            }
-        }
-    }
-
-    private func configurePreviewConnection(for layer: AVCaptureVideoPreviewLayer,
-                                            in session: AVCaptureMultiCamSession,
-                                            position: AVCaptureDevice.Position) {
-        if let existing = previewConnections.object(forKey: layer) {
-            if session.connections.contains(where: { $0 === existing }) {
-                session.removeConnection(existing)
-            }
-            previewConnections.removeObject(forKey: layer)
-        }
-
-        guard let input = input(for: position) else { return }
-        let devicePorts = input.ports.filter { $0.mediaType == .video }
-        guard let videoPort = devicePorts.first else { return }
-
-        let connection = AVCaptureConnection(inputPort: videoPort, videoPreviewLayer: layer)
-        guard session.canAddConnection(connection) else { return }
-        session.addConnection(connection)
-        previewConnections.setObject(connection, forKey: layer)
-
-        connection.applyPortraitOrientation()
-        if connection.isVideoMirroringSupported {
-            connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = position == .front
-        }
-    }
-
-    private func configurePhotoConnection(for position: AVCaptureDevice.Position,
-                                          in session: AVCaptureMultiCamSession) {
-        guard let photoOutput else { return }
-
-        if let existing = photoConnection,
-           session.connections.contains(where: { $0 === existing }) {
-            session.removeConnection(existing)
-        }
-
-        if let dangling = photoOutput.connection(with: .video), dangling !== photoConnection,
-           session.connections.contains(where: { $0 === dangling }) {
-            session.removeConnection(dangling)
-        }
-
-        guard let input = input(for: position) else { return }
-        let devicePorts = input.ports.filter { $0.mediaType == .video }
-        let videoPorts: [AVCaptureInput.Port] = devicePorts.map { $0 as AVCaptureInput.Port }
-        guard !videoPorts.isEmpty else { return }
-
-        let connection = AVCaptureConnection(inputPorts: videoPorts, output: photoOutput)
-        guard session.canAddConnection(connection) else { return }
-        session.addConnection(connection)
-
-        connection.applyPortraitOrientation()
-        if connection.isVideoMirroringSupported {
-            connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = position == .front
-        }
-
-        photoConnection = connection
-    }
-
-    private func refreshMultiCamConnections(for position: AVCaptureDevice.Position) {
-        guard isMultiCamSupported, let multiSession = captureSession as? AVCaptureMultiCamSession else { return }
-        configurePhotoConnection(for: position, in: multiSession)
-        for layer in previewLayers.allObjects {
-            configurePreviewConnection(for: layer, in: multiSession, position: position)
-        }
-    }
-
-    private func cameraDevice(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
-        let deviceTypes: [AVCaptureDevice.DeviceType]
-        if #available(iOS 13.0, *) {
-            switch position {
-            case .front:
-                deviceTypes = [.builtInTrueDepthCamera, .builtInWideAngleCamera, .builtInUltraWideCamera]
-            case .back:
-                deviceTypes = [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera, .builtInUltraWideCamera, .builtInTelephotoCamera]
-            default:
-                deviceTypes = [.builtInWideAngleCamera]
-            }
-        } else {
-            deviceTypes = [.builtInWideAngleCamera, .builtInTelephotoCamera, .builtInDualCamera]
-        }
-
-        let discovery = AVCaptureDevice.DiscoverySession(deviceTypes: deviceTypes, mediaType: .video, position: position)
-        if let device = discovery.devices.first { return device }
-        return AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position)
-    }
-
-    private func device(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
-        if currentDevice?.position == position { return currentDevice }
-        return cameraDevice(for: position)
-    }
-
-    private func input(for position: AVCaptureDevice.Position) -> AVCaptureDeviceInput? {
-        if isMultiCamSupported {
-            switch position {
-            case .front:
-                return frontDeviceInput
-            case .back:
-                return backDeviceInput ?? currentDeviceInput
-            default:
-                return nil
-            }
-        }
-        return currentDeviceInput
-    }
-
-    private func applyPreferredFormat(to device: AVCaptureDevice) throws {
-        if !hasDeterminedConstraints {
-            determineCaptureConstraints()
-        }
-
-        try device.lockForConfiguration()
-        defer { device.unlockForConfiguration() }
-
-        guard let dims = preferredFormatDimensions else {
-            throw CameraSessionError.configurationFailed
-        }
-
-        if let match = bestFormat(for: device, matching: dims, minimumFrameRate: preferredFrameRate) {
-            device.activeFormat = match.format
-            setDevice(device, toFrameRate: match.frameRate, using: match.format)
-            return
-        }
-
-        // If formats changed (e.g., front camera fallback), recompute once more.
-        let previousDims = preferredFormatDimensions
-        hasDeterminedConstraints = false
-        preferredFormatDimensions = nil
-        determineCaptureConstraints()
-
-        if let newDims = preferredFormatDimensions,
-           let retry = bestFormat(for: device, matching: newDims, minimumFrameRate: preferredFrameRate) {
-            device.activeFormat = retry.format
-            setDevice(device, toFrameRate: retry.frameRate, using: retry.format)
-            return
-        }
-
-        preferredFormatDimensions = previousDims
-        hasDeterminedConstraints = true
-        throw CameraSessionError.configurationFailed
-    }
-
-    private func bestFormat(
-        for device: AVCaptureDevice,
-        matching dims: NormalizedDimensions,
-        minimumFrameRate: Double
-    ) -> (format: AVCaptureDevice.Format, frameRate: Double)? {
-        let candidates = device.formats
-            .filter { normalizeDimensions(CMVideoFormatDescriptionGetDimensions($0.formatDescription)) == dims }
-            .sorted { maximumFrameRate(for: $0) > maximumFrameRate(for: $1) }
-
-        for format in candidates {
-            let maxRate = maximumFrameRate(for: format)
-            if maxRate < 15 { continue }
-            let targetRate: Double
-            if maxRate >= 30 && minimumFrameRate >= 30 {
-                targetRate = 30.0
-            } else if maxRate >= 24 && minimumFrameRate >= 24 {
-                targetRate = 24.0
-            } else {
-                targetRate = min(maxRate, minimumFrameRate)
-            }
-            if targetRate >= 15 {
-                return (format, targetRate)
-            }
-        }
-
-        return nil
-    }
-
-    private func chooseBestFormat(for device: AVCaptureDevice) -> (format: AVCaptureDevice.Format, frameRate: Double) {
-        var bestFormat = device.activeFormat
-        var bestRate = maximumFrameRate(for: bestFormat)
-        var bestArea = area(of: normalizeDimensions(CMVideoFormatDescriptionGetDimensions(bestFormat.formatDescription)))
-
-        for format in device.formats {
-            let dims = normalizeDimensions(CMVideoFormatDescriptionGetDimensions(format.formatDescription))
-            let maxRate = maximumFrameRate(for: format)
-            if maxRate < 15 { continue }
-            let currentArea = area(of: dims)
-            if currentArea > bestArea || (currentArea == bestArea && maxRate > bestRate) {
-                bestFormat = format
-                bestRate = maxRate
-                bestArea = currentArea
-            }
-        }
-
-        let targetRate: Double
-        if bestRate >= 30 {
-            targetRate = 30.0
-        } else if bestRate >= 24 {
-            targetRate = 24.0
-        } else {
-            targetRate = bestRate
-        }
-
-        return (bestFormat, max(targetRate, 15.0))
-    }
-
-    private func maximumFrameRate(for format: AVCaptureDevice.Format) -> Double {
-        format.videoSupportedFrameRateRanges.map { $0.maxFrameRate }.max() ?? 0.0
-    }
-
-    private func setDevice(_ device: AVCaptureDevice, toFrameRate frameRate: Double, using format: AVCaptureDevice.Format) {
-        let ranges = format.videoSupportedFrameRateRanges
-        guard let range = ranges
-            .sorted(by: { $0.maxFrameRate > $1.maxFrameRate })
-            .first(where: { $0.minFrameRate <= frameRate && frameRate <= $0.maxFrameRate }) ?? ranges.first else {
-            return
-        }
-
-        let clamped = max(range.minFrameRate, min(range.maxFrameRate, frameRate))
-        preferredFrameRate = clamped
-        let duration = CMTimeMakeWithSeconds(1.0 / clamped, preferredTimescale: 600)
-        device.activeVideoMinFrameDuration = duration
-        device.activeVideoMaxFrameDuration = duration
-    }
-
-    private func determineCaptureConstraints() {
-        guard !hasDeterminedConstraints else { return }
-
-        let backDevice = rawVideoDevice(for: .back)
-        let frontDevice = rawVideoDevice(for: .front)
-
-        var selectedDims: NormalizedDimensions?
-        var selectedRate: Double = preferredFrameRate
-
-        if let back = backDevice {
-            let backFormats = formatsMap(for: back)
-
-            if let front = frontDevice {
-                let frontFormats = formatsMap(for: front)
-                let commonDims = Array(Set(backFormats.keys).intersection(Set(frontFormats.keys)))
-                    .sorted { area(of: $0) > area(of: $1) }
-
-                let ratePreferences: [Double] = [30.0, 24.0, 15.0]
-                for dims in commonDims {
-                    guard let backRate = backFormats[dims], let frontRate = frontFormats[dims] else { continue }
-                    let minRate = min(backRate, frontRate)
-                    if minRate < 15 { continue }
-                    let chosenRate = ratePreferences.first(where: { $0 <= minRate }) ?? minRate
-                    selectedDims = dims
-                    selectedRate = chosenRate
-                    break
-                }
-
-                if selectedDims == nil, let fallbackDims = commonDims.first,
-                   let backRate = backFormats[fallbackDims], let frontRate = frontFormats[fallbackDims] {
-                    selectedDims = fallbackDims
-                    selectedRate = min(backRate, frontRate)
-                }
-            } else {
-                let orderedDims = Array(backFormats.keys).sorted { area(of: $0) > area(of: $1) }
-                if let dims = orderedDims.first, let rate = backFormats[dims] {
-                    selectedDims = dims
-                    selectedRate = rate
-                }
-            }
-        }
-
-        if selectedDims == nil {
-            selectedDims = normalizeDimensions(CMVideoDimensions(width: 1280, height: 720))
-            selectedRate = 30.0
-        }
-
-        preferredFormatDimensions = selectedDims
-        preferredFrameRate = min(max(selectedRate, 15.0), 30.0)
-        hasDeterminedConstraints = true
-    }
-
-    private func formatsMap(for device: AVCaptureDevice) -> [NormalizedDimensions: Double] {
-        var map: [NormalizedDimensions: Double] = [:]
-        for format in device.formats {
-            let dims = normalizeDimensions(CMVideoFormatDescriptionGetDimensions(format.formatDescription))
-            let maxRate = maximumFrameRate(for: format)
-            if maxRate < 15 { continue }
-            if let existing = map[dims], existing >= maxRate { continue }
-            map[dims] = maxRate
-        }
-        return map
-    }
-
-    private func rawVideoDevice(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
-        let deviceTypes: [AVCaptureDevice.DeviceType]
-        if #available(iOS 13.0, *) {
-            switch position {
-            case .front:
-                deviceTypes = [.builtInTrueDepthCamera, .builtInWideAngleCamera, .builtInUltraWideCamera]
-            case .back:
-                deviceTypes = [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera, .builtInUltraWideCamera, .builtInTelephotoCamera]
-            default:
-                deviceTypes = [.builtInWideAngleCamera]
-            }
-        } else {
-            deviceTypes = [.builtInWideAngleCamera, .builtInTelephotoCamera, .builtInDualCamera]
+    private func cameraDevice(position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+        if let cached = deviceCache[position], cached.isConnected {
+            return cached
         }
 
         let discovery = AVCaptureDevice.DiscoverySession(
-            deviceTypes: deviceTypes,
+            deviceTypes: [.builtInWideAngleCamera, .builtInTrueDepthCamera, .builtInDualCamera, .builtInDualWideCamera],
             mediaType: .video,
             position: position
         )
+        if let device = discovery.devices.first {
+            deviceCache[position] = device
+            return device
+        }
 
-        if let device = discovery.devices.first { return device }
-        return AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position)
+        if let fallback = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+            deviceCache[position] = fallback
+            return fallback
+        }
+        return nil
     }
 
-    // MARK: Photo delegate
-    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        if let error {
-            photoCompletion?(.failure(error))
-            photoCompletion = nil
-            return
+    private var availablePositions: [AVCaptureDevice.Position] {
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInWideAngleCamera, .builtInTrueDepthCamera, .builtInDualCamera, .builtInDualWideCamera],
+            mediaType: .video,
+            position: .unspecified
+        )
+        return discovery.devices.map { $0.position }.filter { $0 == .front || $0 == .back }.uniqued()
+    }
+
+    private func updateConnectionMirroring() {
+        if let connection = photoOutput.connection(with: .video) {
+            connection.videoOrientation = .portrait
+            connection.isVideoMirrored = currentPosition == .front
         }
 
-        guard let data = photo.fileDataRepresentation() else {
-            photoCompletion?(.failure(CameraSessionError.configurationFailed))
-            photoCompletion = nil
-            return
+        if let connection = movieOutput.connection(with: .video) {
+            connection.videoOrientation = .portrait
+            connection.isVideoMirrored = currentPosition == .front
         }
+    }
 
-        let fileURL = temporaryFileURL(extension: "jpg")
+    private func applyPreferredConfiguration(to device: AVCaptureDevice, matching previousZoom: CGFloat) {
         do {
-            try data.write(to: fileURL)
-            photoCompletion?(.success(fileURL.path))
+            try device.lockForConfiguration()
+            defer { device.unlockForConfiguration() }
+
+            if device.isSmoothAutoFocusSupported {
+                device.isSmoothAutoFocusEnabled = true
+            }
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposureMode = .continuousAutoExposure
+            }
+
+            let minZoom = max(previousZoom, 1.0)
+            let clamped = min(device.activeFormat.videoMaxZoomFactor, minZoom)
+            device.videoZoomFactor = clamped
         } catch {
-            photoCompletion?(.failure(error))
+            // Ignore configuration errors; device will keep defaults
         }
-        photoCompletion = nil
     }
 
-    // MARK: Recording helpers
-    private func prepareWriter() throws {
-        let outputURL = temporaryFileURL(extension: "mov")
-        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
-
-        guard let videoOutput = isMultiCamSupported ? (activeCamera == .front ? frontVideoOutput : backVideoOutput) : backVideoOutput else {
-            throw CameraSessionError.writerSetupFailed("Missing video output")
-        }
-
-        let videoSettings = videoOutput.recommendedVideoSettingsForAssetWriter(writingTo: .mov) as? [String: Any] ?? [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: 1080,
-            AVVideoHeightKey: 1920
-        ]
-
-        if let widthNumber = videoSettings[AVVideoWidthKey] as? NSNumber,
-           let heightNumber = videoSettings[AVVideoHeightKey] as? NSNumber {
-            writerVideoDimensions = CMVideoDimensions(width: Int32(widthNumber.intValue), height: Int32(heightNumber.intValue))
-        } else if let widthInt = videoSettings[AVVideoWidthKey] as? Int,
-                  let heightInt = videoSettings[AVVideoHeightKey] as? Int {
-            writerVideoDimensions = CMVideoDimensions(width: Int32(widthInt), height: Int32(heightInt))
-        } else if let widthDouble = videoSettings[AVVideoWidthKey] as? Double,
-                  let heightDouble = videoSettings[AVVideoHeightKey] as? Double {
-            writerVideoDimensions = CMVideoDimensions(width: Int32(widthDouble.rounded()), height: Int32(heightDouble.rounded()))
-        } else if let activeFormat = currentDevice?.activeFormat {
-            writerVideoDimensions = CMVideoFormatDescriptionGetDimensions(activeFormat.formatDescription)
-        } else {
-            writerVideoDimensions = nil
-        }
-
-        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-        videoInput.expectsMediaDataInRealTime = true
-
-        if writer.canAdd(videoInput) {
-            writer.add(videoInput)
-        } else {
-            throw CameraSessionError.writerSetupFailed("Cannot add video input")
-        }
-
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: videoInput, sourcePixelBufferAttributes: [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-        ])
-
-        guard let audioOutput = audioOutput else {
-            throw CameraSessionError.writerSetupFailed("Missing audio output")
-        }
-
-        let audioSettings = audioOutput.recommendedAudioSettingsForAssetWriter(writingTo: .mov) as? [String: Any] ?? [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVNumberOfChannelsKey: 1,
-            AVSampleRateKey: 44100,
-            AVEncoderBitRateKey: 128000
-        ]
-
-        let audioInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
-        audioInput.expectsMediaDataInRealTime = true
-        if writer.canAdd(audioInput) {
-            writer.add(audioInput)
-        }
-
-        assetWriter = writer
-        writerVideoInput = videoInput
-        writerAudioInput = audioInput
-        pixelBufferAdaptor = adaptor
-        recordingURL = outputURL
-        lastVideoPTS = nil
-    }
-
-    private func startRecordingTimerIfNeeded(_ maxDurationMs: Int?) {
+    private func startRecordingTimerIfNeeded(maxDurationMs: Int?) {
         recordingTimer?.cancel()
         recordingTimer = nil
 
@@ -1106,190 +636,76 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         timer.schedule(deadline: .now() + .milliseconds(maxDurationMs))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            self.finishRecording(cancelled: false)
+            if self.movieOutput.isRecording {
+                self.isCancellingRecording = false
+                self.movieOutput.stopRecording()
+            }
         }
         recordingTimer = timer
         timer.resume()
     }
 
-    private func finishRecording(cancelled: Bool) {
-        recordingTimer?.cancel()
-        recordingTimer = nil
-        let writer = assetWriter
-        let completion = recordingCompletion
-        recordingCompletion = nil
-        isRecording = false
+    private func temporaryURL(extension ext: String) -> URL {
+        let fileName = UUID().uuidString + "." + ext
+        return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
+    }
 
-        guard let writer else {
-            completion?(.failure(CameraSessionError.writerSetupFailed("Writer missing")))
+    private func cleanupRecordingFile(_ url: URL?) {
+        if let url {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    // MARK: AVCapturePhotoCaptureDelegate
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        let completion = photoCompletion
+        photoCompletion = nil
+
+        if let error {
+            completion?(.failure(error))
             return
         }
 
-        writerQueue.async { [weak self] in
-            guard let self else { return }
+        guard let data = photo.fileDataRepresentation() else {
+            completion?(.failure(CameraSessionError.configurationFailed))
+            return
+        }
 
-            if cancelled {
-                writer.cancelWriting()
-                if let url = self.recordingURL {
-                    try? FileManager.default.removeItem(at: url)
-                }
-                DispatchQueue.main.async {
-                    completion?(.success("") )
-                }
-                self.resetWriter()
-                return
-            }
-
-            if writer.status == .unknown {
-                writer.cancelWriting()
-                let error = CameraSessionError.writerSetupFailed("Recording stopped before frames were captured")
-                if let url = self.recordingURL {
-                    try? FileManager.default.removeItem(at: url)
-                }
-                DispatchQueue.main.async {
-                    completion?(.success(""))
-                }
-                self.resetWriter()
-                return
-            }
-
-            if writer.status == .failed {
-                let error = writer.error ?? CameraSessionError.writerSetupFailed("Writer failed")
-                DispatchQueue.main.async {
-                    completion?(.failure(error))
-                    self.delegate?.cameraSessionManager(self, didFailRecording: error)
-                }
-                self.resetWriter()
-                return
-            }
-
-            self.writerVideoInput?.markAsFinished()
-            self.writerAudioInput?.markAsFinished()
-            writer.finishWriting {
-                DispatchQueue.main.async {
-                    if writer.status == .completed, let path = self.recordingURL?.path {
-                        completion?(.success(path))
-                        self.delegate?.cameraSessionManager(self, didFinishRecording: path)
-                    } else {
-                        let error = writer.error ?? CameraSessionError.writerSetupFailed("Unknown writer error")
-                        completion?(.failure(error))
-                        self.delegate?.cameraSessionManager(self, didFailRecording: error)
-                    }
-                }
-                self.resetWriter()
-            }
+        let url = temporaryURL(extension: "jpg")
+        do {
+            try data.write(to: url)
+            completion?(.success(url.path))
+        } catch {
+            completion?(.failure(error))
         }
     }
 
-    private func resetWriter() {
-        assetWriter = nil
-        writerVideoInput = nil
-        writerAudioInput = nil
-        pixelBufferAdaptor = nil
-        recordingURL = nil
-        lastVideoPTS = nil
-        writerVideoDimensions = nil
-    }
+    // MARK: AVCaptureFileOutputRecordingDelegate
+    func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {}
 
-    private func appendBridgeFrames(durationMs: Int) {
-        guard !isMultiCamSupported,
-              isRecording,
-              let adaptor = pixelBufferAdaptor,
-              let videoInput = writerVideoInput,
-              let lastPTS = lastVideoPTS,
-              let dims = writerVideoDimensions,
-              dims.width > 0,
-              dims.height > 0 else { return }
+    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        recordingTimer?.cancel()
+        recordingTimer = nil
 
-        let fpsValue = Int32(preferredFrameRate.rounded())
-        let fps: Int32 = fpsValue > 0 ? fpsValue : 30
-        let frameDuration = CMTime(value: 1, timescale: fps)
-        let frameCount = max(1, (durationMs * Int(fps)) / 1000)
+        let completion = recordingCompletion
+        recordingCompletion = nil
 
-        writerQueue.async {
-            for frameIndex in 1...frameCount {
-                autoreleasepool {
-                    var pixelBuffer: CVPixelBuffer?
-                    CVPixelBufferCreate(kCFAllocatorDefault,
-                                        Int(abs(dims.width)),
-                                        Int(abs(dims.height)),
-                                        kCVPixelFormatType_32BGRA,
-                                        nil,
-                                        &pixelBuffer)
-                    guard let buffer = pixelBuffer else { return }
-                    CVPixelBufferLockBaseAddress(buffer, [])
-                    if let base = CVPixelBufferGetBaseAddress(buffer) {
-                        memset(base, 0, CVPixelBufferGetDataSize(buffer))
-                    }
-                    CVPixelBufferUnlockBaseAddress(buffer, [])
-
-                    let pts = CMTimeAdd(lastPTS, CMTimeMultiply(frameDuration, multiplier: Int32(frameIndex)))
-                    while !videoInput.isReadyForMoreMediaData {
-                        usleep(1_000)
-                    }
-                    adaptor.append(buffer, withPresentationTime: pts)
-                    self.lastVideoPTS = pts
-                }
-            }
+        if let error {
+            completion?(.failure(error))
+            delegate?.cameraSessionManager(self, didFailRecording: error)
+            cleanupRecordingFile(outputFileURL)
+            return
         }
-    }
 
-    private func temporaryFileURL(extension ext: String) -> URL {
-        let filename = UUID().uuidString + "." + ext
-        return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(filename)
-    }
-
-    // MARK: Sample buffer delegates
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard isRecording,
-              let writer = assetWriter,
-              writer.status != .failed,
-              let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else { return }
-
-        let mediaType = CMFormatDescriptionGetMediaType(formatDescription)
-
-        if mediaType == kCMMediaType_Video {
-            if isMultiCamSupported {
-                let isFrontBuffer = (output === frontVideoOutput)
-                if (activeCamera == .front && !isFrontBuffer) || (activeCamera == .back && isFrontBuffer) {
-                    return
-                }
-            }
-            writerQueue.async {
-                guard let writer = self.assetWriter,
-                      let videoInput = self.writerVideoInput else { return }
-
-                if writer.status == .failed { return }
-
-                if writer.status == .unknown {
-                    let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-                    writer.startWriting()
-                    writer.startSession(atSourceTime: timestamp)
-                    self.lastVideoPTS = timestamp
-                }
-
-                if writer.status == .writing {
-                    while !videoInput.isReadyForMoreMediaData {
-                        usleep(1_000)
-                    }
-                    if videoInput.append(sampleBuffer) {
-                        self.lastVideoPTS = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-                    }
-                }
-            }
-        } else if mediaType == kCMMediaType_Audio {
-            writerQueue.async {
-                guard let writer = self.assetWriter,
-                      let audioInput = self.writerAudioInput else { return }
-
-                if writer.status != .writing { return }
-
-                while !audioInput.isReadyForMoreMediaData {
-                    usleep(1_000)
-                }
-                audioInput.append(sampleBuffer)
-            }
+        if isCancellingRecording {
+            cleanupRecordingFile(outputFileURL)
+            completion?(.success(""))
+            isCancellingRecording = false
+            return
         }
+
+        completion?(.success(outputFileURL.path))
+        delegate?.cameraSessionManager(self, didFinishRecording: outputFileURL.path)
     }
 }
 
@@ -1303,11 +719,26 @@ private final class CameraPreviewFactory: NSObject, FlutterPlatformViewFactory {
     }
 
     func create(withFrame frame: CGRect, viewIdentifier viewId: Int64, arguments args: Any?) -> FlutterPlatformView {
-        return CameraPreviewView(frame: frame, sessionManager: sessionManager)
+        CameraPreviewView(frame: frame, sessionManager: sessionManager)
     }
 
     func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol {
         FlutterStandardMessageCodec.sharedInstance()
+    }
+}
+
+private final class CameraPreviewView: NSObject, FlutterPlatformView {
+    private let previewView = PreviewView()
+
+    init(frame: CGRect, sessionManager: CameraSessionManager) {
+        super.init()
+        previewView.frame = frame
+        previewView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        sessionManager.registerPreviewLayer(previewView.previewLayer)
+    }
+
+    func view() -> UIView {
+        previewView
     }
 }
 
@@ -1321,66 +752,13 @@ private final class PreviewView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         previewLayer.videoGravity = .resizeAspectFill
-        previewLayer.connection?.applyPortraitOrientation()
+        previewLayer.connection?.videoOrientation = .portrait
     }
 }
 
-private final class CameraPreviewView: NSObject, FlutterPlatformView {
-    private let previewView: PreviewView
-
-    init(frame: CGRect, sessionManager: CameraSessionManager) {
-        previewView = PreviewView(frame: frame)
-        super.init()
-        sessionManager.registerPreviewLayer(previewView.previewLayer)
-        previewView.frame = frame
-        previewView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+private extension Array where Element: Hashable {
+    func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
     }
-
-    func view() -> UIView {
-        previewView
-    }
-}
-
-private extension AVCaptureConnection {
-    func applyPortraitOrientation() {
-        #if swift(>=5.9)
-        if #available(iOS 17.0, *) {
-            if isVideoRotationAngleSupported(90) {
-                videoRotationAngle = 90
-            }
-            return
-        }
-        #endif
-        if isVideoOrientationSupported {
-            videoOrientation = .portrait
-        }
-    }
-}
-
-private extension AVCaptureDevice.Format {
-    func supportsFrameRate(_ frameRate: Double) -> Bool {
-        for range in videoSupportedFrameRateRanges {
-            if range.minFrameRate <= frameRate && frameRate <= range.maxFrameRate {
-                return true
-            }
-        }
-        return false
-    }
-}
-
-private struct NormalizedDimensions: Hashable {
-    let width: Int32
-    let height: Int32
-}
-
-private func normalizeDimensions(_ dims: CMVideoDimensions) -> NormalizedDimensions {
-    let absWidth = abs(dims.width)
-    let absHeight = abs(dims.height)
-    let maxSide = max(absWidth, absHeight)
-    let minSide = min(absWidth, absHeight)
-    return NormalizedDimensions(width: maxSide, height: minSide)
-}
-
-private func area(of dims: NormalizedDimensions) -> Int64 {
-    return Int64(dims.width) * Int64(dims.height)
 }

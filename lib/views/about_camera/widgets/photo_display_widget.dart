@@ -14,6 +14,7 @@ class PhotoDisplayWidget extends StatefulWidget {
   final double height;
   final bool isVideo;
   final Future<void> Function()? onCancel;
+  final ImageProvider? initialImage;
 
   const PhotoDisplayWidget({
     super.key,
@@ -24,6 +25,7 @@ class PhotoDisplayWidget extends StatefulWidget {
     this.height = 471,
     this.isVideo = false,
     this.onCancel,
+    this.initialImage,
   });
 
   @override
@@ -109,17 +111,33 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
 
   /// 이미지 위젯을 결정하는 메소드
   Widget _buildImageWidget(BuildContext context) {
+    if (widget.initialImage != null) {
+      return Stack(
+        alignment: Alignment.topLeft,
+        children: [
+          Image(
+            image: widget.initialImage!,
+            width: widget.width,
+            height: widget.height,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+          ),
+          _buildCancelButton(),
+        ],
+      );
+    }
+
     // 로컬 이미지를 우선적으로 사용
     if (widget.useLocalImage && widget.filePath != null) {
       return Stack(
         alignment: Alignment.topLeft,
         children: [
           Image.file(
-            //TODO: 수정 필요
-            File(""),
+            File(widget.filePath!),
             width: widget.width,
             height: widget.height,
             fit: BoxFit.cover,
+            gaplessPlayback: true,
             // 메모리 최적화: 이미지 캐시 크기 제한
             cacheWidth: (widget.width * 2).round(),
 
@@ -146,12 +164,7 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
               );
             },
           ),
-          IconButton(
-            onPressed: () async {
-              await _handleCancel(doublePop: true);
-            },
-            icon: Icon(Icons.cancel, color: Color(0xff1c1b1f), size: 35.sp),
-          ),
+          _buildCancelButton(),
         ],
       );
     }
@@ -161,6 +174,15 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
         child: Text("이미지를 불러올 수 없습니다.", style: TextStyle(color: Colors.white)),
       );
     }
+  }
+
+  Widget _buildCancelButton() {
+    return IconButton(
+      onPressed: () async {
+        await _handleCancel(doublePop: true);
+      },
+      icon: Icon(Icons.cancel, color: Color(0xff1c1b1f), size: 35.sp),
+    );
   }
 
   Widget _buildVideoPlayer() {

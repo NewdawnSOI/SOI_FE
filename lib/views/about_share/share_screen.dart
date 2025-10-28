@@ -112,7 +112,6 @@ class _ShareScreenState extends State<ShareScreen> {
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     _requestStoragePermission();
   }
