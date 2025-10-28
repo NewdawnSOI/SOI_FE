@@ -299,8 +299,8 @@ class _FriendListItem extends StatelessWidget {
                       width: 40.w,
                       height: 40.w,
                       fit: BoxFit.cover,
-                      memCacheWidth: 80, // 메모리 절약을 위한 이미지 크기 제한
-                      memCacheHeight: 80,
+                      memCacheWidth: (40 * 4).round(),
+                      maxWidthDiskCache: (40 * 4).round(),
                       placeholder:
                           (context, url) => Container(
                             width: 40.w,

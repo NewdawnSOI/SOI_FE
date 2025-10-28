@@ -152,6 +152,8 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
           imageUrl: widget.notification.actorProfileImage ?? '',
           width: 44,
           height: 44,
+          memCacheHeight: (44 * 4).round(),
+          maxWidthDiskCache: (44 * 4).round(),
           fit: BoxFit.cover,
           placeholder:
               (context, url) => Container(
@@ -241,6 +243,8 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
                   imageUrl: categoryImageUrl,
                   width: 44.w,
                   height: 44.h,
+                  memCacheHeight: (44 * 2).round(),
+                  maxWidthDiskCache: (44 * 2).round(),
                   fit: BoxFit.cover,
                   placeholder: (context, url) => _buildPlaceholder(),
                   errorWidget: (context, url, error) => _buildCategoryIcon(),
@@ -269,6 +273,8 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
                   imageUrl: thumbnailUrl,
                   width: 44.w,
                   height: 44.h,
+                  memCacheHeight: (44 * 2).round(),
+                  maxWidthDiskCache: (44 * 2).round(),
                   fit: BoxFit.cover,
                   placeholder: (context, url) => _buildPlaceholder(),
                   errorWidget: (context, url, error) => _buildPhotoIcon(),

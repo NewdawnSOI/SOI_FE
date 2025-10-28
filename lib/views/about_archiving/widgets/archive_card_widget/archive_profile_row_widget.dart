@@ -105,10 +105,8 @@ class _ArchiveProfileRowWidgetState extends State<ArchiveProfileRowWidget>
                                   fadeInDuration: Duration.zero,
                                   fadeOutDuration: Duration.zero,
                                   useOldImageOnUrlChange: true,
-                                  memCacheHeight: (19 * 3).toInt(),
-                                  memCacheWidth: (19 * 3).toInt(),
-                                  maxHeightDiskCache: 150,
-                                  maxWidthDiskCache: 150,
+                                  memCacheWidth: (19 * 5).round(),
+                                  maxWidthDiskCache: (19 * 5).round(),
                                   placeholder:
                                       (context, url) => _buildShimmerCircle(),
                                   errorWidget:

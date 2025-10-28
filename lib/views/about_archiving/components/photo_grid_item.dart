@@ -107,10 +107,8 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
               borderRadius: BorderRadius.circular(8),
               child: CachedNetworkImage(
                 imageUrl: widget.photo.imageUrl,
-                memCacheHeight: (232.h * 2).toInt(),
-                memCacheWidth: (175.w * 2).toInt(),
-                maxHeightDiskCache: 600,
-                maxWidthDiskCache: 450,
+                memCacheWidth: (175 * 2).round(),
+                maxWidthDiskCache: (175 * 2).round(),
                 fit: BoxFit.cover,
                 placeholder:
                     (context, url) => Shimmer.fromColors(
@@ -189,8 +187,8 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
                             'profile_${widget.photo.userID}_${imageUrl.hashCode}',
                           ),
                           imageUrl: imageUrl,
-                          memCacheHeight: (28.w * 2).toInt(),
-                          memCacheWidth: (28.h * 2).toInt(),
+                          memCacheWidth: (28 * 5).round(),
+                          maxWidthDiskCache: (28 * 5).round(),
                           imageBuilder:
                               (context, imageProvider) => CircleAvatar(
                                 radius: 14,

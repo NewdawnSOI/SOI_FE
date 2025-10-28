@@ -118,6 +118,8 @@ class _FriendAvatar extends StatelessWidget {
             imageUrl.isNotEmpty
                 ? CachedNetworkImage(
                   imageUrl: imageUrl,
+                  memCacheWidth: (44 * 4).round(),
+                  maxWidthDiskCache: (44 * 4).round(),
                   fit: BoxFit.cover,
                   placeholder: (context, url) => _placeholder(),
                   errorWidget: (context, url, error) => _placeholder(),

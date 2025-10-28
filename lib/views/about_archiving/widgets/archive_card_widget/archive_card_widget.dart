@@ -96,9 +96,9 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
   }
 
   Widget _buildGridLayout(BuildContext context, CategoryDataModel category) {
-    final userId = AuthController().getUserId;
-    final hasNewPhoto =
-        userId != null ? category.hasNewPhotoForUser(userId) : false;
+    //final userId = AuthController().getUserId;
+    // final hasNewPhoto =
+    //userId != null ? category.hasNewPhotoForUser(userId) : false;
 
     return Container(
       key: ValueKey('grid_${category.id}'),
@@ -106,10 +106,10 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
         color: const Color(0xFF1C1C1C),
         borderRadius: BorderRadius.circular(6.61),
         border: Border.all(
-          color:
+          /*color:
               hasNewPhoto
                   ? Colors.white.withValues(alpha: 0.35)
-                  : Colors.transparent,
+                  : Colors.transparent,*/
           width: 1,
         ),
       ),
@@ -140,7 +140,7 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
                   borderRadius: 6.61,
                 ),
                 _buildPinnedBadge(category, top: 5, left: 5),
-                _buildNewBadge(category, top: 3.43, left: 130),
+                _buildNewBadge(category, top: 6.43, left: 127),
               ],
             ),
             SizedBox(height: (8.7).h),
@@ -362,10 +362,8 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
           useOldImageOnUrlChange: true,
           width: width,
           height: height,
-          memCacheHeight: (height * 3).toInt(),
-          memCacheWidth: (width * 3).toInt(),
-          maxHeightDiskCache: 600,
-          maxWidthDiskCache: 600,
+          memCacheWidth: (width * 2).round(),
+          maxWidthDiskCache: (width * 2).round(),
           fit: BoxFit.cover,
           placeholder:
               (context, url) => Shimmer.fromColors(

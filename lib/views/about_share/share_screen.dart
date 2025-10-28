@@ -217,6 +217,8 @@ class _ShareScreenState extends State<ShareScreen> {
                               borderRadius: BorderRadius.circular(15),
                               child: CachedNetworkImage(
                                 imageUrl: widget.imageUrl,
+                                memCacheWidth: (259 * 2).round(),
+                                maxWidthDiskCache: (259 * 2).round(),
                                 fit: BoxFit.cover,
                                 placeholder:
                                     (context, url) => Container(

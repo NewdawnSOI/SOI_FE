@@ -250,6 +250,8 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
                 fit: BoxFit.cover,
                 width: 175,
                 height: 233,
+                memCacheWidth: (175 * 2).round(),
+                maxWidthDiskCache: (175 * 2).round(),
                 placeholder:
                     (context, url) => Shimmer.fromColors(
                       baseColor: const Color(0xFF333333),

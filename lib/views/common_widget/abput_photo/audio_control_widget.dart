@@ -141,10 +141,10 @@ class AudioControlWidget extends StatelessWidget {
                       ? CachedNetworkImage(
                         imageUrl: profileImageUrl,
                         fit: BoxFit.cover,
-                        memCacheHeight: (profileSize * 2.5).toInt(),
-                        memCacheWidth: (profileSize * 2.5).toInt(),
-                        maxHeightDiskCache: 150,
-                        maxWidthDiskCache: 150,
+
+                        memCacheWidth: (profileSize * 4).round(),
+                        maxWidthDiskCache: (profileSize * 4).round(),
+
                         placeholder:
                             (context, url) =>
                                 Container(color: Colors.grey[700]),

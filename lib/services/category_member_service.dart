@@ -62,7 +62,8 @@ class CategoryMemberService {
     }
   }
 
-  /// UID로 사용자 추가
+  /// 기존 카테고리에 사용자를 추가하는 경우
+  /// 여기서 추가할 때, 친구가 아닌 멤버가 있으면 초대를 생성한다.
   Future<AuthResult> addUserByUid({
     required String categoryId,
     required String uid,
@@ -86,11 +87,15 @@ class CategoryMemberService {
         return AuthResult.failure('이미 카테고리 멤버입니다.');
       }
 
+      // 친구가 아닌 멤버 가지고 오기
       final nonFriendMateIds = await inviteService.getPendingMateIds(
         category: category,
         invitedUserId: uid,
       );
 
+      // 친구가 아닌 멤버가 카테고리에 있으면 초대 생성
+      // 친구가 아닌 멤버가 카테고리에 있으면 초대 생성 (바로 추가하지 않음)
+      // 초대받은 사용자가 수락해야만 카테고리에 추가됨
       if (nonFriendMateIds.isNotEmpty) {
         final inviteId = await inviteService.createOrUpdateInvite(
           category: category,
@@ -100,6 +105,8 @@ class CategoryMemberService {
         );
 
         try {
+          // 카테고리 초대 알림을 만든다.
+          // 친구가 아닌 멤버가 카테고리에 있으면 초대 생성 --> 알림을 보내서 수락하도록 한다.
           await notificationService.createCategoryInviteNotification(
             categoryId: categoryId,
             actorUserId: currentUserId,
@@ -109,7 +116,7 @@ class CategoryMemberService {
             pendingMemberIds: nonFriendMateIds,
           );
         } catch (e) {
-          debugPrint('⚠️ 카테고리 초대 알림 전송 실패: $e');
+          debugPrint('카테고리 초대 알림 전송 실패: $e');
         }
 
         return AuthResult.success('초대를 보냈습니다. 상대방의 수락을 기다리고 있습니다.');
@@ -118,6 +125,7 @@ class CategoryMemberService {
       await _repository.addUidToCategory(categoryId: categoryId, uid: uid);
 
       try {
+        // 모두가 친구인 경우, 바로 추가하고 알림 보냄
         await notificationService.createCategoryInviteNotification(
           categoryId: categoryId,
           actorUserId: currentUserId,

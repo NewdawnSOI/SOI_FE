@@ -150,10 +150,8 @@ class CategoryInviteConfirmSheet extends StatelessWidget {
       child: CachedNetworkImage(
         width: 64,
         height: 64,
-        memCacheHeight: (64 * (ScreenUtil().pixelRatio ?? 3.0)).round(),
-        memCacheWidth: (64 * (ScreenUtil().pixelRatio ?? 3.0)).round(),
-        maxWidthDiskCache: 192,
-        maxHeightDiskCache: 192,
+        memCacheWidth: (64 * 2).round(),
+        maxWidthDiskCache: (64 * 2).round(),
         imageUrl: categoryImageUrl,
         fit: BoxFit.cover,
         placeholder: (context, url) => _shimmerPlaceholder(),
@@ -284,6 +282,8 @@ class CategoryInviteConfirmSheet extends StatelessWidget {
             invitee.profileImageUrl.isNotEmpty
                 ? CachedNetworkImage(
                   imageUrl: invitee.profileImageUrl,
+                  memCacheWidth: (19.31 * 4).round(),
+                  maxWidthDiskCache: (19.31 * 4).round(),
                   fit: BoxFit.cover,
                   placeholder: (context, url) => _avatarPlaceholder(),
                   errorWidget: (context, url, error) => _avatarPlaceholder(),

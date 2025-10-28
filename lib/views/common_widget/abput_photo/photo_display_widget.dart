@@ -123,10 +123,8 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                         imageUrl: profileImageUrl,
                         fit: BoxFit.cover,
                         // 메모리 최적화: 프로필 이미지 크기 제한
-                        memCacheHeight: (profileSize * 2.5).toInt(),
-                        memCacheWidth: (profileSize * 2.5).toInt(),
-                        maxHeightDiskCache: 150,
-                        maxWidthDiskCache: 150,
+                        memCacheWidth: (profileSize * 4).round(),
+                        maxWidthDiskCache: (profileSize * 4).round(),
                         placeholder:
                             (context, url) =>
                                 Container(color: Colors.grey[700]),
@@ -223,11 +221,11 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                           fit: BoxFit.cover,
                           width: 354.w,
                           height: 500.h,
+
                           // 메모리 최적화: 디코딩 크기 제한으로 메모리 사용량 대폭 감소
-                          memCacheHeight: (500 * 1.2).toInt(),
-                          memCacheWidth: (354 * 1.2).toInt(),
-                          maxHeightDiskCache: 1000,
-                          maxWidthDiskCache: 700,
+                          memCacheWidth: (354 * 2).round(),
+                          maxWidthDiskCache: (354 * 2).round(),
+
                           placeholder: (context, url) {
                             return Container(
                               width: 354.w,
@@ -636,12 +634,10 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                                                       width: 27,
                                                       height: 27,
                                                       fit: BoxFit.cover,
-                                                      memCacheHeight:
-                                                          (27 * 3).toInt(),
                                                       memCacheWidth:
-                                                          (27 * 3).toInt(),
-                                                      maxHeightDiskCache: 100,
-                                                      maxWidthDiskCache: 100,
+                                                          (27 * 4).round(),
+                                                      maxWidthDiskCache:
+                                                          (27 * 4).round(),
                                                       placeholder:
                                                           (
                                                             context,

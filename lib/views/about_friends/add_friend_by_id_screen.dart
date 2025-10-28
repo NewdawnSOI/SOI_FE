@@ -291,6 +291,7 @@ class _UserResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xff1c1c1c),
@@ -299,7 +300,7 @@ class _UserResultTile extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
       child: Row(
         children: [
-          _buildAvatar(),
+          _buildAvatar(devicePixelRatio),
           SizedBox(width: 12.w),
           Expanded(child: _buildTexts()),
           _buildActionButton(context),
@@ -308,7 +309,7 @@ class _UserResultTile extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar(double devicePixelRatio) {
     final placeholder = Container(
       width: 44.w,
       height: 44.w,
@@ -330,11 +331,14 @@ class _UserResultTile extends StatelessWidget {
     if (user.profileImageUrl == null || user.profileImageUrl!.isEmpty) {
       return placeholder;
     }
+
     return ClipOval(
       child: CachedNetworkImage(
         imageUrl: user.profileImageUrl!,
         width: 44.w,
         height: 44.w,
+        memCacheWidth: (44 * 2).round(),
+        maxWidthDiskCache: (44 * 2).round(),
         fit: BoxFit.cover,
         placeholder: (_, __) => placeholder,
         errorWidget: (_, __, ___) => placeholder,

@@ -14,8 +14,9 @@ import '../../components/photo_grid_item.dart';
 import '../../components/category_members_bottom_sheet.dart';
 import '../category_edit/category_editor_screen.dart';
 
-// 카테고리 사진 화면
-// 카태고리 내에서 사진 하나를 개별적으로 보여주는 화면
+/// 카테고리 내 사진들을 그리드 형식으로 보여주는 화면
+/// 카테고리 멤버 수, 카테고리 이름 표시 및
+/// 카테고리 멤버 목록 및 카테고리 편집 화면으로 이동하는 기능 포함
 class CategoryPhotosScreen extends StatefulWidget {
   final CategoryDataModel category;
 

@@ -109,8 +109,8 @@ class _ProfileAvatar extends StatelessWidget {
         child: CachedNetworkImage(
           imageUrl: imageUrl!,
           fit: BoxFit.cover,
-          memCacheHeight: (size * 3).toInt(),
-          memCacheWidth: (size * 3).toInt(),
+          memCacheWidth: (size * 5).round(),
+          maxWidthDiskCache: (size * 5).round(),
           placeholder: (context, url) => _buildShimmer(),
           errorWidget: (context, url, error) => _buildDefault(),
         ),

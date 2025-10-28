@@ -141,22 +141,19 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
         ],
       );
     }
-    // Firebase 다운로드 URL 사용
+    // 사진 보여주기
     else if (widget.useDownloadUrl && widget.downloadUrl != null) {
       return Stack(
         alignment: Alignment.topLeft,
         children: [
           CachedNetworkImage(
             imageUrl: widget.downloadUrl!,
-            width: widget.width,
-            height: widget.height,
+            width: widget.width, // 354.w
+            height: widget.height, // 500.h
             fit: BoxFit.cover,
-            // 메모리 최적화 설정 추가
+            // 메모리 최적화: 실제 표시 크기의 2배로 레티나 디스플레이 대응
             memCacheWidth: (widget.width * 2).round(),
-            memCacheHeight: (widget.height * 2).round(),
-            maxWidthDiskCache: 400,
-            maxHeightDiskCache: 400,
-            filterQuality: FilterQuality.medium,
+            maxWidthDiskCache: (widget.width * 2).round(),
             placeholder:
                 (context, url) =>
                     const Center(child: CircularProgressIndicator()),

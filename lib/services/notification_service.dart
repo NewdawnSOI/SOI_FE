@@ -68,7 +68,7 @@ class NotificationService {
       );
 
       debugPrint(
-        '📁 카테고리 정보 - 이름: ${category.name}, 멤버 수: ${category.mates.length}, 멤버: ${category.mates}',
+        '카테고리 정보 - 이름: ${category.name}, 멤버 수: ${category.mates.length}, 멤버: ${category.mates}',
       );
 
       final actor = await _authService.getCurrentUser();
@@ -98,9 +98,9 @@ class NotificationService {
         }
       }
 
-      debugPrint('✅ 카테고리 초대 알림 생성 완료 - 생성된 알림 수: $notificationCount');
+      debugPrint('카테고리 초대 알림 생성 완료 - 생성된 알림 수: $notificationCount');
     } catch (e) {
-      debugPrint('❌ 카테고리 초대 알림 생성 실패: $e');
+      debugPrint('카테고리 초대 알림 생성 실패: $e');
       rethrow;
     }
   }

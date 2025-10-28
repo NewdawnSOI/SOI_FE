@@ -421,6 +421,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? ClipOval(
                           child: CachedNetworkImage(
                             imageUrl: _profileImageUrl!,
+                            memCacheWidth: (96 * 4).round(),
+                            maxWidthDiskCache: (96 * 4).round(),
                             fit: BoxFit.cover,
                             width: 96,
                             height: 96,

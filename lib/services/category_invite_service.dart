@@ -36,7 +36,7 @@ class CategoryInviteService {
     return _friendService!;
   }
 
-  /// 특정 사용자가 모든 멤버와 친구가 아닌 멤버 ID 목록 반환
+  /// 초대 대상자와 기존 멤버 간 친구가 아닌 ID 목록 반환 (기존 카테고리에 사용자를 추가하는 경우)
   Future<List<String>> getPendingMateIdsForUser({
     required List<String> allMates,
     required String targetUserId,
@@ -116,12 +116,17 @@ class CategoryInviteService {
     required CategoryDataModel category,
     required String invitedUserId,
     required String inviterUserId,
+
+    // 이 함수를 호출하는 쪽에서 친구가 아닌 멤버 IDs를 선별해서 전달
+    // CategoryService.createCategory 또는 CategoryMemberService.addUserByUid에서 친구관계가 아닌 멤버 IDs를 선별해서 전달
     required List<String> blockedMateIds,
   }) async {
     final existingInvite = await _inviteRepository.getPendingInviteForCategory(
       categoryId: category.id,
       invitedUserId: invitedUserId,
     );
+    debugPrint("기존 친구가 아닌 멤버 확인: ${existingInvite?.blockedMateIds}");
+    debugPrint("친구가 아닌 멤버 IDs: $blockedMateIds");
 
     if (existingInvite != null) {
       final updatedBlockedMates =
@@ -142,6 +147,9 @@ class CategoryInviteService {
       invitedUserId: invitedUserId,
       inviterUserId: inviterUserId,
       status: CategoryInviteStatus.pending,
+
+      // 기존 카테고리에 있는 친구가 아닌 멤버의 ID 목록을 전달
+      // 새로 만드는 카테고리에 있는 친구가 아닌 멤버의 ID 목록을 전달
       blockedMateIds: blockedMateIds,
       createdAt: now,
       updatedAt: now,

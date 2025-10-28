@@ -225,10 +225,8 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
                         child: CachedNetworkImage(
                           imageUrl: imageUrl,
                           fit: BoxFit.cover,
-                          memCacheHeight: 88, // 44 * 2 (레티나 대응)
-                          memCacheWidth: 88, // 44 * 2 (레티나 대응)
-                          maxWidthDiskCache: 200, // 디스크 캐시는 조금 더 큰 크기
-                          maxHeightDiskCache: 200, // 디스크 캐시는 조금 더 큰 크기
+                          memCacheWidth: (44 * 4).round(),
+                          maxWidthDiskCache: (44 * 4).round(),
                           placeholder:
                               (context, url) => Shimmer.fromColors(
                                 baseColor: const Color(0xFF333333),

@@ -215,8 +215,8 @@ class _CategoryMembersBottomSheetState
                     ? CachedNetworkImage(
                       imageUrl: member.profileImage,
                       fit: BoxFit.cover,
-                      memCacheHeight: 180,
-                      memCacheWidth: 180,
+                      memCacheWidth: (60 * 4).round(),
+                      maxWidthDiskCache: (60 * 4).round(),
                       placeholder: (context, url) => _buildMemberShimmer(),
                       errorWidget:
                           (context, url, error) => _buildMemberFallback(),

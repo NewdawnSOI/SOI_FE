@@ -28,7 +28,7 @@ class ArchiveMainScreen extends StatefulWidget {
 
 class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
   int _selectedIndex = 0;
-  ArchiveLayoutMode _layoutMode = ArchiveLayoutMode.grid;
+  final ArchiveLayoutMode _layoutMode = ArchiveLayoutMode.grid;
 
   // 컨트롤러들
   final _categoryNameController = TextEditingController();
@@ -41,7 +41,6 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
   // Provider 참조를 미리 저장 (dispose에서 안전하게 사용하기 위함)
   CategorySearchController? _categoryController;
   AuthController? _authController;
-  Future<String>? _profileImageFuture;
 
   // 편집 모드 상태 관리
   bool _isEditMode = false;
@@ -108,11 +107,6 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
 
     if (_authController == null) {
       _authController = Provider.of<AuthController>(context, listen: false);
-      final userId = _authController?.getUserId;
-      _profileImageFuture =
-          userId != null
-              ? _authController!.getUserProfileImageUrlWithCache(userId)
-              : _authController!.getUserProfileImageUrl();
       _authController!.addListener(_handleAuthControllerUpdated);
     }
   }
@@ -133,14 +127,6 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
     if (!mounted || controller == null || controller.isUploading) {
       return;
     }
-
-    setState(() {
-      final userId = controller.getUserId;
-      _profileImageFuture =
-          userId != null
-              ? controller.getUserProfileImageUrlWithCache(userId)
-              : controller.getUserProfileImageUrl();
-    });
   }
 
   // 편집 모드 관련 메서드들
@@ -285,17 +271,14 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
           leading: Row(
             children: [
               SizedBox(width: 32.w),
+              // 프로필 이미지 - StreamBuilder로 실시간 업데이트
               Consumer<AuthController>(
                 builder: (context, authController, _) {
                   final currentUserId = authController.getUserId;
-                  return FutureBuilder<String>(
-                    future:
-                        _profileImageFuture ??
-                        (currentUserId != null
-                            ? authController.getUserProfileImageUrlWithCache(
-                              currentUserId,
-                            )
-                            : authController.getUserProfileImageUrl()),
+                  return StreamBuilder<String>(
+                    stream: authController.getUserProfileImageUrlStream(
+                      currentUserId ?? '',
+                    ),
                     builder: (context, imageSnapshot) {
                       final isLoadingAvatar =
                           imageSnapshot.connectionState ==
@@ -333,8 +316,9 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
                                               height: 34,
                                               fadeInDuration: Duration.zero,
                                               fadeOutDuration: Duration.zero,
-                                              memCacheHeight: 120,
-                                              memCacheWidth: 120,
+                                              memCacheWidth: (34 * 4).round(),
+                                              maxWidthDiskCache:
+                                                  (34 * 4).round(),
                                               placeholder:
                                                   (context, url) =>
                                                       _buildAvatarShimmer(),
@@ -394,7 +378,7 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
                         curve: Curves.easeInOut,
                         child: Container(
                           width: chipWidth,
-                          height: 43.h,
+                          height: 34.h,
                           alignment: Alignment.center,
                           child: Container(
                             margin: EdgeInsets.symmetric(horizontal: 8.w),
@@ -409,8 +393,8 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
                       Row(
                         children: [
                           Expanded(child: _buildChip('전체', 0)),
-                          Expanded(child: _buildChip('개인앨범', 1)),
-                          Expanded(child: _buildChip('공유앨범', 2)),
+                          Expanded(child: _buildChip('공유앨범', 1)),
+                          Expanded(child: _buildChip('나의 앨범', 2)),
                         ],
                       ),
                     ],
@@ -422,7 +406,7 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
         ),
         body: Column(
           children: [
-            // 검색 바
+            // 검색바
             Padding(
               padding: EdgeInsets.only(
                 left: 20.w,
@@ -584,9 +568,9 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
         );
       },
       child: Container(
-        height: 43.h,
-        color: Colors.transparent,
+        height: 34.h,
         alignment: Alignment.center,
+        padding: EdgeInsets.only(top: 2.h),
         child: Text(
           label,
           style: TextStyle(

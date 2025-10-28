@@ -126,6 +126,8 @@ class _CategoryCoverPhotoSelectorScreenState
                                 fit: BoxFit.cover,
                                 width: double.infinity,
                                 height: double.infinity,
+                                memCacheWidth: (175 * 2).round(),
+                                maxWidthDiskCache: (175 * 2).round(),
                                 placeholder:
                                     (context, url) => Container(
                                       color: Colors.grey[300],

@@ -636,6 +636,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
                   imageUrl: widget.profileImageUrl!,
                   width: 54,
                   height: 54,
+                  memCacheWidth: (54 * 2).round(),
+                  maxWidthDiskCache: (54 * 2).round(),
                   fit: BoxFit.cover,
                   placeholder: (context, url) {
                     return Container(

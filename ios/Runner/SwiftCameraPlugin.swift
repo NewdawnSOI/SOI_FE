@@ -709,10 +709,10 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         }
 
         guard let input = input(for: position) else { return }
-        let videoPorts = input.ports.filter { $0.mediaType == .video }
-        guard !videoPorts.isEmpty else { return }
+        let devicePorts = input.ports.filter { $0.mediaType == .video }
+        guard let videoPort = devicePorts.first else { return }
 
-        let connection = AVCaptureConnection(inputPorts: videoPorts, videoPreviewLayer: layer)
+        let connection = AVCaptureConnection(inputPort: videoPort, videoPreviewLayer: layer)
         guard session.canAddConnection(connection) else { return }
         session.addConnection(connection)
         previewConnections.setObject(connection, forKey: layer)
@@ -739,7 +739,8 @@ final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCap
         }
 
         guard let input = input(for: position) else { return }
-        let videoPorts = input.ports.filter { $0.mediaType == .video }
+        let devicePorts = input.ports.filter { $0.mediaType == .video }
+        let videoPorts: [AVCaptureInput.Port] = devicePorts.map { $0 as AVCaptureInput.Port }
         guard !videoPorts.isEmpty else { return }
 
         let connection = AVCaptureConnection(inputPorts: videoPorts, output: photoOutput)

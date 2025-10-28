@@ -148,15 +148,8 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
           fit: BoxFit.cover,
           width: dimensions.containerSize,
           height: dimensions.containerSize,
-          // 메모리 최적화: 카테고리 이미지 크기 엄격 제한 (1.9GB 급증 문제 해결)
-          memCacheWidth:
-              (dimensions.containerSize * 1.5).round(), // 1.5배로 감소 (기존 2배에서)
-          memCacheHeight: (dimensions.containerSize * 1.5).round(),
-          maxWidthDiskCache: 150, // 디스크 캐시 더 제한 (기존 200에서)
-          maxHeightDiskCache: 150, // 디스크 캐시 더 제한
-          filterQuality: FilterQuality.low, // 품질 낮춤으로 메모리 절약
-          // 추가 최적화: 이미지 압축 레벨 설정
-          cacheManager: null, // 기본 캐시 매니저 사용하여 자동 정리
+          memCacheWidth: (dimensions.containerSize * 2).round(),
+          maxWidthDiskCache: (dimensions.containerSize * 2).round(),
           placeholder: (context, url) => _buildLoadingIndicator(dimensions),
           errorWidget: (context, url, error) => _buildErrorIcon(dimensions),
         ),

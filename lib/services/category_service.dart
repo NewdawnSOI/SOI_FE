@@ -145,6 +145,8 @@ class CategoryService {
   }
 
   /// 카테고리 생성
+  /// 카테고리를 추가하는데, 친구가 아닌 멤버가 있으면 초대를 생성하고 그 멤버는 바로 추가하지 않고,
+  /// 알림을 보내서 수락하도록 한다.
   Future<AuthResult> createCategory({
     required String name,
     required List<String> mates,
@@ -171,7 +173,6 @@ class CategoryService {
       final normalizedName = _normalizeCategoryName(name);
 
       // 생성자와 멤버 간 친구 관계 확인 (병렬 처리)
-
       final otherMates = mates.where((m) => m != currentUserId).toList();
 
       if (otherMates.isEmpty) {
@@ -202,7 +203,6 @@ class CategoryService {
       }
 
       // 카테고리 생성
-
       final category = CategoryDataModel(
         id: '',
         name: normalizedName,
@@ -215,19 +215,22 @@ class CategoryService {
       // 각 멤버별 초대 처리
       for (final mateId in otherMates) {
         try {
-          final pendingMateIds = await inviteService.getPendingMateIdsForUser(
+          // 친구가 아닌 멤버 가지고 오기
+          final nonFriendMateIds = await inviteService.getPendingMateIdsForUser(
             allMates: mates,
             targetUserId: mateId,
           );
 
-          if (pendingMateIds.isNotEmpty) {
+          if (nonFriendMateIds.isNotEmpty) {
+            // 친구가 아닌 멤버가 있으면 초대 생성
             final inviteId = await inviteService.createOrUpdateInvite(
               category: category.copyWith(id: categoryId),
               invitedUserId: mateId,
               inviterUserId: currentUserId,
-              blockedMateIds: pendingMateIds,
+              blockedMateIds: nonFriendMateIds,
             );
 
+            // 카테고리 초대 알림을 만든다.
             await inviteService.notificationService
                 .createCategoryInviteNotification(
                   categoryId: categoryId,
@@ -235,9 +238,10 @@ class CategoryService {
                   recipientUserIds: [mateId],
                   requiresAcceptance: true,
                   categoryInviteId: inviteId,
-                  pendingMemberIds: pendingMateIds,
+                  pendingMemberIds: nonFriendMateIds,
                 );
           } else {
+            // 친구가 아닌 멤버가 없는 경우, 바로 추가하고 알림 보냄
             await inviteService.notificationService
                 .createCategoryInviteNotification(
                   categoryId: categoryId,

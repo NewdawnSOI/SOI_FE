@@ -12,6 +12,8 @@ import '../../../../utils/position_converter.dart';
 import '../../../about_share/share_screen.dart';
 import '../../../common_widget/abput_photo/photo_card_widget_common.dart';
 
+/// 카테고리 내에서 사진 하나를 개별적으로 보여주는 화면
+/// 사용자는 사진에 대한 댓글을 달고, 음성 댓글을 남기고, 사진을 공유할 수 있습니다.
 class PhotoDetailScreen extends StatefulWidget {
   final List<PhotoDataModel> photos;
   final int initialIndex;
@@ -45,16 +47,12 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
   // 상태 맵 (Feed 구조와 동일)
   final Map<String, List<CommentRecordModel>> _photoComments = {};
-  // Removed: _profileImagePositions, _droppedProfileImageUrls, _commentProfileImageUrls
-  // These were photoId-based and caused conflicts with multiple comments
   final Map<String, bool> _voiceCommentActiveStates = {};
   final Map<String, bool> _voiceCommentSavedStates = {};
   final Map<String, String> _userProfileImages = {};
   final Map<String, bool> _profileLoadingStates = {};
   final Map<String, String> _userNames = {};
   final Map<String, CommentRecordModel> _pendingVoiceComments = {};
-  // Removed: _pendingProfilePositions - photoId-based Map caused conflicts
-  // Each pending comment stores its position in CommentRecordModel.relativePosition
   final Map<String, bool> _pendingTextComments = {}; // 텍스트 댓글 pending 상태
   final Map<String, List<String>> _savedCommentIds = {};
   final Map<String, Offset> _commentPositions = {};
