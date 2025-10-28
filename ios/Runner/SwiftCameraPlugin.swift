@@ -235,7 +235,7 @@ fileprivate enum CameraSessionError: LocalizedError {
     }
 }
 
-fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
+fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
     weak var delegate: CameraSessionManagerDelegate?
 
     private let sessionQueue = DispatchQueue(label: "com.soi.camera.session")
@@ -244,7 +244,8 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
     private var videoInput: AVCaptureDeviceInput?
     private var audioInput: AVCaptureDeviceInput?
     private let photoOutput = AVCapturePhotoOutput()
-    private let movieOutput = AVCaptureMovieFileOutput()
+    private let videoOutput = AVCaptureVideoDataOutput()
+    private let audioOutput = AVCaptureAudioDataOutput()
     private var deviceCache: [AVCaptureDevice.Position: AVCaptureDevice] = [:]
 
     private var isConfigured = false
@@ -255,6 +256,16 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
     private var recordingTimer: DispatchSourceTimer?
     private var currentMovieURL: URL?
     private var isCancellingRecording = false
+
+    // AVAssetWriter properties
+    private var assetWriter: AVAssetWriter?
+    private var videoWriterInput: AVAssetWriterInput?
+    private var audioWriterInput: AVAssetWriterInput?
+    private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var isRecording = false
+    private var recordingStartTime: CMTime?
+    private var lastVideoTimestamp: CMTime?
+    private var lastAudioTimestamp: CMTime?
 
     var supportsLiveSwitch: Bool {
         availablePositions.count > 1
@@ -307,7 +318,6 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
     // 🔥 수정된 카메라 전환 로직 - 녹화 중에도 가능하도록
     func switchCamera(completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
-            // ✅ 세션이 실행 중인지만 확인, 녹화 상태는 체크하지 않음
             guard self.captureSession.isRunning else {
                 completion(.failure(CameraSessionError.configurationFailed))
                 return
@@ -317,13 +327,9 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             let previousZoom = self.videoInput?.device.videoZoomFactor ?? 1.0
 
             do {
-                // ✅ 녹화 중이라면 configuration 없이 직접 input 교체
-                if self.movieOutput.isRecording {
-                    try self.replaceVideoInputWhileRecording(position: target, desiredZoomFactor: previousZoom)
-                } else {
-                    try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
-                }
-                
+                // ✅ AVAssetWriter 사용 시 녹화 중에도 일반 교체 가능
+                try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
+
                 // ✅ 연결 설정 업데이트 (미러링 등)
                 self.updateConnectionMirroring()
                 completion(.success(()))
@@ -457,7 +463,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
     }
 
-    // 🔥 수정된 녹화 시작 로직 - 전면 카메라 지원 강화
+    // 🔥 AVAssetWriter 기반 녹화 시작 - 카메라 전환 지원
     func startRecording(maxDurationMs: Int?, completion: @escaping (Result<Void, Error>) -> Void) {
         ensureConfigured { [weak self] result in
             guard let self else { return }
@@ -466,39 +472,80 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                 completion(.failure(error))
             case .success:
                 self.sessionQueue.async {
-                    guard !self.movieOutput.isRecording else {
+                    guard !self.isRecording else {
                         completion(.failure(CameraSessionError.alreadyRecording))
                         return
                     }
 
-                    // ✅ 비디오 연결이 있는지 확인
-                    guard let connection = self.movieOutput.connection(with: .video) else {
-                        completion(.failure(CameraSessionError.configurationFailed))
-                        return
-                    }
+                    do {
+                        let url = self.temporaryURL(extension: "mov")
+                        self.currentMovieURL = url
+                        self.isCancellingRecording = false
 
-                    // ✅ 연결 설정 (orientation과 mirroring)
-                    if connection.isVideoOrientationSupported {
-                        connection.videoOrientation = .portrait
-                    }
-                    
-                    // ✅ 전면 카메라일 경우 미러링 설정
-                    if connection.isVideoMirroringSupported {
-                        connection.isVideoMirrored = (self.currentPosition == .front)
-                    }
-                    
-                    // ✅ 비디오 안정화 설정 (가능한 경우)
-                    if connection.isVideoStabilizationSupported {
-                        connection.preferredVideoStabilizationMode = .auto
-                    }
+                        // Setup AVAssetWriter
+                        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
 
-                    let url = self.temporaryURL(extension: "mov")
-                    self.currentMovieURL = url
-                    self.isCancellingRecording = false
+                        // Video settings
+                        let videoSettings: [String: Any] = [
+                            AVVideoCodecKey: AVVideoCodecType.h264,
+                            AVVideoWidthKey: 1920,
+                            AVVideoHeightKey: 1080,
+                            AVVideoCompressionPropertiesKey: [
+                                AVVideoAverageBitRateKey: 6000000,
+                                AVVideoMaxKeyFrameIntervalKey: 30
+                            ]
+                        ]
 
-                    self.movieOutput.startRecording(to: url, recordingDelegate: self)
-                    self.startRecordingTimerIfNeeded(maxDurationMs: maxDurationMs)
-                    completion(.success(()))
+                        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+                        videoInput.expectsMediaDataInRealTime = true
+
+                        // Transform for orientation/mirroring
+                        if self.currentPosition == .front {
+                            videoInput.transform = CGAffineTransform(scaleX: -1, y: 1).rotated(by: .pi / 2)
+                        } else {
+                            videoInput.transform = CGAffineTransform(rotationAngle: .pi / 2)
+                        }
+
+                        // Audio settings
+                        let audioSettings: [String: Any] = [
+                            AVFormatIDKey: kAudioFormatMPEG4AAC,
+                            AVNumberOfChannelsKey: 1,
+                            AVSampleRateKey: 44100,
+                            AVEncoderBitRateKey: 64000
+                        ]
+
+                        let audioInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
+                        audioInput.expectsMediaDataInRealTime = true
+
+                        // Pixel buffer adaptor
+                        let pixelBufferAdaptor = AVAssetWriterInputPixelBufferAdaptor(
+                            assetWriterInput: videoInput,
+                            sourcePixelBufferAttributes: [
+                                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+                            ]
+                        )
+
+                        if writer.canAdd(videoInput) {
+                            writer.add(videoInput)
+                        }
+                        if writer.canAdd(audioInput) {
+                            writer.add(audioInput)
+                        }
+
+                        self.assetWriter = writer
+                        self.videoWriterInput = videoInput
+                        self.audioWriterInput = audioInput
+                        self.pixelBufferAdaptor = pixelBufferAdaptor
+                        self.recordingStartTime = nil
+                        self.lastVideoTimestamp = nil
+                        self.lastAudioTimestamp = nil
+                        self.isRecording = true
+
+                        self.startRecordingTimerIfNeeded(maxDurationMs: maxDurationMs)
+                        completion(.success(()))
+                    } catch {
+                        completion(.failure(error))
+                    }
                 }
             }
         }
@@ -506,32 +553,83 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
     func stopRecording(completion: @escaping (Result<String, Error>) -> Void) {
         sessionQueue.async {
-            guard self.movieOutput.isRecording else {
+            guard self.isRecording else {
                 completion(.failure(CameraSessionError.notRecording))
                 return
             }
-            self.recordingCompletion = completion
+
+            self.recordingTimer?.cancel()
+            self.recordingTimer = nil
+            self.isRecording = false
             self.isCancellingRecording = false
-            self.movieOutput.stopRecording()
+
+            guard let writer = self.assetWriter,
+                  let videoInput = self.videoWriterInput,
+                  let audioInput = self.audioWriterInput else {
+                completion(.failure(CameraSessionError.configurationFailed))
+                return
+            }
+
+            videoInput.markAsFinished()
+            audioInput.markAsFinished()
+
+            writer.finishWriting { [weak self] in
+                guard let self else { return }
+                DispatchQueue.main.async {
+                    if writer.status == .completed, let url = self.currentMovieURL {
+                        completion(.success(url.path))
+                        self.delegate?.cameraSessionManager(self, didFinishRecording: url.path)
+                    } else {
+                        let error = writer.error ?? CameraSessionError.configurationFailed
+                        completion(.failure(error))
+                        self.delegate?.cameraSessionManager(self, didFailRecording: error)
+                    }
+
+                    self.assetWriter = nil
+                    self.videoWriterInput = nil
+                    self.audioWriterInput = nil
+                    self.pixelBufferAdaptor = nil
+                }
+            }
         }
     }
 
     func cancelRecording(completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
-            guard self.movieOutput.isRecording else {
+            guard self.isRecording else {
                 completion(.success(()))
                 return
             }
+
+            self.recordingTimer?.cancel()
+            self.recordingTimer = nil
+            self.isRecording = false
             self.isCancellingRecording = true
-            self.recordingCompletion = { result in
-                switch result {
-                case .success:
+
+            guard let writer = self.assetWriter,
+                  let videoInput = self.videoWriterInput,
+                  let audioInput = self.audioWriterInput else {
+                completion(.success(()))
+                return
+            }
+
+            videoInput.markAsFinished()
+            audioInput.markAsFinished()
+
+            writer.finishWriting { [weak self] in
+                guard let self else { return }
+                if let url = self.currentMovieURL {
+                    self.cleanupRecordingFile(url)
+                }
+                DispatchQueue.main.async {
                     completion(.success(()))
-                case .failure(let error):
-                    completion(.failure(error))
+
+                    self.assetWriter = nil
+                    self.videoWriterInput = nil
+                    self.audioWriterInput = nil
+                    self.pixelBufferAdaptor = nil
                 }
             }
-            self.movieOutput.stopRecording()
         }
     }
 
@@ -561,15 +659,25 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             captureSession.addOutput(photoOutput)
         }
 
-        if captureSession.canAddOutput(movieOutput) {
-            captureSession.addOutput(movieOutput)
-            
-            // ✅ MovieOutput 기본 설정
-            if let connection = movieOutput.connection(with: .video) {
+        // Configure video output
+        videoOutput.setSampleBufferDelegate(self, queue: sessionQueue)
+        videoOutput.alwaysDiscardsLateVideoFrames = false
+        videoOutput.videoSettings = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+        ]
+        if captureSession.canAddOutput(videoOutput) {
+            captureSession.addOutput(videoOutput)
+            if let connection = videoOutput.connection(with: .video) {
                 if connection.isVideoStabilizationSupported {
                     connection.preferredVideoStabilizationMode = .auto
                 }
             }
+        }
+
+        // Configure audio output
+        audioOutput.setSampleBufferDelegate(self, queue: sessionQueue)
+        if captureSession.canAddOutput(audioOutput) {
+            captureSession.addOutput(audioOutput)
         }
 
         captureSession.commitConfiguration()
@@ -600,43 +708,6 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
         videoInput = newInput
         currentPosition = position
-    }
-
-    // 🔥 새로운 메서드 - 녹화 중 비디오 입력 교체
-    private func replaceVideoInputWhileRecording(position: AVCaptureDevice.Position, desiredZoomFactor: CGFloat) throws {
-        guard let device = cameraDevice(position: position) else {
-            throw CameraSessionError.deviceUnavailable
-        }
-
-        let newInput = try AVCaptureDeviceInput(device: device)
-
-        // ✅ 녹화 중에는 beginConfiguration을 호출하지 않음
-        // 대신 직접 input만 교체
-        if let existing = videoInput {
-            captureSession.removeInput(existing)
-        }
-
-        guard captureSession.canAddInput(newInput) else {
-            throw CameraSessionError.configurationFailed
-        }
-
-        captureSession.addInput(newInput)
-
-        // ✅ 디바이스 설정 적용
-        applyPreferredConfiguration(to: device, matching: desiredZoomFactor)
-
-        videoInput = newInput
-        currentPosition = position
-
-        // ✅ 녹화 중이므로 movieOutput 연결도 즉시 업데이트
-        if let connection = movieOutput.connection(with: .video) {
-            if connection.isVideoOrientationSupported {
-                connection.videoOrientation = .portrait
-            }
-            if connection.isVideoMirroringSupported {
-                connection.isVideoMirrored = (position == .front)
-            }
-        }
     }
 
     private func startSessionIfNeeded() {
@@ -689,8 +760,8 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             }
         }
 
-        // Movie output 연결 설정 (녹화 중일 수도 있음)
-        if let connection = movieOutput.connection(with: .video) {
+        // Video output 연결 설정
+        if let connection = videoOutput.connection(with: .video) {
             if connection.isVideoOrientationSupported {
                 connection.videoOrientation = .portrait
             }
@@ -733,9 +804,8 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         timer.schedule(deadline: .now() + .milliseconds(maxDurationMs))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            if self.movieOutput.isRecording {
-                self.isCancellingRecording = false
-                self.movieOutput.stopRecording()
+            if self.isRecording {
+                self.stopRecording { _ in }
             }
         }
         recordingTimer = timer
@@ -777,32 +847,79 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
     }
 
-    // MARK: AVCaptureFileOutputRecordingDelegate
-    func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {}
-
-    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        recordingTimer?.cancel()
-        recordingTimer = nil
-
-        let completion = recordingCompletion
-        recordingCompletion = nil
-
-        if let error {
-            completion?(.failure(error))
-            delegate?.cameraSessionManager(self, didFailRecording: error)
-            cleanupRecordingFile(outputFileURL)
+    // MARK: AVCaptureVideoDataOutputSampleBufferDelegate & AVCaptureAudioDataOutputSampleBufferDelegate
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard isRecording,
+              let writer = assetWriter,
+              CMSampleBufferDataIsReady(sampleBuffer) else {
             return
         }
 
-        if isCancellingRecording {
-            cleanupRecordingFile(outputFileURL)
-            completion?(.success(""))
-            isCancellingRecording = false
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+
+        // Start writer on first frame
+        if writer.status == .unknown {
+            writer.startWriting()
+            writer.startSession(atSourceTime: timestamp)
+            recordingStartTime = timestamp
+        }
+
+        guard writer.status == .writing else { return }
+
+        if output == videoOutput {
+            handleVideoSampleBuffer(sampleBuffer, timestamp: timestamp)
+        } else if output == audioOutput {
+            handleAudioSampleBuffer(sampleBuffer, timestamp: timestamp)
+        }
+    }
+
+    private func handleVideoSampleBuffer(_ sampleBuffer: CMSampleBuffer, timestamp: CMTime) {
+        guard let videoInput = videoWriterInput,
+              let adaptor = pixelBufferAdaptor,
+              videoInput.isReadyForMoreMediaData else {
             return
         }
 
-        completion?(.success(outputFileURL.path))
-        delegate?.cameraSessionManager(self, didFinishRecording: outputFileURL.path)
+        // Check for timestamp discontinuity (camera switch)
+        if let lastTimestamp = lastVideoTimestamp {
+            let timeDiff = CMTimeGetSeconds(CMTimeSubtract(timestamp, lastTimestamp))
+
+            // If gap is too large (> 0.1s), we switched cameras - just continue
+            if timeDiff > 0.1 || timeDiff < 0 {
+                // Skip this frame to avoid timestamp issues
+                lastVideoTimestamp = timestamp
+                return
+            }
+        }
+
+        // Get pixel buffer and append
+        if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            adaptor.append(pixelBuffer, withPresentationTime: timestamp)
+            lastVideoTimestamp = timestamp
+        }
+    }
+
+    private func handleAudioSampleBuffer(_ sampleBuffer: CMSampleBuffer, timestamp: CMTime) {
+        guard let audioInput = audioWriterInput,
+              audioInput.isReadyForMoreMediaData else {
+            return
+        }
+
+        // Only append audio if video has started and sync is reasonable
+        if let lastVideoTime = lastVideoTimestamp {
+            let timeDiff = abs(CMTimeGetSeconds(CMTimeSubtract(timestamp, lastVideoTime)))
+
+            // Skip audio samples that are too far from video (> 0.05s)
+            if timeDiff > 0.05 {
+                return
+            }
+        } else {
+            // Wait for first video frame before starting audio
+            return
+        }
+
+        audioInput.append(sampleBuffer)
+        lastAudioTimestamp = timestamp
     }
 }
 
@@ -833,6 +950,7 @@ fileprivate final class CameraPreviewView: NSObject, FlutterPlatformView {
         previewView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         sessionManager.registerPreviewLayer(previewView.previewLayer)
     }
+
 
     func view() -> UIView {
         previewView

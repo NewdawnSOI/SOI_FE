@@ -9,7 +9,9 @@
       "Bash(ls:*)",
       "mcp__serena__get_symbols_overview",
       "mcp__serena__find_symbol",
-      "mcp__smithery-ai-server-sequential-thinking__sequentialthinking"
+      "mcp__smithery-ai-server-sequential-thinking__sequentialthinking",
+      "WebSearch",
+      "WebFetch(domain:gist.github.com)"
     ],
     "deny": []
   }
