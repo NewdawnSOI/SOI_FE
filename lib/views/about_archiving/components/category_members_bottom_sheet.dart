@@ -325,7 +325,7 @@ Widget _buildMemberFallback() {
     height: 60,
     decoration: const BoxDecoration(
       shape: BoxShape.circle,
-      color: Color(0xFF5A5A5A),
+      color: Color(0xFFd9d9d9),
     ),
     child: const Icon(Icons.person, color: Colors.white, size: 26),
   );

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../../models/category_data_model.dart';
 import '../../../../models/auth_model.dart';
 import '../../../about_friends/friend_list_add_screen.dart';
@@ -288,45 +289,57 @@ class _FriendListItem extends StatelessWidget {
           height: 44,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: const Color(0xFF666666),
+            color: const Color(0xFFd9d9d9),
           ),
           child:
               friendInfo?.profileImage != null &&
                       friendInfo!.profileImage.isNotEmpty
-                  ? ClipOval(
-                    child: CachedNetworkImage(
-                      imageUrl: friendInfo!.profileImage,
-                      width: 40.w,
-                      height: 40.w,
-                      fit: BoxFit.cover,
-                      memCacheWidth: (40 * 4).round(),
-                      maxWidthDiskCache: (40 * 4).round(),
-                      placeholder:
-                          (context, url) => Container(
+                  ? CachedNetworkImage(
+                    imageUrl: friendInfo!.profileImage,
+                    width: 40.w,
+                    height: 40.w,
+                    fit: BoxFit.cover,
+                    memCacheWidth: (40 * 4).round(),
+                    maxWidthDiskCache: (40 * 4).round(),
+                    placeholder:
+                        (context, url) => Shimmer.fromColors(
+                          baseColor: Colors.grey.shade600,
+                          highlightColor: Colors.grey.shade400,
+                          child: Container(
                             width: 40.w,
-                            height: 40.w,
-                            decoration: BoxDecoration(
+                            height: 40.h,
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
-                              color: const Color(0xFFffffff),
+                              color: Colors.white,
                             ),
                           ),
-                      errorWidget:
-                          (context, url, error) => Container(
-                            width: 40.w,
-                            height: 40.w,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFFffffff),
-                            ),
+                        ),
+                    errorWidget:
+                        (context, url, error) => Container(
+                          width: 40.w,
+                          height: 40.h,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFd9d9d9),
                           ),
-                    ),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
                   )
                   : Container(
                     width: 40.w,
                     height: 40.w,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFFffffff),
+                      color: const Color(0xFFd9d9d9),
+                    ),
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 26,
                     ),
                   ),
         ),

@@ -205,13 +205,17 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
                                 ),
                               ),
                           errorWidget:
-                              (context, url, error) => CircleAvatar(
-                                radius: 14,
-                                backgroundColor: Colors.grey.shade700,
-                                child: Icon(
+                              (context, url, error) => Container(
+                                width: 60,
+                                height: 60,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Color(0xFFd9d9d9),
+                                ),
+                                child: const Icon(
                                   Icons.person,
                                   color: Colors.white,
-                                  size: 18.sp,
+                                  size: 26,
                                 ),
                               ),
                         );

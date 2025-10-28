@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../controllers/category_controller.dart';
 import 'category_item_widget.dart';
 
@@ -50,8 +51,9 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
   @override
   Widget build(BuildContext context) {
     super.build(context); // AutomaticKeepAliveClientMixin 때문에 필요
+
     if (widget.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return _buildShimmerGrid();
     }
 
     return Consumer<CategoryController>(
@@ -68,7 +70,7 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
             mainAxisSpacing: 15.h, // 세로 간격만 유지
           ),
           padding: EdgeInsets.symmetric(horizontal: 18.w),
-          // ⭐ 메모리 최적화 설정 추가
+
           cacheExtent: 200.0, // 캐시할 픽셀 범위 제한
           addAutomaticKeepAlives: false, // 자동 keepAlive 비활성화
           addRepaintBoundaries: false, // 불필요한 repaint boundary 제거
@@ -97,6 +99,61 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
               );
             }
           },
+        );
+      },
+    );
+  }
+
+  /// 로딩 중일 때 표시할 Shimmer 그리드
+  /// 실제 카테고리 아이템을 보여주는 것과 동일한 크기 비율을 사용함.
+  Widget _buildShimmerGrid() {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final totalPadding = (screenWidth * 0.08).clamp(24.0, 36.0);
+    final totalSpacing = 8.0 * 3;
+    final availableWidth = screenWidth - totalPadding - totalSpacing;
+    final itemWidth = availableWidth / 4;
+    final containerSize = (itemWidth * 0.75).clamp(50.0, 65.0);
+
+    return GridView.builder(
+      controller: widget.scrollController,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        childAspectRatio: 0.85,
+        crossAxisSpacing: 8.w,
+        mainAxisSpacing: 15.h,
+      ),
+      padding: EdgeInsets.symmetric(horizontal: 18.w),
+      itemCount: 8, // 로딩 시 8개의 Shimmer 아이템 표시
+      itemBuilder: (context, index) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Shimmer.fromColors(
+              baseColor: Colors.grey.shade600,
+              highlightColor: Colors.grey.shade400,
+              child: Container(
+                width: containerSize,
+                height: containerSize,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            SizedBox(height: 12.h),
+            Shimmer.fromColors(
+              baseColor: Colors.grey.shade600,
+              highlightColor: Colors.grey.shade400,
+              child: Container(
+                width: itemWidth * 0.7,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

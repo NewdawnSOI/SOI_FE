@@ -120,18 +120,13 @@ class _ProfileAvatar extends StatelessWidget {
 
   Widget _buildDefault() {
     return Container(
-      width: size,
-      height: size,
+      width: 60,
+      height: 60,
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        color: Color(0xFF404040),
+        color: Color(0xFFd9d9d9),
       ),
-      alignment: Alignment.center,
-      child: Icon(
-        Icons.person,
-        color: const Color(0xFFE2E2E2),
-        size: size * 0.55,
-      ),
+      child: const Icon(Icons.person, color: Colors.white, size: 26),
     );
   }
 

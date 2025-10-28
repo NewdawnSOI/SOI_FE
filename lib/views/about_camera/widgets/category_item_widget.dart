@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// 카테고리 아이템 위젯
 /// 각 카테고리를 표현하는 UI 요소입니다.
@@ -193,8 +194,17 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
 
   /// 로딩 인디케이터 빌드
   Widget _buildLoadingIndicator(_CategoryDimensions dimensions) {
-    return Center(
-      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade600,
+      highlightColor: Colors.grey.shade400,
+      child: Container(
+        width: dimensions.containerSize,
+        height: dimensions.containerSize,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+        ),
+      ),
     );
   }
 

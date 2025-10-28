@@ -159,7 +159,7 @@ class _ArchiveProfileRowWidgetState extends State<ArchiveProfileRowWidget>
       height: 19,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.grey.shade500,
+        color: Color(0xffd9d9d9),
       ),
       child: const Icon(Icons.person, color: Colors.white, size: 14),
     );
