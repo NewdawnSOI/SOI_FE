@@ -326,29 +326,17 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
             let target: AVCaptureDevice.Position = (self.currentPosition == .back) ? .front : .back
             let previousZoom = self.videoInput?.device.videoZoomFactor ?? 1.0
-            let previousLastVideoTimestamp = self.lastVideoTimestamp
-            let previousLastAudioTimestamp = self.lastAudioTimestamp
 
             do {
                 self.isSwitchingCamera = true
-                self.lastVideoTimestamp = nil
-                self.lastAudioTimestamp = nil
-
                 // ✅ AVAssetWriter 사용 시 녹화 중에도 일반 교체 가능
                 try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
 
                 // ✅ 연결 설정 업데이트 (미러링 등)
                 self.updateConnectionMirroring()
-                if self.isRecording {
-                    self.applyCurrentWriterTransform()
-                } else {
-                    self.isSwitchingCamera = false
-                }
                 completion(.success(()))
             } catch {
                 self.isSwitchingCamera = false
-                self.lastVideoTimestamp = previousLastVideoTimestamp
-                self.lastAudioTimestamp = previousLastAudioTimestamp
                 completion(.failure(error))
             }
         }
@@ -515,7 +503,11 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                         videoInput.expectsMediaDataInRealTime = true
 
                         // Transform for orientation/mirroring
-                        videoInput.transform = self.writerTransform(for: self.currentPosition)
+                        if self.currentPosition == .front {
+                            videoInput.transform = CGAffineTransform(scaleX: -1, y: 1).rotated(by: .pi / 2)
+                        } else {
+                            videoInput.transform = CGAffineTransform(rotationAngle: .pi / 2)
+                        }
 
                         // Audio settings
                         let audioSettings: [String: Any] = [
@@ -551,7 +543,6 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                         self.lastVideoTimestamp = nil
                         self.lastAudioTimestamp = nil
                         self.isSwitchingCamera = false
-                        self.applyCurrentWriterTransform()
                         self.isRecording = true
 
                         self.startRecordingTimerIfNeeded(maxDurationMs: maxDurationMs)
@@ -784,19 +775,6 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
     }
 
-    private func writerTransform(for position: AVCaptureDevice.Position) -> CGAffineTransform {
-        var transform = CGAffineTransform(rotationAngle: .pi / 2)
-        if position == .front {
-            transform = transform.scaledBy(x: -1, y: 1)
-        }
-        return transform
-    }
-
-    private func applyCurrentWriterTransform() {
-        guard let videoInput = videoWriterInput else { return }
-        videoInput.transform = writerTransform(for: currentPosition)
-    }
-
     private func applyPreferredConfiguration(to device: AVCaptureDevice, matching previousZoom: CGFloat) {
         do {
             try device.lockForConfiguration()
@@ -940,20 +918,15 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             return
         }
 
-        if isSwitchingCamera {
-            lastAudioTimestamp = nil
-            return
-        }
+        let shouldEnforceSync = !isSwitchingCamera
 
-        guard let lastVideoTime = lastVideoTimestamp else {
-            return
-        }
+        if shouldEnforceSync, let lastVideoTime = lastVideoTimestamp {
+            let timeDiff = abs(CMTimeGetSeconds(CMTimeSubtract(timestamp, lastVideoTime)))
 
-        let timeDiff = abs(CMTimeGetSeconds(CMTimeSubtract(timestamp, lastVideoTime)))
-
-        // Skip audio samples that are too far from video (> 1.0s)
-        if timeDiff > 1.0 {
-            return
+            // Skip audio samples that are too far from video (> 1.0s)
+            if timeDiff > 1.0 {
+                return
+            }
         }
 
         audioInput.append(sampleBuffer)
