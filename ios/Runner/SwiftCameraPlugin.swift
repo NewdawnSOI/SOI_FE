@@ -326,17 +326,25 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
             let target: AVCaptureDevice.Position = (self.currentPosition == .back) ? .front : .back
             let previousZoom = self.videoInput?.device.videoZoomFactor ?? 1.0
+            let previousLastVideoTimestamp = self.lastVideoTimestamp
+            let previousLastAudioTimestamp = self.lastAudioTimestamp
 
             do {
                 self.isSwitchingCamera = true
+                self.lastVideoTimestamp = nil
+                self.lastAudioTimestamp = nil
+
                 // ✅ AVAssetWriter 사용 시 녹화 중에도 일반 교체 가능
                 try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
 
-                // ✅ 연결 설정 업데이트 (미러링 등)
+                // ✅ 연결 설정 업데이트 (미러링만 변경, transform은 녹화 시작 시 고정)
                 self.updateConnectionMirroring()
+                self.isSwitchingCamera = false
                 completion(.success(()))
             } catch {
                 self.isSwitchingCamera = false
+                self.lastVideoTimestamp = previousLastVideoTimestamp
+                self.lastAudioTimestamp = previousLastAudioTimestamp
                 completion(.failure(error))
             }
         }
@@ -502,12 +510,9 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                         let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
                         videoInput.expectsMediaDataInRealTime = true
 
-                        // Transform for orientation/mirroring
-                        if self.currentPosition == .front {
-                            videoInput.transform = CGAffineTransform(scaleX: -1, y: 1).rotated(by: .pi / 2)
-                        } else {
-                            videoInput.transform = CGAffineTransform(rotationAngle: .pi / 2)
-                        }
+                        // Transform for orientation only (90° rotation for portrait)
+                        // Mirroring is handled by AVCaptureConnection, not here
+                        videoInput.transform = CGAffineTransform(rotationAngle: .pi / 2)
 
                         // Audio settings
                         let audioSettings: [String: Any] = [
@@ -775,6 +780,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
     }
 
+
     private func applyPreferredConfiguration(to device: AVCaptureDevice, matching previousZoom: CGFloat) {
         do {
             try device.lockForConfiguration()
@@ -918,15 +924,20 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             return
         }
 
-        let shouldEnforceSync = !isSwitchingCamera
+        if isSwitchingCamera {
+            lastAudioTimestamp = nil
+            return
+        }
 
-        if shouldEnforceSync, let lastVideoTime = lastVideoTimestamp {
-            let timeDiff = abs(CMTimeGetSeconds(CMTimeSubtract(timestamp, lastVideoTime)))
+        guard let lastVideoTime = lastVideoTimestamp else {
+            return
+        }
 
-            // Skip audio samples that are too far from video (> 1.0s)
-            if timeDiff > 1.0 {
-                return
-            }
+        let timeDiff = abs(CMTimeGetSeconds(CMTimeSubtract(timestamp, lastVideoTime)))
+
+        // Skip audio samples that are too far from video (> 1.0s)
+        if timeDiff > 1.0 {
+            return
         }
 
         audioInput.append(sampleBuffer)
