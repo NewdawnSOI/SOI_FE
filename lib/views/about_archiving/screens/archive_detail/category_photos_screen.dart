@@ -10,8 +10,8 @@ import '../../../../controllers/photo_controller.dart';
 import '../../../../models/category_data_model.dart';
 import '../../../../models/photo_data_model.dart';
 import '../../../../theme/theme.dart';
-import '../../components/photo_grid_item.dart';
-import '../../components/category_members_bottom_sheet.dart';
+import '../../widgets/photo_grid_item.dart';
+import '../../widgets/category_members_bottom_sheet.dart';
 import '../category_edit/category_editor_screen.dart';
 
 /// 카테고리 내 사진들을 그리드 형식으로 보여주는 화면

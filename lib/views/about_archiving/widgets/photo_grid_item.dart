@@ -7,7 +7,7 @@ import '../../../controllers/auth_controller.dart';
 import '../../../controllers/audio_controller.dart';
 import '../../../models/photo_data_model.dart';
 import '../screens/archive_detail/photo_detail_screen.dart';
-import '../widgets/wave_form_widget/custom_waveform_widget.dart';
+import 'wave_form_widget/custom_waveform_widget.dart';
 
 class PhotoGridItem extends StatefulWidget {
   final PhotoDataModel photo;
@@ -172,7 +172,7 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
                         if (imageUrl.isEmpty) {
                           return CircleAvatar(
                             radius: 14,
-                            backgroundColor: Colors.grey.shade700,
+                            backgroundColor: Color(0xffd9d9d9),
                             child: Icon(
                               Icons.person,
                               color: Colors.white,

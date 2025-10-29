@@ -10,7 +10,7 @@ import '../../../../controllers/category_controller.dart';
 import '../../../../models/auth_model.dart';
 import '../../../../models/category_data_model.dart';
 import '../../../about_friends/friend_list_add_screen.dart';
-import '../../components/exit_button.dart';
+import '../../widgets/exit_button.dart';
 import '../../widgets/category_edit_widget/add_friend_button.dart';
 import '../../widgets/category_edit_widget/category_cover_section.dart';
 import '../../widgets/category_edit_widget/category_info_section.dart';

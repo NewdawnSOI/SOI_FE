@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../models/selected_friend_model.dart';
-import '../../../views/about_archiving/components/overlapping_profiles_widget.dart';
+import '../../about_archiving/widgets/overlapping_profiles_widget.dart';
 import '../../about_friends/friend_list_add_screen.dart';
 
 // 카테고리 추가 UI 위젯

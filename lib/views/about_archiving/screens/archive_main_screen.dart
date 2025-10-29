@@ -12,7 +12,7 @@ import '../../../controllers/category_controller.dart';
 import '../../../models/selected_friend_model.dart';
 import '../../../theme/theme.dart';
 import '../../about_friends/friend_list_add_screen.dart';
-import '../components/overlapping_profiles_widget.dart';
+import '../widgets/overlapping_profiles_widget.dart';
 import '../models/archive_layout_mode.dart';
 import 'archive_detail/all_archives_screen.dart';
 import 'archive_detail/my_archives_screen.dart';

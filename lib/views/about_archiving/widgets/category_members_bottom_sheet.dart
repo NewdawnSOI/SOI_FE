@@ -327,6 +327,6 @@ Widget _buildMemberFallback() {
       shape: BoxShape.circle,
       color: Color(0xFFd9d9d9),
     ),
-    child: const Icon(Icons.person, color: Colors.white, size: 26),
+    child: const Icon(Icons.person, color: Colors.white, size: 44),
   );
 }

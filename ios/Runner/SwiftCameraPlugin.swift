@@ -267,6 +267,12 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
     private var lastVideoTimestamp: CMTime?
     private var lastAudioTimestamp: CMTime?
     private var isSwitchingCamera = false
+    private var isAudioPausedForSwitch = false
+    private var audioResumeWorkItem: DispatchWorkItem?
+    private var isAudioResumeScheduled = false
+
+    // ⏱️ 카메라 전환 시간 프레임 (밀리초) - 이 시간 동안 오디오 일시정지 유지
+    private let cameraSwitchTimeFrameMs: Int = 3000
 
     var supportsLiveSwitch: Bool {
         availablePositions.count > 1
@@ -316,7 +322,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
     }
 
-    // 🔥 수정된 카메라 전환 로직 - 녹화 중에도 가능하도록
+    // 🔥 수정된 카메라 전환 로직 - 고정 시간 프레임 내에서 카메라 전환 + 오디오 일시정지 후 동시 재개
     func switchCamera(completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
             guard self.captureSession.isRunning else {
@@ -331,6 +337,13 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
             do {
                 self.isSwitchingCamera = true
+
+                // ✅ 녹화 중이면 오디오 일시정지 및 타이머 시작
+                if self.isRecording {
+                    self.pauseAudioDuringCameraSwitch()
+                    self.scheduleSynchronizedSwitchCompletion()
+                }
+
                 self.lastVideoTimestamp = nil
                 self.lastAudioTimestamp = nil
 
@@ -339,10 +352,19 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
                 // ✅ 연결 설정 업데이트 (미러링만 변경, transform은 녹화 시작 시 고정)
                 self.updateConnectionMirroring()
-                self.isSwitchingCamera = false
+
+                // ✅ 녹화 중이 아니면 즉시 완료
+                if !self.isRecording {
+                    self.isSwitchingCamera = false
+                    self.resumeAudioAfterCameraSwitchIfNeeded()
+                }
+                // ✅ 녹화 중이면 타이머 종료 시 두 기능 동시 완료 (scheduleSynchronizedSwitchCompletion에서 처리)
+
                 completion(.success(()))
             } catch {
                 self.isSwitchingCamera = false
+                self.cancelPendingAudioResume()
+                self.resumeAudioAfterCameraSwitchIfNeeded()
                 self.lastVideoTimestamp = previousLastVideoTimestamp
                 self.lastAudioTimestamp = previousLastAudioTimestamp
                 completion(.failure(error))
@@ -471,6 +493,8 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             audioInput = nil
             isConfigured = false
             currentMovieURL = nil
+            cancelPendingAudioResume()
+            resumeAudioAfterCameraSwitchIfNeeded()
         }
     }
 
@@ -571,6 +595,8 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             self.recordingTimer = nil
             self.isRecording = false
             self.isCancellingRecording = false
+            self.cancelPendingAudioResume()
+            self.resumeAudioAfterCameraSwitchIfNeeded()
 
             guard let writer = self.assetWriter,
                   let videoInput = self.videoWriterInput,
@@ -614,6 +640,8 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             self.recordingTimer = nil
             self.isRecording = false
             self.isCancellingRecording = true
+            self.cancelPendingAudioResume()
+            self.resumeAudioAfterCameraSwitchIfNeeded()
 
             guard let writer = self.assetWriter,
                   let videoInput = self.videoWriterInput,
@@ -890,31 +918,21 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             return
         }
 
-        // Check for timestamp discontinuity (camera switch)
-        var detectedSwitch = false
+        // ✅ 타임스탬프 불연속성 감지 (카메라 전환 감지)
         if let lastTimestamp = lastVideoTimestamp {
             let timeDiff = CMTimeGetSeconds(CMTimeSubtract(timestamp, lastTimestamp))
-
-            // If gap is too large (> 0.1s), we switched cameras - just continue
             if timeDiff > 0.1 || timeDiff < 0 {
-                // Skip this frame to avoid timestamp issues
+                // 타임스탬프 초기화만 수행, 오디오 처리는 타이머가 담당
                 lastVideoTimestamp = nil
-                isSwitchingCamera = true
-                detectedSwitch = true
+                return
             }
         }
 
-        if detectedSwitch {
-            return
-        }
-
-        // Get pixel buffer and append
+        // ✅ 픽셀 버퍼 추가
         if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
             adaptor.append(pixelBuffer, withPresentationTime: timestamp)
             lastVideoTimestamp = timestamp
-            if isSwitchingCamera {
-                isSwitchingCamera = false
-            }
+            // ✅ 오디오 재개는 타이머가 담당하므로 여기서는 처리하지 않음
         }
     }
 
@@ -942,6 +960,54 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
         audioInput.append(sampleBuffer)
         lastAudioTimestamp = timestamp
+    }
+
+    private func pauseAudioDuringCameraSwitch() {
+        guard !isAudioPausedForSwitch else { return }
+        cancelPendingAudioResume()
+        isAudioPausedForSwitch = true
+        setAudioOutputEnabled(false)
+    }
+
+    // ⏱️ 고정 시간 프레임 후 카메라 전환 완료 + 오디오 재개를 동시에 수행
+    private func scheduleSynchronizedSwitchCompletion() {
+        // 기존 타이머 취소
+        cancelPendingAudioResume()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            // ✅ 두 기능을 동시에 완료
+            self.isSwitchingCamera = false           // 카메라 전환 완료
+            self.resumeAudioAfterCameraSwitchIfNeeded() // 오디오 재개
+            self.audioResumeWorkItem = nil
+            self.isAudioResumeScheduled = false
+        }
+
+        isAudioResumeScheduled = true
+        audioResumeWorkItem = workItem
+        sessionQueue.asyncAfter(
+            deadline: .now() + .milliseconds(cameraSwitchTimeFrameMs),
+            execute: workItem
+        )
+    }
+
+    private func resumeAudioAfterCameraSwitchIfNeeded() {
+        guard isAudioPausedForSwitch else { return }
+        isAudioPausedForSwitch = false
+        cancelPendingAudioResume()
+        setAudioOutputEnabled(true)
+    }
+
+    private func cancelPendingAudioResume() {
+        audioResumeWorkItem?.cancel()
+        audioResumeWorkItem = nil
+        isAudioResumeScheduled = false
+    }
+
+    private func setAudioOutputEnabled(_ isEnabled: Bool) {
+        audioOutput.connections.forEach { connection in
+            connection.isEnabled = isEnabled
+        }
     }
 }
 
