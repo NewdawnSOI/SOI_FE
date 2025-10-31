@@ -98,7 +98,6 @@ void main() async {
 
   try {
     await Supabase.initialize(url: supabaseUrl!, anonKey: supabaseAnonKey!);
-    debugPrint('[Supabase][Storage] Initialized for file storage');
   } catch (e) {
     debugPrint('[Supabase][Storage] Initialization failed: $e');
   }
