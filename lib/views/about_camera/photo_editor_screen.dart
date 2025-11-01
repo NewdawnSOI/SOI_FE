@@ -210,7 +210,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     }
 
     final primedLocalPath = widget.filePath;
-    if (_showImmediatePreview && primedLocalPath != null && primedLocalPath.isNotEmpty) {
+    if (_showImmediatePreview &&
+        primedLocalPath != null &&
+        primedLocalPath.isNotEmpty) {
       final primedFile = File(primedLocalPath);
       if (primedFile.existsSync()) {
         _isLoading = false;
@@ -394,7 +396,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                 padding: EdgeInsets.symmetric(horizontal: 20.w),
                 child: AudioRecorderWidget(
                   autoStart: true,
-                  isCommentMode: false,
+
                   onRecordingFinished: (audioFilePath, waveformData, duration) {
                     setState(() {
                       _recordedAudioPath = audioFilePath;

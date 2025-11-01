@@ -8,7 +8,6 @@ import '../../../controllers/audio_controller.dart';
 import '../../about_archiving/widgets/wave_form_widget/custom_waveform_widget.dart';
 
 /// 음성 댓글 전용 위젯
-///
 /// 피드 화면에서 음성 댓글을 녹음하고 재생하는 기능을 제공합니다.
 /// AudioRecorderWidget보다 단순하고 음성 댓글에 최적화되어 있습니다.
 enum VoiceCommentState {
@@ -55,15 +54,20 @@ class VoiceCommentWidget extends StatefulWidget {
 }
 
 class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
+  // ============================================================
+  // 상태 관리를 위한 변수들
+  // ============================================================
   late AudioController _audioController;
   late RecorderController _recorderController;
   PlayerController? _playerController;
 
   VoiceCommentState _currentState = VoiceCommentState.idle;
   List<double>? _waveformData;
-  DateTime? _recordingStartTime; // 녹음 시작 시간 추가
 
-  // 부모 스크롤 잠금 컨트롤러
+  // 녹음 시작 시간 추가
+  DateTime? _recordingStartTime;
+
+  // 부모 스크롤을 잠그기 위한 컨트롤러
   ScrollHoldController? _scrollHoldController;
 
   bool _isFinalizingPlacement = false; // 중복 저장 방지
@@ -72,12 +76,9 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
   /// 이전 녹음 상태 (애니메이션 제어용)
   VoiceCommentState? _lastState;
 
-  /// 외부에서 저장 완료를 알리는 메서드
-  void markAsSaved() {
-    if (mounted) {
-      _markAsSaved();
-    }
-  }
+  // ============================================================
+  // 여러 가지 생명주기 관련 메서드
+  // ============================================================
 
   @override
   void initState() {
@@ -86,8 +87,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     // 저장된 상태로 시작해야 하는 경우
     if (widget.startAsSaved) {
       _currentState = VoiceCommentState.saved;
-
-      return; // 컨트롤러 초기화 없이 리턴
+      return;
     }
 
     // Placing 모드로 시작해야 하는 경우 (텍스트 댓글용)
@@ -98,9 +98,13 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
           _holdParentScroll();
         }
       });
-      return; // 컨트롤러 초기화 없이 리턴
+      return;
     }
 
+    /// 컨트롤러 초기화
+    /// 컨트롤러를 이 위치에서 초기화하는 이유:
+    /// 1. 위젯이 생성될 때 컨트롤러가 즉시 사용 가능하도록 보장하기 위해.
+    /// 2. 상태 관리 및 리소스 해제를 위젯의 생명 주기에 맞추기 위해.
     _initializeControllers();
 
     // autoStart는 saved/placing 상태가 아닐 때만 적용
@@ -110,19 +114,6 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
         _startRecording();
       });
     }
-  }
-
-  void _initializeControllers() {
-    _audioController = Provider.of<AudioController>(context, listen: false);
-
-    _recorderController =
-        RecorderController()
-          ..androidEncoder = AndroidEncoder.aac
-          ..androidOutputFormat = AndroidOutputFormat.mpeg4
-          ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
-          ..sampleRate = 44100;
-
-    _playerController = PlayerController();
   }
 
   @override
@@ -136,7 +127,188 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     super.dispose();
   }
 
-  /// 녹음 시작
+  @override
+  Widget build(BuildContext context) {
+    // recording→recorded 또는 배치 상태 전환에서는 애니메이션 비활성화
+    final bool skipAnimation =
+        (_lastState == VoiceCommentState.recording &&
+            _currentState == VoiceCommentState.recorded) ||
+        _currentState == VoiceCommentState.placing ||
+        _lastState == VoiceCommentState.placing;
+
+    if (skipAnimation) {
+      // 필요한 전환은 애니메이션 없이 즉시 처리
+      return _buildCurrentStateWidget();
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return ScaleTransition(
+          scale: animation,
+          child: FadeTransition(opacity: animation, child: child),
+        );
+      },
+      child: _buildCurrentStateWidget(),
+    );
+  }
+
+  /// 현재 상태에 맞는 위젯을 반환
+  /// idle/recording/recorded/placing/saved 상태별로 적절한 UI를 생성
+  Widget _buildCurrentStateWidget() {
+    // recording에서 recorded로 전환할 때 같은 키를 사용하여 애니메이션 방지
+    String widgetKey;
+    if (_lastState == VoiceCommentState.recording &&
+        _currentState == VoiceCommentState.recorded) {
+      widgetKey = 'audio-ui-no-animation';
+    } else if (_currentState == VoiceCommentState.placing) {
+      widgetKey = 'profile-placement';
+    } else if (_currentState == VoiceCommentState.saved) {
+      widgetKey = 'profile-mode';
+    } else {
+      widgetKey = _currentState.toString();
+    }
+
+    switch (_currentState) {
+      case VoiceCommentState.idle:
+        // comment.png 표시 (기존 feed_home.dart에서 처리)
+        return Container(
+          key: ValueKey(widgetKey),
+          height: 52.h, // 녹음 UI와 동일한 높이
+          alignment: Alignment.center, // 중앙 정렬
+          child: const SizedBox.shrink(),
+        );
+
+      case VoiceCommentState.recording:
+        return Selector<AudioController, String>(
+          key: ValueKey(widgetKey),
+          selector:
+              (context, controller) => controller.formattedRecordingDuration,
+          builder: (context, duration, child) {
+            return _buildRecordingUI(duration);
+          },
+        );
+
+      case VoiceCommentState.recorded:
+        return Container(key: ValueKey(widgetKey), child: _buildPlaybackUI());
+
+      // 배치 모드 UI
+      // 프로필 드래그 앤 드롭을 위한 UI
+      case VoiceCommentState.placing:
+        return Container(
+          key: ValueKey(widgetKey),
+          child: _buildProfileDraggable(isPlacementMode: true),
+        );
+
+      // 저장된 상태 UI
+      // 프로필 이미지 표시
+      case VoiceCommentState.saved:
+        return Container(
+          key: ValueKey(widgetKey),
+          child: _buildProfileDraggable(isPlacementMode: false),
+        );
+    }
+  }
+
+  // ============================================================
+  /// 녹음 흐름 메서드
+  /// 녹음을 시작하고 상태를 recording으로 전환
+  Future<void> startRecording() async {
+    try {
+      _recordingStartTime = DateTime.now();
+      await _recorderController.record();
+      await _audioController.startRecording();
+
+      setState(() {
+        _lastState = _currentState;
+        _currentState = VoiceCommentState.recording;
+      });
+    } catch (e) {
+      debugPrint('❌ 녹음 시작 오류: $e');
+      setState(() {
+        _lastState = _currentState;
+        _currentState = VoiceCommentState.idle;
+      });
+    }
+  }
+
+  /// 녹음을 중지하고 상태를 recorded로 전환
+  Future<void> stopRecording() async {
+    try {
+      final waveformData =
+          List<double>.from(
+            _recorderController.waveData,
+          ).map((value) => value.abs()).toList();
+
+      await _recorderController.stop();
+      await _audioController.stopRecordingSimple();
+
+      final filePath = _audioController.currentRecordingPath;
+      final recordingDuration =
+          _recordingStartTime != null
+              ? DateTime.now().difference(_recordingStartTime!).inMilliseconds
+              : 0;
+
+      if (filePath != null && filePath.isNotEmpty) {
+        await _playerController?.preparePlayer(
+          path: filePath,
+          shouldExtractWaveform: true,
+        );
+
+        setState(() {
+          _lastState = _currentState;
+          _currentState = VoiceCommentState.recorded;
+          _waveformData = waveformData;
+        });
+
+        widget.onRecordingCompleted?.call(
+          filePath,
+          waveformData,
+          recordingDuration,
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ 녹음 중지 오류: $e');
+    }
+  }
+
+  /// 녹음을 삭제하고 상태를 idle로 복귀
+  void deleteRecording() {
+    try {
+      if (_playerController?.playerState.isPlaying == true) {
+        _playerController?.stopPlayer();
+      }
+
+      setState(() {
+        _lastState = _currentState;
+        _currentState = VoiceCommentState.idle;
+        _waveformData = null;
+      });
+
+      widget.onRecordingDeleted?.call();
+    } catch (e) {
+      debugPrint('❌ 녹음 삭제 오류: $e');
+    }
+  }
+  // ============================================================
+
+  /// AudioController와 RecorderController, PlayerController 초기화
+  /// AAC 코덱, 44.1kHz 샘플레이트로 설정
+  void _initializeControllers() {
+    _audioController = Provider.of<AudioController>(context, listen: false);
+
+    _recorderController =
+        RecorderController()
+          ..androidEncoder = AndroidEncoder.aac
+          ..androidOutputFormat = AndroidOutputFormat.mpeg4
+          ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
+          ..sampleRate = 44100;
+
+    _playerController = PlayerController();
+  }
+
+  /// 녹음 시작 및 recording 상태로 전환
+  /// 녹음 시작 시간을 기록하여 duration 계산에 사용
   Future<void> _startRecording() async {
     try {
       // 녹음 시작 시간 기록
@@ -157,7 +329,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     }
   }
 
-  /// 녹음 중지 및 재생 준비
+  /// 녹음 중지 및 recorded 상태로 전환
+  /// 파형 데이터를 추출하고 PlayerController를 준비
   Future<void> _stopAndPreparePlayback() async {
     try {
       // 파형 데이터 추출
@@ -204,7 +377,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     }
   }
 
-  /// 녹음 취소 (쓰레기통 클릭)
+  /// 녹음 삭제 및 idle 상태로 복귀
+  /// 쓰레기통 아이콘 클릭 시 호출
   void _deleteRecording() {
     try {
       // 재생 중이면 중지
@@ -226,7 +400,12 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     }
   }
 
-  /// 재생/일시정지 토글
+  // ============================================================
+  // Playback Flow Methods
+  // ============================================================
+
+  /// 오디오 재생/일시정지 토글
+  /// PlayerController의 상태에 따라 재생 또는 일시정지 실행
   Future<void> _togglePlayback() async {
     // null 체크와 mounted 체크 추가
     if (!mounted || _playerController == null) {
@@ -252,68 +431,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     }
   }
 
-  /// 프로필 배치 완료 처리
-  Future<void> _finalizePlacement() async {
-    if (_isFinalizingPlacement) {
-      return;
-    }
-
-    _releaseParentScroll();
-    _isFinalizingPlacement = true;
-
-    try {
-      if (widget.onSaveRequested != null) {
-        await widget.onSaveRequested!.call();
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      _markAsSaved();
-      widget.onSaveCompleted?.call();
-    } catch (e) {
-      if (mounted) {
-        // 저장 실패 시 다시 파형 모드로 복귀
-        setState(() {
-          _lastState = _currentState;
-          _currentState = VoiceCommentState.recorded;
-        });
-      }
-    } finally {
-      _isFinalizingPlacement = false;
-    }
-  }
-
-  /// 프로필 배치 취소 처리
-  void _cancelPlacement() {
-    if (!mounted || _currentState != VoiceCommentState.placing) {
-      return;
-    }
-
-    _releaseParentScroll();
-    setState(() {
-      _lastState = _currentState;
-      _currentState = VoiceCommentState.recorded;
-    });
-  }
-
-  void _beginPlacementFromWaveform() {
-    if (_waveformData == null || _waveformData!.isEmpty) {
-      return;
-    }
-    if (_currentState == VoiceCommentState.placing) {
-      return;
-    }
-
-    _holdParentScroll();
-    setState(() {
-      _lastState = _currentState;
-      _currentState = VoiceCommentState.placing;
-    });
-  }
-
   /// 녹음 중 UI (AudioRecorderWidget과 동일)
+  /// 실시간 파형, 녹음 시간, 중지 버튼을 표시
   Widget _buildRecordingUI(String duration) {
     return Container(
       width: 353, // 텍스트 필드와 동일한 너비
@@ -348,7 +467,6 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
               ),
             ),
           ),
-
           // 녹음 시간
           Text(
             duration,
@@ -372,6 +490,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
   }
 
   /// 재생 UI (AudioRecorderWidget과 동일)
+  /// 파형, 재생 시간, 재생/일시정지 버튼을 표시
   Widget _buildPlaybackUI() {
     final borderRadius = BorderRadius.circular(21.5);
 
@@ -392,7 +511,6 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
                 transitionBuilder:
                     (child, animation) =>
                         FadeTransition(opacity: animation, child: child),
-
                 child: Container(
                   key: ValueKey('playback_bg'),
                   decoration: BoxDecoration(
@@ -418,7 +536,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
                   child: Image.asset('assets/trash.png', width: 25, height: 25),
                 ),
                 SizedBox(width: 18.w),
-                // 재생 파형 - 클릭 시 저장
+                // 재생 파형 - 드래그 가능
                 Expanded(
                   child: _buildWaveformDraggable(
                     child:
@@ -554,7 +672,77 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     );
   }
 
-  /// 저장 완료 상태로 변경
+  // ============================================================
+  // Profile Placement Flow Methods
+  // ============================================================
+
+  /// recorded 상태에서 placing 상태로 전환
+  /// 파형 위의 프로필 이미지를 드래그할 때 호출
+  void _beginPlacementFromWaveform() {
+    if (_waveformData == null || _waveformData!.isEmpty) {
+      return;
+    }
+    if (_currentState == VoiceCommentState.placing) {
+      return;
+    }
+
+    _holdParentScroll();
+    setState(() {
+      _lastState = _currentState;
+      _currentState = VoiceCommentState.placing;
+    });
+  }
+
+  /// 프로필 배치 완료 및 saved 상태로 전환
+  /// onSaveRequested 콜백을 호출하여 Firebase에 저장
+  Future<void> _finalizePlacement() async {
+    if (_isFinalizingPlacement) {
+      return;
+    }
+
+    _releaseParentScroll();
+    _isFinalizingPlacement = true;
+
+    try {
+      if (widget.onSaveRequested != null) {
+        await widget.onSaveRequested!.call();
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      _markAsSaved();
+      widget.onSaveCompleted?.call();
+    } catch (e) {
+      if (mounted) {
+        // 저장 실패 시 다시 파형 모드로 복귀
+        setState(() {
+          _lastState = _currentState;
+          _currentState = VoiceCommentState.recorded;
+        });
+      }
+    } finally {
+      _isFinalizingPlacement = false;
+    }
+  }
+
+  /// 프로필 배치 취소 및 recorded 상태로 복귀
+  /// 드래그를 취소하거나 유효하지 않은 위치에 드롭했을 때 호출
+  void _cancelPlacement() {
+    if (!mounted || _currentState != VoiceCommentState.placing) {
+      return;
+    }
+
+    _releaseParentScroll();
+    setState(() {
+      _lastState = _currentState;
+      _currentState = VoiceCommentState.recorded;
+    });
+  }
+
+  /// saved 상태로 변경하고 컨트롤러 정리
+  /// 내부에서 호출되는 상태 변경 메서드
   void _markAsSaved() {
     _releaseParentScroll();
     // 애니메이션을 위해 _lastState 설정
@@ -578,7 +766,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     widget.onSaved?.call();
   }
 
-  /// 컨트롤러들을 정리하는 메서드
+  /// RecorderController와 PlayerController 정리
+  /// saved 상태로 전환 후 리소스 해제
   void _cleanupControllers() {
     try {
       // 재생 중이면 중지
@@ -599,23 +788,76 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     }
   }
 
-  void _holdParentScroll() {
-    if (_scrollHoldController != null) {
-      return;
+  // ============================================================
+  // UI Helper Methods
+  // ============================================================
+
+  /// 파형 위에 드래그 가능한 프로필 이미지 오버레이
+  /// recorded 상태에서 placing 상태로 전환하는 진입점
+  /// 파형을 감싸서 프로필 이미지를 드래그할 수 있게 함
+  Widget _buildWaveformDraggable({required Widget child}) {
+    if (widget.onProfileImageDragged == null ||
+        _waveformData == null ||
+        _waveformData!.isEmpty) {
+      return child;
     }
-    final scrollable = Scrollable.maybeOf(context);
-    final position = scrollable?.position;
-    if (position == null) {
-      return;
-    }
-    _scrollHoldController = position.hold(() => _scrollHoldController = null);
+
+    final profileWidget = _buildProfileAvatar();
+
+    return Draggable<String>(
+      key: _profileDraggableKey,
+      data: 'profile_image',
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Transform.scale(
+        scale: 1.2,
+        child: Opacity(opacity: 0.8, child: profileWidget),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: profileWidget),
+      onDragStarted: _beginPlacementFromWaveform,
+      child: child,
+    );
   }
 
-  void _releaseParentScroll() {
-    _scrollHoldController?.cancel();
-    _scrollHoldController = null;
+  /// 프로필 아바타를 드래그 가능한 위젯으로 생성
+  /// isPlacementMode에 따라 배치 완료/취소 로직 실행
+  /// placing/saved 상태에서 사용
+  Widget _buildProfileDraggable({required bool isPlacementMode}) {
+    final profileWidget = _buildProfileAvatar();
+
+    if (widget.onProfileImageDragged == null) {
+      return profileWidget;
+    }
+
+    return Draggable<String>(
+      key: isPlacementMode ? _profileDraggableKey : null,
+      data: 'profile_image',
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Transform.scale(
+        scale: 1.2,
+        child: Opacity(opacity: 0.8, child: profileWidget),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: profileWidget),
+      onDraggableCanceled: (velocity, offset) {
+        if (!isPlacementMode) {
+          return;
+        }
+        _cancelPlacement();
+      },
+      onDragEnd: (details) {
+        if (!isPlacementMode) {
+          return;
+        }
+
+        if (details.wasAccepted) {
+          _finalizePlacement();
+        }
+      },
+      child: profileWidget,
+    );
   }
 
+  /// 프로필 아바타 위젯 생성
+  /// profileImageUrl이 있으면 CachedNetworkImage 사용, 없으면 기본 아이콘 표시
   Widget _buildProfileAvatar() {
     return Container(
       width: 54,
@@ -669,142 +911,40 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     );
   }
 
-  Widget _buildWaveformDraggable({required Widget child}) {
-    if (widget.onProfileImageDragged == null ||
-        _waveformData == null ||
-        _waveformData!.isEmpty) {
-      return child;
+  // ============================================================
+  // Scroll Management Methods
+  // ============================================================
+
+  /// 부모 스크롤을 잠금
+  /// placing 상태에서 프로필 드래그 중 스크롤 방지
+  void _holdParentScroll() {
+    if (_scrollHoldController != null) {
+      return;
     }
-
-    final profileWidget = _buildProfileAvatar();
-
-    return Draggable<String>(
-      key: _profileDraggableKey,
-      data: 'profile_image',
-      dragAnchorStrategy: pointerDragAnchorStrategy,
-      feedback: Transform.scale(
-        scale: 1.2,
-        child: Opacity(opacity: 0.8, child: profileWidget),
-      ),
-      childWhenDragging: Opacity(opacity: 0.3, child: profileWidget),
-      onDragStarted: _beginPlacementFromWaveform,
-      child: child,
-    );
+    final scrollable = Scrollable.maybeOf(context);
+    final position = scrollable?.position;
+    if (position == null) {
+      return;
+    }
+    _scrollHoldController = position.hold(() => _scrollHoldController = null);
   }
 
-  /// 프로필 이미지 드래그 UI (배치/저장 공통)
-  Widget _buildProfileDraggable({required bool isPlacementMode}) {
-    final profileWidget = _buildProfileAvatar();
-
-    if (widget.onProfileImageDragged == null) {
-      return profileWidget;
-    }
-
-    return Draggable<String>(
-      key: isPlacementMode ? _profileDraggableKey : null,
-      data: 'profile_image',
-      dragAnchorStrategy: pointerDragAnchorStrategy,
-      feedback: Transform.scale(
-        scale: 1.2,
-        child: Opacity(opacity: 0.8, child: profileWidget),
-      ),
-      childWhenDragging: Opacity(opacity: 0.3, child: profileWidget),
-      onDraggableCanceled: (velocity, offset) {
-        if (!isPlacementMode) {
-          return;
-        }
-        _cancelPlacement();
-      },
-      onDragEnd: (details) {
-        if (!isPlacementMode) {
-          return;
-        }
-
-        if (details.wasAccepted) {
-          _finalizePlacement();
-        } else {
-          _cancelPlacement();
-        }
-      },
-      child: profileWidget,
-    );
+  /// 부모 스크롤 잠금 해제
+  /// placing 상태 종료 시 스크롤 복원
+  void _releaseParentScroll() {
+    _scrollHoldController?.cancel();
+    _scrollHoldController = null;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // recording→recorded 또는 배치 상태 전환에서는 애니메이션 비활성화
-    final bool skipAnimation =
-        (_lastState == VoiceCommentState.recording &&
-            _currentState == VoiceCommentState.recorded) ||
-        _currentState == VoiceCommentState.placing ||
-        _lastState == VoiceCommentState.placing;
+  // ============================================================
+  // Public Methods
+  // ============================================================
 
-    if (skipAnimation) {
-      // 필요한 전환은 애니메이션 없이 즉시 처리
-      return _buildCurrentStateWidget();
-    }
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      transitionBuilder: (Widget child, Animation<double> animation) {
-        return ScaleTransition(
-          scale: animation,
-          child: FadeTransition(opacity: animation, child: child),
-        );
-      },
-      child: _buildCurrentStateWidget(),
-    );
-  }
-
-  /// 현재 상태에 맞는 위젯을 반환
-  Widget _buildCurrentStateWidget() {
-    // recording에서 recorded로 전환할 때 같은 키를 사용하여 애니메이션 방지
-    String widgetKey;
-    if (_lastState == VoiceCommentState.recording &&
-        _currentState == VoiceCommentState.recorded) {
-      widgetKey = 'audio-ui-no-animation';
-    } else if (_currentState == VoiceCommentState.placing) {
-      widgetKey = 'profile-placement';
-    } else if (_currentState == VoiceCommentState.saved) {
-      widgetKey = 'profile-mode';
-    } else {
-      widgetKey = _currentState.toString();
-    }
-
-    switch (_currentState) {
-      case VoiceCommentState.idle:
-        // comment.png 표시 (기존 feed_home.dart에서 처리)
-        return Container(
-          key: ValueKey(widgetKey),
-          height: 52.h, // 녹음 UI와 동일한 높이
-          alignment: Alignment.center, // 중앙 정렬
-          child: const SizedBox.shrink(),
-        );
-
-      case VoiceCommentState.recording:
-        return Selector<AudioController, String>(
-          key: ValueKey(widgetKey),
-          selector:
-              (context, controller) => controller.formattedRecordingDuration,
-          builder: (context, duration, child) {
-            return _buildRecordingUI(duration);
-          },
-        );
-
-      case VoiceCommentState.recorded:
-        return Container(key: ValueKey(widgetKey), child: _buildPlaybackUI());
-
-      case VoiceCommentState.placing:
-        return Container(
-          key: ValueKey(widgetKey),
-          child: _buildProfileDraggable(isPlacementMode: true),
-        );
-
-      case VoiceCommentState.saved:
-        return Container(
-          key: ValueKey(widgetKey),
-          child: _buildProfileDraggable(isPlacementMode: false),
-        );
+  /// 외부에서 저장 완료를 알리는 메서드
+  /// 부모 위젯에서 저장이 완료되었음을 알릴 때 사용
+  void markAsSaved() {
+    if (mounted) {
+      _markAsSaved();
     }
   }
 }

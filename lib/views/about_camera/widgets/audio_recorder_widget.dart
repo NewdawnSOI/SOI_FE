@@ -6,65 +6,47 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import '../../../controllers/audio_controller.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../controllers/comment_record_controller.dart';
-import '../../../models/comment_record_model.dart';
-import '../../../utils/position_converter.dart';
 import '../../about_archiving/widgets/wave_form_widget/custom_waveform_widget.dart';
 
-/// 오디오 녹음 위젯
-///
-/// 음성 녹음과 재생 기능을 제공하는 위젯입니다.
-/// 댓글 모드와 편집 모드에서 서로 다른 동작을 합니다.
-
+/// 녹음 상태를 나타내는 enum입니다.
 enum RecordingState {
   recording, // 녹음 중
   recorded, // 녹음 완료 상태
-  profile, // 프로필 모드 (댓글용)
 }
 
+/// 오디오 녹음 위젯
+/// 사진 편집 시 음성 메모를 녹음하고 재생하는 기능을 제공합니다.
+/// 편집 모드 전용 위젯입니다.
 class AudioRecorderWidget extends StatefulWidget {
   // 기본 콜백들
+
+  // 녹음이 완료되었을 때 호출되는 콜백
   final Function(String?, List<double>?)? onRecordingCompleted;
+
+  // 녹음이 최종적으로 완료되었을 때 호출되는 콜백
   final Function(String audioFilePath, List<double> waveformData, int duration)?
   onRecordingFinished;
-  final Function(CommentRecordModel)? onCommentSaved;
+
+  // 녹음이 취소되었을 때 호출되는 콜백
   final VoidCallback? onRecordingCleared;
+
+  // 초기 녹음 파일 경로
   final String? initialRecordingPath;
+
+  // 초기 파형 데이터
   final List<double>? initialWaveformData;
 
   // 동작 설정
   final bool autoStart;
-  final bool isCommentMode;
-  final bool isCurrentUserPhoto;
-
-  // 댓글 관련 설정
-  final String? photoId;
-  final CommentRecordModel? savedComment;
-
-  // 프로필 위치 관련
-  final Function(Offset)? onProfileImageDragged;
-  final Offset? profileImagePosition;
-  final Offset? Function()? getProfileImagePosition;
-  final VoidCallback? onCommentPositioned;
 
   const AudioRecorderWidget({
     super.key,
     this.onRecordingCompleted,
     this.onRecordingFinished,
-    this.onCommentSaved,
     this.onRecordingCleared,
     this.initialRecordingPath,
     this.initialWaveformData,
     this.autoStart = false,
-    this.photoId,
-    this.isCommentMode = true,
-    this.onProfileImageDragged,
-    this.savedComment,
-    this.profileImagePosition,
-    this.getProfileImagePosition,
-    this.onCommentPositioned,
-    this.isCurrentUserPhoto = true,
   });
 
   @override
@@ -74,21 +56,22 @@ class AudioRecorderWidget extends StatefulWidget {
 class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
     with SingleTickerProviderStateMixin {
   // ========== 컨트롤러들 ==========
-  late AudioController _audioController;
-  late RecorderController recorderController;
-  PlayerController? playerController;
+  late AudioController _audioController; // 오디오 상태 관리 컨트롤러
+  late RecorderController recorderController; // 녹음 컨트롤러
+  PlayerController? playerController; // 재생 컨트롤러
 
   // ========== 상태 관리 변수들 ==========
+  // 현재 녹음 상태를 관리하는 변수
   RecordingState _currentState = RecordingState.recording;
-  RecordingState? _lastState;
 
-  // 녹음 데이터
+  // 이전 녹음 상태를 관리하는 변수
+  RecordingState? _previousState;
+
+  // ========== 녹음 관련 파일을 저장하는 변수들 ==========
+  // 녹음된 파일 경로
   String? _recordedFilePath;
+  // 파형 데이터
   List<double>? _waveformData;
-
-  // 댓글 관련
-  String? _lastSavedCommentId;
-  String? _userProfileImageUrl;
 
   // 오디오 상태 모니터링
   Timer? _audioControllerTimer;
@@ -131,55 +114,15 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
     _audioController = Provider.of<AudioController>(context, listen: false);
   }
 
+  // 초기 상태 설정하는 메소드
   void _initializeState() {
-    if (widget.savedComment != null) {
-      _currentState = RecordingState.recorded;
-      _userProfileImageUrl = widget.savedComment!.profileImageUrl;
-      _recordedFilePath = widget.savedComment!.audioUrl;
-      _waveformData = widget.savedComment!.waveformData;
-    } else if (widget.initialRecordingPath != null &&
+    if (widget.initialRecordingPath != null &&
         widget.initialRecordingPath!.isNotEmpty) {
       _currentState = RecordingState.recorded;
       _recordedFilePath = widget.initialRecordingPath;
       _waveformData = widget.initialWaveformData;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _preparePlayerForExistingRecording();
-      });
     } else if (widget.autoStart) {
       _currentState = RecordingState.recording;
-    }
-  }
-
-  Future<void> _preparePlayerForExistingRecording() async {
-    if (!mounted) return;
-
-    final path = widget.initialRecordingPath;
-    if (path == null || path.isEmpty || playerController == null) {
-      return;
-    }
-
-    try {
-      await playerController!.preparePlayer(
-        path: path,
-        shouldExtractWaveform: widget.initialWaveformData == null,
-      );
-
-      if ((_waveformData == null || _waveformData!.isEmpty)) {
-        final extractedWaveform = await playerController!.extractWaveformData(
-          path: path,
-          noOfSamples: 100,
-        );
-
-        if (extractedWaveform.isNotEmpty && mounted) {
-          setState(() {
-            _waveformData = extractedWaveform;
-          });
-        } else if (_waveformData == null && extractedWaveform.isNotEmpty) {
-          _waveformData = extractedWaveform;
-        }
-      }
-    } catch (e) {
-      debugPrint('기존 녹음 준비 오류: $e');
     }
   }
 
@@ -193,11 +136,16 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
 
   // ========== 녹음 관련 메서드들 ==========
 
+  // 녹음 시작
   Future<void> _startRecording() async {
     try {
       await recorderController.record();
       await _audioController.startRecording();
+      // 녹음 중의 상태로 전환
+      // 녹음 중이란 것을 나타내는 것임
       _setState(RecordingState.recording);
+
+      // 오디오 컨트롤러 상태 모니터링 시작
       _startAudioControllerListener();
       debugPrint('녹음 시작 완료 - 상태: $_currentState');
     } catch (e) {
@@ -246,7 +194,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
       }
 
       setState(() {
-        _lastState = _currentState;
+        _previousState = _currentState;
         _currentState = RecordingState.recorded;
         _recordedFilePath = _audioController.currentRecordingPath;
         _waveformData = waveformData;
@@ -280,21 +228,17 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
       }
 
       // 상태 초기화 (setState 호출하지 않음)
-      _lastState = _currentState;
+      _previousState = _currentState;
       _recordedFilePath = null;
       _waveformData = null;
-      _userProfileImageUrl = null;
-      _lastSavedCommentId = null;
 
       debugPrint('녹음 취소 및 초기화 완료');
     } catch (e) {
       debugPrint('녹음 취소 오류: $e');
       // 에러 발생 시에도 상태만 초기화 (setState 호출하지 않음)
-      _lastState = _currentState;
+      _previousState = _currentState;
       _recordedFilePath = null;
       _waveformData = null;
-      _userProfileImageUrl = null;
-      _lastSavedCommentId = null;
     }
 
     // 부모 위젯에 알려서 텍스트 필드로 전환
@@ -308,7 +252,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
       }
 
       // 상태 초기화 (setState 호출하지 않음)
-      _lastState = _currentState;
+      _previousState = _currentState;
       _recordedFilePath = null;
       _waveformData = null;
     } catch (e) {
@@ -345,108 +289,9 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
     }
   }
 
-  void _onWaveformTapped() async {
-    if (!widget.isCommentMode) {
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _lastState = _currentState;
-        _currentState = RecordingState.profile;
-      });
-    }
-
-    _loadUserProfileImage();
-  }
-
-  // ========== 프로필 관련 메서드들 ==========
-
-  Future<void> _loadUserProfileImage() async {
-    try {
-      final authController = Provider.of<AuthController>(
-        context,
-        listen: false,
-      );
-      final currentUserId = authController.getUserId;
-
-      if (currentUserId != null) {
-        final profileImageUrl = await authController.getUserProfileImageUrlById(
-          currentUserId,
-        );
-
-        if (mounted) {
-          setState(() {
-            _userProfileImageUrl = profileImageUrl;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('프로필 이미지 로드 실패: $e');
-    }
-  }
-
-  Future<void> _saveCommentRecord({
-    required String audioFilePath,
-    required List<double> waveformData,
-    required int duration,
-  }) async {
-    try {
-      final authController = Provider.of<AuthController>(
-        context,
-        listen: false,
-      );
-      final currentUserId = authController.getUserId;
-
-      if (currentUserId == null) {
-        debugPrint('❌ 현재 사용자 ID가 null입니다');
-        return;
-      }
-
-      final profileImageUrl = await authController
-          .getUserProfileImageUrlWithCache(currentUserId);
-
-      final commentRecordController = CommentRecordController();
-      final currentProfilePosition =
-          widget.getProfileImagePosition?.call() ?? widget.profileImagePosition;
-
-      Offset? relativePosition;
-      if (currentProfilePosition != null) {
-        final imageSize = Size(354.w, 500.h);
-        relativePosition = PositionConverter.toRelativePosition(
-          currentProfilePosition,
-          imageSize,
-        );
-      } else {
-        relativePosition = null;
-        debugPrint('음성 댓글 위치 미설정 - 사용자가 드래그를 통해 위치를 설정해야 합니다.');
-      }
-
-      final commentRecord = await commentRecordController.createCommentRecord(
-        audioFilePath: audioFilePath,
-        photoId: widget.photoId!,
-        recorderUser: currentUserId,
-        waveformData: waveformData,
-        duration: duration,
-        profileImageUrl: profileImageUrl,
-        relativePosition: relativePosition,
-      );
-
-      if (commentRecord != null) {
-        _userProfileImageUrl = profileImageUrl;
-        _lastSavedCommentId = commentRecord.id;
-
-        if (widget.onCommentSaved != null) {
-          widget.onCommentSaved!(commentRecord);
-        }
-      }
-    } catch (e) {
-      debugPrint('CommentRecord 저장 중 오류: $e');
-    }
-  }
-
   // ========== 오디오 상태 모니터링 ==========
 
+  /// 오디오 컨트롤러 상태 모니터링 시작
   void _startAudioControllerListener() {
     _wasRecording = true;
     _audioControllerTimer = Timer.periodic(Duration(milliseconds: 100), (
@@ -468,11 +313,13 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
     });
   }
 
+  // 오디오 컨트롤러 상태 모니터링 중지
   void _stopAudioControllerListener() {
     _audioControllerTimer?.cancel();
     _audioControllerTimer = null;
   }
 
+  // 오디오 컨트롤러가 정지 상태로 전환되었을 때 처리
   Future<void> _handleAudioControllerStopped() async {
     try {
       if (!mounted) {
@@ -501,24 +348,12 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
         }
       }
 
-      if (widget.isCommentMode &&
-          widget.photoId != null &&
-          _recordedFilePath != null &&
-          _recordedFilePath!.isNotEmpty &&
-          waveformData.isNotEmpty) {
-        await _saveCommentRecord(
-          audioFilePath: _recordedFilePath!,
-          waveformData: waveformData,
-          duration: _audioController.recordingDuration,
-        );
-      }
-
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _lastState = _currentState;
+        _previousState = _currentState;
         _currentState = RecordingState.recorded;
         _waveformData = waveformData;
       });
@@ -548,7 +383,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
   void _setState(RecordingState newState) {
     if (mounted) {
       setState(() {
-        _lastState = _currentState;
+        _previousState = _currentState;
         _currentState = newState;
       });
     }
@@ -569,7 +404,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
   @override
   Widget build(BuildContext context) {
     bool shouldAnimate =
-        !(_lastState == RecordingState.recording &&
+        !(_previousState == RecordingState.recording &&
             _currentState == RecordingState.recorded);
 
     if (!shouldAnimate) {
@@ -587,11 +422,9 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
 
   Widget _buildCurrentStateWidget() {
     String widgetKey;
-    if (_lastState == RecordingState.recording &&
+    if (_previousState == RecordingState.recording &&
         _currentState == RecordingState.recorded) {
       widgetKey = 'audio-ui-no-animation';
-    } else if (_currentState == RecordingState.profile) {
-      widgetKey = 'profile-mode';
     } else {
       widgetKey = _currentState.toString();
     }
@@ -624,12 +457,6 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
             backgroundColor: const Color(0xff222222),
             isRecording: false,
           ),
-        );
-
-      case RecordingState.profile:
-        return Container(
-          key: ValueKey(widgetKey),
-          child: _buildFullProfileModeUI(),
         );
     }
   }
@@ -757,113 +584,42 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
 
   Widget _buildWaveformDisplay() {
     return _waveformData != null && _waveformData!.isNotEmpty
-        ? GestureDetector(
-          onTap: _onWaveformTapped,
-          child: StreamBuilder<int>(
-            stream:
-                playerController?.onCurrentDurationChanged ??
-                const Stream.empty(),
-            builder: (context, positionSnapshot) {
-              final currentPosition = positionSnapshot.data ?? 0;
-              final totalDuration = playerController?.maxDuration ?? 1;
-              final progress =
-                  totalDuration > 0
-                      ? (currentPosition / totalDuration).clamp(0.0, 1.0)
-                      : 0.0;
+        ? StreamBuilder<int>(
+          stream:
+              playerController?.onCurrentDurationChanged ??
+              const Stream.empty(),
+          builder: (context, positionSnapshot) {
+            final currentPosition = positionSnapshot.data ?? 0;
+            final totalDuration = playerController?.maxDuration ?? 1;
+            final progress =
+                totalDuration > 0
+                    ? (currentPosition / totalDuration).clamp(0.0, 1.0)
+                    : 0.0;
 
-              return CustomWaveformWidget(
-                waveformData: _waveformData!,
-                color: Colors.grey,
-                activeColor: Colors.white,
-                progress: progress,
-              );
-            },
-          ),
+            return CustomWaveformWidget(
+              waveformData: _waveformData!,
+              color: Colors.grey,
+              activeColor: Colors.white,
+              progress: progress,
+            );
+          },
         )
-        : GestureDetector(
-          onTap: _onWaveformTapped,
-          child: Container(
-            height: 52.h,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade700,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Center(
-              child: Text(
-                '파형 없음',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 14.sp,
-                  fontFamily: "Pretendard",
-                ),
+        : Container(
+          height: 52.h,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade700,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: Text(
+              '파형 없음',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 14.sp,
+                fontFamily: "Pretendard",
               ),
             ),
           ),
         );
-  }
-
-  Widget _buildFullProfileModeUI() {
-    double screenWidth = MediaQuery.of(context).size.width;
-
-    final profileWidget = Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child:
-            _userProfileImageUrl != null && _userProfileImageUrl!.isNotEmpty
-                ? Image.network(
-                  _userProfileImageUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder:
-                      (context, error, stackTrace) => Container(
-                        color: Colors.grey.shade600,
-                        child: Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: (screenWidth * 0.08).clamp(30.0, 40.0),
-                        ),
-                      ),
-                )
-                : Container(
-                  color: Colors.grey.shade600,
-                  child: Icon(
-                    Icons.person,
-                    color: Colors.white,
-                    size: (screenWidth * 0.08).clamp(30.0, 40.0),
-                  ),
-                ),
-      ),
-    );
-
-    return Draggable<String>(
-      data: _lastSavedCommentId ?? '',
-      feedback: Transform.scale(
-        scale: 1.0,
-        child: Opacity(opacity: 0.8, child: profileWidget),
-      ),
-      childWhenDragging: Opacity(opacity: 0.3, child: profileWidget),
-      onDragEnd: (details) {
-        if (details.wasAccepted) {
-          if (widget.onCommentPositioned != null) {
-            widget.onCommentPositioned!();
-          }
-        } else {
-          if (widget.onProfileImageDragged != null) {
-            widget.onProfileImageDragged!(details.offset);
-          }
-        }
-      },
-      child: profileWidget,
-    );
   }
 }
