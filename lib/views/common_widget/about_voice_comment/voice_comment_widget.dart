@@ -253,7 +253,9 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
   /// 프로필 배치 모드 진입
   void _enterPlacementMode(TapDownDetails details) {
-    if (_waveformData == null || _waveformData!.isEmpty) {
+    if (_waveformData == null ||
+        _waveformData!.isEmpty ||
+        _currentState == VoiceCommentState.placing) {
       return;
     }
 
@@ -323,7 +325,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
   /// 프로필 배치 취소 처리
   void _cancelPlacement() {
-    if (!mounted) {
+    if (!mounted || _currentState != VoiceCommentState.placing) {
       return;
     }
 
@@ -689,6 +691,12 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
         child: Opacity(opacity: 0.8, child: profileWidget),
       ),
       childWhenDragging: Opacity(opacity: 0.3, child: profileWidget),
+      onDraggableCanceled: (velocity, offset) {
+        if (!isPlacementMode) {
+          return;
+        }
+        _cancelPlacement();
+      },
       onDragEnd: (details) {
         if (!isPlacementMode) {
           return;
@@ -696,8 +704,6 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
         if (details.wasAccepted) {
           _finalizePlacement();
-        } else {
-          _cancelPlacement();
         }
       },
       child: profileWidget,
@@ -706,14 +712,15 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // recording에서 recorded로 바뀔 때만 애니메이션 비활성화
-    // recorded에서 saved로 바뀔 때는 애니메이션 활성화
-    bool shouldAnimate =
-        !(_lastState == VoiceCommentState.recording &&
-            _currentState == VoiceCommentState.recorded);
+    // recording→recorded 또는 배치 상태 전환에서는 애니메이션 비활성화
+    final bool skipAnimation =
+        (_lastState == VoiceCommentState.recording &&
+            _currentState == VoiceCommentState.recorded) ||
+        _currentState == VoiceCommentState.placing ||
+        _lastState == VoiceCommentState.placing;
 
-    if (!shouldAnimate) {
-      // 애니메이션 없이 즉시 전환 (recording → recorded만)
+    if (skipAnimation) {
+      // 필요한 전환은 애니메이션 없이 즉시 처리
       return _buildCurrentStateWidget();
     }
 
