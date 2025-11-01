@@ -64,6 +64,9 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
   List<double>? _waveformData;
   DateTime? _recordingStartTime; // 녹음 시작 시간 추가
 
+  // 부모 스크롤 잠금 컨트롤러
+  ScrollHoldController? _scrollHoldController;
+
   bool _isFinalizingPlacement = false; // 중복 저장 방지
   final GlobalKey _profileDraggableKey = GlobalKey();
   TapDownDetails? _pendingTapDownDetails;
@@ -92,9 +95,11 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     // Placing 모드로 시작해야 하는 경우 (텍스트 댓글용)
     if (widget.startInPlacingMode) {
       _currentState = VoiceCommentState.placing;
-      debugPrint(
-        '🟢 [VoiceCommentWidget] startInPlacingMode=true, placing 모드로 시작',
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _currentState == VoiceCommentState.placing) {
+          _holdParentScroll();
+        }
+      });
       return; // 컨트롤러 초기화 없이 리턴
     }
 
@@ -124,6 +129,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
   @override
   void dispose() {
+    _releaseParentScroll();
     // 저장된 상태가 아닌 경우에만 컨트롤러 해제
     if (_currentState != VoiceCommentState.saved) {
       _recorderController.dispose();
@@ -232,22 +238,19 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     try {
       if (_playerController!.playerState.isPlaying) {
         await _playerController!.pausePlayer();
-        // debugPrint('재생 일시정지');
       } else {
         // 재생이 끝났다면 처음부터 다시 시작
         if (_playerController!.playerState.isStopped) {
           await _playerController!.startPlayer();
-          // debugPrint('재생 시작 (처음부터)');
         } else {
           await _playerController!.startPlayer();
-          // debugPrint('재생 시작');
         }
       }
       if (mounted) {
         setState(() {}); // UI 갱신
       }
     } catch (e) {
-      // debugPrint('재생/일시정지 오류: $e');
+      debugPrint('재생/일시정지 오류: $e');
     }
   }
 
@@ -258,6 +261,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
         _currentState == VoiceCommentState.placing) {
       return;
     }
+
+    _holdParentScroll();
 
     setState(() {
       _lastState = _currentState;
@@ -297,6 +302,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
       return;
     }
 
+    _releaseParentScroll();
     _isFinalizingPlacement = true;
 
     try {
@@ -329,6 +335,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
       return;
     }
 
+    _releaseParentScroll();
     setState(() {
       _lastState = _currentState;
       _currentState = VoiceCommentState.recorded;
@@ -583,6 +590,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
   /// 저장 완료 상태로 변경
   void _markAsSaved() {
+    _releaseParentScroll();
     // 애니메이션을 위해 _lastState 설정
     setState(() {
       _lastState = _currentState;
@@ -623,6 +631,23 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     } catch (e) {
       debugPrint('❌ 컨트롤러 정리 중 오류: $e');
     }
+  }
+
+  void _holdParentScroll() {
+    if (_scrollHoldController != null) {
+      return;
+    }
+    final scrollable = Scrollable.maybeOf(context);
+    final position = scrollable?.position;
+    if (position == null) {
+      return;
+    }
+    _scrollHoldController = position.hold(() => _scrollHoldController = null);
+  }
+
+  void _releaseParentScroll() {
+    _scrollHoldController?.cancel();
+    _scrollHoldController = null;
   }
 
   /// 프로필 이미지 드래그 UI (배치/저장 공통)
