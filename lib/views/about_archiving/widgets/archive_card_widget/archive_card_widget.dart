@@ -2,9 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../../controllers/auth_controller.dart';
-import '../../../../controllers/category_controller.dart';
-import '../../../../models/category_data_model.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/category_controller.dart';
+import '../../../../firebase_logic/models/category_data_model.dart';
 import '../../screens/archive_detail/category_photos_screen.dart';
 import 'archive_profile_row_widget.dart';
 import 'archive_popup_menu_widget.dart';
@@ -114,18 +114,17 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
         ),
       ),
       child: InkWell(
-        onTap:
-            widget.isEditMode
-                ? null
-                : () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (context) => CategoryPhotosScreen(category: category),
-                    ),
-                  );
-                },
+        onTap: widget.isEditMode
+            ? null
+            : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        CategoryPhotosScreen(category: category),
+                  ),
+                );
+              },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -310,10 +309,9 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
       listen: false,
     );
 
-    final displayName =
-        userId != null
-            ? categoryController.getCategoryDisplayName(category, userId)
-            : category.name;
+    final displayName = userId != null
+        ? categoryController.getCategoryDisplayName(category, userId)
+        : category.name;
 
     return Text(
       displayName,
@@ -365,34 +363,28 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
           memCacheWidth: (width * 2).round(),
           maxWidthDiskCache: (width * 2).round(),
           fit: BoxFit.cover,
-          placeholder:
-              (context, url) => Shimmer.fromColors(
-                baseColor: Colors.grey.shade800,
-                highlightColor: Colors.grey.shade700,
-                period: const Duration(milliseconds: 1500),
-                child: Container(
-                  width: width,
-                  height: height,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade800,
-                    borderRadius: BorderRadius.circular(borderRadius),
-                  ),
-                ),
+          placeholder: (context, url) => Shimmer.fromColors(
+            baseColor: Colors.grey.shade800,
+            highlightColor: Colors.grey.shade700,
+            period: const Duration(milliseconds: 1500),
+            child: Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade800,
+                borderRadius: BorderRadius.circular(borderRadius),
               ),
-          errorWidget:
-              (context, url, error) => Container(
-                width: width,
-                height: height,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCACACA).withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(borderRadius),
-                ),
-                child: Icon(
-                  Icons.image,
-                  color: const Color(0xff5a5a5a),
-                  size: 32,
-                ),
-              ),
+            ),
+          ),
+          errorWidget: (context, url, error) => Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: const Color(0xFFCACACA).withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            child: Icon(Icons.image, color: const Color(0xff5a5a5a), size: 32),
+          ),
         ),
       );
     }
@@ -445,8 +437,9 @@ class _ArchiveCardWidgetState extends State<ArchiveCardWidget> {
   }) {
     final authController = AuthController();
     final userId = authController.getUserId;
-    final hasNewPhoto =
-        userId != null ? category.hasNewPhotoForUser(userId) : false;
+    final hasNewPhoto = userId != null
+        ? category.hasNewPhotoForUser(userId)
+        : false;
 
     if (!hasNewPhoto) {
       return const SizedBox.shrink();

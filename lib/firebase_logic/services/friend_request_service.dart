@@ -1,4 +1,4 @@
-import 'package:soi/controllers/auth_controller.dart';
+import 'package:soi/firebase_logic/controllers/auth_controller.dart';
 import '../repositories/friend_request_repository.dart';
 import '../repositories/friend_repository.dart';
 import '../repositories/user_search_repository.dart';
@@ -64,15 +64,15 @@ class FriendRequestService {
 
       final currentUser = _authController.currentUser!;
       final currentUserId = await _authController.getUserID();
-      final currentUserProfileImageUrl =
-          await _authController.getUserProfileImageUrl();
+      final currentUserProfileImageUrl = await _authController
+          .getUserProfileImageUrl();
       // 빈 문자열이면 null 처리 (Firestore 저장/표시 시 오류 방지)
       final sanitizedProfileImageUrl =
           (currentUserProfileImageUrl.isNotEmpty &&
-                  (currentUserProfileImageUrl.startsWith('http://') ||
-                      currentUserProfileImageUrl.startsWith('https://')))
-              ? currentUserProfileImageUrl
-              : null;
+              (currentUserProfileImageUrl.startsWith('http://') ||
+                  currentUserProfileImageUrl.startsWith('https://')))
+          ? currentUserProfileImageUrl
+          : null;
 
       // displayName이 null인 경우 기본값 사용
       final displayName = currentUser.displayName ?? '사용자';
@@ -106,8 +106,9 @@ class FriendRequestService {
   Future<void> acceptFriendRequest(String requestId) async {
     try {
       // 1. 친구 요청 정보 가져오기
-      final requests =
-          await _friendRequestRepository.getReceivedRequests().first;
+      final requests = await _friendRequestRepository
+          .getReceivedRequests()
+          .first;
       final request = requests.firstWhere(
         (req) => req.id == requestId,
         orElse: () => throw Exception('친구 요청을 찾을 수 없습니다'),
@@ -121,24 +122,24 @@ class FriendRequestService {
       final currentUser = _authController.currentUser!;
       final currentUserId = await _authController.getUserID();
       final currentUserName = currentUser.displayName ?? currentUserId;
-      final currentProfileImageUrl =
-          await _authController.getUserProfileImageUrl();
+      final currentProfileImageUrl = await _authController
+          .getUserProfileImageUrl();
 
       // 발신자(친구) 프로필 이미지 URL도 조회 (수락 후 상대 기기에서 현재 사용자 이미지 표시, 내 기기에서 친구 이미지 표시)
       final senderProfileImageUrl = await _authController
           .getUserProfileImageUrlById(request.senderUid);
       final sanitizedSenderProfileImageUrl =
           senderProfileImageUrl.isNotEmpty &&
-                  (senderProfileImageUrl.startsWith('http://') ||
-                      senderProfileImageUrl.startsWith('https://'))
-              ? senderProfileImageUrl
-              : null;
+              (senderProfileImageUrl.startsWith('http://') ||
+                  senderProfileImageUrl.startsWith('https://'))
+          ? senderProfileImageUrl
+          : null;
       final sanitizedCurrentProfileImageUrl =
           currentProfileImageUrl.isNotEmpty &&
-                  (currentProfileImageUrl.startsWith('http://') ||
-                      currentProfileImageUrl.startsWith('https://'))
-              ? currentProfileImageUrl
-              : null;
+              (currentProfileImageUrl.startsWith('http://') ||
+                  currentProfileImageUrl.startsWith('https://'))
+          ? currentProfileImageUrl
+          : null;
 
       // 3. 요청 발신자 정보 가져오기
       final senderInfo = await _userSearchRepository.searchUserById(
@@ -249,10 +250,12 @@ class FriendRequestService {
   /// Returns: Map with 'received', 'sent' counts
   Future<Map<String, int>> getFriendRequestStats() async {
     try {
-      final receivedRequests =
-          await _friendRequestRepository.getReceivedRequests().first;
-      final sentRequests =
-          await _friendRequestRepository.getSentRequests().first;
+      final receivedRequests = await _friendRequestRepository
+          .getReceivedRequests()
+          .first;
+      final sentRequests = await _friendRequestRepository
+          .getSentRequests()
+          .first;
 
       return {'received': receivedRequests.length, 'sent': sentRequests.length};
     } catch (e) {

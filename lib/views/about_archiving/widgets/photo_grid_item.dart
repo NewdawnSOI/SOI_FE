@@ -3,9 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../controllers/audio_controller.dart';
-import '../../../models/photo_data_model.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/controllers/audio_controller.dart';
+import '../../../firebase_logic/models/photo_data_model.dart';
 import '../screens/archive_detail/photo_detail_screen.dart';
 import 'wave_form_widget/custom_waveform_widget.dart';
 
@@ -87,13 +87,12 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder:
-                (_) => PhotoDetailScreen(
-                  photos: widget.allPhotos,
-                  initialIndex: widget.currentIndex,
-                  categoryName: widget.categoryName,
-                  categoryId: widget.categoryId,
-                ),
+            builder: (_) => PhotoDetailScreen(
+              photos: widget.allPhotos,
+              initialIndex: widget.currentIndex,
+              categoryName: widget.categoryName,
+              categoryId: widget.categoryId,
+            ),
           ),
         );
       },
@@ -110,23 +109,21 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
                 memCacheWidth: (175 * 2).round(),
                 maxWidthDiskCache: (175 * 2).round(),
                 fit: BoxFit.cover,
-                placeholder:
-                    (context, url) => Shimmer.fromColors(
-                      baseColor: Colors.grey.shade800,
-                      highlightColor: Colors.grey.shade700,
-                      period: const Duration(milliseconds: 1500),
-                      child: Container(color: Colors.grey.shade800),
-                    ),
-                errorWidget:
-                    (context, url, error) => Container(
-                      color: Colors.grey.shade800,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.image,
-                        color: Colors.grey.shade600,
-                        size: 32.sp,
-                      ),
-                    ),
+                placeholder: (context, url) => Shimmer.fromColors(
+                  baseColor: Colors.grey.shade800,
+                  highlightColor: Colors.grey.shade700,
+                  period: const Duration(milliseconds: 1500),
+                  child: Container(color: Colors.grey.shade800),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: Colors.grey.shade800,
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.image,
+                    color: Colors.grey.shade600,
+                    size: 32.sp,
+                  ),
+                ),
               ),
             ),
           ),
@@ -189,35 +186,33 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
                           imageUrl: imageUrl,
                           memCacheWidth: (28 * 5).round(),
                           maxWidthDiskCache: (28 * 5).round(),
-                          imageBuilder:
-                              (context, imageProvider) => CircleAvatar(
+                          imageBuilder: (context, imageProvider) =>
+                              CircleAvatar(
                                 radius: 14,
                                 backgroundImage: imageProvider,
                               ),
-                          placeholder:
-                              (context, url) => Shimmer.fromColors(
-                                baseColor: Colors.grey.shade800,
-                                highlightColor: Colors.grey.shade700,
-                                period: const Duration(milliseconds: 1500),
-                                child: CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: Colors.grey.shade800,
-                                ),
-                              ),
-                          errorWidget:
-                              (context, url, error) => Container(
-                                width: 60,
-                                height: 60,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFFd9d9d9),
-                                ),
-                                child: const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 26,
-                                ),
-                              ),
+                          placeholder: (context, url) => Shimmer.fromColors(
+                            baseColor: Colors.grey.shade800,
+                            highlightColor: Colors.grey.shade700,
+                            period: const Duration(milliseconds: 1500),
+                            child: CircleAvatar(
+                              radius: 14,
+                              backgroundColor: Colors.grey.shade800,
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            width: 60,
+                            height: 60,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFFd9d9d9),
+                            ),
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          ),
                         );
                       },
                     ),
@@ -226,23 +221,21 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
                   Expanded(
                     child:
                         (!_hasAudio ||
-                                _waveformData == null ||
-                                _waveformData!.isEmpty)
-                            ? Container()
-                            : GestureDetector(
-                              onTap: () => _toggleAudioPlayback(),
-                              child: Container(
-                                width: 140.w,
-                                height: 21.h,
-                                decoration: BoxDecoration(
-                                  color: Color(
-                                    0xff171717,
-                                  ).withValues(alpha: 0.5),
-                                  borderRadius: BorderRadius.circular(15),
-                                ),
-                                child: _buildWaveformWidget(),
+                            _waveformData == null ||
+                            _waveformData!.isEmpty)
+                        ? Container()
+                        : GestureDetector(
+                            onTap: () => _toggleAudioPlayback(),
+                            child: Container(
+                              width: 140.w,
+                              height: 21.h,
+                              decoration: BoxDecoration(
+                                color: Color(0xff171717).withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(15),
                               ),
+                              child: _buildWaveformWidget(),
                             ),
+                          ),
                   ),
                   SizedBox(width: 5.w),
                 ],
@@ -278,9 +271,10 @@ class _PhotoGridItemState extends State<PhotoGridItem> {
         double progress = 0.0;
         if (isCurrentAudio &&
             audioController.currentDuration.inMilliseconds > 0) {
-          progress = (audioController.currentPosition.inMilliseconds /
-                  audioController.currentDuration.inMilliseconds)
-              .clamp(0.0, 1.0);
+          progress =
+              (audioController.currentPosition.inMilliseconds /
+                      audioController.currentDuration.inMilliseconds)
+                  .clamp(0.0, 1.0);
         }
 
         return Container(

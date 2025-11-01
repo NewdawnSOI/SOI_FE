@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../../controllers/friend_request_controller.dart';
-import '../../../models/friend_request_model.dart';
+import '../../../firebase_logic/controllers/friend_request_controller.dart';
+import '../../../firebase_logic/models/friend_request_model.dart';
 
 class FriendRequestCard extends StatelessWidget {
   final double scale;
@@ -35,30 +35,29 @@ class FriendRequestCard extends StatelessWidget {
                 // 친구 요청 리스트
                 receivedRequests.isEmpty
                     ? SizedBox(
-                      height: 132.h,
-                      child: Center(
-                        child: Text(
-                          friendRequestController.isLoading
-                              ? '친구 요청을 불러오는 중...'
-                              : '받은 친구 요청이 없습니다',
-                          style: TextStyle(
-                            color: const Color(0xff666666),
-                            fontSize: 14.sp,
+                        height: 132.h,
+                        child: Center(
+                          child: Text(
+                            friendRequestController.isLoading
+                                ? '친구 요청을 불러오는 중...'
+                                : '받은 친구 요청이 없습니다',
+                            style: TextStyle(
+                              color: const Color(0xff666666),
+                              fontSize: 14.sp,
+                            ),
                           ),
                         ),
-                      ),
-                    )
+                      )
                     : Column(
-                      children:
-                          receivedRequests.map((request) {
-                            return _buildFriendRequestItem(
-                              context,
-                              scale,
-                              request,
-                              friendRequestController,
-                            );
-                          }).toList(),
-                    ),
+                        children: receivedRequests.map((request) {
+                          return _buildFriendRequestItem(
+                            context,
+                            scale,
+                            request,
+                            friendRequestController,
+                          );
+                        }).toList(),
+                      ),
               ],
             ),
           ),
@@ -86,27 +85,25 @@ class FriendRequestCard extends StatelessWidget {
             backgroundColor: const Color(0xff323232),
             backgroundImage:
                 (request.senderProfileImageUrl != null &&
-                        request.senderProfileImageUrl!.isNotEmpty &&
-                        (request.senderProfileImageUrl!.startsWith('http://') ||
-                            request.senderProfileImageUrl!.startsWith(
-                              'https://',
-                            )))
-                    ? NetworkImage(request.senderProfileImageUrl!)
-                    : null,
+                    request.senderProfileImageUrl!.isNotEmpty &&
+                    (request.senderProfileImageUrl!.startsWith('http://') ||
+                        request.senderProfileImageUrl!.startsWith('https://')))
+                ? NetworkImage(request.senderProfileImageUrl!)
+                : null,
             child:
                 (request.senderProfileImageUrl == null ||
-                        request.senderProfileImageUrl!.isEmpty)
-                    ? Text(
-                      request.senderid.isNotEmpty
-                          ? request.senderid[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        color: const Color(0xfff9f9f9),
-                        fontSize: (16).sp,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    )
-                    : null,
+                    request.senderProfileImageUrl!.isEmpty)
+                ? Text(
+                    request.senderid.isNotEmpty
+                        ? request.senderid[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      color: const Color(0xfff9f9f9),
+                      fontSize: (16).sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                : null,
           ),
           SizedBox(width: (12).w),
 

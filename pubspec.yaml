@@ -19,7 +19,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+29
 
 environment:
-  sdk: ^3.7.0
+  sdk: ^3.8.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -88,6 +88,8 @@ dependencies:
   flutter_reaction_button: ^3.0.0+3
   video_player: ^2.10.0
   camerawesome: ^2.5.0
+  json_annotation: ^4.9.0
+  copy_with_extension: ^10.0.1
 
 dev_dependencies:
   flutter_test:
@@ -99,6 +101,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  build_runner: ^2.10.1
+  json_serializable: ^6.11.1
+  copy_with_extension_gen: ^10.0.1
 
 #flutter_launcher_icons:
 #  android: "launcher_icon"

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:soi/views/about_login/widgets/pages/agreement_page.dart';
-import '../../controllers/auth_controller.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
 import 'auth_final_screen.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'widgets/common/continue_button.dart';
@@ -100,8 +100,9 @@ class _AuthScreenState extends State<AuthScreen> {
         if (id.isNotEmpty) {
           final isDuplicate = await _authController.checkIdDuplicate(id);
           setState(() {
-            idErrorMessage =
-                isDuplicate ? '이미 사용 중인 아이디입니다.' : '사용 가능한 아이디입니다.';
+            idErrorMessage = isDuplicate
+                ? '이미 사용 중인 아이디입니다.'
+                : '사용 가능한 아이디입니다.';
           });
         } else {
           setState(() {
@@ -243,13 +244,12 @@ class _AuthScreenState extends State<AuthScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder:
-                            (context) => AuthFinalScreen(
-                              id: id,
-                              name: name,
-                              phone: phoneNumber,
-                              birthDate: birthDate,
-                            ),
+                        builder: (context) => AuthFinalScreen(
+                          id: id,
+                          name: name,
+                          phone: phoneNumber,
+                          birthDate: birthDate,
+                        ),
                       ),
                     );
                   }
@@ -323,26 +323,24 @@ class _AuthScreenState extends State<AuthScreen> {
           (currentPage == 3)
               ? SizedBox()
               : Positioned(
-                bottom:
-                    MediaQuery.of(context).viewInsets.bottom > 0
-                        ? MediaQuery.of(context).viewInsets.bottom + 20.h
-                        : 30.h,
-                left: 0,
-                right: 0,
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: pageReady[currentPage],
-                  builder: (context, ready, child) {
-                    final bool isEnabled =
-                        ready &&
-                        (currentPage != 4 ||
-                            idErrorMessage == null ||
-                            idErrorMessage == '사용 가능한 아이디입니다.');
+                  bottom: MediaQuery.of(context).viewInsets.bottom > 0
+                      ? MediaQuery.of(context).viewInsets.bottom + 20.h
+                      : 30.h,
+                  left: 0,
+                  right: 0,
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: pageReady[currentPage],
+                    builder: (context, ready, child) {
+                      final bool isEnabled =
+                          ready &&
+                          (currentPage != 4 ||
+                              idErrorMessage == null ||
+                              idErrorMessage == '사용 가능한 아이디입니다.');
 
-                    return ContinueButton(
-                      isEnabled: isEnabled,
-                      onPressed:
-                          isEnabled
-                              ? () {
+                      return ContinueButton(
+                        isEnabled: isEnabled,
+                        onPressed: isEnabled
+                            ? () {
                                 FocusScope.of(context).unfocus();
                                 switch (currentPage) {
                                   case 0: // 이름
@@ -406,11 +404,11 @@ class _AuthScreenState extends State<AuthScreen> {
                                     break;
                                 }
                               }
-                              : null,
-                    );
-                  },
+                            : null,
+                      );
+                    },
+                  ),
                 ),
-              ),
         ],
       ),
     );
@@ -452,14 +450,13 @@ class _AuthScreenState extends State<AuthScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => AuthFinalScreen(
-              id: id,
-              name: name,
-              phone: phoneNumber,
-              birthDate: birthDate,
-              profileImagePath: profileImagePath,
-            ),
+        builder: (context) => AuthFinalScreen(
+          id: id,
+          name: name,
+          phone: phoneNumber,
+          birthDate: birthDate,
+          profileImagePath: profileImagePath,
+        ),
       ),
     );
   }

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:soi/controllers/category_search_controller.dart';
+import 'package:soi/firebase_logic/controllers/category_search_controller.dart';
 
-import '../../../../controllers/auth_controller.dart';
-import '../../../../controllers/category_controller.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/category_controller.dart';
 import '../../../../theme/theme.dart';
 import '../../models/archive_layout_mode.dart';
 import '../../widgets/archive_card_widget/archive_card_widget.dart';
@@ -208,21 +208,20 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
               }
 
               // 검색어가 있으면 카테고리 필터링
-              final displayCategories =
-                  searchController.searchQuery.isNotEmpty
-                      ? categories.where((category) {
-                        final userId = _authController?.getUserId;
-                        return userId != null
-                            ? searchController.matchesSearchQuery(
+              final displayCategories = searchController.searchQuery.isNotEmpty
+                  ? categories.where((category) {
+                      final userId = _authController?.getUserId;
+                      return userId != null
+                          ? searchController.matchesSearchQuery(
                               category,
                               searchController.searchQuery,
                               currentUserId: userId,
                             )
-                            : category.name.toLowerCase().contains(
+                          : category.name.toLowerCase().contains(
                               searchController.searchQuery.toLowerCase(),
                             );
-                      }).toList()
-                      : categories;
+                    }).toList()
+                  : categories;
 
               // 필터링 후 결과가 없는 경우 체크
               if (displayCategories.isEmpty) {
@@ -258,10 +257,9 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                 opacity: _isInitialLoad ? 0.0 : 1.0,
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeIn,
-                child:
-                    widget.layoutMode == ArchiveLayoutMode.grid
-                        ? _buildGridView(searchController, displayCategories)
-                        : _buildListView(searchController, displayCategories),
+                child: widget.layoutMode == ArchiveLayoutMode.grid
+                    ? _buildGridView(searchController, displayCategories)
+                    : _buildListView(searchController, displayCategories),
               );
             },
           );
@@ -342,11 +340,11 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                 final userId = _authController?.getUserId;
                 final displayName =
                     userId != null && _categoryController != null
-                        ? _categoryController!.getCategoryDisplayName(
-                          category,
-                          userId,
-                        )
-                        : category.name;
+                    ? _categoryController!.getCategoryDisplayName(
+                        category,
+                        userId,
+                      )
+                    : category.name;
 
                 return ArchiveCardWidget(
                   key: ValueKey('archive_card_$categoryId'),
@@ -358,9 +356,9 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                       widget.editingCategoryId == categoryId,
                   editingController:
                       widget.isEditMode &&
-                              widget.editingCategoryId == categoryId
-                          ? widget.editingController
-                          : null,
+                          widget.editingCategoryId == categoryId
+                      ? widget.editingController
+                      : null,
                   onStartEdit: () {
                     if (widget.onStartEdit != null) {
                       widget.onStartEdit!(categoryId, displayName);
@@ -392,10 +390,9 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
 
         // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
         final userId = _authController?.getUserId;
-        final displayName =
-            userId != null && _categoryController != null
-                ? _categoryController!.getCategoryDisplayName(category, userId)
-                : category.name;
+        final displayName = userId != null && _categoryController != null
+            ? _categoryController!.getCategoryDisplayName(category, userId)
+            : category.name;
 
         return ArchiveCardWidget(
           key: ValueKey('archive_list_card_$categoryId'),
@@ -406,8 +403,8 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
               widget.isEditMode && widget.editingCategoryId == categoryId,
           editingController:
               widget.isEditMode && widget.editingCategoryId == categoryId
-                  ? widget.editingController
-                  : null,
+              ? widget.editingController
+              : null,
           onStartEdit: () {
             if (widget.onStartEdit != null) {
               widget.onStartEdit!(categoryId, displayName);

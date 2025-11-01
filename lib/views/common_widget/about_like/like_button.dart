@@ -3,9 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_reaction_button/flutter_reaction_button.dart';
 
-import '../../../controllers/emoji_reaction_controller.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../models/emoji_reaction_model.dart';
+import '../../../firebase_logic/controllers/emoji_reaction_controller.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/models/emoji_reaction_model.dart';
 
 class EmojiButton extends StatefulWidget {
   final String photoId;
@@ -52,13 +52,12 @@ class _EmojiButtonState extends State<EmojiButton> {
         );
 
         // flutter_reaction_button을 위한 Reaction 리스트 생성
-        final reactions =
-            EmojiConstants.availableEmojis.map((emoji) {
-              return Reaction<EmojiReactionModel>(
-                value: emoji,
-                icon: Text(emoji.emoji, style: TextStyle(fontSize: 22.sp)),
-              );
-            }).toList();
+        final reactions = EmojiConstants.availableEmojis.map((emoji) {
+          return Reaction<EmojiReactionModel>(
+            value: emoji,
+            icon: Text(emoji.emoji, style: TextStyle(fontSize: 22.sp)),
+          );
+        }).toList();
 
         // 초기 선택된 리액션 찾기
         Reaction<EmojiReactionModel>? selectedReactionObj;
@@ -143,26 +142,25 @@ class _EmojiButtonState extends State<EmojiButton> {
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child:
-                selectedReaction != null
-                    ? Padding(
-                      padding: EdgeInsets.only(top: 1.h),
-                      child: Text(
-                        selectedReaction.emoji,
+            child: selectedReaction != null
+                ? Padding(
+                    padding: EdgeInsets.only(top: 1.h),
+                    child: Text(
+                      selectedReaction.emoji,
 
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: (25.38).sp,
-                          fontFamily: 'Pretendard Variable',
-                          fontWeight: FontWeight.w600,
-                        ),
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: (25.38).sp,
+                        fontFamily: 'Pretendard Variable',
+                        fontWeight: FontWeight.w600,
                       ),
-                    )
-                    : Image.asset(
-                      'assets/like_icon.png',
-                      width: (25.38).w,
-                      height: (25.38).h,
                     ),
+                  )
+                : Image.asset(
+                    'assets/like_icon.png',
+                    width: (25.38).w,
+                    height: (25.38).h,
+                  ),
           ),
         );
       },

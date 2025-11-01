@@ -2,8 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../../models/category_data_model.dart';
-import '../../../../models/auth_model.dart';
+import '../../../../firebase_logic/models/category_data_model.dart';
+import '../../../../firebase_logic/models/auth_model.dart';
 import '../../../about_friends/friend_list_add_screen.dart';
 
 class FriendsListWidget extends StatelessWidget {
@@ -31,10 +31,9 @@ class FriendsListWidget extends StatelessWidget {
     // 최대 5개까지만 표시 (나머지는 "+더보기"로 표시)
     const int maxDisplayCount = 5;
     final totalMates = category.mates.length;
-    final displayMates =
-        isExpanded
-            ? category.mates
-            : category.mates.take(maxDisplayCount).toList();
+    final displayMates = isExpanded
+        ? category.mates
+        : category.mates.take(maxDisplayCount).toList();
     final hasMore = totalMates > maxDisplayCount && !isExpanded;
 
     return Container(
@@ -56,11 +55,10 @@ class FriendsListWidget extends StatelessWidget {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder:
-                      (context) => FriendListAddScreen(
-                        categoryId: category.id,
-                        categoryMemberUids: category.mates,
-                      ),
+                  builder: (context) => FriendListAddScreen(
+                    categoryId: category.id,
+                    categoryMemberUids: category.mates,
+                  ),
                 ),
               );
 
@@ -293,45 +291,29 @@ class _FriendListItem extends StatelessWidget {
           ),
           child:
               friendInfo?.profileImage != null &&
-                      friendInfo!.profileImage.isNotEmpty
-                  ? CachedNetworkImage(
-                    imageUrl: friendInfo!.profileImage,
+                  friendInfo!.profileImage.isNotEmpty
+              ? CachedNetworkImage(
+                  imageUrl: friendInfo!.profileImage,
+                  width: 40.w,
+                  height: 40.w,
+                  fit: BoxFit.cover,
+                  memCacheWidth: (40 * 4).round(),
+                  maxWidthDiskCache: (40 * 4).round(),
+                  placeholder: (context, url) => Shimmer.fromColors(
+                    baseColor: Colors.grey.shade600,
+                    highlightColor: Colors.grey.shade400,
+                    child: Container(
+                      width: 40.w,
+                      height: 40.h,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
                     width: 40.w,
-                    height: 40.w,
-                    fit: BoxFit.cover,
-                    memCacheWidth: (40 * 4).round(),
-                    maxWidthDiskCache: (40 * 4).round(),
-                    placeholder:
-                        (context, url) => Shimmer.fromColors(
-                          baseColor: Colors.grey.shade600,
-                          highlightColor: Colors.grey.shade400,
-                          child: Container(
-                            width: 40.w,
-                            height: 40.h,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                    errorWidget:
-                        (context, url, error) => Container(
-                          width: 40.w,
-                          height: 40.h,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFFd9d9d9),
-                          ),
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 26,
-                          ),
-                        ),
-                  )
-                  : Container(
-                    width: 40.w,
-                    height: 40.w,
+                    height: 40.h,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: const Color(0xFFd9d9d9),
@@ -342,6 +324,20 @@ class _FriendListItem extends StatelessWidget {
                       size: 26,
                     ),
                   ),
+                )
+              : Container(
+                  width: 40.w,
+                  height: 40.w,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFd9d9d9),
+                  ),
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
         ),
         SizedBox(width: 12.w),
         // 텍스트 정보
@@ -358,10 +354,9 @@ class _FriendListItem extends StatelessWidget {
                         ? '로딩 중...'
                         : '이름을 알 수 없습니다'),
                 style: TextStyle(
-                  color:
-                      friendInfo?.name != null
-                          ? Color(0xffd9d9d9)
-                          : Color(0xFF888888),
+                  color: friendInfo?.name != null
+                      ? Color(0xffd9d9d9)
+                      : Color(0xFF888888),
                   fontSize: 16.sp,
                   fontWeight: FontWeight.w400,
                   fontFamily: 'Pretendard',
@@ -378,10 +373,9 @@ class _FriendListItem extends StatelessWidget {
                         ? '정보를 가져오는 중...'
                         : '알 수 없음'),
                 style: TextStyle(
-                  color:
-                      friendInfo?.id != null
-                          ? const Color(0xFFAAAAAA)
-                          : const Color(0xFF666666),
+                  color: friendInfo?.id != null
+                      ? const Color(0xFFAAAAAA)
+                      : const Color(0xFF666666),
                   fontSize: 12.sp,
                   fontWeight: FontWeight.w400,
                   fontFamily: 'Pretendard',

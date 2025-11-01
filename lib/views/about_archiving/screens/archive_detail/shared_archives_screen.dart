@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../../controllers/auth_controller.dart';
-import '../../../../controllers/category_controller.dart';
-import '../../../../controllers/category_search_controller.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/category_controller.dart';
+import '../../../../firebase_logic/controllers/category_search_controller.dart';
 import '../../../../theme/theme.dart';
 import '../../models/archive_layout_mode.dart';
 import '../../widgets/archive_card_widget/archive_card_widget.dart';
@@ -143,14 +143,13 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
               final allCategories = snapshot.data ?? [];
 
               // 공유 카테고리만 필터링합니다.
-              final sharedCategories =
-                  allCategories
-                      .where(
-                        (category) =>
-                            category.mates.contains(nickName) &&
-                            category.mates.length != 1,
-                      )
-                      .toList();
+              final sharedCategories = allCategories
+                  .where(
+                    (category) =>
+                        category.mates.contains(nickName) &&
+                        category.mates.length != 1,
+                  )
+                  .toList();
 
               // ✅ 카테고리 개수 저장 (다음 로딩 시 사용)
               if (sharedCategories.isNotEmpty &&
@@ -183,16 +182,15 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
               }
 
               // 검색어가 있으면 카테고리 필터링
-              final displayCategories =
-                  searchController.searchQuery.isNotEmpty
-                      ? sharedCategories.where((category) {
-                        return searchController.matchesSearchQuery(
-                          category,
-                          searchController.searchQuery,
-                          currentUserId: nickName,
-                        );
-                      }).toList()
-                      : sharedCategories;
+              final displayCategories = searchController.searchQuery.isNotEmpty
+                  ? sharedCategories.where((category) {
+                      return searchController.matchesSearchQuery(
+                        category,
+                        searchController.searchQuery,
+                        currentUserId: nickName,
+                      );
+                    }).toList()
+                  : sharedCategories;
 
               // 필터링된 결과가 없으면
               if (displayCategories.isEmpty) {
@@ -227,10 +225,9 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                 opacity: _isInitialLoad ? 0.0 : 1.0,
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeIn,
-                child:
-                    widget.layoutMode == ArchiveLayoutMode.grid
-                        ? _buildGridView(searchController, displayCategories)
-                        : _buildListView(searchController, displayCategories),
+                child: widget.layoutMode == ArchiveLayoutMode.grid
+                    ? _buildGridView(searchController, displayCategories)
+                    : _buildListView(searchController, displayCategories),
               );
             },
           );
@@ -310,11 +307,11 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                 // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
                 final displayName =
                     nickName != null && _categoryController != null
-                        ? _categoryController!.getCategoryDisplayName(
-                          category,
-                          nickName!,
-                        )
-                        : category.name;
+                    ? _categoryController!.getCategoryDisplayName(
+                        category,
+                        nickName!,
+                      )
+                    : category.name;
 
                 return ArchiveCardWidget(
                   key: ValueKey('shared_archive_card_$categoryId'),
@@ -326,9 +323,9 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
                       widget.editingCategoryId == categoryId,
                   editingController:
                       widget.isEditMode &&
-                              widget.editingCategoryId == categoryId
-                          ? widget.editingController
-                          : null,
+                          widget.editingCategoryId == categoryId
+                      ? widget.editingController
+                      : null,
                   onStartEdit: () {
                     if (widget.onStartEdit != null) {
                       widget.onStartEdit!(categoryId, displayName);
@@ -359,13 +356,9 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
         final categoryId = category.id;
 
         // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
-        final displayName =
-            nickName != null && _categoryController != null
-                ? _categoryController!.getCategoryDisplayName(
-                  category,
-                  nickName!,
-                )
-                : category.name;
+        final displayName = nickName != null && _categoryController != null
+            ? _categoryController!.getCategoryDisplayName(category, nickName!)
+            : category.name;
 
         return ArchiveCardWidget(
           key: ValueKey('shared_archive_list_card_$categoryId'),
@@ -376,8 +369,8 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
               widget.isEditMode && widget.editingCategoryId == categoryId,
           editingController:
               widget.isEditMode && widget.editingCategoryId == categoryId
-                  ? widget.editingController
-                  : null,
+              ? widget.editingController
+              : null,
           onStartEdit: () {
             if (widget.onStartEdit != null) {
               widget.onStartEdit!(categoryId, displayName);

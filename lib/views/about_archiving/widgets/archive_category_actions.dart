@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:soi/controllers/auth_controller.dart';
+import 'package:soi/firebase_logic/controllers/auth_controller.dart';
 import 'package:provider/provider.dart';
-import 'package:soi/controllers/category_member_controller.dart';
-import '../../../../controllers/category_controller.dart';
-import '../../../../models/category_data_model.dart';
+import 'package:soi/firebase_logic/controllers/category_member_controller.dart';
+import '../../../firebase_logic/controllers/category_controller.dart';
+import '../../../firebase_logic/models/category_data_model.dart';
 
 /// ⚡ 아카이브 카테고리 액션 처리 클래스
 /// 카테고리 관련 비즈니스 로직을 담당합니다.
@@ -46,8 +46,9 @@ class ArchiveCategoryActions {
       );
 
       if (context.mounted) {
-        final message =
-            currentPinStatus ? '카테고리 고정이 해제되었습니다.' : '카테고리가 상단에 고정되었습니다.';
+        final message = currentPinStatus
+            ? '카테고리 고정이 해제되었습니다.'
+            : '카테고리가 상단에 고정되었습니다.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),

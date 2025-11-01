@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:soi/controllers/auth_controller.dart';
-import '../../controllers/photo_controller.dart';
-import '../../models/photo_data_model.dart';
+import 'package:soi/firebase_logic/controllers/auth_controller.dart';
+import '../../firebase_logic/controllers/photo_controller.dart';
+import '../../firebase_logic/models/photo_data_model.dart';
 
 class DeletedPostListScreen extends StatefulWidget {
   const DeletedPostListScreen({super.key});
@@ -113,13 +113,13 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
               width: 349.w,
               height: 50.h,
               child: ElevatedButton(
-                onPressed:
-                    selectedPosts.isNotEmpty ? _restoreSelectedPosts : () {},
+                onPressed: selectedPosts.isNotEmpty
+                    ? _restoreSelectedPosts
+                    : () {},
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      selectedPosts.isNotEmpty
-                          ? Colors.white
-                          : const Color(0xFF595959),
+                  backgroundColor: selectedPosts.isNotEmpty
+                      ? Colors.white
+                      : const Color(0xFF595959),
 
                   disabledBackgroundColor: const Color(0xFF595959),
                   shape: RoundedRectangleBorder(
@@ -129,8 +129,9 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
                 child: Text(
                   '게시물에 표시',
                   style: TextStyle(
-                    color:
-                        selectedPosts.isNotEmpty ? Colors.black : Colors.white,
+                    color: selectedPosts.isNotEmpty
+                        ? Colors.black
+                        : Colors.white,
                     fontSize: 18,
                     fontFamily: 'Pretendard',
                     fontWeight: FontWeight.w700,
@@ -252,28 +253,22 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
                 height: 233,
                 memCacheWidth: (175 * 2).round(),
                 maxWidthDiskCache: (175 * 2).round(),
-                placeholder:
-                    (context, url) => Shimmer.fromColors(
-                      baseColor: const Color(0xFF333333),
-                      highlightColor: const Color(0xFF555555),
-                      child: Container(
-                        width: 175,
-                        height: 233,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF333333),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                      ),
-                    ),
-                errorWidget:
-                    (context, url, error) => Container(
+                placeholder: (context, url) => Shimmer.fromColors(
+                  baseColor: const Color(0xFF333333),
+                  highlightColor: const Color(0xFF555555),
+                  child: Container(
+                    width: 175,
+                    height: 233,
+                    decoration: BoxDecoration(
                       color: const Color(0xFF333333),
-                      child: Icon(
-                        Icons.image,
-                        color: Colors.white54,
-                        size: 48.sp,
-                      ),
+                      borderRadius: BorderRadius.circular(8.r),
                     ),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: const Color(0xFF333333),
+                  child: Icon(Icons.image, color: Colors.white54, size: 48.sp),
+                ),
               ),
               // 선택 오버레이
               if (isPhotoSelected)

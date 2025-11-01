@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../../../controllers/auth_controller.dart';
-import '../../../../controllers/contact_controller.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/contact_controller.dart';
 
 class FriendAddAndSharePage extends StatefulWidget {
   final PageController? pageController;
@@ -102,10 +102,9 @@ class _FriendAddAndSharePageState extends State<FriendAddAndSharePage> {
                   ),
                   SizedBox(height: 39.h),
                   ElevatedButton(
-                    onPressed:
-                        isContactLoading
-                            ? null
-                            : () => _handleContactSync(contactController),
+                    onPressed: isContactLoading
+                        ? null
+                        : () => _handleContactSync(contactController),
                     style: ButtonStyle(
                       backgroundColor: WidgetStateProperty.all(
                         Color(0xFF303030),
@@ -161,10 +160,9 @@ class _FriendAddAndSharePageState extends State<FriendAddAndSharePage> {
 
                   SizedBox(height: 27.h),
                   ElevatedButton(
-                    onPressed:
-                        canShareInvite
-                            ? () => _shareInviteLink(authController)
-                            : null,
+                    onPressed: canShareInvite
+                        ? () => _shareInviteLink(authController)
+                        : null,
                     style: ButtonStyle(
                       backgroundColor: WidgetStateProperty.all(
                         Color(0xFF303030),

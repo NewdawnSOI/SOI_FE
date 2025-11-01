@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../controllers/comment_record_controller.dart';
-import '../../../models/comment_record_model.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/controllers/comment_record_controller.dart';
+import '../../../firebase_logic/models/comment_record_model.dart';
 import '../../../utils/position_converter.dart';
 
 /// 보류 중인 음성 댓글 정보를 담는 단순 데이터 객체
@@ -15,6 +15,8 @@ class PendingVoiceComment {
   final String? text; // 텍스트 댓글용
   final bool isTextComment; // 텍스트 댓글 여부
   final Offset? relativePosition;
+  final String? recorderUserId;
+  final String? profileImageUrl;
 
   const PendingVoiceComment({
     this.audioPath,
@@ -23,6 +25,8 @@ class PendingVoiceComment {
     this.text,
     this.isTextComment = false,
     this.relativePosition,
+    this.recorderUserId,
+    this.profileImageUrl,
   });
 
   PendingVoiceComment withPosition(Offset? position) {
@@ -33,6 +37,8 @@ class PendingVoiceComment {
       text: text,
       isTextComment: isTextComment,
       relativePosition: position,
+      recorderUserId: recorderUserId,
+      profileImageUrl: profileImageUrl,
     );
   }
 }
@@ -64,6 +70,8 @@ class VoiceCommentStateManager {
   Map<String, List<String>> get savedCommentIds => _savedCommentIds;
   // Removed: profileImagePositions, commentProfileImageUrls, droppedProfileImageUrls
   Map<String, List<CommentRecordModel>> get photoComments => _photoComments;
+  Map<String, PendingVoiceComment> get pendingVoiceComments =>
+      _pendingVoiceComments;
 
   /// Pending 댓글이 있는지 확인
   bool hasPendingComment(String photoId) {
@@ -114,8 +122,10 @@ class VoiceCommentStateManager {
     String photoId,
     String? audioPath,
     List<double>? waveformData,
-    int? duration,
-  ) async {
+    int? duration, {
+    String? recorderUserId,
+    String? profileImageUrl,
+  }) async {
     if (audioPath == null || waveformData == null || duration == null) {
       return;
     }
@@ -126,12 +136,19 @@ class VoiceCommentStateManager {
       waveformData: waveformData,
       duration: duration,
       isTextComment: false,
+      recorderUserId: recorderUserId,
+      profileImageUrl: profileImageUrl,
     );
     _notifyStateChanged();
   }
 
   /// 텍스트 댓글 완료 콜백 (임시 저장)
-  Future<void> onTextCommentCompleted(String photoId, String text) async {
+  Future<void> onTextCommentCompleted(
+    String photoId,
+    String text, {
+    String? recorderUserId,
+    String? profileImageUrl,
+  }) async {
     if (text.isEmpty) {
       debugPrint('⚠️ [StateManager] 텍스트가 비어있음');
       return;
@@ -144,6 +161,8 @@ class VoiceCommentStateManager {
     _pendingVoiceComments[photoId] = PendingVoiceComment(
       text: text,
       isTextComment: true,
+      recorderUserId: recorderUserId,
+      profileImageUrl: profileImageUrl,
     );
     debugPrint(
       '🟡 [StateManager] pendingTextComments: ${_pendingVoiceComments.keys.toList()}',
@@ -345,10 +364,9 @@ class VoiceCommentStateManager {
     _photoComments[photoId] = comments;
 
     // 현재 사용자의 모든 댓글 처리 (다중 댓글 지원)
-    final userComments =
-        comments
-            .where((comment) => comment.recorderUser == currentUserId)
-            .toList();
+    final userComments = comments
+        .where((comment) => comment.recorderUser == currentUserId)
+        .toList();
 
     if (userComments.isNotEmpty) {
       // 사진별 댓글 ID 목록 업데이트 (중복 방지)

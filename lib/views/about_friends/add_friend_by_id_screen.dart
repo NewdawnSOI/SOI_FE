@@ -6,9 +6,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/user_search_model.dart';
-import '../../controllers/user_matching_controller.dart';
-import '../../controllers/friend_request_controller.dart';
+import '../../firebase_logic/models/user_search_model.dart';
+import '../../firebase_logic/controllers/user_matching_controller.dart';
+import '../../firebase_logic/controllers/friend_request_controller.dart';
 
 /// ID로 친구를 검색/추가하는 전체 화면 플로우
 /// 기존 다이얼로그(AddByIdDialog)를 대체하며
@@ -399,20 +399,19 @@ class _UserResultTile extends StatelessWidget {
         enabled = true;
     }
 
-    final child =
-        isSending
-            ? SizedBox(
-              width: 16.w,
-              height: 16.w,
-              child: const CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-            : Text(
-              label,
-              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
-            );
+    final child = isSending
+        ? SizedBox(
+            width: 16.w,
+            height: 16.w,
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+        : Text(
+            label,
+            style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
+          );
 
     return ConstrainedBox(
       constraints: BoxConstraints(minWidth: 72.w),
@@ -421,10 +420,12 @@ class _UserResultTile extends StatelessWidget {
         child: ElevatedButton(
           onPressed: enabled && !isSending ? onAdd : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor:
-                enabled ? const Color(0xffffffff) : const Color(0xff3a3a3a),
-            foregroundColor:
-                enabled ? const Color(0xff000000) : const Color(0xffc9c9c9),
+            backgroundColor: enabled
+                ? const Color(0xffffffff)
+                : const Color(0xff3a3a3a),
+            foregroundColor: enabled
+                ? const Color(0xff000000)
+                : const Color(0xffc9c9c9),
             disabledBackgroundColor: const Color(0xff3a3a3a),
             disabledForegroundColor: const Color(0xffc9c9c9),
             padding: EdgeInsets.symmetric(horizontal: 14.w),

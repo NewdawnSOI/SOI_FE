@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../../../../models/category_data_model.dart';
+import '../../../../firebase_logic/models/category_data_model.dart';
 
 class CategoryCoverSection extends StatelessWidget {
   final CategoryDataModel category;
@@ -26,14 +26,12 @@ class CategoryCoverSection extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           image:
               category.categoryPhotoUrl != null &&
-                      category.categoryPhotoUrl!.isNotEmpty
-                  ? DecorationImage(
-                    image: CachedNetworkImageProvider(
-                      category.categoryPhotoUrl!,
-                    ),
-                    fit: BoxFit.cover,
-                  )
-                  : null,
+                  category.categoryPhotoUrl!.isNotEmpty
+              ? DecorationImage(
+                  image: CachedNetworkImageProvider(category.categoryPhotoUrl!),
+                  fit: BoxFit.cover,
+                )
+              : null,
         ),
         // child는 Container로 감싸서 opacity 적용
         child: Container(

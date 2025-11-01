@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../controllers/photo_controller.dart';
-import '../../../models/photo_data_model.dart';
-import '../../../models/comment_record_model.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/controllers/photo_controller.dart';
+import '../../../firebase_logic/models/photo_data_model.dart';
+import '../../../firebase_logic/models/comment_record_model.dart';
 import '../../common_widget/abput_photo/photo_card_widget_common.dart';
 
 // 피드 페이지 빌더
@@ -111,8 +111,8 @@ class FeedPageBuilder extends StatelessWidget {
           onProfileImageDragged: onProfileImageDragged,
           onSaveRequested: onSaveRequested,
           onSaveCompleted: onSaveCompleted,
-          onDeletePressed:
-              () => _handleDelete(context, index, categoryId, photo),
+          onDeletePressed: () =>
+              _handleDelete(context, index, categoryId, photo),
           onLikePressed: onLikePressed,
         );
       },

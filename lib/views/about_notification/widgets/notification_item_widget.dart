@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../models/notification_model.dart';
+import '../../../firebase_logic/models/notification_model.dart';
 
 /// 개별 알림 아이템 위젯
 class NotificationItemWidget extends StatefulWidget {
@@ -157,14 +157,13 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
           maxWidthDiskCache: (44 * 4).round(),
           fit: BoxFit.cover,
           placeholder: (context, url) => _shimmerWidget(),
-          errorWidget:
-              (context, url, error) => Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xffd9d9d9),
-                ),
-                child: Icon(Icons.person, size: 26, color: Colors.white),
-              ),
+          errorWidget: (context, url, error) => Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xffd9d9d9),
+            ),
+            child: Icon(Icons.person, size: 26, color: Colors.white),
+          ),
         ),
       ),
     );
@@ -251,19 +250,18 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8.r),
-        child:
-            categoryImageUrl != null && categoryImageUrl.isNotEmpty
-                ? CachedNetworkImage(
-                  imageUrl: categoryImageUrl,
-                  width: 44,
-                  height: 44,
-                  memCacheHeight: (44 * 2).round(),
-                  maxWidthDiskCache: (44 * 2).round(),
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => _shimmerWidget(),
-                  errorWidget: (context, url, error) => _buildCategoryIcon(),
-                )
-                : _buildCategoryIcon(),
+        child: categoryImageUrl != null && categoryImageUrl.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: categoryImageUrl,
+                width: 44,
+                height: 44,
+                memCacheHeight: (44 * 2).round(),
+                maxWidthDiskCache: (44 * 2).round(),
+                fit: BoxFit.cover,
+                placeholder: (context, url) => _shimmerWidget(),
+                errorWidget: (context, url, error) => _buildCategoryIcon(),
+              )
+            : _buildCategoryIcon(),
       ),
     );
   }
@@ -281,19 +279,18 @@ class _NotificationItemWidgetState extends State<NotificationItemWidget> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8.r),
-        child:
-            thumbnailUrl != null && thumbnailUrl.isNotEmpty
-                ? CachedNetworkImage(
-                  imageUrl: thumbnailUrl,
-                  width: 44,
-                  height: 44,
-                  memCacheHeight: (44 * 2).round(),
-                  maxWidthDiskCache: (44 * 2).round(),
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => _shimmerWidget(),
-                  errorWidget: (context, url, error) => _buildPhotoIcon(),
-                )
-                : _buildPhotoIcon(),
+        child: thumbnailUrl != null && thumbnailUrl.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: thumbnailUrl,
+                width: 44,
+                height: 44,
+                memCacheHeight: (44 * 2).round(),
+                maxWidthDiskCache: (44 * 2).round(),
+                fit: BoxFit.cover,
+                placeholder: (context, url) => _shimmerWidget(),
+                errorWidget: (context, url, error) => _buildPhotoIcon(),
+              )
+            : _buildPhotoIcon(),
       ),
     );
   }

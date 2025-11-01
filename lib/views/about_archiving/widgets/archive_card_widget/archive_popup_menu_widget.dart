@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:soi/controllers/auth_controller.dart';
-import '../../../../models/category_data_model.dart';
+import 'package:soi/firebase_logic/controllers/auth_controller.dart';
+import '../../../../firebase_logic/models/category_data_model.dart';
 import '../archive_category_actions.dart';
 import '../archive_category_dialogs.dart';
 
@@ -61,8 +61,9 @@ class _ArchivePopupMenuWidgetState extends State<ArchivePopupMenuWidget> {
   List<Widget> _buildMenuItems() {
     final authController = AuthController();
     final userId = authController.getUserId;
-    final isPinnedForCurrentUser =
-        userId != null ? widget.category.isPinnedForUser(userId) : false;
+    final isPinnedForCurrentUser = userId != null
+        ? widget.category.isPinnedForUser(userId)
+        : false;
 
     return [
       // 이름 수정 메뉴
@@ -81,8 +82,8 @@ class _ArchivePopupMenuWidgetState extends State<ArchivePopupMenuWidget> {
         icon: 'assets/pin.png',
         text: isPinnedForCurrentUser ? '고정 해제' : '고정',
         textColor: Colors.white,
-        onPressed:
-            () => _handleMenuAction(isPinnedForCurrentUser ? 'unpin' : 'pin'),
+        onPressed: () =>
+            _handleMenuAction(isPinnedForCurrentUser ? 'unpin' : 'pin'),
       ),
 
       // 구분선

@@ -4,10 +4,10 @@ import '../models/auth_result.dart';
 import '../repositories/notification_repository.dart';
 import '../repositories/friend_repository.dart';
 import '../repositories/user_search_repository.dart';
-import '../services/category_service.dart';
-import '../services/photo_service.dart';
-import '../services/auth_service.dart';
-import '../services/friend_service.dart';
+import 'category_service.dart';
+import 'photo_service.dart';
+import 'auth_service.dart';
+import 'friend_service.dart';
 
 /// 알림 비즈니스 로직을 처리하는 Service
 /// Repository를 사용해서 실제 비즈니스 규칙을 적용

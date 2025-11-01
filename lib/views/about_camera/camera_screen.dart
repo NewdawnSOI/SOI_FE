@@ -6,9 +6,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:provider/provider.dart';
-import '../../services/camera_service.dart';
-import '../../controllers/notification_controller.dart';
-import '../../controllers/auth_controller.dart';
+import '../../firebase_logic/services/camera_service.dart';
+import '../../firebase_logic/controllers/notification_controller.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
 import 'widgets/circular_video_progress_indicator.dart';
 import 'photo_editor_screen.dart';
 import 'package:eva_icons_flutter/eva_icons_flutter.dart';
@@ -145,23 +145,19 @@ class _CameraScreenState extends State<CameraScreen>
 
       if (mounted) {
         setState(() {
-          zoomLevels =
-              availableLevels.map((level) {
-                if (level == 0.5) {
-                  return {'label': '.5x', 'value': level};
-                } else if (level == 1.0) {
-                  return {'label': '1x', 'value': level};
-                } else if (level == 2.0) {
-                  return {'label': '2x', 'value': level};
-                } else if (level == 3.0) {
-                  return {'label': '3x', 'value': level};
-                } else {
-                  return {
-                    'label': '${level.toStringAsFixed(1)}x',
-                    'value': level,
-                  };
-                }
-              }).toList();
+          zoomLevels = availableLevels.map((level) {
+            if (level == 0.5) {
+              return {'label': '.5x', 'value': level};
+            } else if (level == 1.0) {
+              return {'label': '1x', 'value': level};
+            } else if (level == 2.0) {
+              return {'label': '2x', 'value': level};
+            } else if (level == 3.0) {
+              return {'label': '3x', 'value': level};
+            } else {
+              return {'label': '${level.toStringAsFixed(1)}x', 'value': level};
+            }
+          }).toList();
         });
       }
     } catch (_) {
@@ -242,8 +238,8 @@ class _CameraScreenState extends State<CameraScreen>
     });
 
     try {
-      final AssetEntity? firstImage =
-          await _cameraService.getFirstGalleryImage();
+      final AssetEntity? firstImage = await _cameraService
+          .getFirstGalleryImage();
 
       if (mounted) {
         setState(() {
@@ -357,9 +353,8 @@ class _CameraScreenState extends State<CameraScreen>
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder:
-              (context) =>
-                  PhotoEditorScreen(filePath: result, initialImage: fileImage),
+          builder: (context) =>
+              PhotoEditorScreen(filePath: result, initialImage: fileImage),
         ),
       );
       // 사진 촬영 후 갤러리 미리보기 새로고침 (백그라운드에서)
@@ -423,8 +418,9 @@ class _CameraScreenState extends State<CameraScreen>
       if (!_videoStartInFlight) {
         return;
       }
-      _pendingVideoAction =
-          isCancelled ? _PendingVideoAction.cancel : _PendingVideoAction.stop;
+      _pendingVideoAction = isCancelled
+          ? _PendingVideoAction.cancel
+          : _PendingVideoAction.stop;
       return;
     }
 
@@ -633,8 +629,9 @@ class _CameraScreenState extends State<CameraScreen>
       await _loadAvailableZoomLevels();
 
       // 현재 줌이 새 카메라에서 지원되지 않으면 1x로 리셋
-      final supportedValues =
-          zoomLevels.map((z) => z['value'] as double).toList();
+      final supportedValues = zoomLevels
+          .map((z) => z['value'] as double)
+          .toList();
       if (!supportedValues.contains(currentZoomValue)) {
         setState(() {
           currentZoomValue = 1.0;
@@ -712,21 +709,18 @@ class _CameraScreenState extends State<CameraScreen>
               width: 45.w, // 최대 크기로 고정
               height: 45.h, // 최대 크기로 고정
               child: GestureDetector(
-                onTap:
-                    () => _setZoomLevel(
-                      zoomLevels[i]['value'],
-                      zoomLevels[i]['label'],
-                    ),
+                onTap: () => _setZoomLevel(
+                  zoomLevels[i]['value'],
+                  zoomLevels[i]['label'],
+                ),
                 child: Center(
                   child: Container(
-                    width:
-                        zoomLevels[i]['value'] == currentZoomValue
-                            ? 45.w
-                            : 29.w,
-                    height:
-                        zoomLevels[i]['value'] == currentZoomValue
-                            ? 45.h
-                            : 29.h,
+                    width: zoomLevels[i]['value'] == currentZoomValue
+                        ? 45.w
+                        : 29.w,
+                    height: zoomLevels[i]['value'] == currentZoomValue
+                        ? 45.h
+                        : 29.h,
                     decoration: BoxDecoration(
                       color: Color(0xff2c2c2c),
                       shape: BoxShape.circle,
@@ -735,18 +729,15 @@ class _CameraScreenState extends State<CameraScreen>
                       child: Text(
                         zoomLevels[i]['label'],
                         style: TextStyle(
-                          color:
-                              zoomLevels[i]['value'] == currentZoomValue
-                                  ? Colors.yellow
-                                  : Color(0xffffffff),
-                          fontSize:
-                              zoomLevels[i]['value'] == currentZoomValue
-                                  ? (14.36).sp
-                                  : (12.36).sp,
-                          fontWeight:
-                              zoomLevels[i]['value'] == currentZoomValue
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
+                          color: zoomLevels[i]['value'] == currentZoomValue
+                              ? Colors.yellow
+                              : Color(0xffffffff),
+                          fontSize: zoomLevels[i]['value'] == currentZoomValue
+                              ? (14.36).sp
+                              : (12.36).sp,
+                          fontWeight: zoomLevels[i]['value'] == currentZoomValue
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           fontFamily: 'Pretendard Variable',
                         ),
                       ),
@@ -812,8 +803,8 @@ class _CameraScreenState extends State<CameraScreen>
               child: Consumer<NotificationController>(
                 builder: (context, notificationController, child) {
                   return IconButton(
-                    onPressed:
-                        () => Navigator.pushNamed(context, '/notifications'),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/notifications'),
                     icon: Container(
                       width: 35,
                       height: 35,
@@ -912,14 +903,14 @@ class _CameraScreenState extends State<CameraScreen>
                       (_isVideoRecording)
                           ? SizedBox()
                           : IconButton(
-                            onPressed: _toggleFlash,
-                            icon: Icon(
-                              isFlashOn ? EvaIcons.flash : EvaIcons.flashOff,
-                              color: Colors.white,
-                              size: 28.sp,
+                              onPressed: _toggleFlash,
+                              icon: Icon(
+                                isFlashOn ? EvaIcons.flash : EvaIcons.flashOff,
+                                color: Colors.white,
+                                size: 28.sp,
+                              ),
+                              padding: EdgeInsets.zero,
                             ),
-                            padding: EdgeInsets.zero,
-                          ),
                     ],
                   );
                 },
@@ -938,16 +929,15 @@ class _CameraScreenState extends State<CameraScreen>
                       onTap: () async {
                         try {
                           // Service를 통해 갤러리에서 이미지 선택 (에러 핸들링 개선)
-                          final result =
-                              await _cameraService.pickImageFromGallery();
+                          final result = await _cameraService
+                              .pickImageFromGallery();
                           if (result != null && result.isNotEmpty && mounted) {
                             // 선택한 이미지 경로를 편집 화면으로 전달
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder:
-                                    (context) =>
-                                        PhotoEditorScreen(filePath: result),
+                                builder: (context) =>
+                                    PhotoEditorScreen(filePath: result),
                               ),
                             );
                           } else {
@@ -988,27 +978,27 @@ class _CameraScreenState extends State<CameraScreen>
                             child:
                                 // 비디오 녹화 모드가 ON이 되면, 진행률 표시기로 전환
                                 (_isVideoRecording)
-                                    ? ValueListenableBuilder<double>(
-                                      valueListenable: _videoProgress,
-                                      builder: (context, progress, child) {
-                                        return GestureDetector(
-                                          onTap: () {
-                                            _stopVideoRecording();
-                                          },
-                                          child: CircularVideoProgressIndicator(
-                                            progress: progress,
-                                            innerSize: 40.42,
-                                            gap: 15.29,
-                                            strokeWidth: 3.0,
-                                          ),
-                                        );
-                                      },
-                                    )
-                                    : Image.asset(
-                                      "assets/take_picture.png",
-                                      width: 65,
-                                      height: 65,
-                                    ),
+                                ? ValueListenableBuilder<double>(
+                                    valueListenable: _videoProgress,
+                                    builder: (context, progress, child) {
+                                      return GestureDetector(
+                                        onTap: () {
+                                          _stopVideoRecording();
+                                        },
+                                        child: CircularVideoProgressIndicator(
+                                          progress: progress,
+                                          innerSize: 40.42,
+                                          gap: 15.29,
+                                          strokeWidth: 3.0,
+                                        ),
+                                      );
+                                    },
+                                  )
+                                : Image.asset(
+                                    "assets/take_picture.png",
+                                    width: 65,
+                                    height: 65,
+                                  ),
                           ),
                         ],
                       ),
@@ -1019,10 +1009,9 @@ class _CameraScreenState extends State<CameraScreen>
                 // 카메라 전환 버튼 - 개선된 반응형
                 Expanded(
                   child: IconButton(
-                    onPressed:
-                        (_isVideoRecording && !_supportsLiveSwitch)
-                            ? null
-                            : _switchCamera,
+                    onPressed: (_isVideoRecording && !_supportsLiveSwitch)
+                        ? null
+                        : _switchCamera,
                     color: Color(0xffd9d9d9),
                     icon: Image.asset(
                       "assets/switch.png",

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../../../models/selected_friend_model.dart';
+import '../../../firebase_logic/models/selected_friend_model.dart';
 import '../../about_archiving/widgets/overlapping_profiles_widget.dart';
 import '../../about_friends/friend_list_add_screen.dart';
 
@@ -61,12 +61,12 @@ class _AddCategoryWidgetState extends State<AddCategoryWidget> {
     final result = await Navigator.push<List<SelectedFriendModel>>(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => FriendListAddScreen(
-              allowDeselection: true,
-              categoryMemberUids:
-                  _selectedFriends.map((friend) => friend.uid).toList(),
-            ),
+        builder: (context) => FriendListAddScreen(
+          allowDeselection: true,
+          categoryMemberUids: _selectedFriends
+              .map((friend) => friend.uid)
+              .toList(),
+        ),
       ),
     );
 
@@ -232,14 +232,15 @@ class _AddCategoryWidgetState extends State<AddCategoryWidget> {
                             ),
                           ),
                           maxLength: 20,
-                          buildCounter: (
-                            context, {
-                            required currentLength,
-                            required isFocused,
-                            maxLength,
-                          }) {
-                            return null;
-                          },
+                          buildCounter:
+                              (
+                                context, {
+                                required currentLength,
+                                required isFocused,
+                                maxLength,
+                              }) {
+                                return null;
+                              },
                         ),
 
                         SizedBox(height: 8.h),

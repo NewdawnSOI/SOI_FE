@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:soi/controllers/photo_controller.dart';
+import 'package:soi/firebase_logic/controllers/photo_controller.dart';
 import 'package:soi/views/about_archiving/screens/archive_detail/category_photos_screen.dart';
 import 'package:provider/provider.dart';
-import '../../controllers/category_controller.dart';
-import '../../controllers/notification_controller.dart';
-import '../../controllers/auth_controller.dart';
-import '../../controllers/friend_request_controller.dart';
-import '../../models/notification_model.dart';
-import '../../models/photo_data_model.dart';
+import '../../firebase_logic/controllers/category_controller.dart';
+import '../../firebase_logic/controllers/notification_controller.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
+import '../../firebase_logic/controllers/friend_request_controller.dart';
+import '../../firebase_logic/models/notification_model.dart';
+import '../../firebase_logic/models/photo_data_model.dart';
 import '../about_archiving/screens/archive_detail/photo_detail_screen.dart';
-import '../../repositories/auth_repository.dart';
+import '../../firebase_logic/repositories/auth_repository.dart';
 import 'widgets/category_invite_confirm_sheet.dart';
 import 'widgets/category_invite_friend_list_sheet.dart';
 import 'widgets/category_invitee_preview.dart';
@@ -129,10 +129,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
       try {
         final user = await _authRepository.getUser(uid);
         if (user != null) {
-          final displayName =
-              user.name.isNotEmpty
-                  ? user.name
-                  : (user.id.isNotEmpty ? user.id : uid);
+          final displayName = user.name.isNotEmpty
+              ? user.name
+              : (user.id.isNotEmpty ? user.id : uid);
           final handle = user.id.isNotEmpty ? user.id : uid;
           results.add(
             CategoryInviteePreview(
@@ -177,11 +176,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
     try {
       final List<String> unknownMembers =
           notification.pendingCategoryMemberIds != null
-              ? List<String>.from(notification.pendingCategoryMemberIds!)
-              : await _notificationController.getUnknownCategoryMembers(
-                notification: notification,
-                currentUserId: currentUser.uid,
-              );
+          ? List<String>.from(notification.pendingCategoryMemberIds!)
+          : await _notificationController.getUnknownCategoryMembers(
+              notification: notification,
+              currentUserId: currentUser.uid,
+            );
 
       if (unknownMembers.isEmpty && !notification.requiresAcceptance) {
         _navigateToCategory(notification);
@@ -201,8 +200,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       }
 
       final memberIds = category.mates.toSet().toList();
-      final inviteeTargets =
-          memberIds.isNotEmpty ? memberIds : unknownMembers;
+      final inviteeTargets = memberIds.isNotEmpty ? memberIds : unknownMembers;
 
       final inviteeInfos = await _fetchInviteeInfos(inviteeTargets);
 
@@ -238,10 +236,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 _showSuccessSnackBar('초대를 거절했습니다.');
               }
             },
-            onViewFriends:
-                inviteeInfos.isEmpty
-                    ? null
-                    : () => _showInviteeListSheet(sheetContext, inviteeInfos),
+            onViewFriends: inviteeInfos.isEmpty
+                ? null
+                : () => _showInviteeListSheet(sheetContext, inviteeInfos),
           );
         },
       );
@@ -281,10 +278,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder:
-          (_) => const Center(
-            child: CircularProgressIndicator(color: Color(0xff634D45)),
-          ),
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xff634D45)),
+      ),
     );
 
     final result = await _notificationController.acceptCategoryInvite(
@@ -316,10 +312,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder:
-          (_) => const Center(
-            child: CircularProgressIndicator(color: Color(0xff634D45)),
-          ),
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xff634D45)),
+      ),
     );
 
     final result = await _notificationController.declineCategoryInvite(
@@ -414,10 +409,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder:
-            (context) => const Center(
-              child: CircularProgressIndicator(color: Color(0xff634D45)),
-            ),
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(color: Color(0xff634D45)),
+        ),
       );
 
       List<PhotoDataModel> photos = [];
@@ -490,13 +484,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder:
-              (context) => PhotoDetailScreen(
-                photos: photos,
-                initialIndex: initialIndex,
-                categoryName: categoryName,
-                categoryId: categoryId,
-              ),
+          builder: (context) => PhotoDetailScreen(
+            photos: photos,
+            initialIndex: initialIndex,
+            categoryName: categoryName,
+            categoryId: categoryId,
+          ),
         ),
       );
 
@@ -542,7 +535,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
           backgroundColor: Colors.black,
           appBar: _buildAppBar(),
           body: Column(
-            children: [SizedBox(height: 20.h), Expanded(child: _buildBody())],
+            children: [
+              SizedBox(height: 20.h),
+              Expanded(child: _buildBody()),
+            ],
           ),
         );
       },
@@ -819,28 +815,26 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 )
                   NotificationItemWidget(
                     notification: _notificationController.notifications[i],
-                    onTap:
-                        () => _onNotificationTap(
-                          _notificationController.notifications[i],
-                        ),
-                    onDelete:
-                        () => _notificationController.deleteNotification(
-                          _notificationController.notifications[i].id,
-                        ),
+                    onTap: () => _onNotificationTap(
+                      _notificationController.notifications[i],
+                    ),
+                    onDelete: () => _notificationController.deleteNotification(
+                      _notificationController.notifications[i].id,
+                    ),
                     loadUnknownMembers:
                         _notificationController.notifications[i].type ==
-                                NotificationType.categoryInvite
-                            ? () => _loadUnknownMembers(
-                              _notificationController.notifications[i],
-                            )
-                            : null,
+                            NotificationType.categoryInvite
+                        ? () => _loadUnknownMembers(
+                            _notificationController.notifications[i],
+                          )
+                        : null,
                     onConfirm:
                         _notificationController.notifications[i].type ==
-                                NotificationType.categoryInvite
-                            ? () => _handleCategoryInviteConfirm(
-                              _notificationController.notifications[i],
-                            )
-                            : null,
+                            NotificationType.categoryInvite
+                        ? () => _handleCategoryInviteConfirm(
+                            _notificationController.notifications[i],
+                          )
+                        : null,
                     isLast:
                         i == _notificationController.notifications.length - 1 &&
                         !_notificationController.hasMore,

@@ -3,9 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../models/category_data_model.dart';
-import '../../../models/auth_model.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/models/category_data_model.dart';
+import '../../../firebase_logic/models/auth_model.dart';
 import '../../about_friends/friend_list_add_screen.dart';
 
 /// 카테고리 멤버들을 보여주는 바텀시트
@@ -210,18 +210,17 @@ class _CategoryMembersBottomSheetState
           child: SizedBox(
             width: 60,
             height: 60,
-            child:
-                member.profileImage.isNotEmpty
-                    ? CachedNetworkImage(
-                      imageUrl: member.profileImage,
-                      fit: BoxFit.cover,
-                      memCacheWidth: (60 * 4).round(),
-                      maxWidthDiskCache: (60 * 4).round(),
-                      placeholder: (context, url) => _buildMemberShimmer(),
-                      errorWidget:
-                          (context, url, error) => _buildMemberFallback(),
-                    )
-                    : _buildMemberFallback(),
+            child: member.profileImage.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: member.profileImage,
+                    fit: BoxFit.cover,
+                    memCacheWidth: (60 * 4).round(),
+                    maxWidthDiskCache: (60 * 4).round(),
+                    placeholder: (context, url) => _buildMemberShimmer(),
+                    errorWidget: (context, url, error) =>
+                        _buildMemberFallback(),
+                  )
+                : _buildMemberFallback(),
           ),
         ),
 
@@ -256,11 +255,10 @@ class _CategoryMembersBottomSheetState
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder:
-                (context) => FriendListAddScreen(
-                  categoryId: widget.category.id,
-                  categoryMemberUids: widget.category.mates,
-                ),
+            builder: (context) => FriendListAddScreen(
+              categoryId: widget.category.id,
+              categoryMemberUids: widget.category.mates,
+            ),
           ),
         );
       },

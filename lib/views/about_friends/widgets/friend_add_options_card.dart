@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_boxicons/flutter_boxicons.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../../../controllers/contact_controller.dart';
+import '../../../firebase_logic/controllers/contact_controller.dart';
 import '../add_friend_by_id_screen.dart';
 
 class FriendAddOptionsCard extends StatelessWidget {
@@ -72,19 +72,19 @@ class FriendAddOptionsCard extends StatelessWidget {
                     ],
                     contactController.isLoading
                         ? SizedBox(
-                          width: 24.sp,
-                          height: 24.sp,
-                          child: const CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
+                            width: 24.sp,
+                            height: 24.sp,
+                            child: const CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
                         : _buildCustomSwitch(
-                          value: contactController.contactSyncEnabled,
-                          onChanged: (value) {
-                            onToggleChange();
-                          },
-                        ),
+                            value: contactController.contactSyncEnabled,
+                            onChanged: (value) {
+                              onToggleChange();
+                            },
+                          ),
                   ],
                 ),
               ],

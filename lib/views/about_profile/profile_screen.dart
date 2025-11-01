@@ -2,8 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../controllers/auth_controller.dart';
-import '../../models/auth_model.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
+import '../../firebase_logic/models/auth_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -302,10 +302,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder:
-              (context) => const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
         );
       }
 
@@ -371,30 +370,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       body: SafeArea(
-        child:
-            _isLoading
-                ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFD9D9D9)),
-                )
-                : SingleChildScrollView(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 17.w),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildProfileHeader(),
-                        _buildAccountSection(),
-                        SizedBox(height: 36.h),
-                        _buildAppSettingsSection(),
-                        SizedBox(height: 36.h),
-                        _buildUsageGuideSection(),
-                        SizedBox(height: 36.h),
-                        _buildOtherSection(),
-                        SizedBox(height: 49.h),
-                      ],
-                    ),
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFFD9D9D9)),
+              )
+            : SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 17.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildProfileHeader(),
+                      _buildAccountSection(),
+                      SizedBox(height: 36.h),
+                      _buildAppSettingsSection(),
+                      SizedBox(height: 36.h),
+                      _buildUsageGuideSection(),
+                      SizedBox(height: 36.h),
+                      _buildOtherSection(),
+                      SizedBox(height: 49.h),
+                    ],
                   ),
                 ),
+              ),
       ),
     );
   }
@@ -419,29 +417,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // 프로필 이미지 또는 기본 아이콘
                     _profileImageUrl != null && _profileImageUrl!.isNotEmpty
                         ? ClipOval(
-                          child: CachedNetworkImage(
-                            imageUrl: _profileImageUrl!,
-                            memCacheWidth: (96 * 4).round(),
-                            maxWidthDiskCache: (96 * 4).round(),
-                            fit: BoxFit.cover,
-                            width: 96,
-                            height: 96,
-                            errorWidget: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.person,
-                                size: 76.sp,
-                                color: Colors.white,
-                              );
-                            },
-                          ),
-                        )
+                            child: CachedNetworkImage(
+                              imageUrl: _profileImageUrl!,
+                              memCacheWidth: (96 * 4).round(),
+                              maxWidthDiskCache: (96 * 4).round(),
+                              fit: BoxFit.cover,
+                              width: 96,
+                              height: 96,
+                              errorWidget: (context, error, stackTrace) {
+                                return Icon(
+                                  Icons.person,
+                                  size: 76.sp,
+                                  color: Colors.white,
+                                );
+                              },
+                            ),
+                          )
                         : Center(
-                          child: Icon(
-                            Icons.person,
-                            size: 76.sp,
-                            color: Colors.white,
+                            child: Icon(
+                              Icons.person,
+                              size: 76.sp,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
                     // 업로딩 중일 때 로딩 표시
                     if (context.watch<AuthController>().isUploading)
                       Container(
@@ -707,8 +705,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   fontFamily: 'Pretendard Variable',
                   fontWeight: FontWeight.w400,
                   fontSize: 16.sp,
-                  color:
-                      isRed ? const Color(0xFFFF0000) : const Color(0xFFF9F9F9),
+                  color: isRed
+                      ? const Color(0xFFFF0000)
+                      : const Color(0xFFF9F9F9),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -751,17 +750,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       height: 26.h,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(13.r),
-        color:
-            isNotificationEnabled
-                ? const Color(0xffffffff)
-                : const Color(0xff5a5a5a),
+        color: isNotificationEnabled
+            ? const Color(0xffffffff)
+            : const Color(0xff5a5a5a),
       ),
       child: AnimatedAlign(
         duration: const Duration(milliseconds: 200),
-        alignment:
-            isNotificationEnabled
-                ? Alignment.centerRight
-                : Alignment.centerLeft,
+        alignment: isNotificationEnabled
+            ? Alignment.centerRight
+            : Alignment.centerLeft,
         child: Container(
           width: 22.w,
           height: 22.h,

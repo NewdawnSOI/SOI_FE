@@ -4,7 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../../../controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
 
 // 프로필 이미지 행 위젯 (Figma 디자인 기준)
 class ArchiveProfileRowWidget extends StatefulWidget {
@@ -70,14 +70,13 @@ class _ArchiveProfileRowWidgetState extends State<ArchiveProfileRowWidget>
             if (!snapshot.hasData &&
                 snapshot.connectionState == ConnectionState.waiting) {
               return Stack(
-                children:
-                    displayMates.asMap().entries.map<Widget>((entry) {
-                      final index = entry.key;
-                      return Positioned(
-                        left: index * 12.0,
-                        child: _buildShimmerCircle(),
-                      );
-                    }).toList(),
+                children: displayMates.asMap().entries.map<Widget>((entry) {
+                  final index = entry.key;
+                  return Positioned(
+                    left: index * 12.0,
+                    child: _buildShimmerCircle(),
+                  );
+                }).toList(),
               );
             }
 
@@ -85,37 +84,34 @@ class _ArchiveProfileRowWidgetState extends State<ArchiveProfileRowWidget>
             final profileImages = snapshot.data ?? {};
 
             return Stack(
-              children:
-                  displayMates.asMap().entries.map<Widget>((entry) {
-                    final index = entry.key;
-                    final mateUid = entry.value;
-                    final imageUrl = profileImages[mateUid] ?? '';
+              children: displayMates.asMap().entries.map<Widget>((entry) {
+                final index = entry.key;
+                final mateUid = entry.value;
+                final imageUrl = profileImages[mateUid] ?? '';
 
-                    return Positioned(
-                      left: index * 12.0,
-                      child:
-                          imageUrl.isEmpty
-                              ? _buildDefaultCircle()
-                              : ClipOval(
-                                child: CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover,
-                                  width: 19,
-                                  height: 19,
-                                  fadeInDuration: Duration.zero,
-                                  fadeOutDuration: Duration.zero,
-                                  useOldImageOnUrlChange: true,
-                                  memCacheWidth: (19 * 5).round(),
-                                  maxWidthDiskCache: (19 * 5).round(),
-                                  placeholder:
-                                      (context, url) => _buildShimmerCircle(),
-                                  errorWidget:
-                                      (context, url, error) =>
-                                          _buildDefaultCircle(),
-                                ),
-                              ),
-                    );
-                  }).toList(),
+                return Positioned(
+                  left: index * 12.0,
+                  child: imageUrl.isEmpty
+                      ? _buildDefaultCircle()
+                      : ClipOval(
+                          child: CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            width: 19,
+                            height: 19,
+                            fadeInDuration: Duration.zero,
+                            fadeOutDuration: Duration.zero,
+                            useOldImageOnUrlChange: true,
+                            memCacheWidth: (19 * 5).round(),
+                            maxWidthDiskCache: (19 * 5).round(),
+                            placeholder: (context, url) =>
+                                _buildShimmerCircle(),
+                            errorWidget: (context, url, error) =>
+                                _buildDefaultCircle(),
+                          ),
+                        ),
+                );
+              }).toList(),
             );
           },
         ),

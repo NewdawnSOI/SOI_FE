@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../controllers/category_controller.dart';
-import '../../../controllers/photo_controller.dart';
-import '../../../models/photo_data_model.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/controllers/category_controller.dart';
+import '../../../firebase_logic/controllers/photo_controller.dart';
+import '../../../firebase_logic/models/photo_data_model.dart';
 
 class FeedDataManager {
   // 데이터 관리

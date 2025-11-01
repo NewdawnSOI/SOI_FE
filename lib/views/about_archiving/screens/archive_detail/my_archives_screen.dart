@@ -3,9 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../../../controllers/auth_controller.dart';
-import '../../../../controllers/category_controller.dart';
-import '../../../../controllers/category_search_controller.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/category_controller.dart';
+import '../../../../firebase_logic/controllers/category_search_controller.dart';
 import '../../../../theme/theme.dart';
 import '../../models/archive_layout_mode.dart';
 import '../../widgets/archive_card_widget/archive_card_widget.dart';
@@ -141,13 +141,12 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
               final allCategories = snapshot.data ?? [];
 
               // 사용자 카테고리만 필터링합니다.
-              final userCategories =
-                  allCategories
-                      .where(
-                        (category) =>
-                            category.mates.every((element) => element == uID),
-                      )
-                      .toList();
+              final userCategories = allCategories
+                  .where(
+                    (category) =>
+                        category.mates.every((element) => element == uID),
+                  )
+                  .toList();
 
               // ✅ 카테고리 개수 저장 (다음 로딩 시 사용)
               if (userCategories.isNotEmpty &&
@@ -180,16 +179,15 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
               }
 
               // 검색어가 있으면 카테고리 필터링
-              final displayCategories =
-                  searchController.searchQuery.isNotEmpty
-                      ? userCategories.where((category) {
-                        return searchController.matchesSearchQuery(
-                          category,
-                          searchController.searchQuery,
-                          currentUserId: uID,
-                        );
-                      }).toList()
-                      : userCategories;
+              final displayCategories = searchController.searchQuery.isNotEmpty
+                  ? userCategories.where((category) {
+                      return searchController.matchesSearchQuery(
+                        category,
+                        searchController.searchQuery,
+                        currentUserId: uID,
+                      );
+                    }).toList()
+                  : userCategories;
 
               // 필터링된 결과가 없으면
               if (displayCategories.isEmpty) {
@@ -224,10 +222,9 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
                 opacity: _isInitialLoad ? 0.0 : 1.0,
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeIn,
-                child:
-                    widget.layoutMode == ArchiveLayoutMode.grid
-                        ? _buildGridView(searchController, displayCategories)
-                        : _buildListView(searchController, displayCategories),
+                child: widget.layoutMode == ArchiveLayoutMode.grid
+                    ? _buildGridView(searchController, displayCategories)
+                    : _buildListView(searchController, displayCategories),
               );
             },
           );
@@ -305,13 +302,12 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
                 final categoryId = category.id;
 
                 // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
-                final displayName =
-                    uID != null && _categoryController != null
-                        ? _categoryController!.getCategoryDisplayName(
-                          category,
-                          uID!,
-                        )
-                        : category.name;
+                final displayName = uID != null && _categoryController != null
+                    ? _categoryController!.getCategoryDisplayName(
+                        category,
+                        uID!,
+                      )
+                    : category.name;
 
                 return ArchiveCardWidget(
                   key: ValueKey('my_archive_card_$categoryId'),
@@ -323,9 +319,9 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
                       widget.editingCategoryId == categoryId,
                   editingController:
                       widget.isEditMode &&
-                              widget.editingCategoryId == categoryId
-                          ? widget.editingController
-                          : null,
+                          widget.editingCategoryId == categoryId
+                      ? widget.editingController
+                      : null,
                   onStartEdit: () {
                     if (widget.onStartEdit != null) {
                       widget.onStartEdit!(categoryId, displayName);
@@ -356,10 +352,9 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
         final categoryId = category.id;
 
         // 현재 사용자의 표시 이름 가져오기 (상위 categoryController 재사용)
-        final displayName =
-            uID != null && _categoryController != null
-                ? _categoryController!.getCategoryDisplayName(category, uID!)
-                : category.name;
+        final displayName = uID != null && _categoryController != null
+            ? _categoryController!.getCategoryDisplayName(category, uID!)
+            : category.name;
 
         return ArchiveCardWidget(
           key: ValueKey('my_archive_list_card_$categoryId'),
@@ -370,8 +365,8 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
               widget.isEditMode && widget.editingCategoryId == categoryId,
           editingController:
               widget.isEditMode && widget.editingCategoryId == categoryId
-                  ? widget.editingController
-                  : null,
+              ? widget.editingController
+              : null,
           onStartEdit: () {
             if (widget.onStartEdit != null) {
               widget.onStartEdit!(categoryId, displayName);

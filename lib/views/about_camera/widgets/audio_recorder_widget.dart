@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
-import '../../../controllers/audio_controller.dart';
+import '../../../firebase_logic/controllers/audio_controller.dart';
 import '../../about_archiving/widgets/wave_form_widget/custom_waveform_widget.dart';
 
 /// 녹음 상태를 나타내는 enum입니다.
@@ -102,12 +102,11 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
 
   // ========== 초기화 메서드들 ==========
   void _initializeAudioControllers() {
-    recorderController =
-        RecorderController()
-          ..androidEncoder = AndroidEncoder.aac
-          ..androidOutputFormat = AndroidOutputFormat.mpeg4
-          ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
-          ..sampleRate = 44100;
+    recorderController = RecorderController()
+      ..androidEncoder = AndroidEncoder.aac
+      ..androidOutputFormat = AndroidOutputFormat.mpeg4
+      ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
+      ..sampleRate = 44100;
 
     recorderController.checkPermission();
     playerController = PlayerController();
@@ -433,8 +432,8 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
       case RecordingState.recording:
         return Selector<AudioController, String>(
           key: ValueKey(widgetKey),
-          selector:
-              (context, controller) => controller.formattedRecordingDuration,
+          selector: (context, controller) =>
+              controller.formattedRecordingDuration,
           builder: (context, duration, child) {
             return SizedBox(
               height: 46,
@@ -483,9 +482,8 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
               duration: const Duration(milliseconds: 450),
               switchInCurve: Curves.easeInOut,
               switchOutCurve: Curves.easeInOut,
-              transitionBuilder:
-                  (child, animation) =>
-                      FadeTransition(opacity: animation, child: child),
+              transitionBuilder: (child, animation) =>
+                  FadeTransition(opacity: animation, child: child),
               child: Container(color: backgroundColor),
             ),
           ),
@@ -501,79 +499,77 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
               SizedBox(width: 17.w),
               // 파형 표시 영역
               Expanded(
-                child:
-                    isRecording
-                        ? AudioWaveforms(
-                          size: Size(1, 44.h),
-                          recorderController: recorderController,
-                          waveStyle: const WaveStyle(
-                            waveColor: Colors.white,
-                            extendWaveform: true,
-                            showMiddleLine: false,
-                          ),
-                        )
-                        : _buildWaveformDisplay(),
+                child: isRecording
+                    ? AudioWaveforms(
+                        size: Size(1, 44.h),
+                        recorderController: recorderController,
+                        waveStyle: const WaveStyle(
+                          waveColor: Colors.white,
+                          extendWaveform: true,
+                          showMiddleLine: false,
+                        ),
+                      )
+                    : _buildWaveformDisplay(),
               ),
               SizedBox(width: 13.w),
               // 시간 표시
               SizedBox(
-                child:
-                    isRecording
-                        ? Text(
-                          duration ?? '00:00',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontFamily: 'Pretendard',
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: -0.40,
-                          ),
-                        )
-                        : StreamBuilder<int>(
-                          stream:
-                              playerController?.onCurrentDurationChanged ??
-                              const Stream.empty(),
-                          builder: (context, snapshot) {
-                            final currentDurationMs = snapshot.data ?? 0;
-                            final currentDuration = Duration(
-                              milliseconds: currentDurationMs,
-                            );
-                            final minutes = currentDuration.inMinutes;
-                            final seconds = currentDuration.inSeconds % 60;
-                            return Text(
-                              '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontFamily: 'Pretendard',
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: -0.40,
-                              ),
-                            );
-                          },
+                child: isRecording
+                    ? Text(
+                        duration ?? '00:00',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontFamily: 'Pretendard',
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: -0.40,
                         ),
+                      )
+                    : StreamBuilder<int>(
+                        stream:
+                            playerController?.onCurrentDurationChanged ??
+                            const Stream.empty(),
+                        builder: (context, snapshot) {
+                          final currentDurationMs = snapshot.data ?? 0;
+                          final currentDuration = Duration(
+                            milliseconds: currentDurationMs,
+                          );
+                          final minutes = currentDuration.inMinutes;
+                          final seconds = currentDuration.inSeconds % 60;
+                          return Text(
+                            '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontFamily: 'Pretendard',
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: -0.40,
+                            ),
+                          );
+                        },
+                      ),
               ),
               // 재생/정지 버튼
               IconButton(
-                onPressed:
-                    isRecording ? _stopAndPreparePlayback : _togglePlayback,
+                onPressed: isRecording
+                    ? _stopAndPreparePlayback
+                    : _togglePlayback,
                 padding: EdgeInsets.only(bottom: 0.h),
-                icon:
-                    isRecording
-                        ? Icon(Icons.stop, color: Colors.white, size: 35.sp)
-                        : StreamBuilder<PlayerState>(
-                          stream:
-                              playerController?.onPlayerStateChanged ??
-                              const Stream.empty(),
-                          builder: (context, snapshot) {
-                            final isPlaying = snapshot.data?.isPlaying ?? false;
-                            return Icon(
-                              isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: Colors.white,
-                              size: 35.sp,
-                            );
-                          },
-                        ),
+                icon: isRecording
+                    ? Icon(Icons.stop, color: Colors.white, size: 35.sp)
+                    : StreamBuilder<PlayerState>(
+                        stream:
+                            playerController?.onPlayerStateChanged ??
+                            const Stream.empty(),
+                        builder: (context, snapshot) {
+                          final isPlaying = snapshot.data?.isPlaying ?? false;
+                          return Icon(
+                            isPlaying ? Icons.pause : Icons.play_arrow,
+                            color: Colors.white,
+                            size: 35.sp,
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -585,41 +581,40 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
   Widget _buildWaveformDisplay() {
     return _waveformData != null && _waveformData!.isNotEmpty
         ? StreamBuilder<int>(
-          stream:
-              playerController?.onCurrentDurationChanged ??
-              const Stream.empty(),
-          builder: (context, positionSnapshot) {
-            final currentPosition = positionSnapshot.data ?? 0;
-            final totalDuration = playerController?.maxDuration ?? 1;
-            final progress =
-                totalDuration > 0
-                    ? (currentPosition / totalDuration).clamp(0.0, 1.0)
-                    : 0.0;
+            stream:
+                playerController?.onCurrentDurationChanged ??
+                const Stream.empty(),
+            builder: (context, positionSnapshot) {
+              final currentPosition = positionSnapshot.data ?? 0;
+              final totalDuration = playerController?.maxDuration ?? 1;
+              final progress = totalDuration > 0
+                  ? (currentPosition / totalDuration).clamp(0.0, 1.0)
+                  : 0.0;
 
-            return CustomWaveformWidget(
-              waveformData: _waveformData!,
-              color: Colors.grey,
-              activeColor: Colors.white,
-              progress: progress,
-            );
-          },
-        )
+              return CustomWaveformWidget(
+                waveformData: _waveformData!,
+                color: Colors.grey,
+                activeColor: Colors.white,
+                progress: progress,
+              );
+            },
+          )
         : Container(
-          height: 52.h,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade700,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Center(
-            child: Text(
-              '파형 없음',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 14.sp,
-                fontFamily: "Pretendard",
+            height: 52.h,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade700,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text(
+                '파형 없음',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 14.sp,
+                  fontFamily: "Pretendard",
+                ),
               ),
             ),
-          ),
-        );
+          );
   }
 }

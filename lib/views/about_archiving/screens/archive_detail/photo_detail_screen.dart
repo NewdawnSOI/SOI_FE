@@ -2,15 +2,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../../../controllers/audio_controller.dart';
-import '../../../../controllers/auth_controller.dart';
-import '../../../../controllers/comment_record_controller.dart';
-import '../../../../controllers/photo_controller.dart';
-import '../../../../models/comment_record_model.dart';
-import '../../../../models/photo_data_model.dart';
+import '../../../../firebase_logic/controllers/audio_controller.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/comment_record_controller.dart';
+import '../../../../firebase_logic/controllers/photo_controller.dart';
+import '../../../../firebase_logic/models/comment_record_model.dart';
+import '../../../../firebase_logic/models/photo_data_model.dart';
 import '../../../../utils/position_converter.dart';
 import '../../../about_share/share_screen.dart';
 import '../../../common_widget/abput_photo/photo_card_widget_common.dart';
+import '../../../about_feed/manager/voice_comment_state_manager.dart';
 
 /// 카테고리 내에서 사진 하나를 개별적으로 보여주는 화면
 /// 사용자는 사진에 대한 댓글을 달고, 음성 댓글을 남기고, 사진을 공유할 수 있습니다.
@@ -134,13 +135,12 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder:
-                        (_) => ShareScreen(
-                          imageUrl: currentPhoto.imageUrl,
-                          waveformData: currentPhoto.waveformData,
-                          audioDuration: audioDuration,
-                          categoryName: widget.categoryName,
-                        ),
+                    builder: (_) => ShareScreen(
+                      imageUrl: currentPhoto.imageUrl,
+                      waveformData: currentPhoto.waveformData,
+                      audioDuration: audioDuration,
+                      categoryName: widget.categoryName,
+                    ),
                   ),
                 );
               },
@@ -172,6 +172,28 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
             _userNames[photo.userID] = _userName;
           }
 
+          final pendingVoiceCommentMap = _pendingVoiceComments
+              .map<String, PendingVoiceComment>((photoId, comment) {
+                final relativeOffset = _extractRelativeOffset(
+                  comment.relativePosition,
+                );
+                return MapEntry(
+                  photoId,
+                  PendingVoiceComment(
+                    audioPath: comment.audioUrl.isNotEmpty
+                        ? comment.audioUrl
+                        : null,
+                    waveformData: comment.waveformData,
+                    duration: comment.duration,
+                    text: comment.text,
+                    isTextComment: comment.type == CommentType.text,
+                    relativePosition: relativeOffset,
+                    recorderUserId: comment.recorderUser,
+                    profileImageUrl: comment.profileImageUrl,
+                  ),
+                );
+              });
+
           return PhotoCardWidgetCommon(
             photo: photo,
             categoryName: widget.categoryName,
@@ -187,25 +209,22 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
             voiceCommentActiveStates: _voiceCommentActiveStates,
             voiceCommentSavedStates: _voiceCommentSavedStates,
             pendingTextComments: _pendingTextComments,
+            pendingVoiceComments: pendingVoiceCommentMap,
             onToggleAudio: _toggleAudio,
             onToggleVoiceComment: _toggleVoiceComment,
-            onVoiceCommentCompleted: (
-              photoId,
-              audioPath,
-              waveformData,
-              duration,
-            ) {
-              if (audioPath != null &&
-                  waveformData != null &&
-                  duration != null) {
-                _onVoiceCommentRecordingFinished(
-                  photoId,
-                  audioPath,
-                  waveformData,
-                  duration,
-                );
-              }
-            },
+            onVoiceCommentCompleted:
+                (photoId, audioPath, waveformData, duration) {
+                  if (audioPath != null &&
+                      waveformData != null &&
+                      duration != null) {
+                    _onVoiceCommentRecordingFinished(
+                      photoId,
+                      audioPath,
+                      waveformData,
+                      duration,
+                    );
+                  }
+                },
             onTextCommentCompleted: (photoId, text) async {
               // 텍스트 댓글을 pending 상태로 저장
               await _onTextCommentCreated(photoId, text);
@@ -220,12 +239,9 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
               String? latestCommentId;
               final list = _photoComments[photoId];
               if (list != null) {
-                final userComments =
-                    list
-                        .where(
-                          (comment) => comment.recorderUser == currentUserId,
-                        )
-                        .toList();
+                final userComments = list
+                    .where((comment) => comment.recorderUser == currentUserId)
+                    .toList();
                 if (userComments.isNotEmpty) {
                   latestCommentId = userComments.last.id;
                 }
@@ -333,10 +349,9 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
   ) {
     if (!mounted) return;
 
-    final userComments =
-        comments
-            .where((comment) => comment.recorderUser == currentUserId)
-            .toList();
+    final userComments = comments
+        .where((comment) => comment.recorderUser == currentUserId)
+        .toList();
 
     setState(() {
       _photoComments[photoId] = comments;
@@ -531,24 +546,23 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       final controller = CommentRecordController();
 
       // 텍스트 댓글인지 음성 댓글인지 확인
-      final comment =
-          pending.type == CommentType.text
-              ? await controller.createTextComment(
-                text: pending.text ?? '',
-                photoId: photoId,
-                recorderUser: userId,
-                profileImageUrl: currentUserProfileImageUrl,
-                relativePosition: relativePosition,
-              )
-              : await controller.createCommentRecord(
-                audioFilePath: pending.audioUrl,
-                photoId: photoId,
-                recorderUser: userId,
-                waveformData: pending.waveformData,
-                duration: pending.duration,
-                profileImageUrl: currentUserProfileImageUrl,
-                relativePosition: relativePosition,
-              );
+      final comment = pending.type == CommentType.text
+          ? await controller.createTextComment(
+              text: pending.text ?? '',
+              photoId: photoId,
+              recorderUser: userId,
+              profileImageUrl: currentUserProfileImageUrl,
+              relativePosition: relativePosition,
+            )
+          : await controller.createCommentRecord(
+              audioFilePath: pending.audioUrl,
+              photoId: photoId,
+              recorderUser: userId,
+              waveformData: pending.waveformData,
+              duration: pending.duration,
+              profileImageUrl: currentUserProfileImageUrl,
+              relativePosition: relativePosition,
+            );
 
       if (comment == null) {
         if (mounted) {

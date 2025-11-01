@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_contacts/contact.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../../controllers/contact_controller.dart';
-import '../../../services/friend_request_service.dart';
-import '../../../repositories/friend_request_repository.dart';
-import '../../../repositories/friend_repository.dart';
-import '../../../repositories/user_search_repository.dart';
+import '../../../firebase_logic/controllers/contact_controller.dart';
+import '../../../firebase_logic/services/friend_request_service.dart';
+import '../../../firebase_logic/repositories/friend_request_repository.dart';
+import '../../../firebase_logic/repositories/friend_repository.dart';
+import '../../../firebase_logic/repositories/user_search_repository.dart';
 
 class FriendSuggestCard extends StatefulWidget {
   final double scale;
@@ -85,8 +85,9 @@ class _FriendSuggestCardState extends State<FriendSuggestCard> {
 
     for (final contact in widget.contacts) {
       try {
-        final phoneNumbers =
-            contact.phones.map((phone) => phone.number).toList();
+        final phoneNumbers = contact.phones
+            .map((phone) => phone.number)
+            .toList();
         if (phoneNumbers.isNotEmpty) {
           // 전화번호로 사용자 검색
           final userSearchRepo = UserSearchRepository();
@@ -246,11 +247,10 @@ class _FriendSuggestCardState extends State<FriendSuggestCard> {
     // 연락처 동기화가 활성화되어 있고 연락처가 있는 경우
     if (contactController.contactSyncEnabled && widget.contacts.isNotEmpty) {
       // 친구로 추가된 사용자 제외 필터링
-      final filteredContacts =
-          widget.contacts.where((contact) {
-            final status = _friendshipStatuses[contact.displayName] ?? 'none';
-            return status != 'friends'; // 친구 상태가 아닌 연락처만 표시
-          }).toList();
+      final filteredContacts = widget.contacts.where((contact) {
+        final status = _friendshipStatuses[contact.displayName] ?? 'none';
+        return status != 'friends'; // 친구 상태가 아닌 연락처만 표시
+      }).toList();
 
       // 필터링 후 연락처가 없으면 메시지 표시
       if (filteredContacts.isEmpty) {
@@ -266,58 +266,55 @@ class _FriendSuggestCardState extends State<FriendSuggestCard> {
       }
 
       return Column(
-        children:
-            filteredContacts.map((contact) {
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xff323232),
-                  child: Text(
-                    contact.displayName.isNotEmpty
-                        ? contact.displayName[0].toUpperCase()
-                        : '?',
-                    style: TextStyle(
-                      color: const Color(0xfff9f9f9),
-                      fontSize: (16).sp,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+        children: filteredContacts.map((contact) {
+          return ListTile(
+            leading: CircleAvatar(
+              backgroundColor: const Color(0xff323232),
+              child: Text(
+                contact.displayName.isNotEmpty
+                    ? contact.displayName[0].toUpperCase()
+                    : '?',
+                style: TextStyle(
+                  color: const Color(0xfff9f9f9),
+                  fontSize: (16).sp,
+                  fontWeight: FontWeight.w600,
                 ),
-                title: Text(
-                  contact.displayName.isNotEmpty
-                      ? contact.displayName
-                      : '이름 없음',
-                  style: TextStyle(
-                    color: const Color(0xFFD9D9D9),
-                    fontSize: 16,
-                    fontFamily: 'Pretendard',
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                subtitle: () {
-                  try {
-                    final phones = contact.phones;
-                    return phones.isNotEmpty
-                        ? Text(
-                          phones.first.number,
-                          style: TextStyle(
-                            color: const Color(0xFFD9D9D9),
-                            fontSize: 10,
-                            fontFamily: 'Pretendard',
-                            fontWeight: FontWeight.w300,
-                          ),
-                        )
-                        : null;
-                  } catch (e) {
-                    return null;
-                  }
-                }(),
-                trailing: SizedBox(
-                  width: 84.w,
-                  height: 29.h,
-                  child: _buildFriendButton(contact),
-                ),
-              );
-            }).toList(),
+              ),
+            ),
+            title: Text(
+              contact.displayName.isNotEmpty ? contact.displayName : '이름 없음',
+              style: TextStyle(
+                color: const Color(0xFFD9D9D9),
+                fontSize: 16,
+                fontFamily: 'Pretendard',
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            subtitle: () {
+              try {
+                final phones = contact.phones;
+                return phones.isNotEmpty
+                    ? Text(
+                        phones.first.number,
+                        style: TextStyle(
+                          color: const Color(0xFFD9D9D9),
+                          fontSize: 10,
+                          fontFamily: 'Pretendard',
+                          fontWeight: FontWeight.w300,
+                        ),
+                      )
+                    : null;
+              } catch (e) {
+                return null;
+              }
+            }(),
+            trailing: SizedBox(
+              width: 84.w,
+              height: 29.h,
+              child: _buildFriendButton(contact),
+            ),
+          );
+        }).toList(),
       );
     }
 

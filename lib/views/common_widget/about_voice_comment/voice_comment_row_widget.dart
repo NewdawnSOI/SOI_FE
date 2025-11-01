@@ -3,8 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../../controllers/comment_audio_controller.dart';
-import '../../../models/comment_record_model.dart';
+import '../../../firebase_logic/controllers/comment_audio_controller.dart';
+import '../../../firebase_logic/models/comment_record_model.dart';
 import '../../../utils/format_utils.dart';
 import '../abput_photo/user_display_widget.dart';
 import 'reaction_row_widget.dart';
@@ -50,22 +50,21 @@ class VoiceCommentRow extends StatelessWidget {
           children: [
             // 프로필 이미지
             ClipOval(
-              child:
-                  comment.profileImageUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                        imageUrl: comment.profileImageUrl,
-                        width: 44.w,
-                        height: 44.w,
-                        memCacheHeight: (44 * 2).toInt(),
-                        memCacheWidth: (44 * 2).toInt(),
-                        fit: BoxFit.cover,
-                      )
-                      : Container(
-                        width: 44.w,
-                        height: 44.w,
-                        color: const Color(0xFF4E4E4E),
-                        child: const Icon(Icons.person, color: Colors.white),
-                      ),
+              child: comment.profileImageUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: comment.profileImageUrl,
+                      width: 44.w,
+                      height: 44.w,
+                      memCacheHeight: (44 * 2).toInt(),
+                      memCacheWidth: (44 * 2).toInt(),
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      width: 44.w,
+                      height: 44.w,
+                      color: const Color(0xFF4E4E4E),
+                      child: const Icon(Icons.person, color: Colors.white),
+                    ),
             ),
             SizedBox(width: 12.w),
             Expanded(
@@ -165,25 +164,21 @@ class VoiceCommentRow extends StatelessWidget {
               children: [
                 // 프로필 이미지
                 ClipOval(
-                  child:
-                      comment.profileImageUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                            imageUrl: comment.profileImageUrl,
-                            width: 44.w,
-                            height: 44.w,
-                            memCacheHeight: (44 * 2).toInt(),
-                            memCacheWidth: (44 * 2).toInt(),
-                            fit: BoxFit.cover,
-                          )
-                          : Container(
-                            width: 44.w,
-                            height: 44.w,
-                            color: const Color(0xFF4E4E4E),
-                            child: const Icon(
-                              Icons.person,
-                              color: Colors.white,
-                            ),
-                          ),
+                  child: comment.profileImageUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: comment.profileImageUrl,
+                          width: 44.w,
+                          height: 44.w,
+                          memCacheHeight: (44 * 2).toInt(),
+                          memCacheWidth: (44 * 2).toInt(),
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          width: 44.w,
+                          height: 44.w,
+                          color: const Color(0xFF4E4E4E),
+                          child: const Icon(Icons.person, color: Colors.white),
+                        ),
                 ),
                 SizedBox(width: 12.w),
                 Expanded(
@@ -273,8 +268,9 @@ class _WaveformPlaybackBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalMs =
-        duration.inMilliseconds == 0 ? 1 : duration.inMilliseconds; // div 0 방지
+    final totalMs = duration.inMilliseconds == 0
+        ? 1
+        : duration.inMilliseconds; // div 0 방지
     final playedMs = position.inMilliseconds;
     final barProgress = (playedMs / totalMs).clamp(0.0, 1.0);
 
@@ -306,8 +302,9 @@ class _WaveformPlaybackBar extends StatelessWidget {
                     GestureDetector(
                       onTap: onPlayPause,
                       child: _buildWaveformBase(
-                        color:
-                            isPlaying ? const Color(0xFF4A4A4A) : Colors.white,
+                        color: isPlaying
+                            ? const Color(0xFF4A4A4A)
+                            : Colors.white,
                         availableWidth: availableWidth,
                       ),
                     ),
@@ -374,21 +371,20 @@ class _WaveformPlaybackBar extends StatelessWidget {
       padding: EdgeInsets.only(right: 10.w),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly, // 균등하게 분배
-        children:
-            sampledData.asMap().entries.map((entry) {
-              final value = entry.value;
-              // 0~1 범위의 값을 minHeight~maxHeight로 매핑
-              final barHeight = minHeight + (value * (maxHeight - minHeight));
+        children: sampledData.asMap().entries.map((entry) {
+          final value = entry.value;
+          // 0~1 범위의 값을 minHeight~maxHeight로 매핑
+          final barHeight = minHeight + (value * (maxHeight - minHeight));
 
-              return Container(
-                width: (2.54).w,
-                height: barHeight,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              );
-            }).toList(),
+          return Container(
+            width: (2.54).w,
+            height: barHeight,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          );
+        }).toList(),
       ),
     );
   }

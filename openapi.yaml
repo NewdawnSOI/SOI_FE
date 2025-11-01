@@ -1,0 +1,263 @@
+openapi: 3.0.1
+info:
+  title: SOI API
+  description: SOI 애플리케이션을 위한 REST API 문서
+  contact:
+    name: SOI
+    url: https://github.com/NewdawnSOI
+    email: itisnewdawn@gmail.com
+  version: v1.0.0
+servers:
+- url: http://localhost:8080
+  description: 현재 서버
+- url: http://localhost:8080
+  description: 로컬 개발 서버
+tags:
+- name: User API
+  description: 사용자 관리 API
+- name: friend API
+  description: 친구 관리 API
+paths:
+  /user/login:
+    post:
+      tags:
+      - User API
+      summary: 사용자 로그인(전화번호로)
+      description: 인증이 완료된 전화번호로 로그인을 합니다.
+      operationId: login
+      parameters:
+      - name: phone
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDtoUserRespDto"
+  /user/create:
+    post:
+      tags:
+      - User API
+      summary: 사용자 생성
+      description: 새로운 사용자를 등록합니다.
+      operationId: createUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreateReqDto"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDtoUserRespDto"
+  /user/auth:
+    post:
+      tags:
+      - User API
+      summary: 전화번호 인증
+      description: 사용자가 입력한 전화번호로 인증을 발송합니다.
+      operationId: authSMS
+      parameters:
+      - name: phone
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: boolean
+  /friend/update:
+    post:
+      tags:
+      - friend API
+      summary: 친구 상태 업데이트
+      description: "친구 관계 id, 상태 : ACCEPTED, BLOCKED, CANCELLED 를 받아 상태를 업데이트합니다."
+      operationId: update
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FriendUpdateRespDto"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDtoFriendRespDto"
+  /friend/create:
+    post:
+      tags:
+      - friend API
+      summary: 친구 추가
+      description: 사용자 id를 통해 친구추가를 합니다.
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FriendReqDto"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDtoFriendRespDto"
+  /user/id-check:
+    get:
+      tags:
+      - User API
+      summary: 사용자 id 중복 체크
+      description: "사용자 id 중복 체크합니다. 사용가능 : true, 사용불가(중복) : false"
+      operationId: idCheck
+      parameters:
+      - name: userId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDtoBoolean"
+  /user/delete:
+    delete:
+      tags:
+      - User API
+      summary: 유저 Id로 사용자 삭제
+      description: id 로 사용자를 삭제합니다.
+      operationId: deleteUser
+      parameters:
+      - name: userId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDtoUserRespDto"
+components:
+  schemas:
+    ApiResponseDtoUserRespDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/UserRespDto"
+        message:
+          type: string
+    UserRespDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: string
+    UserCreateReqDto:
+      type: object
+      properties:
+        name:
+          type: string
+        userId:
+          type: string
+        phone:
+          type: string
+        birth_date:
+          type: string
+        profileImage:
+          type: string
+        serviceAgreed:
+          type: boolean
+        privacyPolicyAgreed:
+          type: boolean
+        marketingAgreed:
+          type: boolean
+    FriendUpdateRespDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ACCEPTED
+          - BLOCKED
+          - CANCELLED
+    ApiResponseDtoFriendRespDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/FriendRespDto"
+        message:
+          type: string
+    FriendRespDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        requesterId:
+          type: integer
+          format: int64
+        receiverId:
+          type: integer
+          format: int64
+        notificationId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ACCEPTED
+          - BLOCKED
+          - CANCELLED
+        createdAt:
+          type: string
+          format: date-time
+    FriendReqDto:
+      type: object
+      properties:
+        requesterId:
+          type: integer
+          format: int64
+        receiverId:
+          type: integer
+          format: int64
+    ApiResponseDtoBoolean:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: boolean
+        message:
+          type: string

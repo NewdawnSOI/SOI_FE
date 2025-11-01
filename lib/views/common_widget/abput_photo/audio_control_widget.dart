@@ -4,9 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../../controllers/auth_controller.dart';
-import '../../../controllers/audio_controller.dart';
-import '../../../models/photo_data_model.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/controllers/audio_controller.dart';
+import '../../../firebase_logic/models/photo_data_model.dart';
 import '../../../utils/format_utils.dart';
 import '../../about_archiving/widgets/wave_form_widget/custom_waveform_widget.dart';
 
@@ -104,19 +104,18 @@ class AudioControlWidget extends StatelessWidget {
           // 댓글 아이콘 영역 (고정 width)
           SizedBox(
             width: 60.w,
-            child:
-                hasComments
-                    ? Center(
-                      child: IconButton(
-                        onPressed: onCommentIconTap,
-                        icon: Image.asset(
-                          "assets/comment_profile_icon.png",
-                          width: 25.w,
-                          height: 25.h,
-                        ),
+            child: hasComments
+                ? Center(
+                    child: IconButton(
+                      onPressed: onCommentIconTap,
+                      icon: Image.asset(
+                        "assets/comment_profile_icon.png",
+                        width: 25.w,
+                        height: 25.h,
                       ),
-                    )
-                    : Container(),
+                    ),
+                  )
+                : Container(),
           ),
         ],
       ),
@@ -137,42 +136,39 @@ class AudioControlWidget extends StatelessWidget {
             final profileImageUrl = snapshot.data ?? '';
 
             return ClipOval(
-              child:
-                  profileImageUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                        imageUrl: profileImageUrl,
-                        fit: BoxFit.cover,
+              child: profileImageUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: profileImageUrl,
+                      fit: BoxFit.cover,
 
-                        memCacheWidth: (profileSize * 4).round(),
-                        maxWidthDiskCache: (profileSize * 4).round(),
+                      memCacheWidth: (profileSize * 4).round(),
+                      maxWidthDiskCache: (profileSize * 4).round(),
 
-                        placeholder:
-                            (context, url) => Shimmer.fromColors(
-                              baseColor: const Color(0xFF2A2A2A),
-                              highlightColor: const Color(0xFF3A3A3A),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFF2A2A2A),
-                                ),
-                              ),
-                            ),
-                        errorWidget:
-                            (context, url, error) => Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: const Color(0xFFd9d9d9),
-                              ),
-                              child: Icon(Icons.person, size: 20),
-                            ),
-                      )
-                      : Container(
+                      placeholder: (context, url) => Shimmer.fromColors(
+                        baseColor: const Color(0xFF2A2A2A),
+                        highlightColor: const Color(0xFF3A3A3A),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF2A2A2A),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: const Color(0xFFd9d9d9),
                         ),
                         child: Icon(Icons.person, size: 20),
                       ),
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFd9d9d9),
+                      ),
+                      child: Icon(Icons.person, size: 20),
+                    ),
             );
           },
         );
@@ -204,9 +200,10 @@ class AudioControlWidget extends StatelessWidget {
         double progress = 0.0;
         if (isCurrentAudio &&
             audioController.currentDuration.inMilliseconds > 0) {
-          progress = (audioController.currentPosition.inMilliseconds /
-                  audioController.currentDuration.inMilliseconds)
-              .clamp(0.0, 1.0);
+          progress =
+              (audioController.currentPosition.inMilliseconds /
+                      audioController.currentDuration.inMilliseconds)
+                  .clamp(0.0, 1.0);
         }
 
         return Container(

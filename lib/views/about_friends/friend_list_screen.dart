@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../controllers/friend_controller.dart';
-import '../../models/friend_model.dart';
+import '../../firebase_logic/controllers/friend_controller.dart';
+import '../../firebase_logic/models/friend_model.dart';
 
 class FriendListScreen extends StatefulWidget {
   final String? categoryId;
@@ -83,13 +83,12 @@ class _FriendListScreenState extends State<FriendListScreen> {
         builder: (context, friendController, child) {
           // 검색어에 따라 실시간으로 친구 목록 필터링
           final query = _searchController.text.toLowerCase();
-          final displayFriends =
-              query.isEmpty
-                  ? friendController.friends
-                  : friendController.friends.where((friend) {
-                    return friend.name.toLowerCase().contains(query) ||
-                        friend.id.toLowerCase().contains(query);
-                  }).toList();
+          final displayFriends = query.isEmpty
+              ? friendController.friends
+              : friendController.friends.where((friend) {
+                  return friend.name.toLowerCase().contains(query) ||
+                      friend.id.toLowerCase().contains(query);
+                }).toList();
 
           return Column(
             children: [
@@ -149,74 +148,74 @@ class _FriendListScreenState extends State<FriendListScreen> {
               // 친구 목록
               friendController.isLoading
                   ? Center(
-                    child: CircularProgressIndicator(color: Colors.white),
-                  )
+                      child: CircularProgressIndicator(color: Colors.white),
+                    )
                   : !friendController.isInitialized
                   ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                        SizedBox(height: 16.h),
-                        Text(
-                          '친구 목록을 불러오는 중...',
-                          style: TextStyle(
-                            color: const Color(0xff666666),
-                            fontSize: 14.sp,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                  : displayFriends.isEmpty
-                  ? Center(
-                    child: Text(
-                      _searchController.text.isEmpty
-                          ? '친구가 없습니다'
-                          : '검색 결과가 없습니다',
-                      style: TextStyle(
-                        color: const Color(0xff666666),
-                        fontSize: 16.sp,
-                      ),
-                    ),
-                  )
-                  : Padding(
-                    padding: EdgeInsets.only(left: 20.w, right: 20.w),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Color(0xff1c1c1c).withValues(alpha: 0.80),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      // 친구 목록과 배경 박스의 상단과 하단의 너비를 같게 만들기 위함
-                      padding: EdgeInsets.only(bottom: 3.h),
                       child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // 친구 목록
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children:
-                                displayFriends.asMap().entries.map((entry) {
-                                  final index = entry.key;
-                                  final friend = entry.value;
-                                  final isSelected = _selectedFriendUids
-                                      .contains(friend.userId);
-
-                                  return _buildFriendItem(
-                                    friend: friend,
-                                    isSelected: isSelected,
-                                    index: index,
-                                    isLast: index == displayFriends.length - 1,
-                                    onTap:
-                                        () => _toggleFriendSelection(
-                                          friend.userId,
-                                        ),
-                                  );
-                                }).toList(),
+                          CircularProgressIndicator(color: Colors.white),
+                          SizedBox(height: 16.h),
+                          Text(
+                            '친구 목록을 불러오는 중...',
+                            style: TextStyle(
+                              color: const Color(0xff666666),
+                              fontSize: 14.sp,
+                            ),
                           ),
                         ],
                       ),
+                    )
+                  : displayFriends.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchController.text.isEmpty
+                            ? '친구가 없습니다'
+                            : '검색 결과가 없습니다',
+                        style: TextStyle(
+                          color: const Color(0xff666666),
+                          fontSize: 16.sp,
+                        ),
+                      ),
+                    )
+                  : Padding(
+                      padding: EdgeInsets.only(left: 20.w, right: 20.w),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Color(0xff1c1c1c).withValues(alpha: 0.80),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        // 친구 목록과 배경 박스의 상단과 하단의 너비를 같게 만들기 위함
+                        padding: EdgeInsets.only(bottom: 3.h),
+                        child: Column(
+                          children: [
+                            // 친구 목록
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: displayFriends.asMap().entries.map((
+                                entry,
+                              ) {
+                                final index = entry.key;
+                                final friend = entry.value;
+                                final isSelected = _selectedFriendUids.contains(
+                                  friend.userId,
+                                );
+
+                                return _buildFriendItem(
+                                  friend: friend,
+                                  isSelected: isSelected,
+                                  index: index,
+                                  isLast: index == displayFriends.length - 1,
+                                  onTap: () =>
+                                      _toggleFriendSelection(friend.userId),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
             ],
           );
         },
@@ -246,25 +245,21 @@ class _FriendListScreenState extends State<FriendListScreen> {
                   child: CircleAvatar(
                     radius: 24,
                     backgroundColor: const Color(0xff323232),
-                    backgroundImage:
-                        friend.profileImageUrl != null
-                            ? CachedNetworkImageProvider(
-                              friend.profileImageUrl!,
-                            )
-                            : null,
-                    child:
-                        friend.profileImageUrl == null
-                            ? Text(
-                              friend.name.isNotEmpty
-                                  ? friend.name[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                color: const Color(0xfff9f9f9),
-                                fontSize: 18.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            )
-                            : null,
+                    backgroundImage: friend.profileImageUrl != null
+                        ? CachedNetworkImageProvider(friend.profileImageUrl!)
+                        : null,
+                    child: friend.profileImageUrl == null
+                        ? Text(
+                            friend.name.isNotEmpty
+                                ? friend.name[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                              color: const Color(0xfff9f9f9),
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
+                        : null,
                   ),
                 ),
                 SizedBox(width: 12.w),
@@ -309,34 +304,35 @@ class _FriendListScreenState extends State<FriendListScreen> {
                       ),
                     ),
                   ),
-                  builder: (
-                    BuildContext context,
-                    MenuController controller,
-                    Widget? child,
-                  ) {
-                    // 각 친구별로 MenuController 저장
-                    _menuControllers[friend.userId] = controller;
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      child: IconButton(
-                        onPressed: () {
-                          if (controller.isOpen) {
-                            controller.close();
-                          } else {
-                            controller.open();
-                          }
-                        },
-                        icon: Icon(
-                          Icons.more_vert,
-                          size: 25.sp,
-                          color: Color(0xfff9f9f9),
-                        ),
-                      ),
-                    );
-                  },
+                  builder:
+                      (
+                        BuildContext context,
+                        MenuController controller,
+                        Widget? child,
+                      ) {
+                        // 각 친구별로 MenuController 저장
+                        _menuControllers[friend.userId] = controller;
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          child: IconButton(
+                            onPressed: () {
+                              if (controller.isOpen) {
+                                controller.close();
+                              } else {
+                                controller.open();
+                              }
+                            },
+                            icon: Icon(
+                              Icons.more_vert,
+                              size: 25.sp,
+                              color: Color(0xfff9f9f9),
+                            ),
+                          ),
+                        );
+                      },
                   menuChildren: [
                     _menuItem(
                       friend.userId,
@@ -502,16 +498,16 @@ class _FriendListScreenState extends State<FriendListScreen> {
                     ClipOval(
                       child:
                           profileImageUrl != null && profileImageUrl.isNotEmpty
-                              ? Image(
-                                image: NetworkImage(profileImageUrl),
-                                width: 70.sp,
-                                height: 70.sp,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return _buildDefaultAvatar(friendName);
-                                },
-                              )
-                              : _buildDefaultAvatar(friendName),
+                          ? Image(
+                              image: NetworkImage(profileImageUrl),
+                              width: 70.sp,
+                              height: 70.sp,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return _buildDefaultAvatar(friendName);
+                              },
+                            )
+                          : _buildDefaultAvatar(friendName),
                     ),
                     SizedBox(height: 20.h),
 

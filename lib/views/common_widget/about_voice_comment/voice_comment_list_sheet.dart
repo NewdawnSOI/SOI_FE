@@ -2,9 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../../models/comment_record_model.dart';
-import '../../../controllers/emoji_reaction_controller.dart';
-import '../../../controllers/comment_record_controller.dart';
+import '../../../firebase_logic/models/comment_record_model.dart';
+import '../../../firebase_logic/controllers/emoji_reaction_controller.dart';
+import '../../../firebase_logic/controllers/comment_record_controller.dart';
 import 'voice_comment_row_widget.dart';
 
 /// 재사용 가능한 음성 댓글 리스트 Bottom Sheet
@@ -126,11 +126,11 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
               // 1) 리액션 스트림 (optional)
               final reactionsStream =
                   (!hasCommentFilter && widget.categoryId != null)
-                      ? reactionController.reactionsStream(
-                        categoryId: widget.categoryId!,
-                        photoId: widget.photoId,
-                      )
-                      : const Stream<List<Map<String, dynamic>>>.empty();
+                  ? reactionController.reactionsStream(
+                      categoryId: widget.categoryId!,
+                      photoId: widget.photoId,
+                    )
+                  : const Stream<List<Map<String, dynamic>>>.empty();
 
               return StreamBuilder<List<Map<String, dynamic>>>(
                 stream: reactionsStream,
@@ -227,17 +227,16 @@ class _VoiceCommentListSheetState extends State<VoiceCommentListSheet> {
                                   reaction['profileImageUrl'] as String? ?? '';
                               final profileImageUrl =
                                   (commentForReaction
-                                              ?.profileImageUrl
-                                              .isNotEmpty ??
-                                          false)
-                                      ? commentForReaction!.profileImageUrl
-                                      : fallbackProfile;
+                                          ?.profileImageUrl
+                                          .isNotEmpty ??
+                                      false)
+                                  ? commentForReaction!.profileImageUrl
+                                  : fallbackProfile;
 
                               final createdAt = reaction['createdAt'];
-                              final createdDate =
-                                  createdAt is Timestamp
-                                      ? createdAt.toDate()
-                                      : DateTime.now();
+                              final createdDate = createdAt is Timestamp
+                                  ? createdAt.toDate()
+                                  : DateTime.now();
 
                               final reactionComment = CommentRecordModel(
                                 id: reaction['id'] as String? ?? '',

@@ -3,9 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../controllers/friend_controller.dart';
-import '../../controllers/auth_controller.dart';
-import '../../models/auth_model.dart';
+import '../../firebase_logic/controllers/friend_controller.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
+import '../../firebase_logic/models/auth_model.dart';
 
 class BlockedFriendListScreen extends StatefulWidget {
   const BlockedFriendListScreen({super.key});
@@ -219,52 +219,45 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
                 shape: BoxShape.circle,
                 color: const Color(0xFF333333),
               ),
-              child:
-                  imageUrl.isNotEmpty
-                      ? ClipOval(
-                        child: CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          memCacheWidth: (44 * 4).round(),
-                          maxWidthDiskCache: (44 * 4).round(),
-                          placeholder:
-                              (context, url) => Shimmer.fromColors(
-                                baseColor: const Color(0xFF333333),
-                                highlightColor: const Color(0xFF555555),
-                                child: Container(
-                                  width: 44.sp,
-                                  height: 44.sp,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF333333),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                          errorWidget:
-                              (context, url, error) => Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFFd9d9d9),
-                                ),
-                                child: Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 26,
-                                ),
-                              ),
+              child: imageUrl.isNotEmpty
+                  ? ClipOval(
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        memCacheWidth: (44 * 4).round(),
+                        maxWidthDiskCache: (44 * 4).round(),
+                        placeholder: (context, url) => Shimmer.fromColors(
+                          baseColor: const Color(0xFF333333),
+                          highlightColor: const Color(0xFF555555),
+                          child: Container(
+                            width: 44.sp,
+                            height: 44.sp,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF333333),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
                         ),
-                      )
-                      : Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFFd9d9d9),
-                        ),
-                        child: Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 26,
+                        errorWidget: (context, url, error) => Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFd9d9d9),
+                          ),
+                          child: Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 26,
+                          ),
                         ),
                       ),
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFd9d9d9),
+                      ),
+                      child: Icon(Icons.person, color: Colors.white, size: 26),
+                    ),
             );
           },
         ),

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:soi/controllers/category_cover_photo_controller.dart';
-import '../../../../controllers/photo_controller.dart';
-import '../../../../models/category_data_model.dart';
+import 'package:soi/firebase_logic/controllers/category_cover_photo_controller.dart';
+import '../../../../firebase_logic/controllers/photo_controller.dart';
+import '../../../../firebase_logic/models/category_data_model.dart';
 
 /// 카테고리 표지사진 선택 화면
 class CategoryCoverPhotoSelectorScreen extends StatefulWidget {
@@ -109,12 +109,11 @@ class _CategoryCoverPhotoSelectorScreenState
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          border:
-                              isSelected
-                                  ? Border.all(
-                                    color: Colors.white, // 흰색 테두리
-                                  )
-                                  : null,
+                          border: isSelected
+                              ? Border.all(
+                                  color: Colors.white, // 흰색 테두리
+                                )
+                              : null,
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -128,24 +127,22 @@ class _CategoryCoverPhotoSelectorScreenState
                                 height: double.infinity,
                                 memCacheWidth: (175 * 2).round(),
                                 maxWidthDiskCache: (175 * 2).round(),
-                                placeholder:
-                                    (context, url) => Container(
-                                      color: Colors.grey[300],
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
+                                placeholder: (context, url) => Container(
+                                  color: Colors.grey[300],
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.grey,
                                     ),
-                                errorWidget:
-                                    (context, url, error) => Container(
-                                      color: Colors.grey[300],
-                                      child: const Icon(
-                                        Icons.error,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.error,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ),
 
                               // 선택 표시 - 체크 이모지
@@ -200,10 +197,9 @@ class _CategoryCoverPhotoSelectorScreenState
                 child: ElevatedButton(
                   onPressed: _updateCoverPhoto,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        (selectedPhotoUrl == null)
-                            ? const Color(0xFF5a5a5a)
-                            : const Color(0xFFf9f9f9),
+                    backgroundColor: (selectedPhotoUrl == null)
+                        ? const Color(0xFF5a5a5a)
+                        : const Color(0xFFf9f9f9),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(26.9),
                     ),
@@ -211,10 +207,9 @@ class _CategoryCoverPhotoSelectorScreenState
                   child: Text(
                     '확인',
                     style: TextStyle(
-                      color:
-                          (selectedPhotoUrl == null)
-                              ? Colors.white
-                              : Colors.black,
+                      color: (selectedPhotoUrl == null)
+                          ? Colors.white
+                          : Colors.black,
                       fontSize: (16).sp,
                       fontWeight: FontWeight.w600,
                       fontFamily: 'Pretendard Variable',
@@ -234,8 +229,8 @@ class _CategoryCoverPhotoSelectorScreenState
   void _updateCoverPhoto() async {
     if (selectedPhotoUrl == null) return;
 
-    final categoryPhotoController =
-        context.read<CategoryCoverPhotoController>();
+    final categoryPhotoController = context
+        .read<CategoryCoverPhotoController>();
 
     final success = await categoryPhotoController.updateCoverPhotoFromCategory(
       categoryId: widget.category.id,

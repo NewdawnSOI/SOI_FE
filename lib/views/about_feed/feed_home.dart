@@ -2,11 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../controllers/auth_controller.dart';
-import '../../controllers/photo_controller.dart';
-import '../../controllers/audio_controller.dart';
-import '../../controllers/comment_audio_controller.dart';
-import '../../models/photo_data_model.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
+import '../../firebase_logic/controllers/photo_controller.dart';
+import '../../firebase_logic/controllers/audio_controller.dart';
+import '../../firebase_logic/controllers/comment_audio_controller.dart';
+import '../../firebase_logic/models/photo_data_model.dart';
 import '../common_widget/abput_photo/photo_card_widget_common.dart';
 import 'manager/feed_data_manager.dart';
 import 'manager/voice_comment_state_manager.dart';
@@ -227,18 +227,35 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     List<double>? waveformData,
     int? duration,
   ) async {
+    final currentUserId = _authController?.getUserId;
+    final profileImageUrl = (currentUserId != null && currentUserId.isNotEmpty)
+        ? _profileCacheManager?.userProfileImages[currentUserId]
+        : null;
+
     await _voiceCommentStateManager?.onVoiceCommentCompleted(
       photoId,
       audioPath,
       waveformData,
       duration,
+      recorderUserId: currentUserId,
+      profileImageUrl: profileImageUrl,
     );
   }
 
   /// 텍스트 댓글 완료 콜백 (임시 저장) - delegate to manager
   Future<void> _onTextCommentCompleted(String photoId, String text) async {
     debugPrint('🟢 [FeedHome] 텍스트 댓글 완료: photoId=$photoId, text=$text');
-    await _voiceCommentStateManager?.onTextCommentCompleted(photoId, text);
+    final currentUserId = _authController?.getUserId;
+    final profileImageUrl = (currentUserId != null && currentUserId.isNotEmpty)
+        ? _profileCacheManager?.userProfileImages[currentUserId]
+        : null;
+
+    await _voiceCommentStateManager?.onTextCommentCompleted(
+      photoId,
+      text,
+      recorderUserId: currentUserId,
+      profileImageUrl: profileImageUrl,
+    );
     debugPrint('🟢 [FeedHome] StateManager.onTextCommentCompleted 완료');
   }
 
@@ -367,9 +384,10 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
                     _voiceCommentStateManager!.voiceCommentActiveStates,
                 voiceCommentSavedStates:
                     _voiceCommentStateManager!.voiceCommentSavedStates,
-                pendingTextComments:
-                    _voiceCommentStateManager!
-                        .pendingTextComments, // Pending 텍스트 댓글 상태 전달
+                pendingTextComments: _voiceCommentStateManager!
+                    .pendingTextComments, // Pending 텍스트 댓글 상태 전달
+                pendingVoiceComments:
+                    _voiceCommentStateManager!.pendingVoiceComments,
                 onToggleAudio: _toggleAudio,
                 onToggleVoiceComment: _toggleVoiceComment,
                 onVoiceCommentCompleted: _onVoiceCommentCompleted,

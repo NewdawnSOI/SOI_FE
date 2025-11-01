@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:soi/controllers/category_member_controller.dart';
-import '../../controllers/friend_controller.dart';
-import '../../controllers/category_controller.dart';
-import '../../controllers/auth_controller.dart';
-import '../../models/friend_model.dart';
-import '../../models/selected_friend_model.dart';
+import 'package:soi/firebase_logic/controllers/category_member_controller.dart';
+import '../../firebase_logic/controllers/friend_controller.dart';
+import '../../firebase_logic/controllers/category_controller.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
+import '../../firebase_logic/models/friend_model.dart';
+import '../../firebase_logic/models/selected_friend_model.dart';
 
 class FriendListAddScreen extends StatefulWidget {
   final String? categoryId; // 카테고리에 친구를 추가할 때 사용
@@ -93,8 +93,8 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
     if (widget.categoryId != null) {
       // 카테고리에 친구들 추가
       try {
-        final categoryMemberController =
-            context.read<CategoryMemberController>();
+        final categoryMemberController = context
+            .read<CategoryMemberController>();
         final categoryController = context.read<CategoryController>();
 
         // 선택된 각 친구의 UID를 카테고리 mates에 추가
@@ -157,15 +157,14 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
         for (final uid in _selectedFriendUids) {
           final friend = friendController.friends.firstWhere(
             (friend) => friend.userId == uid,
-            orElse:
-                () => FriendModel(
-                  userId: uid,
-                  name: '알 수 없음',
-                  id: uid,
-                  status: FriendStatus.active,
-                  isFavorite: false,
-                  addedAt: DateTime.now(),
-                ),
+            orElse: () => FriendModel(
+              userId: uid,
+              name: '알 수 없음',
+              id: uid,
+              status: FriendStatus.active,
+              isFavorite: false,
+              addedAt: DateTime.now(),
+            ),
           );
 
           selectedFriends.add(
@@ -214,13 +213,12 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
         builder: (context, friendController, child) {
           // 검색어에 따라 실시간으로 친구 목록 필터링
           final query = _searchController.text.toLowerCase();
-          final displayFriends =
-              query.isEmpty
-                  ? friendController.friends
-                  : friendController.friends.where((friend) {
-                    return friend.name.toLowerCase().contains(query) ||
-                        friend.id.toLowerCase().contains(query);
-                  }).toList();
+          final displayFriends = query.isEmpty
+              ? friendController.friends
+              : friendController.friends.where((friend) {
+                  return friend.name.toLowerCase().contains(query) ||
+                      friend.id.toLowerCase().contains(query);
+                }).toList();
 
           return Column(
             children: [
@@ -273,134 +271,128 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
               SizedBox(height: 38.h),
               // 친구 목록
               Expanded(
-                child:
-                    friendController.isLoading
-                        ? Center(
-                          child: CircularProgressIndicator(color: Colors.white),
-                        )
-                        : !friendController.isInitialized
-                        ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              CircularProgressIndicator(color: Colors.white),
-                              SizedBox(height: 16.h),
-                              Text(
-                                '친구 목록을 불러오는 중...',
-                                style: TextStyle(
-                                  color: const Color(0xff666666),
-                                  fontSize: 14.sp,
-                                ),
+                child: friendController.isLoading
+                    ? Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      )
+                    : !friendController.isInitialized
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(color: Colors.white),
+                            SizedBox(height: 16.h),
+                            Text(
+                              '친구 목록을 불러오는 중...',
+                              style: TextStyle(
+                                color: const Color(0xff666666),
+                                fontSize: 14.sp,
                               ),
-                            ],
-                          ),
-                        )
-                        : displayFriends.isEmpty
-                        ? Center(
-                          child: Text(
-                            _searchController.text.isEmpty
-                                ? '친구가 없습니다'
-                                : '검색 결과가 없습니다',
-                            style: TextStyle(
-                              color: const Color(0xff666666),
-                              fontSize: 16.sp,
                             ),
+                          ],
+                        ),
+                      )
+                    : displayFriends.isEmpty
+                    ? Center(
+                        child: Text(
+                          _searchController.text.isEmpty
+                              ? '친구가 없습니다'
+                              : '검색 결과가 없습니다',
+                          style: TextStyle(
+                            color: const Color(0xff666666),
+                            fontSize: 16.sp,
                           ),
-                        )
-                        : SingleChildScrollView(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 20.w),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xff1c1c1c),
-                                borderRadius: BorderRadius.circular(12.r),
-                              ),
-                              child: Column(
-                                children: [
-                                  SizedBox(height: (14).h),
-                                  Material(
-                                    color: Colors.transparent,
-                                    borderRadius: BorderRadius.circular(8.r),
-                                    child: InkWell(
-                                      onTap: () {
-                                        Navigator.pushNamed(
-                                          context,
-                                          '/contact_manager',
-                                        );
-                                      },
-                                      child: Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 18.w,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 44,
-                                              height: 44,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                color: Color(0xff4a4a4a),
-                                              ),
-                                              child: Icon(
-                                                Icons.add,
-                                                size: 25.sp,
-                                                color: Colors.white,
-                                              ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 20.w),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xff1c1c1c),
+                              borderRadius: BorderRadius.circular(12.r),
+                            ),
+                            child: Column(
+                              children: [
+                                SizedBox(height: (14).h),
+                                Material(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8.r),
+                                  child: InkWell(
+                                    onTap: () {
+                                      Navigator.pushNamed(
+                                        context,
+                                        '/contact_manager',
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 18.w,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Color(0xff4a4a4a),
                                             ),
-                                            SizedBox(width: 12.w),
-                                            Text(
-                                              "친구 추가",
-                                              style: TextStyle(
-                                                color: const Color(0xfff9f9f9),
-                                                fontSize: 16.sp,
-                                                fontWeight: FontWeight.w900,
-                                                fontFamily: 'Pretendard',
-                                              ),
+                                            child: Icon(
+                                              Icons.add,
+                                              size: 25.sp,
+                                              color: Colors.white,
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                          SizedBox(width: 12.w),
+                                          Text(
+                                            "친구 추가",
+                                            style: TextStyle(
+                                              color: const Color(0xfff9f9f9),
+                                              fontSize: 16.sp,
+                                              fontWeight: FontWeight.w900,
+                                              fontFamily: 'Pretendard',
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
+                                ),
 
-                                  Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children:
-                                        displayFriends.asMap().entries.map((
-                                          entry,
-                                        ) {
-                                          final index = entry.key;
-                                          final friend = entry.value;
-                                          final isSelected = _selectedFriendUids
-                                              .contains(friend.userId);
-                                          final isAlreadyMember =
-                                              !widget.allowDeselection &&
-                                              widget.categoryMemberUids
-                                                      ?.contains(
-                                                        friend.userId,
-                                                      ) ==
-                                                  true;
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: displayFriends.asMap().entries.map((
+                                    entry,
+                                  ) {
+                                    final index = entry.key;
+                                    final friend = entry.value;
+                                    final isSelected = _selectedFriendUids
+                                        .contains(friend.userId);
+                                    final isAlreadyMember =
+                                        !widget.allowDeselection &&
+                                        widget.categoryMemberUids?.contains(
+                                              friend.userId,
+                                            ) ==
+                                            true;
 
-                                          return _buildFriendItem(
-                                            friend: friend,
-                                            isSelected: isSelected,
-                                            isAlreadyMember: isAlreadyMember,
-                                            index: index,
-                                            isLast:
-                                                index ==
-                                                displayFriends.length - 1,
-                                            onTap:
-                                                () => _toggleFriendSelection(
-                                                  friend.userId,
-                                                ),
-                                          );
-                                        }).toList(),
-                                  ),
-                                ],
-                              ),
+                                    return _buildFriendItem(
+                                      friend: friend,
+                                      isSelected: isSelected,
+                                      isAlreadyMember: isAlreadyMember,
+                                      index: index,
+                                      isLast:
+                                          index == displayFriends.length - 1,
+                                      onTap: () =>
+                                          _toggleFriendSelection(friend.userId),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
                             ),
                           ),
                         ),
+                      ),
               ),
 
               // 완료 버튼
@@ -423,13 +415,13 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
                           // 새 카테고리 만들기 모드에서는 항상 활성화
                           // 기존 카테고리 추가 모드에서는 선택된 친구가 있을 때만 활성화
                           (_selectedFriendUids.isNotEmpty)
-                              ? const Color(0xffffffff)
-                              : const Color(0xff5a5a5a),
+                          ? const Color(0xffffffff)
+                          : const Color(0xff5a5a5a),
                       foregroundColor:
                           (widget.allowDeselection ||
-                                  _selectedFriendUids.isNotEmpty)
-                              ? const Color(0xff000000)
-                              : Colors.white,
+                              _selectedFriendUids.isNotEmpty)
+                          ? const Color(0xff000000)
+                          : Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24.r),
                       ),
@@ -441,10 +433,9 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
                         fontSize: 18.sp,
                         fontWeight: FontWeight.w600,
                         fontFamily: 'Pretendard',
-                        color:
-                            _selectedFriendUids.isNotEmpty
-                                ? Colors.black
-                                : Color(0xfff8f8f8),
+                        color: _selectedFriendUids.isNotEmpty
+                            ? Colors.black
+                            : Color(0xfff8f8f8),
                       ),
                     ),
                   ),
@@ -480,24 +471,22 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
               child: CircleAvatar(
                 radius: 24.r,
                 backgroundColor: const Color(0xff323232),
-                backgroundImage:
-                    friend.profileImageUrl != null
-                        ? NetworkImage(friend.profileImageUrl!)
-                        : null,
-                child:
-                    friend.profileImageUrl == null
-                        ? Text(
-                          friend.name.isNotEmpty
-                              ? friend.name[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: const Color(0xfff9f9f9),
-                            fontSize: 18.sp,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Pretendard',
-                          ),
-                        )
-                        : null,
+                backgroundImage: friend.profileImageUrl != null
+                    ? NetworkImage(friend.profileImageUrl!)
+                    : null,
+                child: friend.profileImageUrl == null
+                    ? Text(
+                        friend.name.isNotEmpty
+                            ? friend.name[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          color: const Color(0xfff9f9f9),
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Pretendard',
+                        ),
+                      )
+                    : null,
               ),
             ),
             SizedBox(width: 12.w),
@@ -543,21 +532,19 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
               height: 24.h,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color:
-                    isAlreadyMember
-                        ? Color(0xffffffff)
-                        : isSelected
-                        ? Color(0xffffffff)
-                        : Color(0xff5a5a5a),
+                color: isAlreadyMember
+                    ? Color(0xffffffff)
+                    : isSelected
+                    ? Color(0xffffffff)
+                    : Color(0xff5a5a5a),
               ),
               child: Icon(
                 Icons.check,
-                color:
-                    isAlreadyMember
-                        ? Color(0xff000000)
-                        : isSelected
-                        ? Color(0xff000000)
-                        : Color(0xfff9f9f9),
+                color: isAlreadyMember
+                    ? Color(0xff000000)
+                    : isSelected
+                    ? Color(0xff000000)
+                    : Color(0xfff9f9f9),
                 size: 16.w,
               ),
             ),

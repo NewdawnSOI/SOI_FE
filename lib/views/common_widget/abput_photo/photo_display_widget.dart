@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:soi/controllers/comment_record_controller.dart';
+import 'package:soi/firebase_logic/controllers/comment_record_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../controllers/comment_audio_controller.dart';
-import '../../../controllers/category_controller.dart';
-import '../../../models/photo_data_model.dart';
-import '../../../models/comment_record_model.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/controllers/comment_audio_controller.dart';
+import '../../../firebase_logic/controllers/category_controller.dart';
+import '../../../firebase_logic/models/photo_data_model.dart';
+import '../../../firebase_logic/models/comment_record_model.dart';
 import '../../../utils/position_converter.dart';
+import '../../about_feed/manager/voice_comment_state_manager.dart';
 import '../../about_archiving/screens/archive_detail/category_photos_screen.dart';
 import '../about_voice_comment/voice_comment_list_sheet.dart';
 import 'first_line_ellipsis_text.dart';
@@ -27,6 +28,7 @@ class PhotoDisplayWidget extends StatefulWidget {
   final Map<String, bool> profileLoadingStates;
   final Function(String, Offset) onProfileImageDragged;
   final Function(PhotoDataModel) onToggleAudio;
+  final Map<String, PendingVoiceComment> pendingVoiceComments;
 
   const PhotoDisplayWidget({
     super.key,
@@ -38,6 +40,7 @@ class PhotoDisplayWidget extends StatefulWidget {
     required this.profileLoadingStates,
     required this.onProfileImageDragged,
     required this.onToggleAudio,
+    this.pendingVoiceComments = const {},
   });
 
   @override
@@ -56,6 +59,100 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
 
   final CommentRecordController _commentRecordController =
       CommentRecordController();
+
+  Widget? _buildPendingMarker() {
+    final pending = widget.pendingVoiceComments[widget.photo.id];
+    if (pending == null || pending.relativePosition == null) {
+      return null;
+    }
+
+    final actualImageSize = Size(354.w.toDouble(), 500.h.toDouble());
+    final absolutePosition = PositionConverter.toAbsolutePosition(
+      pending.relativePosition!,
+      actualImageSize,
+    );
+    final clampedPosition = PositionConverter.clampPosition(
+      absolutePosition,
+      actualImageSize,
+    );
+
+    final profileImageUrl =
+        pending.profileImageUrl ??
+        ((pending.recorderUserId != null && pending.recorderUserId!.isNotEmpty)
+            ? widget.userProfileImages[pending.recorderUserId!]
+            : null);
+
+    return Positioned(
+      left: clampedPosition.dx - 13.5,
+      top: clampedPosition.dy - 13.5,
+      child: IgnorePointer(child: _buildPendingAvatar(profileImageUrl)),
+    );
+  }
+
+  Widget _buildPendingAvatar(String? imageUrl) {
+    final Widget avatarContent;
+
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      avatarContent = ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: imageUrl,
+          width: 27,
+          height: 27,
+          fit: BoxFit.cover,
+          memCacheWidth: (27 * 4).round(),
+          maxWidthDiskCache: (27 * 4).round(),
+          placeholder: (context, url) {
+            return Shimmer.fromColors(
+              baseColor: const Color(0xFF2A2A2A),
+              highlightColor: const Color(0xFF3A3A3A),
+              child: Container(
+                width: 27,
+                height: 27,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF2A2A2A),
+                ),
+              ),
+            );
+          },
+          errorWidget: (context, url, error) {
+            return Container(
+              width: 27,
+              height: 27,
+              decoration: BoxDecoration(
+                color: const Color(0xffd9d9d9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.person, color: Colors.white),
+            );
+          },
+        ),
+      );
+    } else {
+      avatarContent = Container(
+        width: 27,
+        height: 27,
+        decoration: BoxDecoration(
+          color: const Color(0xffd9d9d9),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.person, color: Colors.white),
+      );
+    }
+
+    return Container(
+      width: 27,
+      height: 27,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.7),
+          width: 1.5,
+        ),
+      ),
+      child: Opacity(opacity: 0.8, child: avatarContent),
+    );
+  }
 
   /// 카테고리 화면으로 이동
   void _navigateToCategory() async {
@@ -118,37 +215,24 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
             final profileImageUrl = snapshot.data ?? '';
 
             return ClipOval(
-              child:
-                  profileImageUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                        imageUrl: profileImageUrl,
-                        fit: BoxFit.cover,
-                        // 메모리 최적화: 프로필 이미지 크기 제한
-                        memCacheWidth: (profileSize * 4).round(),
-                        maxWidthDiskCache: (profileSize * 4).round(),
-                        placeholder:
-                            (context, url) => Shimmer.fromColors(
-                              baseColor: const Color(0xFF2A2A2A),
-                              highlightColor: const Color(0xFF3A3A3A),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFF2A2A2A),
-                                ),
-                              ),
-                            ),
-                        errorWidget:
-                            (context, url, error) => Container(
-                              width: profileSize,
-                              height: profileSize,
-                              decoration: BoxDecoration(
-                                color: Color(0xffd9d9d9),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.person, color: Colors.white),
-                            ),
-                      )
-                      : Container(
+              child: profileImageUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: profileImageUrl,
+                      fit: BoxFit.cover,
+                      // 메모리 최적화: 프로필 이미지 크기 제한
+                      memCacheWidth: (profileSize * 4).round(),
+                      maxWidthDiskCache: (profileSize * 4).round(),
+                      placeholder: (context, url) => Shimmer.fromColors(
+                        baseColor: const Color(0xFF2A2A2A),
+                        highlightColor: const Color(0xFF3A3A3A),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF2A2A2A),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
                         width: profileSize,
                         height: profileSize,
                         decoration: BoxDecoration(
@@ -157,6 +241,16 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                         ),
                         child: Icon(Icons.person, color: Colors.white),
                       ),
+                    )
+                  : Container(
+                      width: profileSize,
+                      height: profileSize,
+                      decoration: BoxDecoration(
+                        color: Color(0xffd9d9d9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.person, color: Colors.white),
+                    ),
             );
           },
         );
@@ -297,8 +391,8 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                           bottom: 7.h,
                           child: AudioControlWidget(
                             photo: widget.photo,
-                            onAudioTap:
-                                () => widget.onToggleAudio(widget.photo),
+                            onAudioTap: () =>
+                                widget.onToggleAudio(widget.photo),
                             hasComments:
                                 (widget.photoComments[widget.photo.id] ?? [])
                                     .isNotEmpty,
@@ -347,21 +441,21 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                                       widget.photo.caption!.contains('\n');
 
                                   return GestureDetector(
-                                    onTap:
-                                        isOverflowing
-                                            ? () {
-                                              setState(() {
-                                                _isCaptionExpanded =
-                                                    !_isCaptionExpanded;
-                                              });
-                                            }
-                                            : null,
+                                    onTap: isOverflowing
+                                        ? () {
+                                            setState(() {
+                                              _isCaptionExpanded =
+                                                  !_isCaptionExpanded;
+                                            });
+                                          }
+                                        : null,
                                     child: Container(
                                       width: 278.w,
                                       constraints: BoxConstraints(
                                         minHeight: 40.h,
-                                        maxHeight:
-                                            _isCaptionExpanded ? 274.h : 40.h,
+                                        maxHeight: _isCaptionExpanded
+                                            ? 274.h
+                                            : 40.h,
                                       ),
                                       decoration: BoxDecoration(
                                         color: Color(
@@ -374,10 +468,9 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                                           horizontal: 10.w,
                                         ),
                                         child: Row(
-                                          crossAxisAlignment:
-                                              _isCaptionExpanded
-                                                  ? CrossAxisAlignment.start
-                                                  : CrossAxisAlignment.center,
+                                          crossAxisAlignment: _isCaptionExpanded
+                                              ? CrossAxisAlignment.start
+                                              : CrossAxisAlignment.center,
                                           children: [
                                             // 왼쪽 프로필 이미지
                                             Container(
@@ -396,72 +489,64 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
 
                                             // Caption 텍스트 with Scroll and Fade Effect
                                             Expanded(
-                                              child:
-                                                  _isCaptionExpanded
-                                                      ? ShaderMask(
-                                                        shaderCallback: (
-                                                          Rect bounds,
-                                                        ) {
-                                                          return LinearGradient(
-                                                            begin:
-                                                                Alignment
-                                                                    .topCenter,
-                                                            end:
-                                                                Alignment
-                                                                    .bottomCenter,
-                                                            colors: [
-                                                              Colors
-                                                                  .transparent,
-                                                              Colors.white,
-                                                              Colors.white,
-                                                              Colors
-                                                                  .transparent,
-                                                            ],
-                                                            stops: [
-                                                              0.0,
-                                                              0.05,
-                                                              0.95,
-                                                              1.0,
-                                                            ],
-                                                          ).createShader(
-                                                            bounds,
-                                                          );
-                                                        },
-                                                        blendMode:
-                                                            BlendMode.dstIn,
-                                                        child: SingleChildScrollView(
-                                                          physics:
-                                                              BouncingScrollPhysics(),
-                                                          child: Padding(
-                                                            padding:
-                                                                EdgeInsets.symmetric(
-                                                                  vertical: 6.h,
-                                                                ),
-                                                            child: Text(
-                                                              widget
-                                                                  .photo
-                                                                  .caption!,
-                                                              style: captionStyle
-                                                                  .copyWith(
-                                                                    color:
-                                                                        Colors
-                                                                            .white,
-                                                                  ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      )
-                                                      : FirstLineEllipsisText(
-                                                        text:
+                                              child: _isCaptionExpanded
+                                                  ? ShaderMask(
+                                                      shaderCallback:
+                                                          (Rect bounds) {
+                                                            return LinearGradient(
+                                                              begin: Alignment
+                                                                  .topCenter,
+                                                              end: Alignment
+                                                                  .bottomCenter,
+                                                              colors: [
+                                                                Colors
+                                                                    .transparent,
+                                                                Colors.white,
+                                                                Colors.white,
+                                                                Colors
+                                                                    .transparent,
+                                                              ],
+                                                              stops: [
+                                                                0.0,
+                                                                0.05,
+                                                                0.95,
+                                                                1.0,
+                                                              ],
+                                                            ).createShader(
+                                                              bounds,
+                                                            );
+                                                          },
+                                                      blendMode:
+                                                          BlendMode.dstIn,
+                                                      child: SingleChildScrollView(
+                                                        physics:
+                                                            BouncingScrollPhysics(),
+                                                        child: Padding(
+                                                          padding:
+                                                              EdgeInsets.symmetric(
+                                                                vertical: 6.h,
+                                                              ),
+                                                          child: Text(
                                                             widget
                                                                 .photo
                                                                 .caption!,
-                                                        style: captionStyle
-                                                            .copyWith(
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
+                                                            style: captionStyle
+                                                                .copyWith(
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                          ),
+                                                        ),
                                                       ),
+                                                    )
+                                                  : FirstLineEllipsisText(
+                                                      text:
+                                                          widget.photo.caption!,
+                                                      style: captionStyle
+                                                          .copyWith(
+                                                            color: Colors.white,
+                                                          ),
+                                                    ),
                                             ),
                                           ],
                                         ),
@@ -475,24 +560,24 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                                 width: 60.w,
                                 child:
                                     (widget.photoComments[widget.photo.id] ??
-                                                [])
-                                            .isNotEmpty
-                                        ? Center(
-                                          child: IconButton(
-                                            onPressed: () {
-                                              setState(() {
-                                                _isShowingComments =
-                                                    !_isShowingComments;
-                                              });
-                                            },
-                                            icon: Image.asset(
-                                              "assets/comment_profile_icon.png",
-                                              width: 25.w,
-                                              height: 25.h,
-                                            ),
+                                            [])
+                                        .isNotEmpty
+                                    ? Center(
+                                        child: IconButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _isShowingComments =
+                                                  !_isShowingComments;
+                                            });
+                                          },
+                                          icon: Image.asset(
+                                            "assets/comment_profile_icon.png",
+                                            width: 25.w,
+                                            height: 25.h,
                                           ),
-                                        )
-                                        : Container(),
+                                        ),
+                                      )
+                                    : Container(),
                               ),
                             ],
                           ),
@@ -507,12 +592,11 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                         final comments =
                             widget.photoComments[widget.photo.id] ?? [];
 
-                        final commentsWithPosition =
-                            comments
-                                .where(
-                                  (comment) => comment.relativePosition != null,
-                                )
-                                .toList();
+                        final commentsWithPosition = comments
+                            .where(
+                              (comment) => comment.relativePosition != null,
+                            )
+                            .toList();
 
                         return commentsWithPosition.map((comment) {
                           // 오버레이 중이면 선택된 댓글 외에는 숨김
@@ -558,180 +642,189 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                                   _showActionOverlay = true;
                                 });
                               },
-                              child: Consumer2<
-                                AuthController,
-                                CommentAudioController
-                              >(
-                                builder: (
-                                  context,
-                                  authController,
-                                  commentAudioController,
-                                  child,
-                                ) {
-                                  // 현재 댓글이 재생 중인지 확인
-                                  final isCurrentCommentPlaying =
-                                      commentAudioController.isCommentPlaying(
-                                        comment.id,
-                                      );
-                                  final isSelected =
-                                      _showActionOverlay &&
-                                      _selectedCommentId == comment.id;
+                              child: Consumer2<AuthController, CommentAudioController>(
+                                builder:
+                                    (
+                                      context,
+                                      authController,
+                                      commentAudioController,
+                                      child,
+                                    ) {
+                                      // 현재 댓글이 재생 중인지 확인
+                                      final isCurrentCommentPlaying =
+                                          commentAudioController
+                                              .isCommentPlaying(comment.id);
+                                      final isSelected =
+                                          _showActionOverlay &&
+                                          _selectedCommentId == comment.id;
 
-                                  return InkWell(
-                                    onTap: () async {
-                                      if (!mounted) {
-                                        return;
-                                      }
+                                      return InkWell(
+                                        onTap: () async {
+                                          if (!mounted) {
+                                            return;
+                                          }
 
-                                      try {
-                                        final recordController =
-                                            context
+                                          try {
+                                            final recordController = context
                                                 .read<
                                                   CommentRecordController
                                                 >();
 
-                                        await showModalBottomSheet<void>(
-                                          context: context,
-                                          isScrollControlled: true,
-                                          backgroundColor: Colors.transparent,
-                                          builder: (sheetContext) {
-                                            return ChangeNotifierProvider.value(
-                                              value: recordController,
-                                              child: SizedBox(
-                                                height: 480.h,
-                                                child: VoiceCommentListSheet(
-                                                  photoId: widget.photo.id,
-                                                  categoryId:
-                                                      widget.photo.categoryId,
-                                                  selectedCommentId: comment.id,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        );
-                                      } catch (e) {
-                                        debugPrint('Feed - 댓글 팝업 표시 실패: $e');
-                                      }
-                                    },
-                                    child: Container(
-                                      width: 27,
-                                      height: 27,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        boxShadow:
-                                            isSelected
-                                                ? [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withValues(
-                                                          alpha: 0.45,
+                                            await showModalBottomSheet<void>(
+                                              context: context,
+                                              isScrollControlled: true,
+                                              backgroundColor:
+                                                  Colors.transparent,
+                                              builder: (sheetContext) {
+                                                return ChangeNotifierProvider.value(
+                                                  value: recordController,
+                                                  child: SizedBox(
+                                                    height: 480.h,
+                                                    child:
+                                                        VoiceCommentListSheet(
+                                                          photoId:
+                                                              widget.photo.id,
+                                                          categoryId: widget
+                                                              .photo
+                                                              .categoryId,
+                                                          selectedCommentId:
+                                                              comment.id,
                                                         ),
-                                                    blurRadius: 6,
-                                                    spreadRadius: 1,
                                                   ),
-                                                ]
+                                                );
+                                              },
+                                            );
+                                          } catch (e) {
+                                            debugPrint(
+                                              'Feed - 댓글 팝업 표시 실패: $e',
+                                            );
+                                          }
+                                        },
+                                        child: Container(
+                                          width: 27,
+                                          height: 27,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            boxShadow: isSelected
+                                                ? [
+                                                    BoxShadow(
+                                                      color: Colors.black
+                                                          .withValues(
+                                                            alpha: 0.45,
+                                                          ),
+                                                      blurRadius: 6,
+                                                      spreadRadius: 1,
+                                                    ),
+                                                  ]
                                                 : null,
-                                        border: Border.all(
-                                          color:
-                                              isSelected
+                                            border: Border.all(
+                                              color: isSelected
                                                   ? Colors.white
                                                   : isCurrentCommentPlaying
                                                   ? Colors.white
                                                   : Colors.transparent,
-                                          width: isSelected ? 2.2 : 1,
-                                        ),
-                                      ),
-                                      child: Stack(
-                                        children: [
-                                          ClipOval(
-                                            child:
-                                                comment
+                                              width: isSelected ? 2.2 : 1,
+                                            ),
+                                          ),
+                                          child: Stack(
+                                            children: [
+                                              ClipOval(
+                                                child:
+                                                    comment
                                                         .profileImageUrl
                                                         .isNotEmpty
                                                     ? CachedNetworkImage(
-                                                      imageUrl:
-                                                          comment
-                                                              .profileImageUrl,
-                                                      width: 27,
-                                                      height: 27,
-                                                      fit: BoxFit.cover,
-                                                      memCacheWidth:
-                                                          (27 * 4).round(),
-                                                      maxWidthDiskCache:
-                                                          (27 * 4).round(),
-                                                      placeholder:
-                                                          (
-                                                            context,
-                                                            url,
-                                                          ) => Shimmer.fromColors(
-                                                            baseColor:
-                                                                const Color(
-                                                                  0xFF2A2A2A,
-                                                                ),
-                                                            highlightColor:
-                                                                const Color(
-                                                                  0xFF3A3A3A,
-                                                                ),
-                                                            child: Container(
-                                                              decoration:
-                                                                  const BoxDecoration(
-                                                                    shape:
-                                                                        BoxShape
-                                                                            .circle,
-                                                                    color: Color(
-                                                                      0xFF2A2A2A,
-                                                                    ),
+                                                        imageUrl: comment
+                                                            .profileImageUrl,
+                                                        width: 27,
+                                                        height: 27,
+                                                        fit: BoxFit.cover,
+                                                        memCacheWidth: (27 * 4)
+                                                            .round(),
+                                                        maxWidthDiskCache:
+                                                            (27 * 4).round(),
+                                                        placeholder:
+                                                            (
+                                                              context,
+                                                              url,
+                                                            ) => Shimmer.fromColors(
+                                                              baseColor:
+                                                                  const Color(
+                                                                    0xFF2A2A2A,
                                                                   ),
-                                                            ),
-                                                          ),
-                                                      errorWidget:
-                                                          (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) => Container(
-                                                            width: 27,
-                                                            height: 27,
-                                                            decoration:
-                                                                BoxDecoration(
+                                                              highlightColor:
+                                                                  const Color(
+                                                                    0xFF3A3A3A,
+                                                                  ),
+                                                              child: Container(
+                                                                decoration: const BoxDecoration(
+                                                                  shape: BoxShape
+                                                                      .circle,
                                                                   color: Color(
-                                                                    0xffd9d9d9,
+                                                                    0xFF2A2A2A,
                                                                   ),
-                                                                  shape:
-                                                                      BoxShape
-                                                                          .circle,
                                                                 ),
-                                                            child: Icon(
-                                                              Icons.person,
-                                                              color:
-                                                                  Colors.white,
+                                                              ),
                                                             ),
-                                                          ),
-                                                    )
+                                                        errorWidget:
+                                                            (
+                                                              context,
+                                                              error,
+                                                              stackTrace,
+                                                            ) => Container(
+                                                              width: 27,
+                                                              height: 27,
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                    color: Color(
+                                                                      0xffd9d9d9,
+                                                                    ),
+                                                                    shape: BoxShape
+                                                                        .circle,
+                                                                  ),
+                                                              child: Icon(
+                                                                Icons.person,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                            ),
+                                                      )
                                                     : Container(
-                                                      width: 27,
-                                                      height: 27,
-                                                      decoration: BoxDecoration(
-                                                        color: Color(
-                                                          0xffd9d9d9,
+                                                        width: 27,
+                                                        height: 27,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                              color: Color(
+                                                                0xffd9d9d9,
+                                                              ),
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                            ),
+                                                        child: Icon(
+                                                          Icons.person,
+                                                          color: Colors.white,
                                                         ),
-                                                        shape: BoxShape.circle,
                                                       ),
-                                                      child: Icon(
-                                                        Icons.person,
-                                                        color: Colors.white,
-                                                      ),
-                                                    ),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
+                                        ),
+                                      );
+                                    },
                               ),
                             ),
                           );
                         });
+                      })(),
+                      ...(() {
+                        if (!_isShowingComments) {
+                          return <Widget>[];
+                        }
+                        final pendingMarker = _buildPendingMarker();
+                        if (pendingMarker == null) {
+                          return <Widget>[];
+                        }
+                        return <Widget>[pendingMarker];
                       })(),
                       // 선택된 댓글에 대한 작은 액션 팝업 (삭제 등) - 이미지 영역 안에 직접 렌더
                       if (_showActionOverlay &&

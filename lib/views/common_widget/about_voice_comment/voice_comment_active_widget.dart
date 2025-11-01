@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../controllers/auth_controller.dart';
-import '../../../models/photo_data_model.dart';
-import '../../../models/comment_record_model.dart';
+import '../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../firebase_logic/models/photo_data_model.dart';
+import '../../../firebase_logic/models/comment_record_model.dart';
 import 'voice_comment_widget.dart';
 
 /// 음성 녹음이 활성화된 상태의 위젯
@@ -44,8 +44,9 @@ class VoiceCommentActiveWidget extends StatelessWidget {
           final currentUserId = authController.currentUser?.uid;
 
           // Get profile image directly from AuthController (no cached photoId-based map)
-          final currentUserProfileImage =
-              currentUserId != null ? userProfileImages[currentUserId] : null;
+          final currentUserProfileImage = currentUserId != null
+              ? userProfileImages[currentUserId]
+              : null;
 
           // 실시간 댓글 데이터로 저장 상태 확인 (우선순위)
           final hasRealTimeComment =

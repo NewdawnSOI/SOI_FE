@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:soi/models/auth_model.dart';
+import 'package:soi/firebase_logic/models/auth_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/share_service.dart';
 import '../repositories/friend_repository.dart';
-import '../controllers/comment_record_controller.dart';
+import 'comment_record_controller.dart';
 
 /// AuthController는 인증 관련 UI와 비즈니스 로직 사이의 중개 역할을 합니다.
 class AuthController extends ChangeNotifier {

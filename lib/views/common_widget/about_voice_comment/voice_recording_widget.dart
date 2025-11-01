@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../models/photo_data_model.dart';
-import '../../../models/comment_record_model.dart';
+import '../../../firebase_logic/models/photo_data_model.dart';
+import '../../../firebase_logic/models/comment_record_model.dart';
 import 'voice_comment_active_widget.dart';
 import 'voice_comment_text_widget.dart';
 
@@ -53,27 +53,26 @@ class VoiceRecordingWidget extends StatelessWidget {
             child: FadeTransition(opacity: animation, child: child),
           );
         },
-        child:
-            voiceCommentActiveStates[photo.id] == true
-                ? VoiceCommentActiveWidget(
-                  photo: photo,
-                  voiceCommentActiveStates: voiceCommentActiveStates,
-                  userProfileImages: userProfileImages,
-                  photoComments: photoComments,
-                  onVoiceCommentCompleted: onVoiceCommentCompleted,
-                  onVoiceCommentDeleted: onVoiceCommentDeleted,
-                  onProfileImageDragged: onProfileImageDragged,
-                  onSaveRequested: onSaveRequested,
-                  onSaveCompleted: onSaveCompleted,
-                  pendingTextComments:
-                      pendingTextComments, // Pending 텍스트 댓글 상태 전달
-                )
-                : VoiceCommentTextWidget(
-                  photoId: photo.id,
-                  onToggleVoiceComment: onToggleVoiceComment,
-                  onFocusChanged: onTextFieldFocusChanged,
-                  onTextCommentCreated: onTextCommentCreated, // 텍스트 댓글 생성 콜백 전달
-                ),
+        child: voiceCommentActiveStates[photo.id] == true
+            ? VoiceCommentActiveWidget(
+                photo: photo,
+                voiceCommentActiveStates: voiceCommentActiveStates,
+                userProfileImages: userProfileImages,
+                photoComments: photoComments,
+                onVoiceCommentCompleted: onVoiceCommentCompleted,
+                onVoiceCommentDeleted: onVoiceCommentDeleted,
+                onProfileImageDragged: onProfileImageDragged,
+                onSaveRequested: onSaveRequested,
+                onSaveCompleted: onSaveCompleted,
+                pendingTextComments:
+                    pendingTextComments, // Pending 텍스트 댓글 상태 전달
+              )
+            : VoiceCommentTextWidget(
+                photoId: photo.id,
+                onToggleVoiceComment: onToggleVoiceComment,
+                onFocusChanged: onTextFieldFocusChanged,
+                onTextCommentCreated: onTextCommentCreated, // 텍스트 댓글 생성 콜백 전달
+              ),
       ),
     );
   }

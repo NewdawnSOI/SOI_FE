@@ -4,7 +4,7 @@ import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../controllers/audio_controller.dart';
+import '../../../firebase_logic/controllers/audio_controller.dart';
 import '../../about_archiving/widgets/wave_form_widget/custom_waveform_widget.dart';
 
 /// 음성 댓글 전용 위젯
@@ -182,8 +182,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
       case VoiceCommentState.recording:
         return Selector<AudioController, String>(
           key: ValueKey(widgetKey),
-          selector:
-              (context, controller) => controller.formattedRecordingDuration,
+          selector: (context, controller) =>
+              controller.formattedRecordingDuration,
           builder: (context, duration, child) {
             return _buildRecordingUI(duration);
           },
@@ -235,19 +235,17 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
   /// 녹음을 중지하고 상태를 recorded로 전환
   Future<void> stopRecording() async {
     try {
-      final waveformData =
-          List<double>.from(
-            _recorderController.waveData,
-          ).map((value) => value.abs()).toList();
+      final waveformData = List<double>.from(
+        _recorderController.waveData,
+      ).map((value) => value.abs()).toList();
 
       await _recorderController.stop();
       await _audioController.stopRecordingSimple();
 
       final filePath = _audioController.currentRecordingPath;
-      final recordingDuration =
-          _recordingStartTime != null
-              ? DateTime.now().difference(_recordingStartTime!).inMilliseconds
-              : 0;
+      final recordingDuration = _recordingStartTime != null
+          ? DateTime.now().difference(_recordingStartTime!).inMilliseconds
+          : 0;
 
       if (filePath != null && filePath.isNotEmpty) {
         await _playerController?.preparePlayer(
@@ -297,12 +295,11 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
   void _initializeControllers() {
     _audioController = Provider.of<AudioController>(context, listen: false);
 
-    _recorderController =
-        RecorderController()
-          ..androidEncoder = AndroidEncoder.aac
-          ..androidOutputFormat = AndroidOutputFormat.mpeg4
-          ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
-          ..sampleRate = 44100;
+    _recorderController = RecorderController()
+      ..androidEncoder = AndroidEncoder.aac
+      ..androidOutputFormat = AndroidOutputFormat.mpeg4
+      ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
+      ..sampleRate = 44100;
 
     _playerController = PlayerController();
   }
@@ -348,10 +345,9 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
       final filePath = _audioController.currentRecordingPath;
       if (filePath != null && filePath.isNotEmpty) {
         // 녹음 시간 계산
-        final recordingDuration =
-            _recordingStartTime != null
-                ? DateTime.now().difference(_recordingStartTime!).inMilliseconds
-                : 0;
+        final recordingDuration = _recordingStartTime != null
+            ? DateTime.now().difference(_recordingStartTime!).inMilliseconds
+            : 0;
 
         // 재생 준비
         await _playerController?.preparePlayer(
@@ -508,9 +504,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
               borderRadius: borderRadius,
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 450),
-                transitionBuilder:
-                    (child, animation) =>
-                        FadeTransition(opacity: animation, child: child),
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
                 child: Container(
                   key: ValueKey('playback_bg'),
                   decoration: BoxDecoration(
@@ -539,59 +534,59 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
                 // 재생 파형 - 드래그 가능
                 Expanded(
                   child: _buildWaveformDraggable(
-                    child:
-                        _waveformData != null && _waveformData!.isNotEmpty
-                            ? StreamBuilder<int>(
-                              stream:
-                                  _playerController?.onCurrentDurationChanged ??
-                                  const Stream.empty(),
-                              builder: (context, positionSnapshot) {
-                                // mounted와 _playerController null 체크 추가
-                                if (!mounted || _playerController == null) {
-                                  return Container();
-                                }
+                    child: _waveformData != null && _waveformData!.isNotEmpty
+                        ? StreamBuilder<int>(
+                            stream:
+                                _playerController?.onCurrentDurationChanged ??
+                                const Stream.empty(),
+                            builder: (context, positionSnapshot) {
+                              // mounted와 _playerController null 체크 추가
+                              if (!mounted || _playerController == null) {
+                                return Container();
+                              }
 
-                                final currentPosition =
-                                    positionSnapshot.data ?? 0;
-                                final totalDuration =
-                                    _playerController?.maxDuration ?? 1;
-                                final progress =
-                                    totalDuration > 0
-                                        ? (currentPosition / totalDuration)
-                                            .clamp(0.0, 1.0)
-                                        : 0.0;
+                              final currentPosition =
+                                  positionSnapshot.data ?? 0;
+                              final totalDuration =
+                                  _playerController?.maxDuration ?? 1;
+                              final progress = totalDuration > 0
+                                  ? (currentPosition / totalDuration).clamp(
+                                      0.0,
+                                      1.0,
+                                    )
+                                  : 0.0;
 
-                                // _waveformData가 여전히 null이 아닌지 다시 확인
-                                if (_waveformData == null ||
-                                    _waveformData!.isEmpty) {
-                                  return Container();
-                                }
+                              // _waveformData가 여전히 null이 아닌지 다시 확인
+                              if (_waveformData == null ||
+                                  _waveformData!.isEmpty) {
+                                return Container();
+                              }
 
-                                return CustomWaveformWidget(
-                                  waveformData: _waveformData!,
-                                  color: Colors.grey,
-                                  activeColor: Colors.white,
-                                  progress: progress,
-                                );
-                              },
-                            )
-                            : Container(
-                              height: 46,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade700,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '파형 없음',
-                                  style: TextStyle(
-                                    color: Colors.white54,
-                                    fontSize: 14.sp,
-                                    fontFamily: "Pretendard",
-                                  ),
+                              return CustomWaveformWidget(
+                                waveformData: _waveformData!,
+                                color: Colors.grey,
+                                activeColor: Colors.white,
+                                progress: progress,
+                              );
+                            },
+                          )
+                        : Container(
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade700,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '파형 없음',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 14.sp,
+                                  fontFamily: "Pretendard",
                                 ),
                               ),
                             ),
+                          ),
                   ),
                 ),
                 // 재생 시간
@@ -702,6 +697,14 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
     _releaseParentScroll();
     _isFinalizingPlacement = true;
+
+    // 저장이 끝나기 전에 UI에서 미리 프로필을 표시
+    if (_currentState != VoiceCommentState.saved) {
+      setState(() {
+        _lastState = _currentState;
+        _currentState = VoiceCommentState.saved;
+      });
+    }
 
     try {
       if (widget.onSaveRequested != null) {
@@ -865,49 +868,49 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
       decoration: const BoxDecoration(shape: BoxShape.circle),
       child:
           widget.profileImageUrl != null && widget.profileImageUrl!.isNotEmpty
-              ? ClipOval(
-                child: CachedNetworkImage(
-                  imageUrl: widget.profileImageUrl!,
-                  width: 54,
-                  height: 54,
-                  memCacheWidth: (54 * 2).round(),
-                  maxWidthDiskCache: (54 * 2).round(),
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[700],
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: 14,
-                      ),
-                    );
-                  },
-                  errorWidget: (context, url, error) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.red[700],
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.error,
-                        color: Colors.white,
-                        size: 14,
-                      ),
-                    );
-                  },
-                ),
-              )
-              : Container(
-                decoration: BoxDecoration(
-                  color: Colors.orange[700],
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.person, color: Colors.white, size: 14),
+          ? ClipOval(
+              child: CachedNetworkImage(
+                imageUrl: widget.profileImageUrl!,
+                width: 54,
+                height: 54,
+                memCacheWidth: (54 * 2).round(),
+                maxWidthDiskCache: (54 * 2).round(),
+                fit: BoxFit.cover,
+                placeholder: (context, url) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[700],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  );
+                },
+                errorWidget: (context, url, error) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.red[700],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.error,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  );
+                },
               ),
+            )
+          : Container(
+              decoration: BoxDecoration(
+                color: Colors.orange[700],
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.person, color: Colors.white, size: 14),
+            ),
     );
   }
 

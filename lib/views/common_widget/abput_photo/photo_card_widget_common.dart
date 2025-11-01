@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../../../models/photo_data_model.dart';
-import '../../../models/comment_record_model.dart';
+import '../../../firebase_logic/models/photo_data_model.dart';
+import '../../../firebase_logic/models/comment_record_model.dart';
+import '../../about_feed/manager/voice_comment_state_manager.dart';
 import 'user_info_row_widget.dart';
 import '../about_voice_comment/voice_recording_widget.dart';
 import 'photo_display_widget.dart';
@@ -25,6 +26,8 @@ class PhotoCardWidgetCommon extends StatefulWidget {
   final Map<String, bool> voiceCommentActiveStates;
   final Map<String, bool> voiceCommentSavedStates;
   final Map<String, bool>? pendingTextComments; // Pending 텍스트 댓글 상태
+
+  final Map<String, PendingVoiceComment> pendingVoiceComments;
 
   // 콜백 함수들
   final Function(PhotoDataModel) onToggleAudio;
@@ -54,6 +57,7 @@ class PhotoCardWidgetCommon extends StatefulWidget {
     required this.voiceCommentActiveStates,
     required this.voiceCommentSavedStates,
     this.pendingTextComments, // Pending 텍스트 댓글 상태 추가
+    this.pendingVoiceComments = const {},
     required this.onToggleAudio,
     required this.onToggleVoiceComment,
     required this.onVoiceCommentCompleted,
@@ -92,8 +96,9 @@ class _PhotoCardWidgetCommonState extends State<PhotoCardWidgetCommon> {
     final isKeyboardVisible = _isTextFieldFocused;
 
     // 키보드가 올라오면 10, 아니면 isCategory에 따라 50 또는 10
-    final bottomPadding =
-        isKeyboardVisible ? 10.0 : (widget.isCategory ? 55.0 : 10.0);
+    final bottomPadding = isKeyboardVisible
+        ? 10.0
+        : (widget.isCategory ? 55.0 : 10.0);
 
     return Stack(
       children: [
@@ -116,6 +121,7 @@ class _PhotoCardWidgetCommonState extends State<PhotoCardWidgetCommon> {
                 profileLoadingStates: widget.profileLoadingStates,
                 onProfileImageDragged: widget.onProfileImageDragged,
                 onToggleAudio: widget.onToggleAudio,
+                pendingVoiceComments: widget.pendingVoiceComments,
               ),
               SizedBox(height: 12.h),
 

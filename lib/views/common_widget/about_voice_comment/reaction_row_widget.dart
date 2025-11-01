@@ -3,7 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:soi/models/comment_record_model.dart';
+import 'package:soi/firebase_logic/models/comment_record_model.dart';
 import '../../../utils/format_utils.dart';
 
 class ReactionRow extends StatelessWidget {
@@ -23,19 +23,18 @@ class ReactionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fallbackProfile = data['profileImageUrl'] as String? ?? '';
-    final profileImageUrl =
-        (comment?.profileImageUrl.isNotEmpty ?? false)
-            ? comment!.profileImageUrl
-            : fallbackProfile;
+    final profileImageUrl = (comment?.profileImageUrl.isNotEmpty ?? false)
+        ? comment!.profileImageUrl
+        : fallbackProfile;
 
-    final userId =
-        comment?.recorderUser.isNotEmpty == true
-            ? comment!.recorderUser
-            : (data['uid'] as String? ?? '');
+    final userId = comment?.recorderUser.isNotEmpty == true
+        ? comment!.recorderUser
+        : (data['uid'] as String? ?? '');
 
     final createdAt = data['createdAt'];
-    final createdDate =
-        createdAt is Timestamp ? createdAt.toDate() : DateTime.now();
+    final createdDate = createdAt is Timestamp
+        ? createdAt.toDate()
+        : DateTime.now();
 
     return Padding(
       padding: EdgeInsets.only(bottom: 12.h),
@@ -45,22 +44,21 @@ class ReactionRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipOval(
-                child:
-                    profileImageUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                          imageUrl: profileImageUrl,
-                          width: 44.w,
-                          height: 44.w,
-                          memCacheHeight: (44 * 2).toInt(),
-                          memCacheWidth: (44 * 2).toInt(),
-                          fit: BoxFit.cover,
-                        )
-                        : Container(
-                          width: 44.w,
-                          height: 44.w,
-                          color: const Color(0xFF4E4E4E),
-                          child: const Icon(Icons.person, color: Colors.white),
-                        ),
+                child: profileImageUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: profileImageUrl,
+                        width: 44.w,
+                        height: 44.w,
+                        memCacheHeight: (44 * 2).toInt(),
+                        memCacheWidth: (44 * 2).toInt(),
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        width: 44.w,
+                        height: 44.w,
+                        color: const Color(0xFF4E4E4E),
+                        child: const Icon(Icons.person, color: Colors.white),
+                      ),
               ),
               SizedBox(width: 12.w),
               Expanded(

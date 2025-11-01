@@ -6,11 +6,11 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../controllers/audio_controller.dart';
-import '../../controllers/auth_controller.dart';
-import '../../controllers/category_controller.dart';
-import '../../controllers/photo_controller.dart';
-import '../../models/selected_friend_model.dart';
+import '../../firebase_logic/controllers/audio_controller.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
+import '../../firebase_logic/controllers/category_controller.dart';
+import '../../firebase_logic/controllers/photo_controller.dart';
+import '../../firebase_logic/models/selected_friend_model.dart';
 import '../home_navigator_screen.dart';
 import 'widgets/add_category_widget.dart';
 import 'widgets/audio_recorder_widget.dart';
@@ -362,8 +362,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     if (_isDisposing || !_draggableScrollController.isAttached) {
       return;
     }
-    final double targetSize =
-        _hasLockedSheetExtent ? _kLockedSheetExtent : _initialChildSize;
+    final double targetSize = _hasLockedSheetExtent
+        ? _kLockedSheetExtent
+        : _initialChildSize;
     final double currentSize = _draggableScrollController.size;
     const double tolerance = 0.001;
     if ((currentSize - targetSize).abs() <= tolerance) {
@@ -386,52 +387,50 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   Widget _buildCaptionInputBar() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
-      transitionBuilder:
-          (child, animation) =>
-              FadeTransition(opacity: animation, child: child),
-      child:
-          _showAudioRecorder
-              ? Padding(
-                key: const ValueKey('audio_recorder'),
-                padding: EdgeInsets.symmetric(horizontal: 20.w),
-                child: AudioRecorderWidget(
-                  autoStart: true,
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
+      child: _showAudioRecorder
+          ? Padding(
+              key: const ValueKey('audio_recorder'),
+              padding: EdgeInsets.symmetric(horizontal: 20.w),
+              child: AudioRecorderWidget(
+                autoStart: true,
 
-                  onRecordingFinished: (audioFilePath, waveformData, duration) {
-                    setState(() {
-                      _recordedAudioPath = audioFilePath;
-                      _recordedWaveformData = waveformData;
-                    });
-                  },
-                  onRecordingCleared: () {
-                    setState(() {
-                      _showAudioRecorder = false;
-                      _recordedAudioPath = null;
-                      _recordedWaveformData = null;
-                    });
-                  },
-                  initialRecordingPath: _recordedAudioPath,
-                  initialWaveformData: _recordedWaveformData,
-                ),
-              )
-              : FocusScope(
-                key: const ValueKey('caption_input'),
-                child: Focus(
-                  onFocusChange: (isFocused) {
-                    if (_categoryFocusNode.hasFocus) {
-                      FocusScope.of(context).requestFocus(_categoryFocusNode);
-                    }
-                  },
-                  child: CaptionInputWidget(
-                    controller: _captionController,
-                    isCaptionEmpty: _isCaptionEmpty,
-                    onMicTap: _handleMicTap,
-                    isKeyboardVisible: !_categoryFocusNode.hasFocus,
-                    keyboardHeight: keyboardHeight,
-                    focusNode: _captionFocusNode,
-                  ),
+                onRecordingFinished: (audioFilePath, waveformData, duration) {
+                  setState(() {
+                    _recordedAudioPath = audioFilePath;
+                    _recordedWaveformData = waveformData;
+                  });
+                },
+                onRecordingCleared: () {
+                  setState(() {
+                    _showAudioRecorder = false;
+                    _recordedAudioPath = null;
+                    _recordedWaveformData = null;
+                  });
+                },
+                initialRecordingPath: _recordedAudioPath,
+                initialWaveformData: _recordedWaveformData,
+              ),
+            )
+          : FocusScope(
+              key: const ValueKey('caption_input'),
+              child: Focus(
+                onFocusChange: (isFocused) {
+                  if (_categoryFocusNode.hasFocus) {
+                    FocusScope.of(context).requestFocus(_categoryFocusNode);
+                  }
+                },
+                child: CaptionInputWidget(
+                  controller: _captionController,
+                  isCaptionEmpty: _isCaptionEmpty,
+                  onMicTap: _handleMicTap,
+                  isKeyboardVisible: !_categoryFocusNode.hasFocus,
+                  keyboardHeight: keyboardHeight,
+                  focusNode: _captionFocusNode,
                 ),
               ),
+            ),
     );
   }
 
@@ -528,10 +527,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       'userId': userId,
       'audioPath': audioPath,
       'waveformData': waveformData,
-      'caption':
-          _captionController.text.trim().isNotEmpty
-              ? _captionController.text.trim()
-              : null,
+      'caption': _captionController.text.trim().isNotEmpty
+          ? _captionController.text.trim()
+          : null,
     };
   }
 
@@ -648,216 +646,203 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         toolbarHeight: 70.h,
         backgroundColor: Colors.black,
       ),
-      body:
-          _isLoading && !_showImmediatePreview
-              ? const Center(child: CircularProgressIndicator())
-              : _errorMessage != null
-              ? Center(
-                child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.white),
-                ),
-              )
-              : Stack(
-                children: [
-                  // 사진 영역 (스크롤 가능)
-                  Positioned.fill(
-                    child: SingleChildScrollView(
-                      //physics: NeverScrollableScrollPhysics(),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          PhotoDisplayWidget(
-                            filePath: widget.filePath,
-                            useLocalImage: _useLocalImage,
-                            width: 354.w,
-                            height: 500.h,
-                            isVideo: widget.isVideo ?? false,
-                            initialImage: _initialImageProvider,
-                            onCancel: _resetBottomSheetIfNeeded,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // 텍스트 필드 영역 (고정, 키보드에 따라 올라감)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom:
-                        isKeyboardVisible
-                            ? 10.h
-                            : MediaQuery.of(context).size.height *
-                                _kLockedSheetExtent,
-
-                    child: SizedBox(
-                      //height: 50.h -> 고정 높이를 가려야, 텍스트의 높이에 따라 텍스트 필드가 유동적으로 변함
-                      child: _buildCaptionInputBar(),
-                    ),
-                  ),
-                ],
+      body: _isLoading && !_showImmediatePreview
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+          ? Center(
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.white),
               ),
-      bottomSheet:
-          (shouldHideBottomSheet)
-              ? null
-              : NotificationListener<DraggableScrollableNotification>(
-                onNotification: (notification) {
-                  if (!_hasLockedSheetExtent && notification.extent < 0.01) {
-                    if (mounted && !_isDisposing && !_hasLockedSheetExtent) {
-                      _animateSheetTo(_kLockedSheetExtent, lockExtent: true);
-                    }
+            )
+          : Stack(
+              children: [
+                // 사진 영역 (스크롤 가능)
+                Positioned.fill(
+                  child: SingleChildScrollView(
+                    //physics: NeverScrollableScrollPhysics(),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        PhotoDisplayWidget(
+                          filePath: widget.filePath,
+                          useLocalImage: _useLocalImage,
+                          width: 354.w,
+                          height: 500.h,
+                          isVideo: widget.isVideo ?? false,
+                          initialImage: _initialImageProvider,
+                          onCancel: _resetBottomSheetIfNeeded,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // 텍스트 필드 영역 (고정, 키보드에 따라 올라감)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: isKeyboardVisible
+                      ? 10.h
+                      : MediaQuery.of(context).size.height *
+                            _kLockedSheetExtent,
+
+                  child: SizedBox(
+                    //height: 50.h -> 고정 높이를 가려야, 텍스트의 높이에 따라 텍스트 필드가 유동적으로 변함
+                    child: _buildCaptionInputBar(),
+                  ),
+                ),
+              ],
+            ),
+      bottomSheet: (shouldHideBottomSheet)
+          ? null
+          : NotificationListener<DraggableScrollableNotification>(
+              onNotification: (notification) {
+                if (!_hasLockedSheetExtent && notification.extent < 0.01) {
+                  if (mounted && !_isDisposing && !_hasLockedSheetExtent) {
+                    _animateSheetTo(_kLockedSheetExtent, lockExtent: true);
                   }
-                  return true;
-                },
-                child: DraggableScrollableSheet(
-                  controller: _draggableScrollController,
-                  initialChildSize: _initialChildSize,
-                  minChildSize: _minChildSize,
-                  maxChildSize: _kMaxSheetExtent,
-                  expand: false,
-                  builder: (context, scrollController) {
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        final double maxHeight = constraints.maxHeight;
-                        final double desiredHandleHeight =
-                            _showAddCategoryUI ? 12.h : (3.h + 10.h + 12.h);
-                        final double effectiveHandleHeight = math.min(
-                          maxHeight,
-                          desiredHandleHeight,
-                        );
-                        final double desiredSpacing = 4.h;
-                        final double effectiveSpacing =
-                            maxHeight > effectiveHandleHeight
-                                ? desiredSpacing
-                                : 0.0;
-                        final double contentHeight = math.max(
-                          0.0,
-                          maxHeight - effectiveHandleHeight - effectiveSpacing,
-                        );
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Color(0xff171717),
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(20),
-                            ),
+                }
+                return true;
+              },
+              child: DraggableScrollableSheet(
+                controller: _draggableScrollController,
+                initialChildSize: _initialChildSize,
+                minChildSize: _minChildSize,
+                maxChildSize: _kMaxSheetExtent,
+                expand: false,
+                builder: (context, scrollController) {
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double maxHeight = constraints.maxHeight;
+                      final double desiredHandleHeight = _showAddCategoryUI
+                          ? 12.h
+                          : (3.h + 10.h + 12.h);
+                      final double effectiveHandleHeight = math.min(
+                        maxHeight,
+                        desiredHandleHeight,
+                      );
+                      final double desiredSpacing = 4.h;
+                      final double effectiveSpacing =
+                          maxHeight > effectiveHandleHeight
+                          ? desiredSpacing
+                          : 0.0;
+                      final double contentHeight = math.max(
+                        0.0,
+                        maxHeight - effectiveHandleHeight - effectiveSpacing,
+                      );
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Color(0xff171717),
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(20),
                           ),
-                          child: SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  height: effectiveHandleHeight,
-                                  child:
-                                      _showAddCategoryUI
-                                          ? Center(
-                                            child: Container(
-                                              margin: EdgeInsets.only(
-                                                bottom: 12.h,
-                                              ),
+                        ),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                height: effectiveHandleHeight,
+                                child: _showAddCategoryUI
+                                    ? Center(
+                                        child: Container(
+                                          margin: EdgeInsets.only(bottom: 12.h),
+                                        ),
+                                      )
+                                    : Center(
+                                        child: Container(
+                                          height: math.min(
+                                            3.h,
+                                            effectiveHandleHeight,
+                                          ),
+                                          width: 56.w,
+                                          margin: EdgeInsets.only(
+                                            top: math.min(
+                                              10.h,
+                                              effectiveHandleHeight / 2,
                                             ),
-                                          )
-                                          : Center(
-                                            child: Container(
-                                              height: math.min(
-                                                3.h,
-                                                effectiveHandleHeight,
-                                              ),
-                                              width: 56.w,
-                                              margin: EdgeInsets.only(
-                                                top: math.min(
-                                                  10.h,
-                                                  effectiveHandleHeight / 2,
-                                                ),
-                                                bottom: math.min(
-                                                  12.h,
-                                                  effectiveHandleHeight / 2,
-                                                ),
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Color(0xffcdcdcd),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
+                                            bottom: math.min(
+                                              12.h,
+                                              effectiveHandleHeight / 2,
                                             ),
                                           ),
-                                ),
-                                SizedBox(height: effectiveSpacing),
-                                SizedBox(
-                                  height: contentHeight,
-                                  child: AnimatedSwitcher(
-                                    duration: Duration(milliseconds: 300),
-                                    child:
-                                        _showAddCategoryUI
-                                            ? ClipRect(
-                                              child: LayoutBuilder(
-                                                builder: (
-                                                  context,
-                                                  addConstraints,
-                                                ) {
-                                                  return ConstrainedBox(
-                                                    constraints: BoxConstraints(
-                                                      maxHeight:
-                                                          addConstraints
-                                                              .maxHeight,
-                                                      maxWidth:
-                                                          addConstraints
-                                                              .maxWidth,
-                                                    ),
-                                                    child: AddCategoryWidget(
-                                                      textController:
-                                                          _categoryNameController,
-                                                      scrollController:
-                                                          scrollController,
-                                                      focusNode:
-                                                          _categoryFocusNode,
-                                                      onBackPressed: () {
-                                                        setState(() {
-                                                          _showAddCategoryUI =
-                                                              false;
-                                                          _categoryNameController
-                                                              .clear();
-                                                        });
-                                                        _animateSheetTo(
-                                                          _kLockedSheetExtent,
-                                                        );
-                                                      },
-                                                      onSavePressed:
-                                                          (selectedFriends) =>
-                                                              _createNewCategory(
-                                                                selectedFriends,
-                                                              ),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            )
-                                            : CategoryListWidget(
-                                              scrollController:
-                                                  scrollController,
-                                              selectedCategoryId:
-                                                  _selectedCategoryId,
-                                              onCategorySelected:
-                                                  _handleCategorySelection,
-                                              addCategoryPressed: () {
-                                                setState(
-                                                  () =>
-                                                      _showAddCategoryUI = true,
-                                                );
-                                                _animateSheetTo(0.65);
-                                              },
-                                              isLoading:
-                                                  _categoryController.isLoading,
+                                          decoration: BoxDecoration(
+                                            color: Color(0xffcdcdcd),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
                                             ),
-                                  ),
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                              SizedBox(height: effectiveSpacing),
+                              SizedBox(
+                                height: contentHeight,
+                                child: AnimatedSwitcher(
+                                  duration: Duration(milliseconds: 300),
+                                  child: _showAddCategoryUI
+                                      ? ClipRect(
+                                          child: LayoutBuilder(
+                                            builder: (context, addConstraints) {
+                                              return ConstrainedBox(
+                                                constraints: BoxConstraints(
+                                                  maxHeight:
+                                                      addConstraints.maxHeight,
+                                                  maxWidth:
+                                                      addConstraints.maxWidth,
+                                                ),
+                                                child: AddCategoryWidget(
+                                                  textController:
+                                                      _categoryNameController,
+                                                  scrollController:
+                                                      scrollController,
+                                                  focusNode: _categoryFocusNode,
+                                                  onBackPressed: () {
+                                                    setState(() {
+                                                      _showAddCategoryUI =
+                                                          false;
+                                                      _categoryNameController
+                                                          .clear();
+                                                    });
+                                                    _animateSheetTo(
+                                                      _kLockedSheetExtent,
+                                                    );
+                                                  },
+                                                  onSavePressed:
+                                                      (selectedFriends) =>
+                                                          _createNewCategory(
+                                                            selectedFriends,
+                                                          ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        )
+                                      : CategoryListWidget(
+                                          scrollController: scrollController,
+                                          selectedCategoryId:
+                                              _selectedCategoryId,
+                                          onCategorySelected:
+                                              _handleCategorySelection,
+                                          addCategoryPressed: () {
+                                            setState(
+                                              () => _showAddCategoryUI = true,
+                                            );
+                                            _animateSheetTo(0.65);
+                                          },
+                                          isLoading:
+                                              _categoryController.isLoading,
+                                        ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
+            ),
     );
   }
 

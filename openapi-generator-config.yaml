@@ -1,0 +1,12 @@
+generatorName: dart-dio
+outputDir: lib/api/generated
+inputSpec: openapi.yaml
+additionalProperties:
+  pubName: soi_api
+  pubVersion: 1.0.0
+  pubDescription: "SOI API Client"
+  hideGenerationTimestamp: true
+  useEnumExtension: true
+  serializationLibrary: json_serializable
+  # Disable CopyWith to avoid build_runner conflicts
+  legacyDiscriminatorBehavior: false

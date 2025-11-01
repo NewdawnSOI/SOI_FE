@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:soi/controllers/category_cover_photo_controller.dart';
-import '../../../../controllers/auth_controller.dart';
-import '../../../../controllers/category_controller.dart';
-import '../../../../models/auth_model.dart';
-import '../../../../models/category_data_model.dart';
+import 'package:soi/firebase_logic/controllers/category_cover_photo_controller.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/category_controller.dart';
+import '../../../../firebase_logic/models/auth_model.dart';
+import '../../../../firebase_logic/models/category_data_model.dart';
 import '../../../about_friends/friend_list_add_screen.dart';
 import '../../widgets/exit_button.dart';
 import '../../widgets/category_edit_widget/add_friend_button.dart';
@@ -280,47 +280,46 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen>
                   // 친구 추가 섹션
                   currentCategory.mates.isNotEmpty
                       ? FriendsListWidget(
-                        category: currentCategory,
-                        friendsInfo: _friendsInfo,
-                        isLoadingFriends: _isLoadingFriends,
-                        isExpanded: _isExpanded,
-                        onExpandToggle: () {
-                          setState(() {
-                            _isExpanded = true;
-                          });
-                        },
-                        onCollapseToggle: () {
-                          setState(() {
-                            _isExpanded = false;
-                          });
-                        },
-                        onFriendAdded: () {
-                          // 친구 추가 후 정보 새로고침
-                          if (mounted) {
-                            _loadFriendsInfo();
-                          }
-                        },
-                      )
+                          category: currentCategory,
+                          friendsInfo: _friendsInfo,
+                          isLoadingFriends: _isLoadingFriends,
+                          isExpanded: _isExpanded,
+                          onExpandToggle: () {
+                            setState(() {
+                              _isExpanded = true;
+                            });
+                          },
+                          onCollapseToggle: () {
+                            setState(() {
+                              _isExpanded = false;
+                            });
+                          },
+                          onFriendAdded: () {
+                            // 친구 추가 후 정보 새로고침
+                            if (mounted) {
+                              _loadFriendsInfo();
+                            }
+                          },
+                        )
                       : AddFriendButton(
-                        category: currentCategory,
-                        onPressed: () async {
-                          // FriendListAddScreen으로 이동
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => FriendListAddScreen(
-                                    categoryId: currentCategory.id,
-                                    categoryMemberUids: currentCategory.mates,
-                                  ),
-                            ),
-                          );
+                          category: currentCategory,
+                          onPressed: () async {
+                            // FriendListAddScreen으로 이동
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => FriendListAddScreen(
+                                  categoryId: currentCategory.id,
+                                  categoryMemberUids: currentCategory.mates,
+                                ),
+                              ),
+                            );
 
-                          // 돌아온 후 친구 정보만 새로고침
-                          if (mounted) {
-                            _loadFriendsInfo();
-                          }
-                        },
-                      ),
+                            // 돌아온 후 친구 정보만 새로고침
+                            if (mounted) {
+                              _loadFriendsInfo();
+                            }
+                          },
+                        ),
                   SizedBox(height: 24.h),
 
                   // 나가기 버튼
@@ -539,9 +538,8 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen>
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder:
-            (context) =>
-                CategoryCoverPhotoSelectorScreen(category: widget.category),
+        builder: (context) =>
+            CategoryCoverPhotoSelectorScreen(category: widget.category),
       ),
     );
 
@@ -557,8 +555,8 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen>
 
   /// 갤러리/카메라에서 선택한 파일로 표지사진 업데이트
   Future<void> _updateCoverPhoto(File imageFile) async {
-    final categoryPhotoController =
-        context.read<CategoryCoverPhotoController>();
+    final categoryPhotoController = context
+        .read<CategoryCoverPhotoController>();
     final categoryController = context.read<CategoryController>();
 
     final success = await categoryPhotoController.updateCoverPhotoFromGallery(
@@ -595,8 +593,8 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen>
 
   /// 표지사진 삭제
   Future<void> _deleteCoverPhoto() async {
-    final categoryPhotoController =
-        context.read<CategoryCoverPhotoController>();
+    final categoryPhotoController = context
+        .read<CategoryCoverPhotoController>();
     final categoryController = context.read<CategoryController>();
 
     final success = await categoryPhotoController.deleteCoverPhoto(

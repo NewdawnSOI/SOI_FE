@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:soi/controllers/category_controller.dart';
+import 'package:soi/firebase_logic/controllers/category_controller.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../controllers/auth_controller.dart';
+import '../../../../firebase_logic/controllers/auth_controller.dart';
 
-import '../../../../controllers/photo_controller.dart';
-import '../../../../models/category_data_model.dart';
-import '../../../../models/photo_data_model.dart';
+import '../../../../firebase_logic/controllers/photo_controller.dart';
+import '../../../../firebase_logic/models/category_data_model.dart';
+import '../../../../firebase_logic/models/photo_data_model.dart';
 import '../../../../theme/theme.dart';
 import '../../widgets/photo_grid_item.dart';
 import '../../widgets/category_members_bottom_sheet.dart';
@@ -96,10 +96,8 @@ class _CategoryPhotosScreenState extends State<CategoryPhotosScreen> {
                       context: context,
                       backgroundColor: Colors.transparent,
                       isScrollControlled: true,
-                      builder:
-                          (context) => CategoryMembersBottomSheet(
-                            category: currentCategory,
-                          ),
+                      builder: (context) =>
+                          CategoryMembersBottomSheet(category: currentCategory),
                     );
                   },
                   borderRadius: BorderRadius.circular(100),
@@ -131,9 +129,8 @@ class _CategoryPhotosScreenState extends State<CategoryPhotosScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder:
-                            (context) =>
-                                CategoryEditorScreen(category: currentCategory),
+                        builder: (context) =>
+                            CategoryEditorScreen(category: currentCategory),
                       ),
                     );
                   },

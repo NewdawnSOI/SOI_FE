@@ -2,22 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:soi/controllers/category_cover_photo_controller.dart';
-import 'package:soi/controllers/category_search_controller.dart';
-import 'controllers/category_member_controller.dart';
-import 'controllers/comment_record_controller.dart';
-import 'controllers/contact_controller.dart';
-import 'controllers/photo_controller.dart';
-import 'controllers/friend_request_controller.dart';
-import 'controllers/friend_controller.dart';
-import 'controllers/user_matching_controller.dart';
-import 'controllers/emoji_reaction_controller.dart';
-import 'services/friend_request_service.dart';
-import 'services/friend_service.dart';
-import 'services/user_matching_service.dart';
-import 'repositories/friend_request_repository.dart';
-import 'repositories/friend_repository.dart';
-import 'repositories/user_search_repository.dart';
+import 'package:soi/firebase_logic/controllers/category_cover_photo_controller.dart';
+import 'package:soi/firebase_logic/controllers/category_search_controller.dart';
+import 'firebase_logic/controllers/category_member_controller.dart';
+import 'firebase_logic/controllers/comment_record_controller.dart';
+import 'firebase_logic/controllers/contact_controller.dart';
+import 'firebase_logic/controllers/photo_controller.dart';
+import 'firebase_logic/controllers/friend_request_controller.dart';
+import 'firebase_logic/controllers/friend_controller.dart';
+import 'firebase_logic/controllers/user_matching_controller.dart';
+import 'firebase_logic/controllers/emoji_reaction_controller.dart';
+import 'firebase_logic/services/friend_request_service.dart';
+import 'firebase_logic/services/friend_service.dart';
+import 'firebase_logic/services/user_matching_service.dart';
+import 'firebase_logic/repositories/friend_request_repository.dart';
+import 'firebase_logic/repositories/friend_repository.dart';
+import 'firebase_logic/repositories/user_search_repository.dart';
 import 'firebase_options.dart';
 import 'package:provider/provider.dart';
 import 'views/about_archiving/screens/archive_detail/all_archives_screen.dart';
@@ -41,11 +41,11 @@ import 'views/about_profile/privacy_protect_screen.dart';
 import 'views/about_profile/profile_screen.dart';
 import 'views/about_setting/privacy.dart';
 import 'views/about_friends/friend_management_screen.dart';
-import 'controllers/auth_controller.dart';
-import 'controllers/category_controller.dart';
-import 'controllers/audio_controller.dart';
-import 'controllers/comment_audio_controller.dart';
-import 'controllers/notification_controller.dart';
+import 'firebase_logic/controllers/auth_controller.dart';
+import 'firebase_logic/controllers/category_controller.dart';
+import 'firebase_logic/controllers/audio_controller.dart';
+import 'firebase_logic/controllers/comment_audio_controller.dart';
+import 'firebase_logic/controllers/notification_controller.dart';
 import 'package:flutter/rendering.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'views/home_navigator_screen.dart';
@@ -159,39 +159,36 @@ class _MyAppState extends State<MyApp> {
 
         // 친구 관리 관련 컨트롤러들
         ChangeNotifierProvider(
-          create:
-              (_) => FriendRequestController(
-                friendRequestService: FriendRequestService(
-                  friendRequestRepository: FriendRequestRepository(),
-                  friendRepository: FriendRepository(),
-                  userSearchRepository: UserSearchRepository(),
-                ),
-              ),
+          create: (_) => FriendRequestController(
+            friendRequestService: FriendRequestService(
+              friendRequestRepository: FriendRequestRepository(),
+              friendRepository: FriendRepository(),
+              userSearchRepository: UserSearchRepository(),
+            ),
+          ),
         ),
         ChangeNotifierProvider(
-          create:
-              (_) => FriendController(
-                friendService: FriendService(
-                  friendRepository: FriendRepository(),
-                  userSearchRepository: UserSearchRepository(),
-                ),
-              ),
+          create: (_) => FriendController(
+            friendService: FriendService(
+              friendRepository: FriendRepository(),
+              userSearchRepository: UserSearchRepository(),
+            ),
+          ),
         ),
         ChangeNotifierProvider(
-          create:
-              (_) => UserMatchingController(
-                userMatchingService: UserMatchingService(
-                  userSearchRepository: UserSearchRepository(),
-                  friendRepository: FriendRepository(),
-                  friendRequestRepository: FriendRequestRepository(),
-                ),
-                friendRequestService: FriendRequestService(
-                  friendRequestRepository: FriendRequestRepository(),
-                  friendRepository: FriendRepository(),
-                  userSearchRepository: UserSearchRepository(),
-                ),
-                userSearchRepository: UserSearchRepository(),
-              ),
+          create: (_) => UserMatchingController(
+            userMatchingService: UserMatchingService(
+              userSearchRepository: UserSearchRepository(),
+              friendRepository: FriendRepository(),
+              friendRequestRepository: FriendRequestRepository(),
+            ),
+            friendRequestService: FriendRequestService(
+              friendRequestRepository: FriendRequestRepository(),
+              friendRepository: FriendRepository(),
+              userSearchRepository: UserSearchRepository(),
+            ),
+            userSearchRepository: UserSearchRepository(),
+          ),
         ),
 
         // 알림 관리 컨트롤러
@@ -204,8 +201,8 @@ class _MyAppState extends State<MyApp> {
           debugShowCheckedModeBanner: false,
           routes: {
             '/': (context) => const StartScreen(),
-            '/home_navigation_screen':
-                (context) => HomePageNavigationBar(currentPageIndex: 1),
+            '/home_navigation_screen': (context) =>
+                HomePageNavigationBar(currentPageIndex: 1),
             '/camera': (context) => const CameraScreen(),
             '/archiving': (context) => const ArchiveMainScreen(),
             '/start': (context) => const StartScreen(),

@@ -3,7 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import '../../controllers/auth_controller.dart';
+import '../../firebase_logic/controllers/auth_controller.dart';
 
 class OnboardingMainScreen extends StatefulWidget {
   const OnboardingMainScreen({super.key});
@@ -137,20 +137,20 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
           (_currentPage == 4)
               ? SizedBox()
               : Padding(
-                padding: EdgeInsets.only(top: 20.h),
-                child: TextButton(
-                  onPressed: _completeOnboarding,
-                  child: Text(
-                    '건너뛰기 >',
-                    style: TextStyle(
-                      color: const Color(0xFFCBCBCB),
-                      fontSize: 16.sp,
-                      fontFamily: GoogleFonts.inter().fontFamily,
-                      fontWeight: FontWeight.w600,
+                  padding: EdgeInsets.only(top: 20.h),
+                  child: TextButton(
+                    onPressed: _completeOnboarding,
+                    child: Text(
+                      '건너뛰기 >',
+                      style: TextStyle(
+                        color: const Color(0xFFCBCBCB),
+                        fontSize: 16.sp,
+                        fontFamily: GoogleFonts.inter().fontFamily,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
-              ),
         ],
       ),
       body: Stack(
@@ -197,36 +197,36 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
           ),
           (_currentPage == 4)
               ? Positioned(
-                bottom: 40.h,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.zero,
+                  bottom: 40.h,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.zero,
 
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26.9),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(26.9),
+                      ),
                     ),
-                  ),
-                  onPressed: _completeOnboarding,
-                  child: Container(
-                    width: 349.w,
-                    height: 59.h,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(26.9),
-                    ),
-                    child: Text(
-                      "계속하기",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 20.sp,
-                        fontFamily: 'Pretendard',
-                        fontWeight: FontWeight.w600,
+                    onPressed: _completeOnboarding,
+                    child: Container(
+                      width: 349.w,
+                      height: 59.h,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(26.9),
+                      ),
+                      child: Text(
+                        "계속하기",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 20.sp,
+                          fontFamily: 'Pretendard',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              )
+                )
               : SizedBox(),
         ],
       ),
