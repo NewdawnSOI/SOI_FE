@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -69,7 +68,6 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
   bool _isFinalizingPlacement = false; // 중복 저장 방지
   final GlobalKey _profileDraggableKey = GlobalKey();
-  TapDownDetails? _pendingTapDownDetails;
 
   /// 이전 녹음 상태 (애니메이션 제어용)
   VoiceCommentState? _lastState;
@@ -254,48 +252,6 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     }
   }
 
-  /// 프로필 배치 모드 진입
-  void _enterPlacementMode(TapDownDetails details) {
-    if (_waveformData == null ||
-        _waveformData!.isEmpty ||
-        _currentState == VoiceCommentState.placing) {
-      return;
-    }
-
-    _holdParentScroll();
-
-    setState(() {
-      _lastState = _currentState;
-      _currentState = VoiceCommentState.placing;
-    });
-    _pendingTapDownDetails = details;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      final tapDetails = _pendingTapDownDetails;
-      final draggableState = _profileDraggableKey.currentState;
-      if (tapDetails == null || draggableState == null) {
-        return;
-      }
-
-      _pendingTapDownDetails = null;
-      final PointerDeviceKind deviceKind =
-          tapDetails.kind ?? PointerDeviceKind.touch;
-      final dynamic draggable = draggableState;
-      final startDrag = draggable.startDrag;
-
-      try {
-        Function.apply(startDrag, [tapDetails.globalPosition, deviceKind]);
-      } catch (_) {
-        try {
-          Function.apply(startDrag, [tapDetails.globalPosition]);
-        } catch (_) {}
-      }
-    });
-  }
-
   /// 프로필 배치 완료 처리
   Future<void> _finalizePlacement() async {
     if (_isFinalizingPlacement) {
@@ -339,6 +295,21 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     setState(() {
       _lastState = _currentState;
       _currentState = VoiceCommentState.recorded;
+    });
+  }
+
+  void _beginPlacementFromWaveform() {
+    if (_waveformData == null || _waveformData!.isEmpty) {
+      return;
+    }
+    if (_currentState == VoiceCommentState.placing) {
+      return;
+    }
+
+    _holdParentScroll();
+    setState(() {
+      _lastState = _currentState;
+      _currentState = VoiceCommentState.placing;
     });
   }
 
@@ -449,12 +420,7 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
                 SizedBox(width: 18.w),
                 // 재생 파형 - 클릭 시 저장
                 Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTapDown: (details) {
-                      // 파형 클릭 시 프로필 배치 모드로 전환 후 즉시 드래그 시작
-                      _enterPlacementMode(details);
-                    },
+                  child: _buildWaveformDraggable(
                     child:
                         _waveformData != null && _waveformData!.isNotEmpty
                             ? StreamBuilder<int>(
@@ -650,9 +616,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
     _scrollHoldController = null;
   }
 
-  /// 프로필 이미지 드래그 UI (배치/저장 공통)
-  Widget _buildProfileDraggable({required bool isPlacementMode}) {
-    final profileWidget = Container(
+  Widget _buildProfileAvatar() {
+    return Container(
       width: 54,
       height: 54,
       decoration: const BoxDecoration(shape: BoxShape.circle),
@@ -702,6 +667,34 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
                 child: const Icon(Icons.person, color: Colors.white, size: 14),
               ),
     );
+  }
+
+  Widget _buildWaveformDraggable({required Widget child}) {
+    if (widget.onProfileImageDragged == null ||
+        _waveformData == null ||
+        _waveformData!.isEmpty) {
+      return child;
+    }
+
+    final profileWidget = _buildProfileAvatar();
+
+    return Draggable<String>(
+      key: _profileDraggableKey,
+      data: 'profile_image',
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Transform.scale(
+        scale: 1.2,
+        child: Opacity(opacity: 0.8, child: profileWidget),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: profileWidget),
+      onDragStarted: _beginPlacementFromWaveform,
+      child: child,
+    );
+  }
+
+  /// 프로필 이미지 드래그 UI (배치/저장 공통)
+  Widget _buildProfileDraggable({required bool isPlacementMode}) {
+    final profileWidget = _buildProfileAvatar();
 
     if (widget.onProfileImageDragged == null) {
       return profileWidget;
@@ -729,6 +722,8 @@ class _VoiceCommentWidgetState extends State<VoiceCommentWidget> {
 
         if (details.wasAccepted) {
           _finalizePlacement();
+        } else {
+          _cancelPlacement();
         }
       },
       child: profileWidget,
