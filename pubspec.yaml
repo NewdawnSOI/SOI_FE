@@ -91,6 +91,11 @@ dependencies:
   json_annotation: ^4.9.0
   copy_with_extension: ^10.0.1
 
+  # API 관련 의존성
+  dio: ^5.9.0 # HTTP 클라이언트
+  soi_api: # OpenAPI로 생성된 API 클라이언트
+    path: lib/api/generated
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
