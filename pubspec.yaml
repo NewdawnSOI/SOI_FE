@@ -94,7 +94,7 @@ dependencies:
   # API 관련 의존성
   dio: ^5.9.0 # HTTP 클라이언트
   soi_api: # OpenAPI로 생성된 API 클라이언트
-    path: lib/api/generated
+    path: ./api/generated
 
 dev_dependencies:
   flutter_test:
