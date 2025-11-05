@@ -23,7 +23,7 @@ class MediaService {
   /// Returns: 1시간 유효한 접근 URL
   Future<ApiResult<String>> getPresignedUrl(String s3Key) async {
     try {
-      developer.log('🔗 Presigned URL 요청: $s3Key', name: 'MediaService');
+      developer.log('Presigned URL 요청: $s3Key', name: 'MediaService');
 
       final response = await _mediaApi.getPresignedUrl(s3Key);
 
@@ -31,16 +31,13 @@ class MediaService {
         return Failure(ApiException.serverError('Presigned URL 요청에 실패했습니다'));
       }
 
-      developer.log('✅ Presigned URL 요청 성공', name: 'MediaService');
+      developer.log('Presigned URL 요청 성공', name: 'MediaService');
       return Success(response!.data!);
     } on api.ApiException catch (e) {
-      developer.log(
-        '❌ Presigned URL 요청 실패: ${e.message}',
-        name: 'MediaService',
-      );
+      developer.log('Presigned URL 요청 실패: ${e.message}', name: 'MediaService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ Presigned URL 요청 오류: $e', name: 'MediaService');
+      developer.log('Presigned URL 요청 오류: $e', name: 'MediaService');
       return Failure(ApiException.networkError());
     }
   }
@@ -57,7 +54,7 @@ class MediaService {
     required int id,
   }) async {
     try {
-      developer.log('📤 미디어 업로드: ${files.length}개 파일', name: 'MediaService');
+      developer.log('미디어 업로드: ${files.length}개 파일', name: 'MediaService');
 
       // File을 MultipartFile로 변환
       final multipartFiles = <http.MultipartFile>[];
@@ -76,13 +73,13 @@ class MediaService {
       }
 
       final s3Keys = response?.data;
-      developer.log('✅ 미디어 업로드 성공: ${s3Keys!.length}개', name: 'MediaService');
+      developer.log('미디어 업로드 성공: ${s3Keys!.length}개', name: 'MediaService');
       return Success(s3Keys);
     } on api.ApiException catch (e) {
-      developer.log('❌ 미디어 업로드 실패: ${e.message}', name: 'MediaService');
+      developer.log('미디어 업로드 실패: ${e.message}', name: 'MediaService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ 미디어 업로드 오류: $e', name: 'MediaService');
+      developer.log('미디어 업로드 오류: $e', name: 'MediaService');
       return Failure(ApiException.networkError());
     }
   }

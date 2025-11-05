@@ -9,6 +9,7 @@ import '../../firebase_logic/controllers/auth_controller.dart';
 import '../../firebase_logic/models/friend_model.dart';
 import '../../firebase_logic/models/selected_friend_model.dart';
 
+/// 친구 추가 화면
 class FriendListAddScreen extends StatefulWidget {
   final String? categoryId; // 카테고리에 친구를 추가할 때 사용
   final List<String>? categoryMemberUids; // 이미 카테고리에 추가된 멤버들의 UID 목록

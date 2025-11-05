@@ -16,12 +16,11 @@ class UserService {
   }
 
   /// 전화번호로 SMS 인증 발송
-  ///
   /// [phone] 전화번호 (예: "01012345678")
   /// Returns: 인증 발송 성공 여부
   Future<ApiResult<bool>> sendAuthSMS(String phone) async {
     try {
-      developer.log('📱 SMS 인증 발송: $phone', name: 'UserService');
+      developer.log('SMS 인증 발송: $phone', name: 'UserService');
 
       final response = await _userApi.authSMS(phone);
 
@@ -29,19 +28,18 @@ class UserService {
         return Failure(ApiException.serverError('인증 발송에 실패했습니다'));
       }
 
-      developer.log('✅ SMS 인증 발송 성공', name: 'UserService');
+      developer.log('SMS 인증 발송 성공', name: 'UserService');
       return Success(response);
     } on api.ApiException catch (e) {
-      developer.log('❌ SMS 인증 발송 실패: ${e.message}', name: 'UserService');
+      developer.log('SMS 인증 발송 실패: ${e.message}', name: 'UserService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ SMS 인증 발송 오류: $e', name: 'UserService');
+      developer.log('SMS 인증 발송 오류: $e', name: 'UserService');
       return Failure(ApiException.networkError());
     }
   }
 
   /// 사용자 생성
-  ///
   /// 새로운 사용자를 등록합니다.
   Future<ApiResult<api.UserRespDto>> createUser({
     required String name,
@@ -54,7 +52,7 @@ class UserService {
     required bool marketingAgreed,
   }) async {
     try {
-      developer.log('👤 사용자 생성 요청: $userId', name: 'UserService');
+      developer.log('사용자 생성 요청: $userId', name: 'UserService');
 
       final reqDto = api.UserCreateReqDto(
         name: name,
@@ -74,15 +72,15 @@ class UserService {
       }
 
       developer.log(
-        '✅ 사용자 생성 성공: ${response!.data!.userId}',
+        '사용자 생성 성공: ${response!.data!.userId}',
         name: 'UserService',
       );
       return Success(response.data!);
     } on api.ApiException catch (e) {
-      developer.log('❌ 사용자 생성 실패: ${e.message}', name: 'UserService');
+      developer.log('사용자 생성 실패: ${e.message}', name: 'UserService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ 사용자 생성 오류: $e', name: 'UserService');
+      developer.log('사용자 생성 오류: $e', name: 'UserService');
       return Failure(ApiException.networkError());
     }
   }
@@ -92,7 +90,7 @@ class UserService {
   /// [phone] 인증이 완료된 전화번호
   Future<ApiResult<api.UserRespDto>> login(String phone) async {
     try {
-      developer.log('🔐 로그인 요청: $phone', name: 'UserService');
+      developer.log('로그인 요청: $phone', name: 'UserService');
 
       final response = await _userApi.login(phone);
 
@@ -100,13 +98,13 @@ class UserService {
         return Failure(ApiException.serverError('로그인에 실패했습니다'));
       }
 
-      developer.log('✅ 로그인 성공: ${response!.data!.userId}', name: 'UserService');
+      developer.log('로그인 성공: ${response!.data!.userId}', name: 'UserService');
       return Success(response.data!);
     } on api.ApiException catch (e) {
-      developer.log('❌ 로그인 실패: ${e.message}', name: 'UserService');
+      developer.log('로그인 실패: ${e.message}', name: 'UserService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ 로그인 오류: $e', name: 'UserService');
+      developer.log('로그인 오류: $e', name: 'UserService');
       return Failure(ApiException.networkError());
     }
   }
@@ -117,7 +115,7 @@ class UserService {
   /// Returns: 사용 가능하면 true, 중복이면 false
   Future<ApiResult<bool>> checkUserIdDuplicate(String userId) async {
     try {
-      developer.log('🔍 ID 중복 체크: $userId', name: 'UserService');
+      developer.log('ID 중복 체크: $userId', name: 'UserService');
 
       final response = await _userApi.idCheck(userId);
 
@@ -127,15 +125,15 @@ class UserService {
 
       final isAvailable = response!.data!;
       developer.log(
-        '✅ ID 중복 체크 완료: ${isAvailable ? "사용가능" : "중복"}',
+        'ID 중복 체크 완료: ${isAvailable ? "사용가능" : "중복"}',
         name: 'UserService',
       );
       return Success(isAvailable);
     } on api.ApiException catch (e) {
-      developer.log('❌ ID 중복 체크 실패: ${e.message}', name: 'UserService');
+      developer.log('ID 중복 체크 실패: ${e.message}', name: 'UserService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ ID 중복 체크 오류: $e', name: 'UserService');
+      developer.log('ID 중복 체크 오류: $e', name: 'UserService');
       return Failure(ApiException.networkError());
     }
   }
@@ -145,7 +143,7 @@ class UserService {
   /// [keyword] 검색할 사용자 ID 키워드
   Future<ApiResult<List<api.UserRespDto>>> searchUsers(String keyword) async {
     try {
-      developer.log('🔍 사용자 검색: $keyword', name: 'UserService');
+      developer.log('사용자 검색: $keyword', name: 'UserService');
 
       final response = await _userApi.findUser(keyword);
 
@@ -154,13 +152,13 @@ class UserService {
       }
 
       final users = response!.data;
-      developer.log('✅ 사용자 검색 완료: ${users.length}명', name: 'UserService');
+      developer.log('사용자 검색 완료: ${users.length}명', name: 'UserService');
       return Success(users);
     } on api.ApiException catch (e) {
-      developer.log('❌ 사용자 검색 실패: ${e.message}', name: 'UserService');
+      developer.log('사용자 검색 실패: ${e.message}', name: 'UserService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ 사용자 검색 오류: $e', name: 'UserService');
+      developer.log('사용자 검색 오류: $e', name: 'UserService');
       return Failure(ApiException.networkError());
     }
   }
@@ -168,7 +166,7 @@ class UserService {
   /// 모든 사용자 조회
   Future<ApiResult<List<api.UserFindRespDto>>> getAllUsers() async {
     try {
-      developer.log('👥 모든 사용자 조회', name: 'UserService');
+      developer.log('모든 사용자 조회', name: 'UserService');
 
       final response = await _userApi.getAllUsers();
 
@@ -177,13 +175,13 @@ class UserService {
       }
 
       final users = response!.data;
-      developer.log('✅ 모든 사용자 조회 완료: ${users.length}명', name: 'UserService');
+      developer.log('모든 사용자 조회 완료: ${users.length}명', name: 'UserService');
       return Success(users);
     } on api.ApiException catch (e) {
-      developer.log('❌ 사용자 목록 조회 실패: ${e.message}', name: 'UserService');
+      developer.log('사용자 목록 조회 실패: ${e.message}', name: 'UserService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ 사용자 목록 조회 오류: $e', name: 'UserService');
+      developer.log('사용자 목록 조회 오류: $e', name: 'UserService');
       return Failure(ApiException.networkError());
     }
   }
@@ -193,7 +191,7 @@ class UserService {
   /// [userId] 삭제할 사용자 ID
   Future<ApiResult<api.UserRespDto>> deleteUser(int userId) async {
     try {
-      developer.log('🗑️ 사용자 삭제: $userId', name: 'UserService');
+      developer.log('사용자 삭제: $userId', name: 'UserService');
 
       final response = await _userApi.deleteUser(userId);
 
@@ -201,13 +199,13 @@ class UserService {
         return Failure(ApiException.serverError('사용자 삭제에 실패했습니다'));
       }
 
-      developer.log('✅ 사용자 삭제 완료', name: 'UserService');
+      developer.log('사용자 삭제 완료', name: 'UserService');
       return Success(response!.data!);
     } on api.ApiException catch (e) {
-      developer.log('❌ 사용자 삭제 실패: ${e.message}', name: 'UserService');
+      developer.log('사용자 삭제 실패: ${e.message}', name: 'UserService');
       return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
-      developer.log('❌ 사용자 삭제 오류: $e', name: 'UserService');
+      developer.log('사용자 삭제 오류: $e', name: 'UserService');
       return Failure(ApiException.networkError());
     }
   }

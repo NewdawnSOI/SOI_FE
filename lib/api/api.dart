@@ -5,7 +5,6 @@ library;
 
 // Common
 export 'common/api_client.dart';
-export 'common/api_response.dart';
 export 'common/api_exception.dart';
 export 'common/api_result.dart';
 
