@@ -139,7 +139,6 @@ class UserService {
   }
 
   /// 키워드로 사용자 검색
-  ///
   /// [keyword] 검색할 사용자 ID 키워드
   Future<ApiResult<List<api.UserRespDto>>> searchUsers(String keyword) async {
     try {

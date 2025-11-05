@@ -11,17 +11,19 @@ import 'category_item_widget.dart';
 /// 새 카테고리 추가 버튼도 함께 제공합니다.
 class CategoryListWidget extends StatefulWidget {
   final ScrollController scrollController;
-  final String? selectedCategoryId;
+  final List<String> selectedCategoryIds;
   final Function(String categoryId) onCategorySelected;
   final VoidCallback addCategoryPressed;
+  final VoidCallback? onConfirmSelection;
   final bool isLoading;
 
   const CategoryListWidget({
     super.key,
     required this.scrollController,
-    this.selectedCategoryId,
+    required this.selectedCategoryIds,
     required this.onCategorySelected,
     required this.addCategoryPressed,
+    this.onConfirmSelection,
     required this.isLoading,
   });
 
@@ -56,51 +58,94 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
       return _buildShimmerGrid();
     }
 
-    return Consumer<CategoryController>(
-      builder: (context, viewModel, child) {
-        final categories = viewModel.userCategoryList;
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        Consumer<CategoryController>(
+          builder: (context, viewModel, child) {
+            final categories = viewModel.userCategoryList;
 
-        return GridView.builder(
-          key: const ValueKey('category_list'),
-          controller: widget.scrollController,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            childAspectRatio: 0.85, // 높이를 조금 더 줘서 텍스트 공간 확보
-            crossAxisSpacing: 8.w, // 아이템 간 좌우 간격 추가
-            mainAxisSpacing: 15.h, // 세로 간격만 유지
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 18.w),
+            return GridView.builder(
+              key: const ValueKey('category_list'),
+              controller: widget.scrollController,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                childAspectRatio: 0.85, // 높이를 조금 더 줘서 텍스트 공간 확보
+                crossAxisSpacing: 8.w, // 아이템 간 좌우 간격 추가
+                mainAxisSpacing: 15.h, // 세로 간격만 유지
+              ),
+              padding: EdgeInsets.only(
+                left: 18.w,
+                right: 18.w,
+                bottom: widget.selectedCategoryIds.isNotEmpty ? 80.h : 0,
+              ),
 
-          cacheExtent: 200.0, // 캐시할 픽셀 범위 제한
-          addAutomaticKeepAlives: false, // 자동 keepAlive 비활성화
-          addRepaintBoundaries: false, // 불필요한 repaint boundary 제거
+              cacheExtent: 200.0, // 캐시할 픽셀 범위 제한
+              addAutomaticKeepAlives: false, // 자동 keepAlive 비활성화
+              addRepaintBoundaries: false, // 불필요한 repaint boundary 제거
 
-          itemCount: categories.isEmpty ? 1 : categories.length + 1,
-          itemBuilder: (context, index) {
-            // 첫 번째 아이템은 항상 '추가하기' 버튼
-            if (index == 0) {
-              return CategoryItemWidget(
-                image: "assets/plus_icon.png",
-                label: '추가하기',
-                onTap: widget.addCategoryPressed,
-              );
-            }
-            // 카테고리 아이템 표시
-            else {
-              final category = categories[index - 1];
-              final categoryId = category.id;
+              itemCount: categories.isEmpty ? 1 : categories.length + 1,
+              itemBuilder: (context, index) {
+                // 첫 번째 아이템은 항상 '추가하기' 버튼
+                if (index == 0) {
+                  return CategoryItemWidget(
+                    image: "assets/plus_icon.png",
+                    label: '추가하기',
+                    onTap: widget.addCategoryPressed,
+                  );
+                }
+                // 카테고리 아이템 표시
+                else {
+                  final category = categories[index - 1];
+                  final categoryId = category.id;
 
-              return CategoryItemWidget(
-                imageUrl: category.categoryPhotoUrl,
-                label: category.name,
-                categoryId: categoryId,
-                selectedCategoryId: widget.selectedCategoryId,
-                onTap: () => widget.onCategorySelected(categoryId),
-              );
-            }
+                  return CategoryItemWidget(
+                    imageUrl: category.categoryPhotoUrl,
+                    label: category.name,
+                    categoryId: categoryId,
+                    selectedCategoryIds: widget.selectedCategoryIds,
+                    onTap: () => widget.onCategorySelected(categoryId),
+                  );
+                }
+              },
+            );
           },
-        );
-      },
+        ),
+
+        // FloatingActionButton - 카테고리 선택 시 표시
+        if (widget.selectedCategoryIds.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.only(bottom: (37).h),
+            child: AnimatedScale(
+              scale: widget.selectedCategoryIds.isNotEmpty ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: ElevatedButton(
+                onPressed: widget.onConfirmSelection,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26.9),
+                  ),
+                ),
+                child: SizedBox(
+                  width: 349,
+                  height: 45,
+                  child: Center(
+                    child: Text(
+                      '전송',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 20,
+                        fontFamily: 'Pretendard',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

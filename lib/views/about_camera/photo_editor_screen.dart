@@ -44,7 +44,8 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   bool _useLocalImage = false;
   ImageProvider? _initialImageProvider;
   bool _showAddCategoryUI = false;
-  String? _selectedCategoryId;
+  //String? _selectedCategoryId;
+  final List<String> _selectedCategoryIds = [];
   bool _categoriesLoaded = false;
   bool _shouldAutoOpenCategorySheet = true;
   bool _isDisposing = false;
@@ -322,11 +323,13 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 
   void _handleCategorySelection(String categoryId) {
-    if (_selectedCategoryId == categoryId) {
-      _uploadThenNavigate(categoryId);
-    } else if (mounted) {
-      setState(() => _selectedCategoryId = categoryId);
-    }
+    setState(() {
+      if (_selectedCategoryIds.contains(categoryId)) {
+        _selectedCategoryIds.remove(categoryId);
+      } else {
+        _selectedCategoryIds.add(categoryId);
+      }
+    });
   }
 
   void _animateSheetTo(double size, {bool lockExtent = false}) {
@@ -477,9 +480,12 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 
   // ========== 업로드 및 화면 전환 관련 메서드들 ==========
-  Future<void> _uploadThenNavigate(String categoryId) async {
+  Future<void> _uploadThenNavigate(List<String> categoryIds) async {
     if (!mounted) return;
-    LoadingPopupWidget.show(context, message: '사진을 업로드하고 있습니다.\n잠시만 기다려주세요');
+    LoadingPopupWidget.show(
+      context,
+      message: '${categoryIds.length}개 카테고리에 사진을 업로드하고 있습니다.\n잠시만 기다려주세요',
+    );
     try {
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
@@ -487,16 +493,21 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       await _audioController.stopRealtimeAudio();
       _audioController.clearCurrentRecording();
       await Future.delayed(const Duration(milliseconds: 500));
-      final uploadData = _extractUploadData(categoryId);
-      if (uploadData == null) {
-        if (!mounted) return;
-        LoadingPopupWidget.hide(context);
-        if (!mounted) return;
-        _navigateToHome();
-        return;
+
+      // 선택된 모든 카테고리에 업로드
+      for (int i = 0; i < categoryIds.length; i++) {
+        final categoryId = categoryIds[i];
+        final uploadData = _extractUploadData(categoryId);
+        if (uploadData == null) continue;
+
+        // 마지막 업로드가 아니면 await로 순차 진행
+        if (i == categoryIds.length - 1) {
+          unawaited(_executeUploadWithExtractedData(uploadData));
+        } else {
+          _executeUploadWithExtractedData(uploadData);
+        }
       }
 
-      unawaited(_executeUploadWithExtractedData(uploadData));
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
 
@@ -819,10 +830,19 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                                         )
                                       : CategoryListWidget(
                                           scrollController: scrollController,
-                                          selectedCategoryId:
-                                              _selectedCategoryId,
+                                          selectedCategoryIds:
+                                              _selectedCategoryIds,
                                           onCategorySelected:
                                               _handleCategorySelection,
+                                          onConfirmSelection: () {
+                                            if (_selectedCategoryIds
+                                                .isNotEmpty) {
+                                              // 선택된 모든 카테고리에 업로드
+                                              _uploadThenNavigate(
+                                                _selectedCategoryIds,
+                                              );
+                                            }
+                                          },
                                           addCategoryPressed: () {
                                             setState(
                                               () => _showAddCategoryUI = true,

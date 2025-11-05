@@ -12,7 +12,7 @@ class CategoryItemWidget extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final String? categoryId;
-  final String? selectedCategoryId;
+  final List<String>? selectedCategoryIds;
 
   const CategoryItemWidget({
     super.key,
@@ -21,7 +21,7 @@ class CategoryItemWidget extends StatefulWidget {
     required this.label,
     required this.onTap,
     this.categoryId,
-    this.selectedCategoryId,
+    this.selectedCategoryIds,
   });
 
   @override
@@ -30,8 +30,9 @@ class CategoryItemWidget extends StatefulWidget {
 
 class _CategoryItemWidgetState extends State<CategoryItemWidget>
     with AutomaticKeepAliveClientMixin {
+  // 메모리 절약을 위해 keepAlive 비활성화
   @override
-  bool get wantKeepAlive => false; // 메모리 절약을 위해 keepAlive 비활성화
+  bool get wantKeepAlive => false;
 
   @override
   void dispose() {
@@ -76,7 +77,7 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
   /// 선택된 카테고리인지 확인
   bool _isSelectedCategory() {
     return widget.categoryId != null &&
-        widget.categoryId == widget.selectedCategoryId;
+        widget.selectedCategoryIds?.contains(widget.categoryId) == true;
   }
 
   /// 화면 크기에 따른 반응형 치수 계산
@@ -170,22 +171,22 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
     );
   }
 
-  /// 선택된 상태의 오버레이 빌드 (피그마 디자인 반영)
+  /// 선택된 상태의 오버레이 빌드 (화살표 디자인)
   Widget _buildSelectionOverlay(_CategoryDimensions dimensions) {
     return Container(
       width: dimensions.containerSize,
       height: dimensions.containerSize,
       decoration: BoxDecoration(
-        color: Color(0xff404040).withValues(alpha: 0.7), // 피그마와 동일한 투명도
+        color: Colors.black.withValues(alpha: 0.6),
         shape: BoxShape.circle,
       ),
       child: Padding(
-        padding: EdgeInsets.only(bottom: 3.h, left: 3.w),
+        padding: EdgeInsets.only(left: 2.w, bottom: 2.h),
         child: Center(
-          child: SizedBox(
-            width: 45.4.w,
-            height: 45.4.h,
-            child: Center(child: Image.asset('assets/send_imoji.png')),
+          child: Image.asset(
+            'assets/send_imoji.png',
+            width: 42.76,
+            height: 42.76,
           ),
         ),
       ),

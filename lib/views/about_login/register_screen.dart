@@ -338,7 +338,6 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
 
           // 공통 Continue 버튼
-          // Hide the common Continue button only when we're on the SMS code page
           (currentPage == 3)
               ? SizedBox()
               : Positioned(
