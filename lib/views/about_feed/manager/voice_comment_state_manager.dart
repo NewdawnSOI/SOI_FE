@@ -377,13 +377,12 @@ class VoiceCommentStateManager {
 
       _savedCommentIds[photoId] = mergedIds.toSet().toList();
 
-      // Each comment stores its own position in relativePosition field
-      // No need to extract or store position separately
+      // 각 댓글은 자신의 위치를 relativePosition 필드에 저장
+      // 별도로 위치를 추출하거나 저장할 필요 없음
     } else {
       // 현재 사용자의 댓글이 없는 경우 상태 초기화
       _voiceCommentSavedStates[photoId] = false;
-      _savedCommentIds.remove(photoId);
-      // Position and profile image stored in each comment
+
       // 다른 사용자의 댓글은 유지하되 현재 사용자 관련 상태만 초기화
       if (comments.isEmpty) {
         _photoComments[photoId] = [];
