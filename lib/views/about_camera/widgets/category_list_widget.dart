@@ -52,7 +52,7 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // AutomaticKeepAliveClientMixin 때문에 필요
+    super.build(context);
 
     if (widget.isLoading) {
       return _buildShimmerGrid();
@@ -65,49 +65,56 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
           builder: (context, viewModel, child) {
             final categories = viewModel.userCategoryList;
 
-            return GridView.builder(
-              key: const ValueKey('category_list'),
-              controller: widget.scrollController,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                childAspectRatio: 0.85, // 높이를 조금 더 줘서 텍스트 공간 확보
-                crossAxisSpacing: 8.w, // 아이템 간 좌우 간격 추가
-                mainAxisSpacing: 15.h, // 세로 간격만 유지
+            return AnimatedPadding(
+              // padding 변화를 부드럽게 애니메이션 처리
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOut,
+              padding: EdgeInsets.only(left: 18.w, right: 18.w),
+              child: GridView.builder(
+                key: const ValueKey('category_list'),
+                controller: widget.scrollController,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  childAspectRatio: 0.85, // 높이를 조금 더 줘서 텍스트 공간 확보
+                  crossAxisSpacing: 8.w, // 아이템 간 좌우 간격 추가
+                  mainAxisSpacing: 15.h, // 세로 간격만 유지
+                ),
+
+                // padding을 AnimatedPadding으로 이동하여 제거
+                // 캐시할 픽셀 범위 제한
+                cacheExtent: 200.0,
+
+                // 자동 keepAlive 비활성화
+                addAutomaticKeepAlives: false,
+
+                // 불필요한 repaint boundary 제거
+                addRepaintBoundaries: false,
+
+                itemCount: categories.isEmpty ? 1 : categories.length + 1,
+                itemBuilder: (context, index) {
+                  // 첫 번째 아이템은 항상 '추가하기' 버튼
+                  if (index == 0) {
+                    return CategoryItemWidget(
+                      image: "assets/plus_icon.png",
+                      label: '추가하기',
+                      onTap: widget.addCategoryPressed,
+                    );
+                  }
+                  // 카테고리 아이템 표시
+                  else {
+                    final category = categories[index - 1];
+                    final categoryId = category.id;
+
+                    return CategoryItemWidget(
+                      imageUrl: category.categoryPhotoUrl,
+                      label: category.name,
+                      categoryId: categoryId,
+                      selectedCategoryIds: widget.selectedCategoryIds,
+                      onTap: () => widget.onCategorySelected(categoryId),
+                    );
+                  }
+                },
               ),
-              padding: EdgeInsets.only(
-                left: 18.w,
-                right: 18.w,
-                bottom: widget.selectedCategoryIds.isNotEmpty ? 80.h : 0,
-              ),
-
-              cacheExtent: 200.0, // 캐시할 픽셀 범위 제한
-              addAutomaticKeepAlives: false, // 자동 keepAlive 비활성화
-              addRepaintBoundaries: false, // 불필요한 repaint boundary 제거
-
-              itemCount: categories.isEmpty ? 1 : categories.length + 1,
-              itemBuilder: (context, index) {
-                // 첫 번째 아이템은 항상 '추가하기' 버튼
-                if (index == 0) {
-                  return CategoryItemWidget(
-                    image: "assets/plus_icon.png",
-                    label: '추가하기',
-                    onTap: widget.addCategoryPressed,
-                  );
-                }
-                // 카테고리 아이템 표시
-                else {
-                  final category = categories[index - 1];
-                  final categoryId = category.id;
-
-                  return CategoryItemWidget(
-                    imageUrl: category.categoryPhotoUrl,
-                    label: category.name,
-                    categoryId: categoryId,
-                    selectedCategoryIds: widget.selectedCategoryIds,
-                    onTap: () => widget.onCategorySelected(categoryId),
-                  );
-                }
-              },
             );
           },
         ),
@@ -116,7 +123,10 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
         Padding(
           padding: EdgeInsets.only(bottom: (37).h),
           child: AnimatedSlide(
-            offset: Offset.zero,
+            // 버튼이 아래에서 위로 슬라이드되도록 offset 조건 추가
+            offset: widget.selectedCategoryIds.isNotEmpty
+                ? Offset.zero
+                : const Offset(0, 0.3),
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
             child: AnimatedOpacity(

@@ -51,6 +51,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   bool _isDisposing = false;
   static const double _kInitialSheetExtent = 0.0;
   static const double _kLockedSheetExtent = 0.19;
+  static const double _kExpandedSheetExtent = 0.29; // 카테고리 선택 시 확장된 높이
   static const double _kMaxSheetExtent = 0.8;
   double _minChildSize = _kInitialSheetExtent;
   double _initialChildSize = _kInitialSheetExtent;
@@ -323,6 +324,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 
   void _handleCategorySelection(String categoryId) {
+    // 이전 선택 상태 저장
+    final wasEmpty = _selectedCategoryIds.isEmpty;
+
     setState(() {
       if (_selectedCategoryIds.contains(categoryId)) {
         _selectedCategoryIds.remove(categoryId);
@@ -330,6 +334,16 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         _selectedCategoryIds.add(categoryId);
       }
     });
+
+    // 카테고리 선택 상태에 따라 바텀시트 높이 조정
+    if (_selectedCategoryIds.isEmpty) {
+      // 모든 선택 해제 시 → 원래 위치로
+      _animateSheetTo(_kLockedSheetExtent);
+    } else if (wasEmpty) {
+      // 처음 선택 시에만 → 확장
+      _animateSheetTo(_kExpandedSheetExtent);
+    }
+    // 이미 선택된 상태에서 추가 선택/해제 시 → 높이 유지 (아무것도 하지 않음)
   }
 
   void _animateSheetTo(double size, {bool lockExtent = false}) {
@@ -593,10 +607,10 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         try {
           if (await imageFile.exists()) {
             await imageFile.delete();
-            debugPrint('🗑️ 업로드 완료 후 임시 파일 삭제: $filePath');
+            debugPrint('업로드 완료 후 임시 파일 삭제: $filePath');
           }
         } catch (e) {
-          debugPrint('⚠️ 임시 파일 삭제 실패: $e');
+          debugPrint('임시 파일 삭제 실패: $e');
         }
       }
 
@@ -605,14 +619,14 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         try {
           if (await audioFile.exists()) {
             await audioFile.delete();
-            debugPrint('🗑️ 업로드 완료 후 임시 오디오 파일 삭제: $audioPath');
+            debugPrint('업로드 완료 후 임시 오디오 파일 삭제: $audioPath');
           }
         } catch (e) {
-          debugPrint('⚠️ 임시 오디오 파일 삭제 실패: $e');
+          debugPrint('임시 오디오 파일 삭제 실패: $e');
         }
       }
     } catch (e) {
-      debugPrint('❌ 업로드 실패: $e');
+      debugPrint('업로드 실패: $e');
       rethrow;
     }
   }
@@ -671,7 +685,6 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                 // 사진 영역 (스크롤 가능)
                 Positioned.fill(
                   child: SingleChildScrollView(
-                    //physics: NeverScrollableScrollPhysics(),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -697,10 +710,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                       : MediaQuery.of(context).size.height *
                             _kLockedSheetExtent,
 
-                  child: SizedBox(
-                    //height: 50.h -> 고정 높이를 가려야, 텍스트의 높이에 따라 텍스트 필드가 유동적으로 변함
-                    child: _buildCaptionInputBar(),
-                  ),
+                  child: SizedBox(child: _buildCaptionInputBar()),
                 ),
               ],
             ),
