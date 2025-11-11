@@ -1501,7 +1501,7 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  soi_api:
+  soi_api_client:
     dependency: "direct main"
     description:
       path: "api/generated"

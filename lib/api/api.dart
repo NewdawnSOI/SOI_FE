@@ -14,7 +14,7 @@ export 'services/friend_service.dart';
 export 'services/media_service.dart';
 
 // OpenAPI Generated (필요한 경우 직접 사용)
-export 'package:soi_api/api.dart'
+export 'package:soi_api_client/api.dart'
     show
         UserRespDto,
         UserCreateReqDto,
@@ -24,7 +24,6 @@ export 'package:soi_api/api.dart'
         FriendUpdateRespDto,
         FriendUpdateRespDtoStatusEnum,
         ApiResponseDtoBoolean,
-        ApiResponseDtoString,
         ApiResponseDtoListString,
         ApiResponseDtoUserRespDto,
         ApiResponseDtoListUserRespDto,

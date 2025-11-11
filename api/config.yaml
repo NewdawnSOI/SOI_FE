@@ -8,7 +8,7 @@ generatorName: dart
 outputDir: ./generated
 
 # 입력 OpenAPI 스펙 파일
-inputSpec: ./openapi.json
+inputSpec: ./openapi.yaml
 
 # Dart 클라이언트 추가 옵션
 additionalProperties:

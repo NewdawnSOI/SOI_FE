@@ -37,7 +37,6 @@ part 'model/api_response_dto_friend_resp_dto.dart';
 part 'model/api_response_dto_list_string.dart';
 part 'model/api_response_dto_list_user_find_resp_dto.dart';
 part 'model/api_response_dto_list_user_resp_dto.dart';
-part 'model/api_response_dto_string.dart';
 part 'model/api_response_dto_user_resp_dto.dart';
 part 'model/friend_req_dto.dart';
 part 'model/friend_resp_dto.dart';

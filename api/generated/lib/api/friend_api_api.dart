@@ -192,8 +192,8 @@ class FriendAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  Future<Response> getAllFriendWithHttpInfo(int userId,) async {
+  /// * [int] id (required):
+  Future<Response> getAllFriendWithHttpInfo(int id,) async {
     // ignore: prefer_const_declarations
     final path = r'/friend/get-all';
 
@@ -204,7 +204,7 @@ class FriendAPIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'userId', userId));
+      queryParams.addAll(_queryParams('', 'id', id));
 
     const contentTypes = <String>[];
 
@@ -226,9 +226,9 @@ class FriendAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  Future<ApiResponseDtoListUserFindRespDto?> getAllFriend(int userId,) async {
-    final response = await getAllFriendWithHttpInfo(userId,);
+  /// * [int] id (required):
+  Future<ApiResponseDtoListUserFindRespDto?> getAllFriend(int id,) async {
+    final response = await getAllFriendWithHttpInfo(id,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

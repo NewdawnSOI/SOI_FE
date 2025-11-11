@@ -43,7 +43,7 @@ import 'package:soi_api_client/api.dart';
 
 
 final api_instance = APIApi();
-final key = key_example; // String | 
+final key = []; // List<String> | 
 
 try {
     final result = api_instance.getPresignedUrl(key);
@@ -84,7 +84,6 @@ Class | Method | HTTP request | Description
  - [ApiResponseDtoListString](doc//ApiResponseDtoListString.md)
  - [ApiResponseDtoListUserFindRespDto](doc//ApiResponseDtoListUserFindRespDto.md)
  - [ApiResponseDtoListUserRespDto](doc//ApiResponseDtoListUserRespDto.md)
- - [ApiResponseDtoString](doc//ApiResponseDtoString.md)
  - [ApiResponseDtoUserRespDto](doc//ApiResponseDtoUserRespDto.md)
  - [FriendReqDto](doc//FriendReqDto.md)
  - [FriendRespDto](doc//FriendRespDto.md)

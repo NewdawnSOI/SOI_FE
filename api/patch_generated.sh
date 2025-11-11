@@ -19,21 +19,18 @@ fi
 cp "$FILE" "${FILE}.backup"
 echo "📦 Backup created: ${FILE}.backup"
 
-# files.field 라인 제거 (존재하지 않는 getter)
-sed -i '' '/mp\.fields\[.*files.*\] = files\.field;/d' "$FILE"
-
-# mp.files.add(files)를 mp.files.addAll(files)로 변경
-sed -i '' 's/mp\.files\.add(files);/mp.files.addAll(files);/g' "$FILE"
-
-# files != null을 files.isNotEmpty로 변경 (더 안전)
-sed -i '' 's/if (files != null)/if (files.isNotEmpty)/g' "$FILE"
+# file != null을 제거하고 직접 로직 사용 (단일 파일의 경우)
+# 108-113 라인의 null 체크와 관련 로직을 제거하고 간단하게 변경
+sed -i '' '/if (file != null) {/,/}/c\
+    hasFields = true;\
+    mp.files.add(file);
+' "$FILE"
 
 echo "✅ Patch complete!"
 echo ""
 echo "📝 Changes made:"
-echo "   - Removed: mp.fields[r'files'] = files.field;"
-echo "   - Changed: mp.files.add(files) → mp.files.addAll(files)"
-echo "   - Changed: files != null → files.isNotEmpty"
+echo "   - Removed unnecessary null check for required file parameter"
+echo "   - Simplified multipart file handling"
 echo ""
 echo "🔄 Next steps:"
-echo "   cd generated && flutter pub get"
+echo "   cd generated && dart analyze"

@@ -147,7 +147,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **getAllFriend**
-> ApiResponseDtoListUserFindRespDto getAllFriend(userId)
+> ApiResponseDtoListUserFindRespDto getAllFriend(id)
 
 모든 친구 조회
 
@@ -158,10 +158,10 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = FriendAPIApi();
-final userId = 789; // int | 
+final id = 789; // int | 
 
 try {
-    final result = api_instance.getAllFriend(userId);
+    final result = api_instance.getAllFriend(id);
     print(result);
 } catch (e) {
     print('Exception when calling FriendAPIApi->getAllFriend: $e\n');
@@ -172,7 +172,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **int**|  | 
+ **id** | **int**|  | 
 
 ### Return type
 

@@ -24,8 +24,8 @@ class APIApi {
   ///
   /// Parameters:
   ///
-  /// * [String] key (required):
-  Future<Response> getPresignedUrlWithHttpInfo(String key,) async {
+  /// * [List<String>] key (required):
+  Future<Response> getPresignedUrlWithHttpInfo(List<String> key,) async {
     // ignore: prefer_const_declarations
     final path = r'/media/get-url';
 
@@ -36,7 +36,7 @@ class APIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'key', key));
+      queryParams.addAll(_queryParams('multi', 'key', key));
 
     const contentTypes = <String>[];
 
@@ -58,8 +58,8 @@ class APIApi {
   ///
   /// Parameters:
   ///
-  /// * [String] key (required):
-  Future<ApiResponseDtoString?> getPresignedUrl(String key,) async {
+  /// * [List<String>] key (required):
+  Future<ApiResponseDtoListString?> getPresignedUrl(List<String> key,) async {
     final response = await getPresignedUrlWithHttpInfo(key,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
@@ -68,7 +68,7 @@ class APIApi {
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoString',) as ApiResponseDtoString;
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoListString',) as ApiResponseDtoListString;
     
     }
     return null;
@@ -76,18 +76,19 @@ class APIApi {
 
   /// 미디어 업로드
   ///
-  /// 단일, 여러개의 파일을 올릴 수 있습니다. 여러개의 파일 업로드시 , 로 구분해서 type을 명시합니다.
+  /// 파일을 업로드합니다.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
   ///
-  /// * [String] types (required):
+  /// * [List<String>] types (required):
   ///
   /// * [int] id (required):
   ///
-  /// * [List<MultipartFile>] files (required):
-  Future<Response> uploadMediaWithHttpInfo(String types, int id, List<MultipartFile> files,) async {
+  /// * [MultipartFile] file (required):
+  ///   업로드할 파일
+  Future<Response> uploadMediaWithHttpInfo(List<String> types, int id, MultipartFile file,) async {
     // ignore: prefer_const_declarations
     final path = r'/media/upload';
 
@@ -98,17 +99,15 @@ class APIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'types', types));
+      queryParams.addAll(_queryParams('multi', 'types', types));
       queryParams.addAll(_queryParams('', 'id', id));
 
     const contentTypes = <String>['multipart/form-data'];
 
     bool hasFields = false;
     final mp = MultipartRequest('POST', Uri.parse(path));
-    if (files.isNotEmpty) {
-      hasFields = true;
-      mp.files.addAll(files);
-    }
+    hasFields = true;
+    mp.files.add(file);
     if (hasFields) {
       postBody = mp;
     }
@@ -126,17 +125,18 @@ class APIApi {
 
   /// 미디어 업로드
   ///
-  /// 단일, 여러개의 파일을 올릴 수 있습니다. 여러개의 파일 업로드시 , 로 구분해서 type을 명시합니다.
+  /// 파일을 업로드합니다.
   ///
   /// Parameters:
   ///
-  /// * [String] types (required):
+  /// * [List<String>] types (required):
   ///
   /// * [int] id (required):
   ///
-  /// * [List<MultipartFile>] files (required):
-  Future<ApiResponseDtoListString?> uploadMedia(String types, int id, List<MultipartFile> files,) async {
-    final response = await uploadMediaWithHttpInfo(types, id, files,);
+  /// * [MultipartFile] file (required):
+  ///   업로드할 파일
+  Future<ApiResponseDtoListString?> uploadMedia(List<String> types, int id, MultipartFile file,) async {
+    final response = await uploadMediaWithHttpInfo(types, id, file,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

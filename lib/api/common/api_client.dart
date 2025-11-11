@@ -2,7 +2,7 @@
 /// Spring Boot API와 통신하기 위한 중앙 집중식 클라이언트
 library;
 
-import 'package:soi_api/api.dart' as api;
+import 'package:soi_api_client/api.dart' as api;
 
 class SoiApiClient {
   static SoiApiClient? _instance;

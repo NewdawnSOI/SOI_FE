@@ -8,7 +8,6 @@ doc/ApiResponseDtoFriendRespDto.md
 doc/ApiResponseDtoListString.md
 doc/ApiResponseDtoListUserFindRespDto.md
 doc/ApiResponseDtoListUserRespDto.md
-doc/ApiResponseDtoString.md
 doc/ApiResponseDtoUserRespDto.md
 doc/FriendAPIApi.md
 doc/FriendReqDto.md
@@ -36,7 +35,6 @@ lib/model/api_response_dto_friend_resp_dto.dart
 lib/model/api_response_dto_list_string.dart
 lib/model/api_response_dto_list_user_find_resp_dto.dart
 lib/model/api_response_dto_list_user_resp_dto.dart
-lib/model/api_response_dto_string.dart
 lib/model/api_response_dto_user_resp_dto.dart
 lib/model/friend_req_dto.dart
 lib/model/friend_resp_dto.dart

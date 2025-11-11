@@ -3,7 +3,7 @@
 library;
 
 import 'dart:developer' as developer;
-import 'package:soi_api/api.dart' as api;
+import 'package:soi_api_client/api.dart' as api;
 import '../common/api_client.dart';
 import '../common/api_result.dart';
 import '../common/api_exception.dart';

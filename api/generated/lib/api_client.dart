@@ -192,8 +192,6 @@ class ApiClient {
           return ApiResponseDtoListUserFindRespDto.fromJson(value);
         case 'ApiResponseDtoListUserRespDto':
           return ApiResponseDtoListUserRespDto.fromJson(value);
-        case 'ApiResponseDtoString':
-          return ApiResponseDtoString.fromJson(value);
         case 'ApiResponseDtoUserRespDto':
           return ApiResponseDtoUserRespDto.fromJson(value);
         case 'FriendReqDto':

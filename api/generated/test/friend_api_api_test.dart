@@ -48,7 +48,7 @@ void main() {
     //
     // 유저의 id (user_id 말고 그냥 id)를 통해 모든 친구를 조회합니다.
     //
-    //Future<ApiResponseDtoListUserFindRespDto> getAllFriend(int userId) async
+    //Future<ApiResponseDtoListUserFindRespDto> getAllFriend(int id) async
     test('test getAllFriend', () async {
       // TODO
     });

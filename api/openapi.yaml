@@ -83,14 +83,16 @@ paths:
       tags:
       - "사진, 비디오, 음성 파일을 전송하는 API"
       summary: 미디어 업로드
-      description: "단일, 여러개의 파일을 올릴 수 있습니다. 여러개의 파일 업로드시 , 로 구분해서 type을 명시합니다."
+      description: "파일을 업로드합니다."
       operationId: uploadMedia
       parameters:
       - name: types
         in: query
         required: true
         schema:
-          type: string
+          type: array
+          items:
+            type: string
       - name: id
         in: query
         required: true
@@ -98,18 +100,18 @@ paths:
           type: integer
           format: int64
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
-              required:
-              - files
               type: object
               properties:
-                files:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
+                file:
+                  type: string
+                  format: binary
+                  description: "업로드할 파일"
+              required:
+              - file
       responses:
         "200":
           description: OK
@@ -167,7 +169,7 @@ paths:
       description: 유저의 id (user_id 말고 그냥 id)를 통해 모든 친구를 조회합니다.
       operationId: getAllFriend
       parameters:
-      - name: userId
+      - name: id
         in: query
         required: true
         schema:
@@ -310,14 +312,16 @@ paths:
         in: query
         required: true
         schema:
-          type: string
+          type: array
+          items:
+            type: string
       responses:
         "200":
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseDtoString"
+                $ref: "#/components/schemas/ApiResponseDtoListString"
   /user/delete:
     delete:
       tags:
@@ -487,14 +491,5 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UserRespDto"
-        message:
-          type: string
-    ApiResponseDtoString:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: string
         message:
           type: string

@@ -54,11 +54,6 @@ class VoiceCommentStateManager {
   // 임시 음성 댓글 데이터 (파형 클릭 시 저장용)
   final Map<String, PendingVoiceComment> _pendingVoiceComments = {};
 
-  // Removed: _profileImagePositions, _commentProfileImageUrls, _droppedProfileImageUrls
-  // These were photoId-based and caused conflicts with multiple comments
-  // Pending position is stored in _pendingVoiceComments
-  // Saved comment positions are in each CommentRecordModel.relativePosition
-
   // 실시간 스트림 관리
   final Map<String, List<CommentRecordModel>> _photoComments = {};
   final Map<String, StreamSubscription<List<CommentRecordModel>>>
@@ -68,7 +63,6 @@ class VoiceCommentStateManager {
   Map<String, bool> get voiceCommentActiveStates => _voiceCommentActiveStates;
   Map<String, bool> get voiceCommentSavedStates => _voiceCommentSavedStates;
   Map<String, List<String>> get savedCommentIds => _savedCommentIds;
-  // Removed: profileImagePositions, commentProfileImageUrls, droppedProfileImageUrls
   Map<String, List<CommentRecordModel>> get photoComments => _photoComments;
   Map<String, PendingVoiceComment> get pendingVoiceComments =>
       _pendingVoiceComments;
@@ -106,14 +100,9 @@ class VoiceCommentStateManager {
 
   /// 음성 댓글 토글
   void toggleVoiceComment(String photoId) {
-    debugPrint(
-      '🔶 [StateManager] 음성 댓글 토글: photoId=$photoId, 현재=${_voiceCommentActiveStates[photoId]}',
-    );
     _voiceCommentActiveStates[photoId] =
         !(_voiceCommentActiveStates[photoId] ?? false);
-    debugPrint(
-      '🔶 [StateManager] 음성 댓글 토글 후: ${_voiceCommentActiveStates[photoId]}',
-    );
+
     _notifyStateChanged();
   }
 
@@ -154,9 +143,6 @@ class VoiceCommentStateManager {
       return;
     }
 
-    debugPrint(
-      '🟡 [StateManager] 텍스트 댓글 pending 저장: photoId=$photoId, text=$text',
-    );
     // 임시 저장 (프로필 위치 지정 후 실제 저장)
     _pendingVoiceComments[photoId] = PendingVoiceComment(
       text: text,
@@ -164,11 +150,8 @@ class VoiceCommentStateManager {
       recorderUserId: recorderUserId,
       profileImageUrl: profileImageUrl,
     );
-    debugPrint(
-      '🟡 [StateManager] pendingTextComments: ${_pendingVoiceComments.keys.toList()}',
-    );
+
     _notifyStateChanged();
-    debugPrint('🟡 [StateManager] State 변경 알림 완료');
   }
 
   /// 실제 음성 댓글 저장 (파형 클릭 시 호출)
@@ -253,9 +236,6 @@ class VoiceCommentStateManager {
       // 임시 데이터 삭제
       _pendingVoiceComments.remove(photoId);
 
-      // 다음 댓글을 위해 위치 초기화 (기존 댓글은 건드리지 않음)
-      // Each comment stores its own position in relativePosition field
-
       _notifyStateChanged();
     } catch (e) {
       debugPrint("댓글 저장 중 오류 발생: $e");
@@ -267,7 +247,6 @@ class VoiceCommentStateManager {
   void onVoiceCommentDeleted(String photoId) {
     _voiceCommentActiveStates[photoId] = false;
     _voiceCommentSavedStates[photoId] = false;
-    // Position stored in each comment's relativePosition field
     _notifyStateChanged();
   }
 
@@ -275,7 +254,7 @@ class VoiceCommentStateManager {
   void onSaveCompleted(String photoId) {
     // 저장 완료 후 다시 버튼 상태로 돌아가서 추가 댓글 녹음 가능
     _voiceCommentActiveStates[photoId] = false;
-    // _voiceCommentSavedStates는 건드리지 않음 (실제 댓글이 저장되어 있으므로)
+
     // 임시 데이터 정리
     _pendingVoiceComments.remove(photoId);
     _notifyStateChanged();

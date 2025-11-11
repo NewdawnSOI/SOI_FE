@@ -21,16 +21,16 @@ void main() {
     //
     // DB에 저장된 S3 key를 입력하면 1시간 유효한 접근 URL을 반환합니다.
     //
-    //Future<ApiResponseDtoString> getPresignedUrl(String key) async
+    //Future<ApiResponseDtoListString> getPresignedUrl(List<String> key) async
     test('test getPresignedUrl', () async {
       // TODO
     });
 
     // 미디어 업로드
     //
-    // 단일, 여러개의 파일을 올릴 수 있습니다. 여러개의 파일 업로드시 , 로 구분해서 type을 명시합니다.
+    // 파일을 업로드합니다.
     //
-    //Future<ApiResponseDtoListString> uploadMedia(String types, int id, List<MultipartFile> files) async
+    //Future<ApiResponseDtoListString> uploadMedia(List<String> types, int id, MultipartFile file) async
     test('test uploadMedia', () async {
       // TODO
     });
