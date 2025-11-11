@@ -678,6 +678,15 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
     // MARK: - Private Helpers
     private func configureSession() throws {
+        // AVAudioSession 설정 (AVCaptureSession 설정 전에 필수!)
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(
+            .playAndRecord,
+            mode: .videoRecording,
+            options: [.defaultToSpeaker, .allowBluetooth]
+        )
+        try audioSession.setActive(true)
+        
         captureSession.beginConfiguration()
         captureSession.sessionPreset = .high
 
