@@ -113,31 +113,40 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
         ),
 
         // FloatingActionButton - 카테고리 선택 시 표시
-        if (widget.selectedCategoryIds.isNotEmpty)
-          Padding(
-            padding: EdgeInsets.only(bottom: (37).h),
-            child: AnimatedScale(
-              scale: widget.selectedCategoryIds.isNotEmpty ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: ElevatedButton(
-                onPressed: widget.onConfirmSelection,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(26.9),
+        Padding(
+          padding: EdgeInsets.only(bottom: (37).h),
+          child: AnimatedSlide(
+            offset: Offset.zero,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              // 투명도 애니메이션 (0 → 1)
+              opacity: widget.selectedCategoryIds.isNotEmpty ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOut,
+              child: IgnorePointer(
+                // 버튼이 보이지 않을 때 터치 이벤트 무시
+                ignoring: widget.selectedCategoryIds.isEmpty,
+                child: ElevatedButton(
+                  onPressed: widget.onConfirmSelection,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26.9),
+                    ),
                   ),
-                ),
-                child: SizedBox(
-                  width: 349,
-                  height: 45,
-                  child: Center(
-                    child: Text(
-                      '전송',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 20,
-                        fontFamily: 'Pretendard',
-                        fontWeight: FontWeight.w600,
+                  child: SizedBox(
+                    width: 349,
+                    height: 45,
+                    child: Center(
+                      child: Text(
+                        '전송',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 20,
+                          fontFamily: 'Pretendard',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -145,6 +154,7 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
               ),
             ),
           ),
+        ),
       ],
     );
   }
