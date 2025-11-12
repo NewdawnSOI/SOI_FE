@@ -26,12 +26,17 @@ class PhotoEditorScreen extends StatefulWidget {
   // 미디어가 비디오인지 여부를 체크하는 플래그
   final bool? isVideo;
   final ImageProvider? initialImage;
+
+  // 카메라에서 직접 촬영된 미디어인지 여부 (true: 촬영됨, false: 갤러리에서 선택됨)
+  final bool isFromCamera;
+
   const PhotoEditorScreen({
     super.key,
     this.downloadUrl,
     this.filePath,
     this.isVideo,
     this.initialImage,
+    this.isFromCamera = true, // 기본값은 촬영된 것으로 설정
   });
   @override
   State<PhotoEditorScreen> createState() => _PhotoEditorScreenState();
@@ -39,42 +44,32 @@ class PhotoEditorScreen extends StatefulWidget {
 
 class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     with WidgetsBindingObserver {
-  // ========== 상태 관리 변수들 ==========
   bool _isLoading = true;
   bool _showImmediatePreview = false;
   String? _errorMessage;
   bool _useLocalImage = false;
   ImageProvider? _initialImageProvider;
   bool _showAddCategoryUI = false;
-  //String? _selectedCategoryId;
   final List<String> _selectedCategoryIds = [];
   bool _categoriesLoaded = false;
   bool _shouldAutoOpenCategorySheet = true;
   bool _isDisposing = false;
   static const double _kInitialSheetExtent = 0.0;
   static const double _kLockedSheetExtent = 0.19;
-  static const double _kExpandedSheetExtent = 0.29; // 카테고리 선택 시 확장된 높이
+  static const double _kExpandedSheetExtent = 0.31;
   static const double _kMaxSheetExtent = 0.8;
   double _minChildSize = _kInitialSheetExtent;
   double _initialChildSize = _kInitialSheetExtent;
   bool _hasLockedSheetExtent = false;
-
-  // 오디오 관련 변수들
   List<double>? _recordedWaveformData;
   String? _recordedAudioPath;
   bool _isCaptionEmpty = true;
-
-  // 음성 녹음 UI 표시 여부
   bool _showAudioRecorder = false;
 
-  // 키보드 높이
   double get keyboardHeight => MediaQuery.of(context).viewInsets.bottom;
   bool get isKeyboardVisible => keyboardHeight > 0;
-
-  // 바텀시트를 숨겨야 하는지 판단 (caption 입력 중이고 카테고리 추가 화면이 아닐 때)
   bool get shouldHideBottomSheet => isKeyboardVisible && !_showAddCategoryUI;
 
-  // 컨트롤러들
   final _draggableScrollController = DraggableScrollableController();
   final _categoryNameController = TextEditingController();
   final TextEditingController _captionController = TextEditingController();
@@ -86,7 +81,6 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   final FocusNode _captionFocusNode = FocusNode();
   final FocusNode _categoryFocusNode = FocusNode();
 
-  // ========== 생명주기 메서드들 ==========
   @override
   void initState() {
     super.initState();
@@ -117,9 +111,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   // ========== 초기화 메서드들 ==========
   void _initializeScreen() {
-    if (!_showImmediatePreview) {
-      _loadImage();
-    }
+    if (!_showImmediatePreview) _loadImage();
   }
 
   void _primeImmediatePreview() {
@@ -132,14 +124,10 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     }
 
     final localPath = widget.filePath;
-    if (localPath == null || localPath.isEmpty) {
-      return;
-    }
+    if (localPath == null || localPath.isEmpty) return;
 
     final file = File(localPath);
-    if (!file.existsSync()) {
-      return;
-    }
+    if (!file.existsSync()) return;
 
     _useLocalImage = true;
     _showImmediatePreview = true;
@@ -161,9 +149,8 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   void _handleCaptionChanged() {
     final isEmpty = _captionController.text.trim().isEmpty;
-    if (isEmpty == _isCaptionEmpty) {
-      return;
-    }
+    if (isEmpty == _isCaptionEmpty) return;
+
     if (!mounted) {
       _isCaptionEmpty = isEmpty;
       return;
@@ -173,9 +160,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   void _loadCategoriesIfNeeded() {
     if (!_categoriesLoaded) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _loadUserCategories();
-      });
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _loadUserCategories(),
+      );
     }
   }
 
@@ -207,41 +194,20 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   Future<void> _loadImage() async {
     _errorMessage = null;
 
-    if (_showImmediatePreview && widget.initialImage != null) {
+    // _primeImmediatePreview에서 이미 처리된 경우
+    if (_showImmediatePreview) {
       _isLoading = false;
       if (mounted) setState(() {});
       return;
     }
 
-    final primedLocalPath = widget.filePath;
-    if (_showImmediatePreview &&
-        primedLocalPath != null &&
-        primedLocalPath.isNotEmpty) {
-      final primedFile = File(primedLocalPath);
-      if (primedFile.existsSync()) {
-        _isLoading = false;
-        if (mounted) setState(() {});
-        return;
-      }
-    }
-
-    _showImmediatePreview = false;
-
     final localPath = widget.filePath;
     if (localPath != null && localPath.isNotEmpty) {
       final file = File(localPath);
-
-      if (file.existsSync()) {
-        _useLocalImage = true;
-        _showImmediatePreview = true;
-        _isLoading = false;
-        if (mounted) setState(() {});
-        return;
-      }
-
       try {
         final exists = await file.exists();
         if (!mounted) return;
+
         if (exists) {
           setState(() {
             _useLocalImage = true;
@@ -250,6 +216,12 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
           });
           return;
         }
+
+        setState(() {
+          _errorMessage = '이미지 파일을 찾을 수 없습니다.';
+          _isLoading = false;
+        });
+        return;
       } catch (e) {
         if (!mounted) return;
         setState(() {
@@ -258,34 +230,11 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         });
         return;
       }
-
-      if (mounted) {
-        setState(() {
-          _errorMessage = '이미지 파일을 찾을 수 없습니다.';
-          _isLoading = false;
-        });
-      }
-      return;
     }
 
-    if (widget.downloadUrl != null && widget.downloadUrl!.isNotEmpty) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      } else {
-        _isLoading = false;
-      }
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    } else {
-      _isLoading = false;
-    }
+    // downloadUrl이 있거나 둘 다 없는 경우
+    _isLoading = false;
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadUserCategories({bool forceReload = false}) async {
@@ -326,7 +275,6 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 
   void _handleCategorySelection(String categoryId) {
-    // 이전 선택 상태 저장
     final wasEmpty = _selectedCategoryIds.isEmpty;
 
     setState(() {
@@ -339,68 +287,58 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
     // 카테고리 선택 상태에 따라 바텀시트 높이 조정
     if (_selectedCategoryIds.isEmpty) {
-      // 모든 선택 해제 시 → 원래 위치로
       _animateSheetTo(_kLockedSheetExtent);
     } else if (wasEmpty) {
-      // 처음 선택 시에만 → 확장
       _animateSheetTo(_kExpandedSheetExtent);
     }
-    // 이미 선택된 상태에서 추가 선택/해제 시 → 높이 유지 (아무것도 하지 않음)
   }
 
   void _animateSheetTo(double size, {bool lockExtent = false}) {
     if (!mounted || _isDisposing) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _isDisposing) return;
-      if (_draggableScrollController.isAttached) {
-        await _draggableScrollController.animateTo(
-          size,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-      if (lockExtent) {
-        _lockSheetExtent(size);
-      }
-    });
-  }
 
-  void _lockSheetExtent(double size) {
-    if (!mounted || _isDisposing || _hasLockedSheetExtent) return;
-    setState(() {
-      _minChildSize = size;
-      _initialChildSize = size;
-      _hasLockedSheetExtent = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _isDisposing || !_draggableScrollController.isAttached)
+        return;
+
+      await _draggableScrollController.animateTo(
+        size,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+
+      if (lockExtent && !_hasLockedSheetExtent) {
+        setState(() {
+          _minChildSize = size;
+          _initialChildSize = size;
+          _hasLockedSheetExtent = true;
+        });
+        if (_draggableScrollController.isAttached) {
+          _draggableScrollController.jumpTo(size);
+        }
+      }
     });
-    if (_draggableScrollController.isAttached) {
-      _draggableScrollController.jumpTo(size);
-    }
   }
 
   Future<void> _resetBottomSheetIfNeeded() async {
-    if (_isDisposing || !_draggableScrollController.isAttached) {
-      return;
-    }
-    final double targetSize = _hasLockedSheetExtent
+    if (_isDisposing || !_draggableScrollController.isAttached) return;
+
+    final targetSize = _hasLockedSheetExtent
         ? _kLockedSheetExtent
         : _initialChildSize;
-    final double currentSize = _draggableScrollController.size;
-    const double tolerance = 0.001;
-    if ((currentSize - targetSize).abs() <= tolerance) {
-      return;
+    final currentSize = _draggableScrollController.size;
+
+    if ((currentSize - targetSize).abs() > 0.001) {
+      await _draggableScrollController.animateTo(
+        targetSize,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
     }
-    await _draggableScrollController.animateTo(
-      targetSize,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-    );
   }
 
   void _handleMicTap() {
-    setState(() {
-      _showAudioRecorder = true;
-    });
-    _captionFocusNode.unfocus(); // 키보드 숨김
+    setState(() => _showAudioRecorder = true);
+    _captionFocusNode.unfocus();
   }
 
   Widget _buildCaptionInputBar() {
@@ -462,26 +400,26 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       ).showSnackBar(SnackBar(content: Text('카테고리 이름을 입력해주세요')));
       return;
     }
+
     try {
-      final String? userId = _authController.getUserId;
+      final userId = _authController.getUserId;
       if (userId == null) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('로그인이 필요합니다. 다시 로그인해주세요.')));
         return;
       }
-      List<String> mates = [userId];
-      for (final friend in selectedFriends) {
-        if (!mates.contains(friend.uid)) {
-          mates.add(friend.uid);
-        }
-      }
+
+      List<String> mates = [userId, ...selectedFriends.map((f) => f.uid)];
+
       await _categoryController.createCategory(
         name: _categoryNameController.text.trim(),
         mates: mates,
       );
+
       _categoriesLoaded = false;
       await _loadUserCategories(forceReload: true);
+
       if (!mounted) return;
       setState(() {
         _showAddCategoryUI = false;
@@ -496,6 +434,23 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 
   // ========== 업로드 및 화면 전환 관련 메서드들 ==========
+  Future<void> _deleteTemporaryFile(File file, String path) async {
+    if (!path.contains('/tmp/')) return;
+
+    try {
+      if (await file.exists()) {
+        await file.delete();
+        debugPrint('임시 파일 삭제: $path');
+      }
+    } catch (e) {
+      debugPrint('임시 파일 삭제 실패: $e');
+    }
+  }
+
+  // 비디오 출처 확인 헬퍼 메서드
+  bool get isVideoFromCamera => widget.isVideo == true && widget.isFromCamera;
+  bool get isVideoFromGallery => widget.isVideo == true && !widget.isFromCamera;
+
   Future<void> _uploadThenNavigate(List<String> categoryIds) async {
     if (!mounted) return;
     LoadingPopupWidget.show(
@@ -503,8 +458,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       message: '${categoryIds.length}개 카테고리에 사진을 업로드하고 있습니다.\n잠시만 기다려주세요',
     );
     try {
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
+      _clearImageCache();
       await _audioController.stopAudio();
       await _audioController.stopRealtimeAudio();
       _audioController.clearCurrentRecording();
@@ -524,16 +478,13 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         }
       }
 
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
-
+      _clearImageCache();
       if (!mounted) return;
       LoadingPopupWidget.hide(context);
       if (!mounted) return;
       _navigateToHome();
     } catch (e) {
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
+      _clearImageCache();
       if (!mounted) return;
       LoadingPopupWidget.hide(context);
       if (!mounted) return;
@@ -544,16 +495,15 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   Map<String, dynamic>? _extractUploadData(String categoryId) {
     final filePath = widget.filePath;
     final userId = _authController.getUserId;
-    final audioPath =
-        _recordedAudioPath ?? _audioController.currentRecordingPath;
-    final waveformData = _recordedWaveformData;
+
     if (filePath == null || userId == null) return null;
+
     return {
       'categoryId': categoryId,
       'filePath': filePath,
       'userId': userId,
-      'audioPath': audioPath,
-      'waveformData': waveformData,
+      'audioPath': _recordedAudioPath ?? _audioController.currentRecordingPath,
+      'waveformData': _recordedWaveformData,
       'caption': _captionController.text.trim().isNotEmpty
           ? _captionController.text.trim()
           : null,
@@ -605,27 +555,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       }
 
       // 업로드 성공 후 임시 파일 삭제
-      if (filePath.contains('/tmp/')) {
-        try {
-          if (await imageFile.exists()) {
-            await imageFile.delete();
-            debugPrint('업로드 완료 후 임시 파일 삭제: $filePath');
-          }
-        } catch (e) {
-          debugPrint('임시 파일 삭제 실패: $e');
-        }
-      }
-
-      // 오디오 파일도 삭제
-      if (audioFile != null && audioPath!.contains('/tmp/')) {
-        try {
-          if (await audioFile.exists()) {
-            await audioFile.delete();
-            debugPrint('업로드 완료 후 임시 오디오 파일 삭제: $audioPath');
-          }
-        } catch (e) {
-          debugPrint('임시 오디오 파일 삭제 실패: $e');
-        }
+      await _deleteTemporaryFile(imageFile, filePath);
+      if (audioFile != null && audioPath != null) {
+        await _deleteTemporaryFile(audioFile, audioPath);
       }
     } catch (e) {
       debugPrint('업로드 실패: $e');
@@ -635,8 +567,10 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   void _navigateToHome() {
     if (!mounted || _isDisposing) return;
+
     _audioController.stopAudio();
     _audioController.clearCurrentRecording();
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
         builder: (context) => HomePageNavigationBar(currentPageIndex: 2),
@@ -644,6 +578,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       ),
       (route) => false,
     );
+
     if (_draggableScrollController.isAttached) {
       _draggableScrollController.jumpTo(0.0);
     }
@@ -698,6 +633,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                           isVideo: widget.isVideo ?? false,
                           initialImage: _initialImageProvider,
                           onCancel: _resetBottomSheetIfNeeded,
+                          isFromCamera: widget.isFromCamera,
                         ),
                       ],
                     ),
@@ -736,23 +672,14 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                 builder: (context, scrollController) {
                   return LayoutBuilder(
                     builder: (context, constraints) {
-                      final double maxHeight = constraints.maxHeight;
-                      final double desiredHandleHeight = _showAddCategoryUI
-                          ? 12.h
-                          : (3.h + 10.h + 12.h);
-                      final double effectiveHandleHeight = math.min(
-                        maxHeight,
-                        desiredHandleHeight,
-                      );
-                      final double desiredSpacing = 4.h;
-                      final double effectiveSpacing =
-                          maxHeight > effectiveHandleHeight
-                          ? desiredSpacing
-                          : 0.0;
-                      final double contentHeight = math.max(
+                      final maxHeight = constraints.maxHeight;
+                      final handleHeight = _showAddCategoryUI ? 12.h : 25.h;
+                      final spacing = maxHeight > handleHeight ? 4.h : 0.0;
+                      final contentHeight = math.max(
                         0.0,
-                        maxHeight - effectiveHandleHeight - effectiveSpacing,
+                        maxHeight - handleHeight - spacing,
                       );
+
                       return Container(
                         decoration: BoxDecoration(
                           color: Color(0xff171717),
@@ -764,29 +691,15 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                           child: Column(
                             children: [
                               SizedBox(
-                                height: effectiveHandleHeight,
+                                height: handleHeight,
                                 child: _showAddCategoryUI
-                                    ? Center(
-                                        child: Container(
-                                          margin: EdgeInsets.only(bottom: 12.h),
-                                        ),
-                                      )
+                                    ? SizedBox()
                                     : Center(
                                         child: Container(
-                                          height: math.min(
-                                            3.h,
-                                            effectiveHandleHeight,
-                                          ),
+                                          height: 3.h,
                                           width: 56.w,
-                                          margin: EdgeInsets.only(
-                                            top: math.min(
-                                              10.h,
-                                              effectiveHandleHeight / 2,
-                                            ),
-                                            bottom: math.min(
-                                              12.h,
-                                              effectiveHandleHeight / 2,
-                                            ),
+                                          margin: EdgeInsets.symmetric(
+                                            vertical: 11.h,
                                           ),
                                           decoration: BoxDecoration(
                                             color: Color(0xffcdcdcd),
@@ -797,7 +710,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                                         ),
                                       ),
                               ),
-                              SizedBox(height: effectiveSpacing),
+                              SizedBox(height: spacing),
                               SizedBox(
                                 height: contentHeight,
                                 child: AnimatedSwitcher(
@@ -879,18 +792,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 
   // ========== 리소스 정리 메서드 ==========
-  @override
-  void dispose() {
-    _isDisposing = true;
-    _audioController.stopAudio();
-    _audioController.stopRealtimeAudio();
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _audioController.clearCurrentRecording();
-    });
-    _recordedWaveformData = null;
-    _recordedAudioPath = null;
-
-    // 이미지 캐시 제거
+  void _clearImageCache() {
     if (widget.filePath != null) {
       PaintingBinding.instance.imageCache.evict(
         FileImage(File(widget.filePath!)),
@@ -903,6 +805,21 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     }
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
+  }
+
+  @override
+  void dispose() {
+    _isDisposing = true;
+    _audioController.stopAudio();
+    _audioController.stopRealtimeAudio();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _audioController.clearCurrentRecording();
+    });
+    _recordedWaveformData = null;
+    _recordedAudioPath = null;
+
+    _clearImageCache();
+
     _categoryNameController.dispose();
     _captionController.removeListener(_handleCaptionChanged);
     _captionController.dispose();

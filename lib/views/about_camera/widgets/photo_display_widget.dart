@@ -22,6 +22,9 @@ class PhotoDisplayWidget extends StatefulWidget {
   final Future<void> Function()? onCancel;
   final ImageProvider? initialImage;
 
+  // 미디어가 카메라에서 촬영된 것인지 여부를 나타내는 플래그
+  final bool isFromCamera;
+
   const PhotoDisplayWidget({
     super.key,
     this.filePath,
@@ -32,6 +35,7 @@ class PhotoDisplayWidget extends StatefulWidget {
     this.isVideo = false,
     this.onCancel,
     this.initialImage,
+    this.isFromCamera = false,
   });
 
   @override
@@ -220,18 +224,26 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
           future: _initializeVideoPlayerFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.done) {
-              return SizedBox(
-                width: widget.width,
-                height: widget.height,
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: _videoController!.value.size.width,
-                    height: _videoController!.value.size.height,
-                    child: VideoPlayer(_videoController!),
-                  ),
-                ),
-              );
+              debugPrint("isFromCamera: ${widget.isFromCamera}");
+              return (widget.isFromCamera)
+                  ? SizedBox(
+                      width: widget.width,
+                      height: widget.height,
+                      child: FittedBox(
+                        fit: BoxFit.fill,
+                        child: SizedBox(
+                          width: _videoController!.value.size.width,
+                          height: _videoController!.value.size.height,
+                          child: VideoPlayer(_videoController!),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: AspectRatio(
+                        aspectRatio: _videoController!.value.aspectRatio,
+                        child: VideoPlayer(_videoController!),
+                      ),
+                    );
             } else {
               return const Center(child: CircularProgressIndicator());
             }

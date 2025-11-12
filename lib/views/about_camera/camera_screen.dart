@@ -461,7 +461,11 @@ class _CameraScreenState extends State<CameraScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PhotoEditorScreen(filePath: path, isVideo: true),
+        builder: (context) => PhotoEditorScreen(
+          filePath: path,
+          isVideo: true,
+          isFromCamera: true,
+        ),
       ),
     ).whenComplete(() {
       if (mounted) {
@@ -940,15 +944,14 @@ class _CameraScreenState extends State<CameraScreen>
                                 result.toLowerCase().endsWith('.mkv') ||
                                 result.toLowerCase().endsWith('.m4v');
 
+                            // 갤러리에서 선택한 경우
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => PhotoEditorScreen(
-                                  // 선택한 미디어 파일 경로 전달
                                   filePath: result,
-
-                                  // 비디오가 넘어간다고 표시
                                   isVideo: isVideo,
+                                  isFromCamera: false, // 갤러리에서 가져온 것
                                 ),
                               ),
                             );

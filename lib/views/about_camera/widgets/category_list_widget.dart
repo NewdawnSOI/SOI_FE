@@ -75,14 +75,14 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
                 controller: widget.scrollController,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,
-                  childAspectRatio: 0.85, // 높이를 조금 더 줘서 텍스트 공간 확보
+                  childAspectRatio: (0.85), // 높이를 조금 더 줘서 텍스트 공간 확보
                   crossAxisSpacing: 8.w, // 아이템 간 좌우 간격 추가
                   mainAxisSpacing: 15.h, // 세로 간격만 유지
                 ),
 
                 // padding을 AnimatedPadding으로 이동하여 제거
                 // 캐시할 픽셀 범위 제한
-                cacheExtent: 200.0,
+                cacheExtent: 200.h,
 
                 // 자동 keepAlive 비활성화
                 addAutomaticKeepAlives: false,
@@ -126,7 +126,7 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
             // 버튼이 아래에서 위로 슬라이드되도록 offset 조건 추가
             offset: widget.selectedCategoryIds.isNotEmpty
                 ? Offset.zero
-                : const Offset(0, 0.3),
+                : Offset(0, 0.3.h),
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
             child: AnimatedOpacity(
@@ -146,14 +146,14 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
                     ),
                   ),
                   child: SizedBox(
-                    width: 349,
-                    height: 45,
+                    width: 349.w,
+                    height: 45.h,
                     child: Center(
                       child: Text(
                         '전송',
                         style: TextStyle(
                           color: Colors.black,
-                          fontSize: 20,
+                          fontSize: 20.sp,
                           fontFamily: 'Pretendard',
                           fontWeight: FontWeight.w600,
                         ),
