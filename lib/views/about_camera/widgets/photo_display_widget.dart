@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:video_player/video_player.dart';
 
 // 이미지를 표시하는 위젯
@@ -41,6 +42,7 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
   VideoPlayerController? _videoController;
   Future<void>? _initializeVideoPlayerFuture;
   bool _isInitialized = false;
+  bool _isMuted = false; // 음소거 상태 추가
 
   @override
   void initState() {
@@ -94,6 +96,16 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
     // 비디오 컨트롤러가 초기화된 경우에만 dispose
     _videoController?.dispose();
     super.dispose();
+  }
+
+  // 음소거 토글 메서드
+  void _toggleMute() {
+    if (_videoController != null) {
+      setState(() {
+        _isMuted = !_isMuted;
+        _videoController!.setVolume(_isMuted ? 0.0 : 1.0);
+      });
+    }
   }
 
   @override
@@ -212,7 +224,7 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                 width: widget.width,
                 height: widget.height,
                 child: FittedBox(
-                  fit: BoxFit.fitWidth,
+                  fit: BoxFit.cover,
                   child: SizedBox(
                     width: _videoController!.value.size.width,
                     height: _videoController!.value.size.height,
@@ -225,7 +237,22 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
             }
           },
         ),
-        _buildCancelButton(),
+        // 취소 버튼
+        Positioned(top: 0, left: 0, child: _buildCancelButton()),
+        // 음소거 버튼 추가
+        Positioned(
+          bottom: 0,
+          right: 2,
+          child: IconButton(
+            onPressed: _toggleMute,
+            icon: SvgPicture.asset(
+              _isMuted ? 'assets/sound_mute.svg' : 'assets/sound_on.svg',
+              width: 24.sp,
+              height: 24.sp,
+              colorFilter: ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            ),
+          ),
+        ),
       ],
     );
   }
