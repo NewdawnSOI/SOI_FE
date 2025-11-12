@@ -223,13 +223,11 @@ class CameraService {
     return null;
   }
 
-  // 갤러리에서 이미지를 선택하는 함수
-  Future<String?> pickImageFromGallery() async {
+  // 갤러리에서 미디어(이미지/비디오)를 선택하는 함수
+  Future<String?> pickMediaFromGallery() async {
     try {
-      final XFile? imageFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-      );
-      return imageFile?.path;
+      final XFile? mediaFile = await _imagePicker.pickMedia();
+      return mediaFile?.path;
     } catch (e) {
       return null;
     }
@@ -331,7 +329,9 @@ class CameraService {
     }
 
     try {
-      final bool? supported = await _cameraChannel.invokeMethod<bool>('supportsLiveSwitch');
+      final bool? supported = await _cameraChannel.invokeMethod<bool>(
+        'supportsLiveSwitch',
+      );
       _supportsLiveSwitch = supported ?? false;
     } catch (_) {
       _supportsLiveSwitch = false;

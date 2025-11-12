@@ -7,11 +7,16 @@ import 'package:video_player/video_player.dart';
 // 이미지를 표시하는 위젯
 // 로컬 이미지 경로나 Firebase Storage URL을 기반으로 이미지를 표시합니다.
 class PhotoDisplayWidget extends StatefulWidget {
+  // 로컬 파일 경로
   final String? filePath;
+
+  // 다운로드 URL (Firebase Storage 등)
   final String? downloadUrl;
   final bool useLocalImage;
   final double width;
   final double height;
+
+  // 미디어가 비디오인지 여부를 체크하는 플래그
   final bool isVideo;
   final Future<void> Function()? onCancel;
   final ImageProvider? initialImage;
@@ -103,8 +108,11 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20.0),
-        child:
-            (widget.isVideo) ? _buildVideoPlayer() : _buildImageWidget(context),
+
+        // 미디어 유형에 따라 이미지 또는 비디오 표시
+        child: (widget.isVideo)
+            ? _buildVideoPlayer()
+            : _buildImageWidget(context),
       ),
     );
   }
@@ -193,18 +201,32 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
       );
     }
 
-    return FutureBuilder(
-      future: _initializeVideoPlayerFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.done) {
-          return AspectRatio(
-            aspectRatio: _videoController!.value.aspectRatio,
-            child: VideoPlayer(_videoController!),
-          );
-        } else {
-          return const Center(child: CircularProgressIndicator());
-        }
-      },
+    return Stack(
+      alignment: Alignment.topLeft,
+      children: [
+        FutureBuilder(
+          future: _initializeVideoPlayerFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done) {
+              return SizedBox(
+                width: widget.width,
+                height: widget.height,
+                child: FittedBox(
+                  fit: BoxFit.fitWidth,
+                  child: SizedBox(
+                    width: _videoController!.value.size.width,
+                    height: _videoController!.value.size.height,
+                    child: VideoPlayer(_videoController!),
+                  ),
+                ),
+              );
+            } else {
+              return const Center(child: CircularProgressIndicator());
+            }
+          },
+        ),
+        _buildCancelButton(),
+      ],
     );
   }
 

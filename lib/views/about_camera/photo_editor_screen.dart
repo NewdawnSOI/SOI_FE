@@ -22,6 +22,8 @@ import 'widgets/photo_display_widget.dart';
 class PhotoEditorScreen extends StatefulWidget {
   final String? downloadUrl;
   final String? filePath;
+
+  // 미디어가 비디오인지 여부를 체크하는 플래그
   final bool? isVideo;
   final ImageProvider? initialImage;
   const PhotoEditorScreen({

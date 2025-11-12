@@ -928,23 +928,36 @@ class _CameraScreenState extends State<CameraScreen>
                     child: InkWell(
                       onTap: () async {
                         try {
-                          // Service를 통해 갤러리에서 이미지 선택 (에러 핸들링 개선)
+                          // Service를 통해 갤러리에서 미디어 선택 (에러 핸들링 개선)
                           final result = await _cameraService
-                              .pickImageFromGallery();
+                              .pickMediaFromGallery();
                           if (result != null && result.isNotEmpty && mounted) {
-                            // 선택한 이미지 경로를 편집 화면으로 전달
+                            // 선택한 미디어가 비디오인지 확인
+                            final isVideo =
+                                result.toLowerCase().endsWith('.mp4') ||
+                                result.toLowerCase().endsWith('.mov') ||
+                                result.toLowerCase().endsWith('.avi') ||
+                                result.toLowerCase().endsWith('.mkv') ||
+                                result.toLowerCase().endsWith('.m4v');
+
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    PhotoEditorScreen(filePath: result),
+                                builder: (context) => PhotoEditorScreen(
+                                  // 선택한 미디어 파일 경로 전달
+                                  filePath: result,
+
+                                  // 비디오가 넘어간다고 표시
+                                  isVideo: isVideo,
+                                ),
                               ),
                             );
                           } else {
-                            // No image was selected from gallery
+                            // 사용자가 선택을 취소한 경우
+                            return;
                           }
                         } catch (e) {
-                          _showSnackBar('갤러리에서 이미지를 선택할 수 없습니다');
+                          _showSnackBar('갤러리에서 미디어를 선택할 수 없습니다');
                         }
                       },
                       child: Container(

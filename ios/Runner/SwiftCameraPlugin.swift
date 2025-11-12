@@ -271,7 +271,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
     private var audioResumeWorkItem: DispatchWorkItem?
     private var isAudioResumeScheduled = false
 
-    // ⏱️ 카메라 전환 시간 프레임 (밀리초) - 이 시간 동안 오디오 일시정지 유지
+    // 카메라 전환 시간 프레임 (밀리초) - 이 시간 동안 오디오 일시정지 유지
     private let cameraSwitchTimeFrameMs: Int = 3000
 
     var supportsLiveSwitch: Bool {
@@ -282,7 +282,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         sessionQueue.async {
             if self.isConfigured {
                 self.startSessionIfNeeded()
-                completion(.success(()))
+                self.waitForSessionToStart(completion: completion)
                 return
             }
 
@@ -290,9 +290,43 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                 try self.configureSession()
                 self.isConfigured = true
                 self.startSessionIfNeeded()
-                completion(.success(()))
+                self.waitForSessionToStart(completion: completion)
             } catch {
                 completion(.failure(error))
+            }
+        }
+    }
+    
+    private func waitForSessionToStart(completion: @escaping (Result<Void, Error>) -> Void) {
+        if captureSession.isRunning {
+            // 세션이 실행 중이어도 비디오/오디오 출력이 완전히 준비될 때까지 충분한 시간 대기
+            sessionQueue.asyncAfter(deadline: .now() + 1.0) {
+                completion(.success(()))
+            }
+        } else {
+            // 최대 3초까지 대기
+            var attempts = 0
+            let maxAttempts = 30
+            let checkInterval: DispatchTimeInterval = .milliseconds(100)
+            
+            func checkSession() {
+                attempts += 1
+                if self.captureSession.isRunning {
+                    // 세션 시작 후 비디오/오디오 출력이 안정화될 때까지 충분한 시간 대기
+                    self.sessionQueue.asyncAfter(deadline: .now() + 1.0) {
+                        completion(.success(()))
+                    }
+                } else if attempts < maxAttempts {
+                    self.sessionQueue.asyncAfter(deadline: .now() + checkInterval) {
+                        checkSession()
+                    }
+                } else {
+                    completion(.failure(CameraSessionError.configurationFailed))
+                }
+            }
+            
+            sessionQueue.asyncAfter(deadline: .now() + checkInterval) {
+                checkSession()
             }
         }
     }
@@ -322,7 +356,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
     }
 
-    // 🔥 수정된 카메라 전환 로직 - 고정 시간 프레임 내에서 카메라 전환 + 오디오 일시정지 후 동시 재개
+    // 수정된 카메라 전환 로직 - 고정 시간 프레임 내에서 카메라 전환 + 오디오 일시정지 후 동시 재개
     func switchCamera(completion: @escaping (Result<Void, Error>) -> Void) {
         sessionQueue.async {
             guard self.captureSession.isRunning else {
@@ -338,7 +372,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             do {
                 self.isSwitchingCamera = true
 
-                // ✅ 녹화 중이면 오디오 일시정지 및 타이머 시작
+                // 녹화 중이면 오디오 일시정지 및 타이머 시작
                 if self.isRecording {
                     self.pauseAudioDuringCameraSwitch()
                     self.scheduleSynchronizedSwitchCompletion()
@@ -347,20 +381,18 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                 self.lastVideoTimestamp = nil
                 self.lastAudioTimestamp = nil
 
-                // ✅ AVAssetWriter 사용 시 녹화 중에도 일반 교체 가능
+                // AVAssetWriter 사용 시 녹화 중에도 일반 교체 가능
                 try self.replaceVideoInput(position: target, desiredZoomFactor: previousZoom)
 
-                // ✅ 연결 설정 업데이트 (미러링만 변경, transform은 녹화 시작 시 고정)
+                // 연결 설정 업데이트 (미러링만 변경, transform은 녹화 시작 시 고정)
                 self.updateConnectionMirroring()
 
-                // ✅ 녹화 중이 아니면 즉시 완료
+                // 녹화 중이 아니면 즉시 완료
                 if !self.isRecording {
                     self.isSwitchingCamera = false
                     self.resumeAudioAfterCameraSwitchIfNeeded()
                 }
-                // ✅ 녹화 중이면 타이머 종료 시 두 기능 동시 완료 (scheduleSynchronizedSwitchCompletion에서 처리)
-
-                completion(.success(()))
+                // 녹화 중이면 타이머 종료 시 두 기능 동시 완료 (scheduleSynchronizedSwitchCompletion에서 처리)                completion(.success(()))
             } catch {
                 self.isSwitchingCamera = false
                 self.cancelPendingAudioResume()
@@ -498,7 +530,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         }
     }
 
-    // 🔥 AVAssetWriter 기반 녹화 시작 - 카메라 전환 지원
+    // AVAssetWriter 기반 녹화 시작 - 카메라 전환 지원
     func startRecording(maxDurationMs: Int?, completion: @escaping (Result<Void, Error>) -> Void) {
         ensureConfigured { [weak self] result in
             guard let self else { return }
@@ -534,9 +566,9 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
                         let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
                         videoInput.expectsMediaDataInRealTime = true
 
-                        // Transform for orientation only (90° rotation for portrait)
-                        // Mirroring is handled by AVCaptureConnection, not here
-                        videoInput.transform = CGAffineTransform(rotationAngle: .pi / 2)
+                        // No transform needed - orientation is already handled by AVCaptureConnection
+                        // The video data comes in portrait orientation from videoOutput
+                        videoInput.transform = .identity
 
                         // Audio settings
                         let audioSettings: [String: Any] = [
@@ -692,7 +724,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
         try replaceVideoInput(position: currentPosition, desiredZoomFactor: 1.0)
 
-        // ✅ 오디오 입력 추가 (비디오 녹화에 필수)
+        // 오디오 입력 추가 (비디오 녹화에 필수)
         if audioInput == nil, let audioDevice = AVCaptureDevice.default(for: .audio) {
             let input = try AVCaptureDeviceInput(device: audioDevice)
             if captureSession.canAddInput(input) {
@@ -705,17 +737,21 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             captureSession.addOutput(photoOutput)
         }
 
-        // Configure video output
+                // Configure video output
         videoOutput.setSampleBufferDelegate(self, queue: sessionQueue)
         videoOutput.alwaysDiscardsLateVideoFrames = false
         videoOutput.videoSettings = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
         ]
         if captureSession.canAddOutput(videoOutput) {
             captureSession.addOutput(videoOutput)
+            
+            // Set video orientation to portrait
             if let connection = videoOutput.connection(with: .video) {
-                if connection.isVideoStabilizationSupported {
-                    connection.preferredVideoStabilizationMode = .auto
+                connection.videoOrientation = .portrait
+                // 비디오 미러링 설정 (전면 카메라의 경우)
+                if connection.isVideoMirroringSupported {
+                    connection.isVideoMirrored = (currentPosition == .front)
                 }
             }
         }
@@ -729,7 +765,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         captureSession.commitConfiguration()
     }
 
-    // ✅ 일반 비디오 입력 교체 (녹화 중이 아닐 때)
+    // 일반 비디오 입력 교체 (녹화 중이 아닐 때)
     private func replaceVideoInput(position: AVCaptureDevice.Position, desiredZoomFactor: CGFloat) throws {
         guard let device = cameraDevice(position: position) else {
             throw CameraSessionError.deviceUnavailable
@@ -750,6 +786,14 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         captureSession.addInput(newInput)
         captureSession.commitConfiguration()
 
+        // 비디오 출력 연결의 orientation 및 미러링 업데이트
+        if let connection = videoOutput.connection(with: .video) {
+            connection.videoOrientation = .portrait
+            if connection.isVideoMirroringSupported {
+                connection.isVideoMirrored = (position == .front)
+            }
+        }
+
         applyPreferredConfiguration(to: device, matching: desiredZoomFactor)
 
         videoInput = newInput
@@ -763,7 +807,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
     }
 
     private func cameraDevice(position: AVCaptureDevice.Position) -> AVCaptureDevice? {
-        // ✅ 캐시 확인
+        // 캐시 확인
         if let cached = deviceCache[position], cached.isConnected {
             return cached
         }
@@ -794,7 +838,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         return discovery.devices.map { $0.position }.filter { $0 == .front || $0 == .back }.uniqued()
     }
 
-    // ✅ 수정된 연결 미러링 업데이트
+    // 수정된 연결 미러링 업데이트
     private func updateConnectionMirroring() {
         // Photo output 연결 설정
         if let connection = photoOutput.connection(with: .video) {
@@ -927,7 +971,7 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             return
         }
 
-        // ✅ 타임스탬프 불연속성 감지 (카메라 전환 감지)
+        // 타임스탬프 불연속성 감지 (카메라 전환 감지)
         if let lastTimestamp = lastVideoTimestamp {
             let timeDiff = CMTimeGetSeconds(CMTimeSubtract(timestamp, lastTimestamp))
             if timeDiff > 0.1 || timeDiff < 0 {
@@ -937,11 +981,11 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
             }
         }
 
-        // ✅ 픽셀 버퍼 추가
+        // 픽셀 버퍼 추가
         if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
             adaptor.append(pixelBuffer, withPresentationTime: timestamp)
             lastVideoTimestamp = timestamp
-            // ✅ 오디오 재개는 타이머가 담당하므로 여기서는 처리하지 않음
+            // 오디오 재개는 타이머가 담당하므로 여기서는 처리하지 않음
         }
     }
 
@@ -978,14 +1022,14 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
         setAudioOutputEnabled(false)
     }
 
-    // ⏱️ 고정 시간 프레임 후 카메라 전환 완료 + 오디오 재개를 동시에 수행
+    // 고정 시간 프레임 후 카메라 전환 완료 + 오디오 재개를 동시에 수행
     private func scheduleSynchronizedSwitchCompletion() {
         // 기존 타이머 취소
         cancelPendingAudioResume()
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            // ✅ 두 기능을 동시에 완료
+            // 두 기능을 동시에 완료
             self.isSwitchingCamera = false           // 카메라 전환 완료
             self.resumeAudioAfterCameraSwitchIfNeeded() // 오디오 재개
             self.audioResumeWorkItem = nil
