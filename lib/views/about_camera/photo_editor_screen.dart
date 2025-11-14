@@ -564,13 +564,11 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         try {
           thumbnailFile = await VideoThumbnailGenerator.generateThumbnail(
             filePath,
-            quality: 85,
-            maxWidth: 1920,
-            maxHeight: 1080,
+            quality: 85, // 비디오 썸네일 화질 설정
+            maxWidth: 1920, // 비디오 썸네일 최대 너비
+            maxHeight: 1080, // 비디오 썸네일 최대 높이
           );
-          if (thumbnailFile != null) {
-            debugPrint('썸네일 생성 성공');
-          } else {
+          if (thumbnailFile == null) {
             debugPrint('썸네일 생성 실패 - 비디오 URL을 썸네일로 사용');
           }
         } catch (e) {

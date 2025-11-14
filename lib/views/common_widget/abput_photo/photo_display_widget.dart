@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:soi/firebase_logic/controllers/comment_record_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_player/video_player.dart';
 import '../../../firebase_logic/controllers/auth_controller.dart';
 import '../../../firebase_logic/controllers/comment_audio_controller.dart';
 import '../../../firebase_logic/controllers/category_controller.dart';
@@ -48,25 +50,356 @@ class PhotoDisplayWidget extends StatefulWidget {
 }
 
 class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
+  // 상수
+  static const double _avatarSize = 27.0;
+  static const double _avatarRadius = 13.5;
+  static const double _imageWidth = 354.0;
+  static const double _imageHeight = 500.0;
+
   // 선택된(롱프레스) 음성 댓글 ID 및 위치
   String? _selectedCommentId;
-  Offset? _selectedCommentPosition; // 스택(이미지) 내부 좌표 (아바타 중심)
-  bool _showActionOverlay = false; // 선택된 댓글 아래로 마스킹 & 팝업 표시 여부
-  // 해당 사진(위젯 인스턴스)에서 음성 댓글 프로필 표시 여부
-  bool _isShowingComments = false; // 기본은 숨김
-  bool _autoOpenedOnce = false; // 최초 자동 열림 1회 제어
-  bool _isCaptionExpanded = false; // caption 확장 여부
+  Offset? _selectedCommentPosition;
+  bool _showActionOverlay = false;
+  bool _isShowingComments = false;
+  bool _autoOpenedOnce = false;
+  bool _isCaptionExpanded = false;
 
   final CommentRecordController _commentRecordController =
       CommentRecordController();
 
-  Widget? _buildPendingMarker() {
-    final pending = widget.pendingVoiceComments[widget.photo.id];
-    if (pending == null || pending.relativePosition == null) {
+  // 비디오 플레이어 관련
+  VideoPlayerController? _videoController;
+  bool _isVideoInitialized = false;
+  bool _isMuted = false;
+  BoxFit _videoFit = BoxFit.contain;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideo();
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
+
+  /// 비디오 초기화
+  Future<void> _initializeVideo() async {
+    if (widget.photo.isVideo &&
+        widget.photo.videoUrl != null &&
+        widget.photo.videoUrl!.isNotEmpty) {
+      try {
+        _videoController = VideoPlayerController.networkUrl(
+          Uri.parse(widget.photo.videoUrl!),
+        );
+        await _videoController!.initialize();
+        await _videoController!.setLooping(true); // 반복 재생 설정
+        if (mounted) {
+          setState(() {
+            _isVideoInitialized = true;
+          });
+          // 초기화 완료 후 자동 재생
+          _videoController!.play();
+        }
+      } catch (e) {
+        debugPrint('비디오 초기화 실패: $e');
+      }
+    }
+  }
+
+  /// 비디오 음소거 토글
+  void _toggleVideoMute() {
+    if (_videoController == null || !_isVideoInitialized) return;
+
+    setState(() {
+      _isMuted = !_isMuted;
+      _videoController!.setVolume(_isMuted ? 0.0 : 1.0);
+    });
+  }
+
+  /// 비디오 fit 모드 토글
+  void _toggleVideoFit() {
+    setState(() {
+      _videoFit = _videoFit == BoxFit.contain ? BoxFit.cover : BoxFit.contain;
+    });
+  }
+
+  /// 공통 Circle Avatar 빌더
+  Widget _buildCircleAvatar({
+    required String? imageUrl,
+    double size = 27.0,
+    bool showBorder = false,
+    Color? borderColor,
+    double borderWidth = 1.5,
+    double opacity = 1.0,
+  }) {
+    Widget avatarContent;
+
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      avatarContent = ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: imageUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          memCacheWidth: (size * 4).round(),
+          maxWidthDiskCache: (size * 4).round(),
+          placeholder: (context, url) => Shimmer.fromColors(
+            baseColor: const Color(0xFF2A2A2A),
+            highlightColor: const Color(0xFF3A3A3A),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF2A2A2A),
+              ),
+            ),
+          ),
+          errorWidget: (context, url, error) => Container(
+            width: size,
+            height: size,
+            decoration: const BoxDecoration(
+              color: Color(0xffd9d9d9),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.person, color: Colors.white),
+          ),
+        ),
+      );
+    } else {
+      avatarContent = Container(
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(
+          color: Color(0xffd9d9d9),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.person, color: Colors.white),
+      );
+    }
+
+    if (showBorder) {
+      avatarContent = Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: borderColor ?? Colors.white.withValues(alpha: 0.7),
+            width: borderWidth,
+          ),
+        ),
+        child: avatarContent,
+      );
+    }
+
+    return opacity < 1.0
+        ? Opacity(opacity: opacity, child: avatarContent)
+        : avatarContent;
+  }
+
+  /// 댓글 아바타 리스트 빌드
+  List<Widget> _buildCommentAvatars() {
+    if (!_isShowingComments) return [];
+
+    final comments = widget.photoComments[widget.photo.id] ?? [];
+    final commentsWithPosition = comments
+        .where((comment) => comment.relativePosition != null)
+        .toList();
+
+    final actualImageSize = Size(_imageWidth.w, _imageHeight.h);
+
+    return commentsWithPosition.map((comment) {
+      // 오버레이 중이면 선택된 댓글 외에는 숨김
+      if (_showActionOverlay &&
+          _selectedCommentId != null &&
+          comment.id != _selectedCommentId) {
+        return const SizedBox.shrink();
+      }
+
+      final absolutePosition = PositionConverter.toAbsolutePosition(
+        comment.relativePosition!,
+        actualImageSize,
+      );
+      final clampedPosition = PositionConverter.clampPosition(
+        absolutePosition,
+        actualImageSize,
+      );
+
+      return Positioned(
+        left: clampedPosition.dx - _avatarRadius,
+        top: clampedPosition.dy - _avatarRadius,
+        child: GestureDetector(
+          onLongPress: () {
+            setState(() {
+              _selectedCommentId = comment.id;
+              _selectedCommentPosition = clampedPosition;
+              _showActionOverlay = true;
+            });
+          },
+          child: Consumer2<AuthController, CommentAudioController>(
+            builder: (context, authController, commentAudioController, child) {
+              final isCurrentCommentPlaying = commentAudioController
+                  .isCommentPlaying(comment.id);
+              final isSelected =
+                  _showActionOverlay && _selectedCommentId == comment.id;
+
+              return InkWell(
+                onTap: () async {
+                  if (!mounted) return;
+                  try {
+                    final recordController = context
+                        .read<CommentRecordController>();
+                    await showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (sheetContext) => ChangeNotifierProvider.value(
+                        value: recordController,
+                        child: SizedBox(
+                          height: 480.h,
+                          child: VoiceCommentListSheet(
+                            photoId: widget.photo.id,
+                            categoryId: widget.photo.categoryId,
+                            selectedCommentId: comment.id,
+                          ),
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    debugPrint('Feed - 댓글 팝업 표시 실패: $e');
+                  }
+                },
+                child: Container(
+                  width: _avatarSize,
+                  height: _avatarSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              blurRadius: 6,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
+                    border: Border.all(
+                      color: isSelected || isCurrentCommentPlaying
+                          ? Colors.white
+                          : Colors.transparent,
+                      width: isSelected ? 2.2 : 1,
+                    ),
+                  ),
+                  child: _buildCircleAvatar(
+                    imageUrl: comment.profileImageUrl,
+                    size: _avatarSize,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  /// 삭제 액션 팝업 빌드
+  Widget? _buildDeleteActionPopup() {
+    if (!_showActionOverlay ||
+        _selectedCommentId == null ||
+        _selectedCommentPosition == null) {
       return null;
     }
 
-    final actualImageSize = Size(354.w.toDouble(), 500.h.toDouble());
+    final imageWidth = _imageWidth.w;
+    final popupWidth = 180.0;
+
+    double left = _selectedCommentPosition!.dx;
+    double top = _selectedCommentPosition!.dy + 20;
+    if (left + popupWidth > imageWidth) {
+      left = imageWidth - popupWidth - 8;
+    }
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 173.w,
+          height: 45.h,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1C),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () async {
+              if (_selectedCommentId == null) return;
+              final targetId = _selectedCommentId!;
+              try {
+                await _commentRecordController.hardDeleteCommentRecord(
+                  targetId,
+                  widget.photo.id,
+                );
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('댓글 삭제 실패: $e'),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } finally {
+                if (mounted) {
+                  setState(() {
+                    _showActionOverlay = false;
+                    _selectedCommentId = null;
+                    _selectedCommentPosition = null;
+                    _isShowingComments = false;
+                  });
+                }
+              }
+            },
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                SizedBox(width: 13.96.w),
+                Image.asset(
+                  "assets/trash_red.png",
+                  width: 11.2.w,
+                  height: 12.6.h,
+                ),
+                SizedBox(width: 12.59.w),
+                Text(
+                  '댓글 삭제',
+                  style: TextStyle(
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xffff0000),
+                    fontFamily: 'Pretendard',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget? _buildPendingMarker() {
+    final pending = widget.pendingVoiceComments[widget.photo.id];
+    if (pending == null || pending.relativePosition == null) return null;
+
+    final actualImageSize = Size(_imageWidth.w, _imageHeight.h);
     final absolutePosition = PositionConverter.toAbsolutePosition(
       pending.relativePosition!,
       actualImageSize,
@@ -83,74 +416,16 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
             : null);
 
     return Positioned(
-      left: clampedPosition.dx - 13.5,
-      top: clampedPosition.dy - 13.5,
-      child: IgnorePointer(child: _buildPendingAvatar(profileImageUrl)),
-    );
-  }
-
-  Widget _buildPendingAvatar(String? imageUrl) {
-    final Widget avatarContent;
-
-    if (imageUrl != null && imageUrl.isNotEmpty) {
-      avatarContent = ClipOval(
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          width: 27,
-          height: 27,
-          fit: BoxFit.cover,
-          memCacheWidth: (27 * 4).round(),
-          maxWidthDiskCache: (27 * 4).round(),
-          placeholder: (context, url) {
-            return Shimmer.fromColors(
-              baseColor: const Color(0xFF2A2A2A),
-              highlightColor: const Color(0xFF3A3A3A),
-              child: Container(
-                width: 27,
-                height: 27,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF2A2A2A),
-                ),
-              ),
-            );
-          },
-          errorWidget: (context, url, error) {
-            return Container(
-              width: 27,
-              height: 27,
-              decoration: BoxDecoration(
-                color: const Color(0xffd9d9d9),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.person, color: Colors.white),
-            );
-          },
-        ),
-      );
-    } else {
-      avatarContent = Container(
-        width: 27,
-        height: 27,
-        decoration: BoxDecoration(
-          color: const Color(0xffd9d9d9),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.person, color: Colors.white),
-      );
-    }
-
-    return Container(
-      width: 27,
-      height: 27,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.7),
-          width: 1.5,
+      left: clampedPosition.dx - _avatarRadius,
+      top: clampedPosition.dy - _avatarRadius,
+      child: IgnorePointer(
+        child: _buildCircleAvatar(
+          imageUrl: profileImageUrl,
+          size: _avatarSize,
+          showBorder: true,
+          opacity: 0.8,
         ),
       ),
-      child: Opacity(opacity: 0.8, child: avatarContent),
     );
   }
 
@@ -197,60 +472,18 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
         final isLoading = widget.profileLoadingStates[userId] ?? false;
 
         if (isLoading) {
-          return CircleAvatar(
-            radius: 100,
-            backgroundColor: Colors.grey[700],
-            child: SizedBox(
-              child: const CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
+          return const CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
           );
         }
 
         return StreamBuilder<String>(
           stream: authController.getUserProfileImageUrlStream(userId),
           builder: (context, snapshot) {
-            final profileImageUrl = snapshot.data ?? '';
-
-            return ClipOval(
-              child: profileImageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: profileImageUrl,
-                      fit: BoxFit.cover,
-                      // 메모리 최적화: 프로필 이미지 크기 제한
-                      memCacheWidth: (profileSize * 4).round(),
-                      maxWidthDiskCache: (profileSize * 4).round(),
-                      placeholder: (context, url) => Shimmer.fromColors(
-                        baseColor: const Color(0xFF2A2A2A),
-                        highlightColor: const Color(0xFF3A3A3A),
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF2A2A2A),
-                          ),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        width: profileSize,
-                        height: profileSize,
-                        decoration: BoxDecoration(
-                          color: Color(0xffd9d9d9),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.person, color: Colors.white),
-                      ),
-                    )
-                  : Container(
-                      width: profileSize,
-                      height: profileSize,
-                      decoration: BoxDecoration(
-                        color: Color(0xffd9d9d9),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.person, color: Colors.white),
-                    ),
+            return _buildCircleAvatar(
+              imageUrl: snapshot.data,
+              size: profileSize,
             );
           },
         );
@@ -321,35 +554,90 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                       // 메모리 최적화: 배경 이미지 크기 제한
                       GestureDetector(
                         onTap: () {
-                          // 음성 댓글이 있을 때만 토글 동작
-                          final hasComments =
-                              (widget.photoComments[widget.photo.id] ?? [])
-                                  .isNotEmpty;
-                          if (hasComments) {
-                            setState(() {
-                              _isShowingComments = !_isShowingComments;
-                            });
+                          // 비디오가 아닌 경우에만 음성 댓글 토글
+                          if (!widget.photo.isVideo) {
+                            // 음성 댓글이 있을 때만 토글 동작
+                            final hasComments =
+                                (widget.photoComments[widget.photo.id] ?? [])
+                                    .isNotEmpty;
+                            if (hasComments) {
+                              setState(() {
+                                _isShowingComments = !_isShowingComments;
+                              });
+                            }
                           }
                         },
-                        child: CachedNetworkImage(
-                          imageUrl: widget.photo.imageUrl,
-                          fit: BoxFit.cover,
-                          width: 354.w,
-                          height: 500.h,
+                        onDoubleTap: () {
+                          // 비디오인 경우 더블탭으로 fit 모드 전환
+                          if (widget.photo.isVideo) {
+                            _toggleVideoFit();
+                          }
+                        },
+                        child: widget.photo.isVideo
+                            ? (_isVideoInitialized && _videoController != null
+                                  ? SizedBox(
+                                      width: 354.w,
+                                      height: 500.h,
+                                      child: FittedBox(
+                                        fit: _videoFit,
+                                        child: SizedBox(
+                                          width: _videoController!
+                                              .value
+                                              .size
+                                              .width,
+                                          height: _videoController!
+                                              .value
+                                              .size
+                                              .height,
+                                          child: VideoPlayer(_videoController!),
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
+                                      width: 354.w,
+                                      height: 500.h,
+                                      color: Colors.grey[900],
+                                      child:
+                                          widget.photo.thumbnailUrl != null &&
+                                              widget
+                                                  .photo
+                                                  .thumbnailUrl!
+                                                  .isNotEmpty
+                                          ? CachedNetworkImage(
+                                              imageUrl:
+                                                  widget.photo.thumbnailUrl!,
+                                              fit: BoxFit.cover,
+                                              width: 354.w,
+                                              height: 500.h,
+                                              memCacheWidth: (354 * 2).round(),
+                                              maxWidthDiskCache: (354 * 2)
+                                                  .round(),
+                                            )
+                                          : const Center(
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                    ))
+                            : CachedNetworkImage(
+                                imageUrl: widget.photo.imageUrl,
+                                fit: BoxFit.cover,
+                                width: 354.w,
+                                height: 500.h,
 
-                          // 메모리 최적화: 디코딩 크기 제한으로 메모리 사용량 대폭 감소
-                          memCacheWidth: (354 * 2).round(),
-                          maxWidthDiskCache: (354 * 2).round(),
+                                // 메모리 최적화: 디코딩 크기 제한으로 메모리 사용량 대폭 감소
+                                memCacheWidth: (354 * 2).round(),
+                                maxWidthDiskCache: (354 * 2).round(),
 
-                          placeholder: (context, url) {
-                            return Container(
-                              width: 354.w,
-                              height: 500.h,
-                              color: Colors.grey[900],
-                              child: const Center(),
-                            );
-                          },
-                        ),
+                                placeholder: (context, url) {
+                                  return Container(
+                                    width: 354.w,
+                                    height: 500.h,
+                                    color: Colors.grey[900],
+                                    child: const Center(),
+                                  );
+                                },
+                              ),
                       ),
                       // 댓글 보기 토글 시(롱프레스 액션 오버레이 아닐 때) 살짝 어둡게 마스킹하여 아바타 대비 확보
                       if (_isShowingComments && !_showActionOverlay)
@@ -382,6 +670,29 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                         CategoryLabelWidget(
                           categoryName: widget.categoryName,
                           onTap: _navigateToCategory,
+                        ),
+
+                      // 비디오 음소거 버튼 (오른쪽 아래)
+                      if (widget.photo.isVideo && _isVideoInitialized)
+                        Positioned(
+                          right: 20.w,
+                          bottom: 20.h,
+                          child: GestureDetector(
+                            onTap: _toggleVideoMute,
+                            child: SizedBox(
+                              width: 24.sp,
+                              height: 24.sp,
+                              child: SvgPicture.asset(
+                                _isMuted
+                                    ? 'assets/sound_mute.svg'
+                                    : 'assets/sound_on.svg',
+                                colorFilter: ColorFilter.mode(
+                                  Colors.white,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
 
                       // 오디오 컨트롤 오버레이
@@ -583,346 +894,14 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                           ),
                         ),
 
-                      // 모든 댓글의 드롭된 프로필 이미지들 표시 (상대 좌표 사용)
-                      ...(() {
-                        // 숨김 상태에서는 아무 것도 렌더링하지 않음
-                        if (!_isShowingComments) {
-                          return <Widget>[];
-                        }
-                        final comments =
-                            widget.photoComments[widget.photo.id] ?? [];
-
-                        final commentsWithPosition = comments
-                            .where(
-                              (comment) => comment.relativePosition != null,
-                            )
-                            .toList();
-
-                        return commentsWithPosition.map((comment) {
-                          // 오버레이 중이면 선택된 댓글 외에는 숨김
-                          if (_showActionOverlay &&
-                              _selectedCommentId != null &&
-                              comment.id != _selectedCommentId) {
-                            return const SizedBox.shrink();
-                          }
-                          // 상대 좌표를 절대 좌표로 변환 (실제 렌더링 크기 사용)
-                          final actualImageSize = Size(
-                            354.w.toDouble(),
-                            500.h.toDouble(),
-                          );
-                          Offset absolutePosition;
-
-                          if (comment.relativePosition != null) {
-                            // 새로운 상대 좌표 사용
-                            absolutePosition =
-                                PositionConverter.toAbsolutePosition(
-                                  comment.relativePosition!,
-                                  actualImageSize,
-                                );
-                          } else {
-                            return Container(); // 위치 정보가 없으면 빈 컨테이너
-                          }
-
-                          // 프로필 이미지가 화면을 벗어나지 않도록 위치 조정
-                          final clampedPosition =
-                              PositionConverter.clampPosition(
-                                absolutePosition,
-                                actualImageSize,
-                              );
-
-                          return Positioned(
-                            left: clampedPosition.dx - 13.5,
-                            top: clampedPosition.dy - 13.5,
-                            child: GestureDetector(
-                              onLongPress: () {
-                                // 롱프레스 시 선택 & 마스킹 + 액션 팝업 노출
-                                setState(() {
-                                  _selectedCommentId = comment.id;
-                                  _selectedCommentPosition = clampedPosition;
-                                  _showActionOverlay = true;
-                                });
-                              },
-                              child: Consumer2<AuthController, CommentAudioController>(
-                                builder:
-                                    (
-                                      context,
-                                      authController,
-                                      commentAudioController,
-                                      child,
-                                    ) {
-                                      // 현재 댓글이 재생 중인지 확인
-                                      final isCurrentCommentPlaying =
-                                          commentAudioController
-                                              .isCommentPlaying(comment.id);
-                                      final isSelected =
-                                          _showActionOverlay &&
-                                          _selectedCommentId == comment.id;
-
-                                      return InkWell(
-                                        onTap: () async {
-                                          if (!mounted) {
-                                            return;
-                                          }
-
-                                          try {
-                                            final recordController = context
-                                                .read<
-                                                  CommentRecordController
-                                                >();
-
-                                            await showModalBottomSheet<void>(
-                                              context: context,
-                                              isScrollControlled: true,
-                                              backgroundColor:
-                                                  Colors.transparent,
-                                              builder: (sheetContext) {
-                                                return ChangeNotifierProvider.value(
-                                                  value: recordController,
-                                                  child: SizedBox(
-                                                    height: 480.h,
-                                                    child:
-                                                        VoiceCommentListSheet(
-                                                          photoId:
-                                                              widget.photo.id,
-                                                          categoryId: widget
-                                                              .photo
-                                                              .categoryId,
-                                                          selectedCommentId:
-                                                              comment.id,
-                                                        ),
-                                                  ),
-                                                );
-                                              },
-                                            );
-                                          } catch (e) {
-                                            debugPrint(
-                                              'Feed - 댓글 팝업 표시 실패: $e',
-                                            );
-                                          }
-                                        },
-                                        child: Container(
-                                          width: 27,
-                                          height: 27,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            boxShadow: isSelected
-                                                ? [
-                                                    BoxShadow(
-                                                      color: Colors.black
-                                                          .withValues(
-                                                            alpha: 0.45,
-                                                          ),
-                                                      blurRadius: 6,
-                                                      spreadRadius: 1,
-                                                    ),
-                                                  ]
-                                                : null,
-                                            border: Border.all(
-                                              color: isSelected
-                                                  ? Colors.white
-                                                  : isCurrentCommentPlaying
-                                                  ? Colors.white
-                                                  : Colors.transparent,
-                                              width: isSelected ? 2.2 : 1,
-                                            ),
-                                          ),
-                                          child: Stack(
-                                            children: [
-                                              ClipOval(
-                                                child:
-                                                    comment
-                                                        .profileImageUrl
-                                                        .isNotEmpty
-                                                    ? CachedNetworkImage(
-                                                        imageUrl: comment
-                                                            .profileImageUrl,
-                                                        width: 27,
-                                                        height: 27,
-                                                        fit: BoxFit.cover,
-                                                        memCacheWidth: (27 * 4)
-                                                            .round(),
-                                                        maxWidthDiskCache:
-                                                            (27 * 4).round(),
-                                                        placeholder:
-                                                            (
-                                                              context,
-                                                              url,
-                                                            ) => Shimmer.fromColors(
-                                                              baseColor:
-                                                                  const Color(
-                                                                    0xFF2A2A2A,
-                                                                  ),
-                                                              highlightColor:
-                                                                  const Color(
-                                                                    0xFF3A3A3A,
-                                                                  ),
-                                                              child: Container(
-                                                                decoration: const BoxDecoration(
-                                                                  shape: BoxShape
-                                                                      .circle,
-                                                                  color: Color(
-                                                                    0xFF2A2A2A,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                        errorWidget:
-                                                            (
-                                                              context,
-                                                              error,
-                                                              stackTrace,
-                                                            ) => Container(
-                                                              width: 27,
-                                                              height: 27,
-                                                              decoration:
-                                                                  BoxDecoration(
-                                                                    color: Color(
-                                                                      0xffd9d9d9,
-                                                                    ),
-                                                                    shape: BoxShape
-                                                                        .circle,
-                                                                  ),
-                                                              child: Icon(
-                                                                Icons.person,
-                                                                color: Colors
-                                                                    .white,
-                                                              ),
-                                                            ),
-                                                      )
-                                                    : Container(
-                                                        width: 27,
-                                                        height: 27,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                              color: Color(
-                                                                0xffd9d9d9,
-                                                              ),
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                            ),
-                                                        child: Icon(
-                                                          Icons.person,
-                                                          color: Colors.white,
-                                                        ),
-                                                      ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                              ),
-                            ),
-                          );
-                        });
-                      })(),
-                      ...(() {
-                        if (!_isShowingComments) {
-                          return <Widget>[];
-                        }
-                        final pendingMarker = _buildPendingMarker();
-                        if (pendingMarker == null) {
-                          return <Widget>[];
-                        }
-                        return <Widget>[pendingMarker];
-                      })(),
-                      // 선택된 댓글에 대한 작은 액션 팝업 (삭제 등) - 이미지 영역 안에 직접 렌더
-                      if (_showActionOverlay &&
-                          _selectedCommentId != null &&
-                          _selectedCommentPosition != null)
-                        Builder(
-                          builder: (context) {
-                            final imageWidth = 354.w.toDouble();
-                            final popupWidth = 180.0;
-
-                            // 기본 위치: 선택된 아바타 오른쪽 살짝 아래
-                            double left = _selectedCommentPosition!.dx;
-                            double top = _selectedCommentPosition!.dy + 20;
-                            // 화면 밖으로 나가지 않도록 클램프
-                            if (left + popupWidth > imageWidth) {
-                              left = imageWidth - popupWidth - 8;
-                            }
-
-                            return Positioned(
-                              left: left,
-                              top: top,
-                              child: Material(
-                                color: Colors.transparent,
-                                child: Container(
-                                  width: 173.w,
-                                  height: 45.h,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1C1C1C),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(14),
-                                    onTap: () async {
-                                      if (_selectedCommentId == null) return;
-                                      final targetId = _selectedCommentId!;
-                                      try {
-                                        await _commentRecordController
-                                            .hardDeleteCommentRecord(
-                                              targetId,
-                                              widget.photo.id,
-                                            );
-                                      } catch (e) {
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text('댓글 삭제 실패: $e'),
-                                              behavior:
-                                                  SnackBarBehavior.floating,
-                                              duration: const Duration(
-                                                seconds: 2,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      } finally {
-                                        if (mounted) {
-                                          setState(() {
-                                            // 오버레이 및 선택 해제 + 기본 화면 복귀 위해 댓글 표시도 종료
-                                            _showActionOverlay = false;
-                                            _selectedCommentId = null;
-                                            _selectedCommentPosition = null;
-                                            _isShowingComments = false; // 배경 원복
-                                          });
-                                        }
-                                      }
-                                    },
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.start,
-                                      children: [
-                                        SizedBox(width: 13.96.w),
-                                        Image.asset(
-                                          "assets/trash_red.png",
-                                          width: 11.2.w,
-                                          height: 12.6.h,
-                                        ),
-                                        SizedBox(width: 12.59.w),
-                                        Text(
-                                          '댓글 삭제',
-                                          style: TextStyle(
-                                            fontSize: 15.sp,
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xffff0000),
-                                            fontFamily: 'Pretendard',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                      // 모든 댓글의 드롭된 프로필 이미지들 표시
+                      ..._buildCommentAvatars(),
+                      // Pending 마커 표시
+                      if (_isShowingComments && _buildPendingMarker() != null)
+                        _buildPendingMarker()!,
+                      // 삭제 액션 팝업
+                      if (_buildDeleteActionPopup() != null)
+                        _buildDeleteActionPopup()!,
                     ],
                   );
                 },
