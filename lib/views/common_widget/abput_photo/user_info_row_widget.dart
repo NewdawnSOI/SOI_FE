@@ -9,8 +9,8 @@ import '../about_voice_comment/voice_comment_list_sheet.dart';
 import 'package:provider/provider.dart';
 
 /// 사용자 정보 표시 위젯 (아이디와 날짜)
-///
 /// 피드에서 사진 하단에 표시되는 사용자 닉네임과 날짜 정보를 담당합니다.
+/// 단일 책임: 사용자 닉네임과 날짜 정보 표시를 담당
 class UserInfoWidget extends StatelessWidget {
   final MediaDataModel photo;
   final Map<String, String> userNames;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// 카테고리 이름 라벨 위젯
+/// 단일 책임: 카테고리 이름 표시 및 탭 처리
 class CategoryLabelWidget extends StatelessWidget {
   final String categoryName;
   final VoidCallback onTap;

@@ -7,6 +7,8 @@ import 'user_info_row_widget.dart';
 import '../about_voice_comment/voice_recording_widget.dart';
 import 'photo_display_widget.dart';
 
+/// 사진 카드 위젯 (단일 책임: 사진 및 관련 UI 표시)
+/// 각종 UI를 조합해서 보여주는 역할만 담당
 class PhotoCardWidgetCommon extends StatefulWidget {
   final MediaDataModel photo;
   final String categoryName;
@@ -79,15 +81,13 @@ class _PhotoCardWidgetCommonState extends State<PhotoCardWidgetCommon> {
 
   /// 텍스트 댓글 생성 후 프로필 배치를 위한 핸들러
   void _handleTextCommentCreated(String text) async {
-    debugPrint(
-      '🔵 [PhotoCard] 텍스트 댓글 생성: photoId=${widget.photo.id}, text=$text',
-    );
+    debugPrint('[PhotoCard] 텍스트 댓글 생성: photoId=${widget.photo.id}, text=$text');
     // 텍스트 댓글을 임시 저장하고 음성 댓글 active 상태로 전환
     await widget.onTextCommentCompleted(widget.photo.id, text);
-    debugPrint('🔵 [PhotoCard] onTextCommentCompleted 호출 완료 (await)');
+    debugPrint('[PhotoCard] onTextCommentCompleted 호출 완료 (await)');
     // 음성 댓글 active 상태로 전환하여 프로필 드래그 가능하게 함
     widget.onToggleVoiceComment(widget.photo.id);
-    debugPrint('🔵 [PhotoCard] onToggleVoiceComment 호출 완료');
+    debugPrint('[PhotoCard] onToggleVoiceComment 호출 완료');
   }
 
   @override

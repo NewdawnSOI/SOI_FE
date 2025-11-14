@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+/// 첫 번째 줄에만 말줄임표를 적용하는 텍스트 위젯
+/// 단일 책임: 첫 번째 줄에 말줄임표 적용 및 나머지 텍스트 표시
 class FirstLineEllipsisText extends StatelessWidget {
   const FirstLineEllipsisText({
     super.key,
@@ -33,8 +35,9 @@ class FirstLineEllipsisText extends StatelessWidget {
         }
 
         final lineBreakIndex = _firstLineBreakIndex(text);
-        final firstLineCandidate =
-            lineBreakIndex == null ? text : text.substring(0, lineBreakIndex);
+        final firstLineCandidate = lineBreakIndex == null
+            ? text
+            : text.substring(0, lineBreakIndex);
 
         final visibleFirstLine = _fitFirstLine(
           firstLineCandidate,

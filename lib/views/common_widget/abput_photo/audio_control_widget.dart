@@ -11,6 +11,7 @@ import '../../../utils/format_utils.dart';
 import '../../about_archiving/widgets/wave_form_widget/custom_waveform_widget.dart';
 
 /// 오디오 컨트롤 위젯 (프로필 - 파형 - 시간)
+/// 단일 책임: 오디오 재생 제어 및 상태 표시
 class AudioControlWidget extends StatelessWidget {
   final MediaDataModel photo;
   final VoidCallback onAudioTap;
