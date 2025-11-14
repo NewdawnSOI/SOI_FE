@@ -583,6 +583,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
           userIds: [userId],
           duration: videoDuration,
           caption: data['caption'] as String?,
+          isFromCamera: widget.isFromCamera,
         );
 
         // 업로드 후 썸네일 임시 파일 삭제

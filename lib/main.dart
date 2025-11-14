@@ -52,6 +52,7 @@ import 'views/home_navigator_screen.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'utils/app_route_observer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -198,6 +199,7 @@ class _MyAppState extends State<MyApp> {
         designSize: const Size(393, 852),
         child: MaterialApp(
           initialRoute: '/',
+          navigatorObservers: [appRouteObserver],
           debugShowCheckedModeBanner: false,
           routes: {
             '/': (context) => const StartScreen(),

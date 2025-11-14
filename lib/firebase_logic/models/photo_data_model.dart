@@ -18,6 +18,7 @@ class MediaDataModel {
   final bool isVideo; // 비디오 여부
   final String? videoUrl; // 비디오 URL
   final String? thumbnailUrl; // 썸네일 URL
+  final bool isFromCamera; // 카메라 촬영 여부
 
   MediaDataModel({
     required this.id,
@@ -36,6 +37,7 @@ class MediaDataModel {
     this.isVideo = false, // 기본값 false
     this.videoUrl, // 비디오 URL
     this.thumbnailUrl, // 썸네일 URL
+    this.isFromCamera = false, // 카메라 촬영 여부 (기본값: 갤러리)
   });
 
   // Firestore에서 데이터를 가져올 때 사용
@@ -74,6 +76,7 @@ class MediaDataModel {
       isVideo: data['isVideo'] ?? false, // 비디오 여부
       videoUrl: data['videoUrl'] as String?, // 비디오 URL
       thumbnailUrl: data['thumbnailUrl'] as String?, // 썸네일 URL
+      isFromCamera: data['isFromCamera'] ?? false, // 카메라 촬영 여부
     );
   }
 
@@ -90,6 +93,7 @@ class MediaDataModel {
       'duration': duration.inSeconds, // 음성 길이 추가 (초 단위로 저장)
       'unactive': unactive, // 사용자 비활성화 상태 추가
       'isVideo': isVideo, // 비디오 여부 추가
+      'isFromCamera': isFromCamera, // 카메라 촬영 여부 추가
     };
 
     // caption이 있을 때만 추가

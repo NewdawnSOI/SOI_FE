@@ -162,6 +162,7 @@ class PhotoController extends ChangeNotifier {
     required List<String> userIds,
     Duration? duration,
     String? caption,
+    bool isFromCamera = false, // 카메라 촬영 여부 (기본값: 갤러리)
   }) async {
     try {
       _isUploading = true;
@@ -181,6 +182,7 @@ class PhotoController extends ChangeNotifier {
         userIds: userIds,
         duration: duration,
         caption: caption,
+        isFromCamera: isFromCamera,
       );
 
       _isUploading = false;

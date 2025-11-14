@@ -109,12 +109,27 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
       body: IndexedStack(
         index: _currentPageIndex,
         children: [
-          const FeedHomeScreen(),
-          // ✅ 카메라 화면은 선택될 때만 초기화 (성능 최적화)
-          _currentPageIndex == 1 ? const CameraScreen() : Container(),
-          const ArchiveMainScreen(),
+          _buildPage(
+            0,
+            const FeedHomeScreen(),
+          ),
+          _buildPage(
+            1,
+            _currentPageIndex == 1 ? const CameraScreen() : Container(),
+          ),
+          _buildPage(
+            2,
+            const ArchiveMainScreen(),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPage(int index, Widget child) {
+    return TickerMode(
+      enabled: _currentPageIndex == index,
+      child: child,
     );
   }
 }

@@ -197,6 +197,7 @@ class PhotoService {
     required List<String> userIds,
     Duration? duration,
     String? caption,
+    bool isFromCamera = false, // 카메라 촬영 여부 (기본값: 갤러리)
   }) async {
     try {
       final validationResult = _validateVideoUpload(
@@ -245,6 +246,7 @@ class PhotoService {
         isVideo: true,
         videoUrl: videoUrl,
         thumbnailUrl: fallbackThumbnailUrl, // 썸네일 URL (없으면 비디오 URL)
+        isFromCamera: isFromCamera, // 카메라 촬영 여부
       );
 
       final videoId = await _photoRepository.saveVideoToFirestore(

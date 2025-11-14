@@ -3,15 +3,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:provider/provider.dart';
 import '../../firebase_logic/services/camera_service.dart';
 import '../../firebase_logic/controllers/notification_controller.dart';
 import '../../firebase_logic/controllers/auth_controller.dart';
 import 'widgets/circular_video_progress_indicator.dart';
+import 'widgets/camera_app_bar.dart';
+import 'widgets/camera_preview_container.dart';
+import 'widgets/camera_zoom_controls.dart';
+import 'widgets/gallery_thumbnail.dart';
 import 'photo_editor_screen.dart';
-import 'package:eva_icons_flutter/eva_icons_flutter.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 enum _PendingVideoAction { none, stop, cancel }
@@ -529,96 +530,6 @@ class _CameraScreenState extends State<CameraScreen>
     );
   }
 
-  Widget _buildShimmerBox({
-    required double width,
-    required double height,
-    required double borderRadius,
-  }) {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade800,
-      highlightColor: Colors.grey.shade700,
-      period: const Duration(milliseconds: 1500),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade800,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.12),
-              width: 1.0,
-            ),
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 갤러리 콘텐츠 빌드 (로딩/에러/이미지 상태 처리)
-  Widget _buildGalleryContent(double gallerySize, double borderRadius) {
-    // 로딩 중 - shimmer 효과 적용
-    if (_isLoadingGallery) {
-      return _buildShimmerBox(
-        width: 46.w,
-        height: 46.h,
-        borderRadius: borderRadius,
-      );
-    }
-
-    // 에러 상태
-    if (_galleryError != null) {
-      return _buildPlaceholderGallery(46);
-    }
-
-    // 갤러리 이미지 표시
-    if (_firstGalleryImage != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: FutureBuilder<Uint8List?>(
-          future: _firstGalleryImage!.thumbnailData,
-          builder: (context, snapshot) {
-            if (snapshot.hasData && snapshot.data != null) {
-              return Image.memory(
-                snapshot.data!,
-                width: 46.w,
-                height: 46.h,
-
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  // Gallery thumbnail memory load error: $error
-                  return _buildPlaceholderGallery(gallerySize);
-                },
-              );
-            } else if (snapshot.hasError) {
-              // Gallery thumbnail data load error: ${snapshot.error}
-              return _buildPlaceholderGallery(gallerySize);
-            } else {
-              return _buildShimmerBox(
-                width: 46.w,
-                height: 46.h,
-                borderRadius: borderRadius,
-              );
-            }
-          },
-        ),
-      );
-    }
-
-    // 기본 플레이스홀더
-    return _buildPlaceholderGallery(gallerySize);
-  }
-
-  /// 갤러리 플레이스홀더 위젯 - 반응형
-  Widget _buildPlaceholderGallery(double gallerySize) {
-    return _buildShimmerBox(
-      width: gallerySize,
-      height: gallerySize,
-      borderRadius: 8.0,
-    );
-  }
-
   // cameraservice에 카메라 전환 요청
   Future<void> _switchCamera() async {
     if (_isVideoRecording && !_supportsLiveSwitch) {
@@ -642,43 +553,9 @@ class _CameraScreenState extends State<CameraScreen>
           currentZoom = '1x';
         });
       }
-    } on PlatformException {
-      // Camera switching error occurred: ${e.message}
+    } on PlatformException catch (e) {
+      debugPrint('Camera switch error occurred: ${e.message}');
     }
-  }
-
-  // 녹화 상태를 표시하는 위젯
-  Widget _buildRecordingIndicator() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 10.w,
-            height: 10.w,
-            decoration: const BoxDecoration(
-              color: Colors.redAccent,
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: 8.w),
-          Text(
-            'REC',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 14.sp,
-              letterSpacing: 1.2,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   // 줌 레벨 변경 요청
@@ -695,230 +572,36 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
-  // 줌 컨트롤 위젯 빌드
-  Widget _buildZoomControls() {
-    return Container(
-      width: 147.w,
-      height: 50.h,
-      decoration: BoxDecoration(
-        color: Color(0xff000000).withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(25),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (int i = 0; i < zoomLevels.length; i++) ...[
-            // 고정된 크기의 컨테이너로 레이아웃 안정화
-            SizedBox(
-              width: 45.w, // 최대 크기로 고정
-              height: 45.h, // 최대 크기로 고정
-              child: GestureDetector(
-                onTap: () => _setZoomLevel(
-                  zoomLevels[i]['value'],
-                  zoomLevels[i]['label'],
-                ),
-                child: Center(
-                  child: Container(
-                    width: zoomLevels[i]['value'] == currentZoomValue
-                        ? 45.w
-                        : 29.w,
-                    height: zoomLevels[i]['value'] == currentZoomValue
-                        ? 45.h
-                        : 29.h,
-                    decoration: BoxDecoration(
-                      color: Color(0xff2c2c2c),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        zoomLevels[i]['label'],
-                        style: TextStyle(
-                          color: zoomLevels[i]['value'] == currentZoomValue
-                              ? Colors.yellow
-                              : Color(0xffffffff),
-                          fontSize: zoomLevels[i]['value'] == currentZoomValue
-                              ? (14.36).sp
-                              : (12.36).sp,
-                          fontWeight: zoomLevels[i]['value'] == currentZoomValue
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          fontFamily: 'Pretendard Variable',
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
 
+    final zoomControls = CameraZoomControls(
+      zoomLevels: zoomLevels,
+      currentZoomValue: currentZoomValue,
+      onZoomSelected: (value, label) => _setZoomLevel(value, label),
+    );
+
     return Scaffold(
       backgroundColor: Color(0xff000000),
-
-      appBar: AppBar(
-        leadingWidth: 90.w,
-        title: Column(
-          children: [
-            Text(
-              'SOI',
-              style: TextStyle(
-                color: Color(0xfff9f9f9),
-                fontSize: 20.sp,
-                fontFamily: GoogleFonts.inter().fontFamily,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 30.h),
-          ],
-        ),
-        backgroundColor: Colors.black,
-        toolbarHeight: 70.h,
-        leading: Row(
-          children: [
-            SizedBox(width: 32.w),
-            IconButton(
-              constraints: BoxConstraints(),
-              padding: EdgeInsets.zero,
-              onPressed: () => Navigator.pushNamed(context, '/contact_manager'),
-              icon: Container(
-                width: 35,
-                height: 35,
-                decoration: BoxDecoration(
-                  color: Color(0xff1c1c1c),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.people, color: Colors.white, size: 25.sp),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          Padding(
-            padding: EdgeInsets.only(right: 32.w),
-            child: Center(
-              child: Consumer<NotificationController>(
-                builder: (context, notificationController, child) {
-                  return IconButton(
-                    onPressed: () =>
-                        Navigator.pushNamed(context, '/notifications'),
-                    icon: Container(
-                      width: 35,
-                      height: 35,
-                      padding: EdgeInsets.only(bottom: 3.h),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Color(0xff1c1c1c),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 2.h),
-                        child: Image.asset(
-                          "assets/notification.png",
-                          width: 25.sp,
-                          height: 25.sp,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
+      appBar: CameraAppBar(
+        onContactsTap: () => Navigator.pushNamed(context, '/contact_manager'),
+        onNotificationsTap: () =>
+            Navigator.pushNamed(context, '/notifications'),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            Center(
-              child: FutureBuilder<void>(
-                future: _cameraInitialization,
-                builder: (context, snapshot) {
-                  if (_isLoading) {
-                    return _buildShimmerBox(
-                      width: 354.w,
-                      height: 500.h,
-                      borderRadius: 16,
-                    );
-                  }
-
-                  // 초기화 실패 시 오류 메시지 표시
-                  if (snapshot.hasError) {
-                    return Container(
-                      constraints: BoxConstraints(maxHeight: double.infinity),
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '카메라를 시작할 수 없습니다.\n앱을 다시 시작해 주세요.',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18.sp,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    );
-                  }
-
-                  // 카메라 초기화 완료되면 카메라 뷰 표시
-                  return Stack(
-                    alignment: Alignment.topCenter,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: SizedBox(
-                          width: 354.w,
-                          height: 500.h,
-
-                          child: Stack(
-                            alignment: Alignment.bottomCenter,
-                            children: [
-                              // 카메라 뷰
-                              _cameraService.getCameraView(),
-
-                              // 줌 컨트롤 (줌 레벨이 있을 때만 표시)
-                              if (zoomLevels.isNotEmpty && !_isVideoRecording)
-                                Padding(
-                                  padding: EdgeInsets.only(bottom: 26.h),
-                                  child: _buildZoomControls(),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      if (_isVideoRecording)
-                        Positioned(
-                          top: 12.h,
-                          child: _buildRecordingIndicator(),
-                        ),
-
-                      // 플래시 버튼
-                      (_isVideoRecording)
-                          ? SizedBox()
-                          : IconButton(
-                              onPressed: _toggleFlash,
-                              icon: Icon(
-                                isFlashOn ? EvaIcons.flash : EvaIcons.flashOff,
-                                color: Colors.white,
-                                size: 28.sp,
-                              ),
-                              padding: EdgeInsets.zero,
-                            ),
-                    ],
-                  );
-                },
-              ),
+            // 카메라 프리뷰를 띄우는 위젯 컨태이너
+            CameraPreviewContainer(
+              initialization: _cameraInitialization,
+              isLoading: _isLoading,
+              cameraView: _cameraService.getCameraView(),
+              showZoomControls: zoomLevels.isNotEmpty && !_isVideoRecording,
+              zoomControls: zoomControls,
+              isVideoRecording: _isVideoRecording,
+              isFlashOn: isFlashOn,
+              onToggleFlash: _toggleFlash,
             ),
             SizedBox(height: 20.h),
             // 수정: 하단 버튼 레이아웃 변경 - 반응형
@@ -969,7 +652,14 @@ class _CameraScreenState extends State<CameraScreen>
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8.76),
                         ),
-                        child: _buildGalleryContent(46, 8.76),
+                        // 갤러리 썸네일을 위젯 형태로 표시
+                        child: GalleryThumbnail(
+                          isLoading: _isLoadingGallery,
+                          asset: _firstGalleryImage,
+                          errorMessage: _galleryError,
+                          size: 46,
+                          borderRadius: 8.76,
+                        ),
                       ),
                     ),
                   ),

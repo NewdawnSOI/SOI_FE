@@ -80,6 +80,10 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget>
   @override
   void initState() {
     super.initState();
+    // 카메라 촬영 영상은 기본값을 BoxFit.fill로 설정
+    if (widget.photo.isFromCamera) {
+      _videoFit = BoxFit.fill;
+    }
     _initializeVideo();
   }
 
@@ -142,10 +146,16 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget>
     });
   }
 
-  /// 비디오 fit 모드 토글
+  /// 비디오 fit 모드 토글 (contain → cover → fill → contain)
   void _toggleVideoFit() {
     setState(() {
-      _videoFit = _videoFit == BoxFit.contain ? BoxFit.cover : BoxFit.contain;
+      if (_videoFit == BoxFit.contain) {
+        _videoFit = BoxFit.fill;
+      } else if (_videoFit == BoxFit.fill) {
+        _videoFit = BoxFit.contain;
+      } else {
+        _videoFit = BoxFit.contain;
+      }
     });
   }
 
@@ -184,7 +194,9 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget>
 
   @override
   void didPopNext() {
-    _resumeVideoPlayback();
+    // 현재 페이지가 실제로 보이는지 체크 후 재생
+    // PageView에서 보이지 않는 페이지는 재생하지 않음
+    _updateVisibility(TickerMode.of(context));
     super.didPopNext();
   }
 
@@ -637,6 +649,8 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget>
                                       width: 354.w,
                                       height: 500.h,
                                       child: FittedBox(
+                                        // 카메라 촬영: 기본값 BoxFit.fill, 토글로 변경 가능
+                                        // 갤러리: 기본값 BoxFit.contain, 토글로 변경 가능
                                         fit: _videoFit,
                                         child: SizedBox(
                                           width: _videoController!
