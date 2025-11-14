@@ -139,7 +139,7 @@ class MediaRepository {
   }
 
   // ==================== 비디오 관련 로직 ===============
-  // 이미지 파일을 supabase Storage에 업로드
+  // 비디오 파일을 supabase Storage에 업로드
   Future<String?> uploadVideoToStorage({
     required File videoFile,
     required String categoryId,
@@ -153,10 +153,10 @@ class MediaRepository {
           '${categoryId}_${userId}_${DateTime.now().millisecondsSinceEpoch}.mp4';
 
       // supabase storage에 사진 업로드 - 완료될 때까지 기다림
-      await supabase.storage.from('photos').upload(fileName, videoFile);
+      await supabase.storage.from('video').upload(fileName, videoFile);
 
       // 업로드 완료 후 공개 URL 생성
-      final publicUrl = supabase.storage.from('photos').getPublicUrl(fileName);
+      final publicUrl = supabase.storage.from('video').getPublicUrl(fileName);
 
       // 업로드 완료된 공개 URL 반환
       return publicUrl;
@@ -168,16 +168,16 @@ class MediaRepository {
 
   /// 비디오 메타데이터를 Firestore에 저장
   Future<String?> saveVideoToFirestore({
-    required MediaDataModel photo,
+    required MediaDataModel video,
     required String categoryId,
   }) async {
     try {
-      // 1. 사진 저장
+      // 1. 비디오 저장
       final docRef = await _firestore
           .collection('categories')
           .doc(categoryId)
           .collection('photos')
-          .add(photo.toFirestore());
+          .add(video.toFirestore());
 
       // 2. 카테고리에 사진이 처음 추가되는 경우, 자동으로 표지사진 설정
       final categoryDoc = await _firestore
@@ -189,7 +189,7 @@ class MediaRepository {
         if (categoryData['categoryPhotoUrl'] == null ||
             categoryData['categoryPhotoUrl'] == '') {
           await _firestore.collection('categories').doc(categoryId).update({
-            'categoryPhotoUrl': photo.imageUrl,
+            'categoryPhotoUrl': video.thumbnailUrl,
           });
         }
       }

@@ -11,6 +11,7 @@ import '../../firebase_logic/controllers/auth_controller.dart';
 import '../../firebase_logic/controllers/category_controller.dart';
 import '../../firebase_logic/controllers/photo_controller.dart';
 import '../../firebase_logic/models/selected_friend_model.dart';
+import '../../utils/video_thumbnail_generator.dart';
 import '../home_navigator_screen.dart';
 import 'widgets/add_category_widget.dart';
 import 'widgets/audio_recorder_widget.dart';
@@ -308,8 +309,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     if (!mounted || _isDisposing) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _isDisposing || !_draggableScrollController.isAttached)
+      if (!mounted || _isDisposing || !_draggableScrollController.isAttached) {
         return;
+      }
 
       await _draggableScrollController.animateTo(
         size,
@@ -317,15 +319,11 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         curve: Curves.easeInOut,
       );
 
-      if (lockExtent && !_hasLockedSheetExtent) {
-        setState(() {
-          _minChildSize = size;
-          _initialChildSize = size;
-          _hasLockedSheetExtent = true;
-        });
-        if (_draggableScrollController.isAttached) {
-          _draggableScrollController.jumpTo(size);
-        }
+      // 애니메이션 완료 후 lockExtent 처리
+      if (lockExtent && !_hasLockedSheetExtent && mounted) {
+        _minChildSize = size;
+        _initialChildSize = size;
+        _hasLockedSheetExtent = true;
       }
     });
   }
@@ -466,7 +464,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     if (!mounted) return;
     LoadingPopupWidget.show(
       context,
-      message: '${categoryIds.length}개 카테고리에 사진을 업로드하고 있습니다.\n잠시만 기다려주세요',
+      message: '${categoryIds.length}개 카테고리에 미디어를 업로드하고 있습니다.\n잠시만 기다려주세요',
     );
     try {
       _clearImageCache();
@@ -509,12 +507,17 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
     if (filePath == null || userId == null) return null;
 
+    final isVideo = widget.isVideo ?? false;
+
     return {
       'categoryId': categoryId,
       'filePath': filePath,
       'userId': userId,
-      'audioPath': _recordedAudioPath ?? _audioController.currentRecordingPath,
-      'waveformData': _recordedWaveformData,
+      'isVideo': isVideo,
+      'audioPath': isVideo
+          ? null
+          : _recordedAudioPath ?? _audioController.currentRecordingPath,
+      'waveformData': isVideo ? null : _recordedWaveformData,
       'caption': _captionController.text.trim().isNotEmpty
           ? _captionController.text.trim()
           : null,
@@ -529,14 +532,15 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     final userId = data['userId'] as String;
     final audioPath = data['audioPath'] as String?;
     final waveformData = data['waveformData'] as List<double>? ?? const [];
-    final imageFile = File(filePath);
+    final isVideo = data['isVideo'] as bool? ?? false;
+    final mediaFile = File(filePath);
 
-    if (!await imageFile.exists()) {
-      throw Exception('이미지 파일을 찾을 수 없습니다: $filePath');
+    if (!await mediaFile.exists()) {
+      throw Exception('미디어 파일을 찾을 수 없습니다: $filePath');
     }
 
     File? audioFile;
-    if (audioPath != null && audioPath.isNotEmpty) {
+    if (!isVideo && audioPath != null && audioPath.isNotEmpty) {
       audioFile = File(audioPath);
       if (!await audioFile.exists()) {
         audioFile = null;
@@ -544,9 +548,56 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     }
 
     try {
-      if (audioFile != null && waveformData.isNotEmpty) {
+      if (isVideo) {
+        // 비디오 길이 자동 추출
+        Duration? videoDuration;
+        try {
+          videoDuration = await VideoThumbnailGenerator.getVideoDuration(
+            filePath,
+          );
+        } catch (e) {
+          debugPrint('비디오 길이 추출 실패: $e');
+        }
+
+        // 비디오 썸네일 자동 생성
+        File? thumbnailFile;
+        try {
+          thumbnailFile = await VideoThumbnailGenerator.generateThumbnail(
+            filePath,
+            quality: 85,
+            maxWidth: 1920,
+            maxHeight: 1080,
+          );
+          if (thumbnailFile != null) {
+            debugPrint('썸네일 생성 성공');
+          } else {
+            debugPrint('썸네일 생성 실패 - 비디오 URL을 썸네일로 사용');
+          }
+        } catch (e) {
+          debugPrint('썸네일 생성 오류: $e');
+        }
+
+        await _photoController.uploadVideo(
+          videoFile: mediaFile,
+          thumbnailFile: thumbnailFile,
+          categoryId: categoryId,
+          userId: userId,
+          userIds: [userId],
+          duration: videoDuration,
+          caption: data['caption'] as String?,
+        );
+
+        // 업로드 후 썸네일 임시 파일 삭제
+        if (thumbnailFile != null) {
+          try {
+            await thumbnailFile.delete();
+          } catch (e) {
+            debugPrint('썸네일 임시 파일 삭제 실패: $e');
+          }
+        }
+      } else if (audioFile != null && waveformData.isNotEmpty) {
         await _photoController.uploadPhotoWithAudio(
-          imageFilePath: imageFile.path,
+          imageFilePath: mediaFile.path,
           audioFilePath: audioFile.path,
           userID: userId,
           userIds: [userId],
@@ -556,7 +607,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         );
       } else {
         await _photoController.uploadPhoto(
-          imageFile: imageFile,
+          imageFile: mediaFile,
           categoryId: categoryId,
           userId: userId,
           userIds: [userId],
@@ -566,7 +617,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       }
 
       // 업로드 성공 후 임시 파일 삭제
-      await _deleteTemporaryFile(imageFile, filePath);
+      await _deleteTemporaryFile(mediaFile, filePath);
       if (audioFile != null && audioPath != null) {
         await _deleteTemporaryFile(audioFile, audioPath);
       }

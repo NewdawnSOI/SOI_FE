@@ -153,6 +153,57 @@ class PhotoController extends ChangeNotifier {
     }
   }
 
+  /// 비디오 업로드
+  Future<bool> uploadVideo({
+    required File videoFile,
+    File? thumbnailFile,
+    required String categoryId,
+    required String userId,
+    required List<String> userIds,
+    Duration? duration,
+    String? caption,
+  }) async {
+    try {
+      _isUploading = true;
+      _uploadProgress = 0.0;
+      _error = null;
+      notifyListeners();
+
+      if (!await videoFile.exists()) {
+        throw Exception('비디오 파일이 존재하지 않습니다.');
+      }
+
+      final result = await _photoService.uploadVideo(
+        videoFile: videoFile,
+        thumbnailFile: thumbnailFile,
+        categoryId: categoryId,
+        userId: userId,
+        userIds: userIds,
+        duration: duration,
+        caption: caption,
+      );
+
+      _isUploading = false;
+      _uploadProgress = 1.0;
+      notifyListeners();
+
+      if (result.isSuccess) {
+        await loadPhotosByCategory(categoryId);
+        return true;
+      } else {
+        _error = result.error;
+        return false;
+      }
+    } catch (e) {
+      debugPrint('비디오 업로드 실패: $e');
+      _isUploading = false;
+      _uploadProgress = 0.0;
+      _error = '비디오 업로드 중 오류가 발생했습니다.';
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// 모든 카테고리에서 사진 초기 로드 (무한 스크롤용)
   Future<void> loadPhotosFromAllCategoriesInitial(
     List<String> categoryIds,

@@ -90,8 +90,6 @@ class MediaDataModel {
       'duration': duration.inSeconds, // 음성 길이 추가 (초 단위로 저장)
       'unactive': unactive, // 사용자 비활성화 상태 추가
       'isVideo': isVideo, // 비디오 여부 추가
-      'videoUrl': videoUrl, // 비디오 URL 추가
-      'thumbnailUrl': thumbnailUrl, // 썸네일 URL 추가
     };
 
     // caption이 있을 때만 추가
@@ -107,6 +105,16 @@ class MediaDataModel {
     // deletedAt이 있을 때만 추가
     if (deletedAt != null) {
       data['deletedAt'] = Timestamp.fromDate(deletedAt!);
+    }
+
+    // videoUrl이 있을 때만 추가
+    if (videoUrl != null && videoUrl!.isNotEmpty) {
+      data['videoUrl'] = videoUrl;
+    }
+
+    // thumbnailUrl이 있을 때만 추가
+    if (thumbnailUrl != null && thumbnailUrl!.isNotEmpty) {
+      data['thumbnailUrl'] = thumbnailUrl;
     }
 
     return data;

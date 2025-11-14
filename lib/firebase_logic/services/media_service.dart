@@ -188,6 +188,133 @@ class PhotoService {
     }
   }
 
+  /// 비디오 업로드 (비디오 + 썸네일)
+  Future<PhotoUploadResult> uploadVideo({
+    required File videoFile,
+    File? thumbnailFile,
+    required String categoryId,
+    required String userId,
+    required List<String> userIds,
+    Duration? duration,
+    String? caption,
+  }) async {
+    try {
+      final validationResult = _validateVideoUpload(
+        videoFile: videoFile,
+        categoryId: categoryId,
+        userId: userId,
+        userIds: userIds,
+      );
+
+      if (!validationResult.isValid) {
+        return PhotoUploadResult.failure(validationResult.error!);
+      }
+
+      final videoUrl = await _photoRepository.uploadVideoToStorage(
+        videoFile: videoFile,
+        categoryId: categoryId,
+        userId: userId,
+      );
+
+      if (videoUrl == null) {
+        return PhotoUploadResult.failure('비디오 업로드에 실패했습니다.');
+      }
+
+      String? thumbnailUrl;
+      if (thumbnailFile != null) {
+        thumbnailUrl = await _photoRepository.uploadImageToStorage(
+          imageFile: thumbnailFile,
+          categoryId: categoryId,
+          userId: userId,
+        );
+      }
+
+      // 썸네일이 없으면 비디오 URL을 대신 사용 (UI에서 처리)
+      final fallbackThumbnailUrl = thumbnailUrl ?? videoUrl;
+
+      final videoData = MediaDataModel(
+        id: '',
+        imageUrl: fallbackThumbnailUrl, // 카테고리 표지에 사용될 URL
+        audioUrl: '',
+        userID: userId,
+        userIds: userIds,
+        categoryId: categoryId,
+        createdAt: DateTime.now(),
+        duration: duration ?? Duration.zero,
+        caption: caption,
+        isVideo: true,
+        videoUrl: videoUrl,
+        thumbnailUrl: fallbackThumbnailUrl, // 썸네일 URL (없으면 비디오 URL)
+      );
+
+      final videoId = await _photoRepository.saveVideoToFirestore(
+        video: videoData,
+        categoryId: categoryId,
+      );
+
+      if (videoId == null) {
+        return PhotoUploadResult.failure('비디오 정보 저장에 실패했습니다.');
+      }
+
+      await categoryService.updateLastPhotoInfo(
+        categoryId: categoryId,
+        uploadedBy: userId,
+      );
+
+      final categories = await categoryService.getUserCategories(userId);
+      final category = categories.firstWhere(
+        (cat) => cat.id == categoryId,
+        orElse: () => throw Exception('카테고리를 찾을 수 없습니다: $categoryId'),
+      );
+
+      bool shouldUpdateCoverPhoto = false;
+      if (category.categoryPhotoUrl?.isEmpty ?? true) {
+        shouldUpdateCoverPhoto = true;
+      } else {
+        shouldUpdateCoverPhoto = await _isAutomaticallySetCoverPhoto(
+          categoryId,
+          category.categoryPhotoUrl!,
+        );
+      }
+
+      if (shouldUpdateCoverPhoto) {
+        await categoryService.updateCoverPhotoFromCategory(
+          categoryId: categoryId,
+          photoUrl: fallbackThumbnailUrl,
+        );
+
+        try {
+          await notificationService.updateCategoryThumbnailInNotifications(
+            categoryId: categoryId,
+            newThumbnailUrl: fallbackThumbnailUrl,
+          );
+        } catch (e) {
+          debugPrint('비디오 썸네일 알림 업데이트 실패: $e');
+        }
+      }
+
+      try {
+        await Future.delayed(const Duration(milliseconds: 100));
+        await notificationService.createPhotoAddedNotification(
+          categoryId: categoryId,
+          photoId: videoId,
+          actorUserId: userId,
+          photoUrl: fallbackThumbnailUrl,
+        );
+      } catch (e) {
+        debugPrint('비디오 업로드 알림 생성 실패: $e');
+      }
+
+      return PhotoUploadResult.success(
+        photoId: videoId,
+        imageUrl: fallbackThumbnailUrl,
+      );
+    } catch (e) {
+      debugPrint('비디오 업로드 서비스 오류: $e');
+      return PhotoUploadResult.failure('비디오 업로드 중 오류가 발생했습니다.');
+    }
+  }
+
   /// 사진과 오디오를 파형 데이터와 함께 저장
   Future<String> savePhotoWithAudio({
     required String imageFilePath,
@@ -201,7 +328,6 @@ class PhotoService {
   }) async {
     try {
       // 1. 이미지 업로드
-
       final imageFile = File(imageFilePath);
       final imageUrl = await _photoRepository.uploadImageToStorage(
         imageFile: imageFile,
@@ -214,7 +340,6 @@ class PhotoService {
       }
 
       // 2. 오디오 업로드
-
       final audioFile = File(audioFilePath);
       final audioUrl = await _audioRepository.uploadAudioToSupabaseStorage(
         audioFile: audioFile,
@@ -585,6 +710,46 @@ class PhotoService {
     // 파일 크기 검증 (10MB 제한)
     if (imageFile.lengthSync() > 10 * 1024 * 1024) {
       return PhotoValidationResult.invalid('이미지 파일 크기는 10MB를 초과할 수 없습니다.');
+    }
+
+    return PhotoValidationResult.valid();
+  }
+
+  PhotoValidationResult _validateVideoUpload({
+    required File videoFile,
+    required String categoryId,
+    required String userId,
+    required List<String> userIds,
+  }) {
+    if (categoryId.isEmpty) {
+      return PhotoValidationResult.invalid('카테고리 ID가 필요합니다.');
+    }
+
+    if (userId.isEmpty) {
+      return PhotoValidationResult.invalid('사용자 ID가 필요합니다.');
+    }
+
+    if (userIds.isEmpty || !userIds.contains(userId)) {
+      return PhotoValidationResult.invalid('올바른 사용자 목록이 필요합니다.');
+    }
+
+    if (!videoFile.existsSync()) {
+      return PhotoValidationResult.invalid('비디오 파일이 존재하지 않습니다.');
+    }
+
+    final supportedExtensions = ['.mp4', '.mov', '.m4v', '.avi', '.mkv'];
+    final lowerPath = videoFile.path.toLowerCase();
+    final hasSupportedExtension = supportedExtensions.any(
+      (ext) => lowerPath.endsWith(ext),
+    );
+
+    if (!hasSupportedExtension) {
+      return PhotoValidationResult.invalid('지원하지 않는 비디오 형식입니다.');
+    }
+
+    const maxVideoSizeInBytes = 200 * 1024 * 1024; // 200MB
+    if (videoFile.lengthSync() > maxVideoSizeInBytes) {
+      return PhotoValidationResult.invalid('비디오 파일 크기는 200MB를 초과할 수 없습니다.');
     }
 
     return PhotoValidationResult.valid();
