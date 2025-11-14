@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/photo_data_model.dart';
 
-/// Photo Repository - Firebase와 관련된 모든 데이터 액세스 로직을 담당
-class PhotoRepository {
+/// MediaRepository  - Firebase와 관련된 모든 데이터 액세스 로직을 담당
+class MediaRepository {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -45,7 +45,7 @@ class PhotoRepository {
 
   /// 사진 메타데이터를 Firestore에 저장
   Future<String?> savePhotoToFirestore({
-    required PhotoDataModel photo,
+    required MediaDataModel photo,
     required String categoryId,
   }) async {
     try {
@@ -57,8 +57,10 @@ class PhotoRepository {
           .add(photo.toFirestore());
 
       // 2. 카테고리에 사진이 처음 추가되는 경우, 자동으로 표지사진 설정
-      final categoryDoc =
-          await _firestore.collection('categories').doc(categoryId).get();
+      final categoryDoc = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .get();
       if (categoryDoc.exists) {
         final categoryData = categoryDoc.data() as Map<String, dynamic>;
         if (categoryData['categoryPhotoUrl'] == null ||
@@ -136,27 +138,87 @@ class PhotoRepository {
     }
   }
 
+  // ==================== 비디오 관련 로직 ===============
+  // 이미지 파일을 supabase Storage에 업로드
+  Future<String?> uploadVideoToStorage({
+    required File videoFile,
+    required String categoryId,
+    required String userId,
+    String? customFileName,
+  }) async {
+    final supabase = Supabase.instance.client;
+    try {
+      final fileName =
+          customFileName ??
+          '${categoryId}_${userId}_${DateTime.now().millisecondsSinceEpoch}.mp4';
+
+      // supabase storage에 사진 업로드 - 완료될 때까지 기다림
+      await supabase.storage.from('photos').upload(fileName, videoFile);
+
+      // 업로드 완료 후 공개 URL 생성
+      final publicUrl = supabase.storage.from('photos').getPublicUrl(fileName);
+
+      // 업로드 완료된 공개 URL 반환
+      return publicUrl;
+    } catch (e) {
+      debugPrint('비디오 업로드 오류: $e');
+      return null;
+    }
+  }
+
+  /// 비디오 메타데이터를 Firestore에 저장
+  Future<String?> saveVideoToFirestore({
+    required MediaDataModel photo,
+    required String categoryId,
+  }) async {
+    try {
+      // 1. 사진 저장
+      final docRef = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .collection('photos')
+          .add(photo.toFirestore());
+
+      // 2. 카테고리에 사진이 처음 추가되는 경우, 자동으로 표지사진 설정
+      final categoryDoc = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .get();
+      if (categoryDoc.exists) {
+        final categoryData = categoryDoc.data() as Map<String, dynamic>;
+        if (categoryData['categoryPhotoUrl'] == null ||
+            categoryData['categoryPhotoUrl'] == '') {
+          await _firestore.collection('categories').doc(categoryId).update({
+            'categoryPhotoUrl': photo.imageUrl,
+          });
+        }
+      }
+
+      return docRef.id;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ==================== 사진 조회 ====================
 
   /// 카테고리별 사진 목록 조회
-  Future<List<PhotoDataModel>> getPhotosByCategory(String categoryId) async {
+  Future<List<MediaDataModel>> getPhotosByCategory(String categoryId) async {
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('categories')
-              .doc(categoryId)
-              .collection('photos')
-              .where('status', isEqualTo: PhotoStatus.active.name)
-              .where('unactive', isEqualTo: false) // 비활성화된 사진 제외
-              .orderBy('createdAt', descending: true)
-              .get();
+      final querySnapshot = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .collection('photos')
+          .where('status', isEqualTo: PhotoStatus.active.name)
+          .where('unactive', isEqualTo: false) // 비활성화된 사진 제외
+          .orderBy('createdAt', descending: true)
+          .get();
 
-      final photos =
-          querySnapshot.docs.map((doc) {
-            final data = doc.data();
+      final photos = querySnapshot.docs.map((doc) {
+        final data = doc.data();
 
-            return PhotoDataModel.fromFirestore(data, doc.id);
-          }).toList();
+        return MediaDataModel.fromFirestore(data, doc.id);
+      }).toList();
 
       return photos;
     } catch (e) {
@@ -165,14 +227,14 @@ class PhotoRepository {
   }
 
   /// 모든 카테고리에서 사진을 페이지네이션으로 조회 (무한 스크롤용)
-  Future<({List<PhotoDataModel> photos, String? lastPhotoId, bool hasMore})>
+  Future<({List<MediaDataModel> photos, String? lastPhotoId, bool hasMore})>
   getPhotosFromAllCategoriesPaginated({
     required List<String> categoryIds,
     int limit = 20,
     String? startAfterPhotoId,
   }) async {
     try {
-      List<PhotoDataModel> allPhotos = [];
+      List<MediaDataModel> allPhotos = [];
 
       // 모든 카테고리에서 사진을 가져와서 합치기
       for (String categoryId in categoryIds) {
@@ -209,40 +271,37 @@ class PhotoRepository {
         hasMore: hasMore,
       );
     } catch (e) {
-      return (photos: <PhotoDataModel>[], lastPhotoId: null, hasMore: false);
+      return (photos: <MediaDataModel>[], lastPhotoId: null, hasMore: false);
     }
   }
 
   /// 단일 카테고리에서 사진 조회 (내부 헬퍼 메서드)
-  Future<List<PhotoDataModel>> _getSingleCategoryPhotos(
+  Future<List<MediaDataModel>> _getSingleCategoryPhotos(
     String categoryId,
   ) async {
     try {
       // 먼저 가장 간단한 쿼리로 시도 (인덱스 문제 회피)
-      final querySnapshot =
-          await _firestore
-              .collection('categories')
-              .doc(categoryId)
-              .collection('photos')
-              .get();
+      final querySnapshot = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .collection('photos')
+          .get();
 
       if (querySnapshot.docs.isEmpty) {
         return [];
       }
 
       // 문서를 PhotoDataModel로 변환하고 필터링/정렬
-      final photos =
-          querySnapshot.docs
-              .map((doc) {
-                final data = doc.data();
+      final photos = querySnapshot.docs
+          .map((doc) {
+            final data = doc.data();
 
-                return PhotoDataModel.fromFirestore(data, doc.id);
-              })
-              .where(
-                (photo) =>
-                    photo.status == PhotoStatus.active && !photo.unactive,
-              )
-              .toList();
+            return MediaDataModel.fromFirestore(data, doc.id);
+          })
+          .where(
+            (photo) => photo.status == PhotoStatus.active && !photo.unactive,
+          )
+          .toList();
 
       // 메모리에서 정렬
       photos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -254,26 +313,24 @@ class PhotoRepository {
   }
 
   /// 카테고리별 사진 목록 조회 (기존 호환성 유지)
-  Future<List<PhotoDataModel>> getPhotosByCategoryLegacy(
+  Future<List<MediaDataModel>> getPhotosByCategoryLegacy(
     String categoryId,
   ) async {
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('categories')
-              .doc(categoryId)
-              .collection('photos')
-              .where('status', isEqualTo: PhotoStatus.active.name)
-              .where('unactive', isEqualTo: false) // 비활성화된 사진 제외
-              .orderBy('createdAt', descending: true)
-              .get();
+      final querySnapshot = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .collection('photos')
+          .where('status', isEqualTo: PhotoStatus.active.name)
+          .where('unactive', isEqualTo: false) // 비활성화된 사진 제외
+          .orderBy('createdAt', descending: true)
+          .get();
 
-      final photos =
-          querySnapshot.docs.map((doc) {
-            final data = doc.data();
+      final photos = querySnapshot.docs.map((doc) {
+        final data = doc.data();
 
-            return PhotoDataModel.fromFirestore(data, doc.id);
-          }).toList();
+        return MediaDataModel.fromFirestore(data, doc.id);
+      }).toList();
 
       return photos;
     } catch (e) {
@@ -282,7 +339,7 @@ class PhotoRepository {
   }
 
   /// 카테고리별 사진 목록 스트림
-  Stream<List<PhotoDataModel>> getPhotosByCategoryStream(String categoryId) {
+  Stream<List<MediaDataModel>> getPhotosByCategoryStream(String categoryId) {
     // 복합 쿼리 인덱스 없이도 작동하도록 수동 필터링 사용
     return _firestore
         .collection('categories')
@@ -291,11 +348,10 @@ class PhotoRepository {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-          final allPhotos =
-              snapshot.docs.map((doc) {
-                final data = doc.data();
-                return PhotoDataModel.fromFirestore(data, doc.id);
-              }).toList();
+          final allPhotos = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return MediaDataModel.fromFirestore(data, doc.id);
+          }).toList();
 
           // 메모리에서 필터링 (status: active, unactive: false)
           return allPhotos.where((photo) {
@@ -306,19 +362,18 @@ class PhotoRepository {
   }
 
   /// 사용자별 사진 목록 조회
-  Future<List<PhotoDataModel>> getPhotosByUser(String userId) async {
+  Future<List<MediaDataModel>> getPhotosByUser(String userId) async {
     try {
-      final querySnapshot =
-          await _firestore
-              .collectionGroup('photos')
-              .where('userID', isEqualTo: userId)
-              .where('status', isEqualTo: PhotoStatus.active.name)
-              .where('unactive', isEqualTo: false)
-              .orderBy('createdAt', descending: true)
-              .get();
+      final querySnapshot = await _firestore
+          .collectionGroup('photos')
+          .where('userID', isEqualTo: userId)
+          .where('status', isEqualTo: PhotoStatus.active.name)
+          .where('unactive', isEqualTo: false)
+          .orderBy('createdAt', descending: true)
+          .get();
 
       return querySnapshot.docs
-          .map((doc) => PhotoDataModel.fromFirestore(doc.data(), doc.id))
+          .map((doc) => MediaDataModel.fromFirestore(doc.data(), doc.id))
           .toList();
     } catch (e) {
       return [];
@@ -326,21 +381,20 @@ class PhotoRepository {
   }
 
   /// 특정 사진 조회
-  Future<PhotoDataModel?> getPhotoById({
+  Future<MediaDataModel?> getPhotoById({
     required String categoryId,
     required String photoId,
   }) async {
     try {
-      final doc =
-          await _firestore
-              .collection('categories')
-              .doc(categoryId)
-              .collection('photos')
-              .doc(photoId)
-              .get();
+      final doc = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .collection('photos')
+          .doc(photoId)
+          .get();
 
       if (doc.exists && doc.data() != null) {
-        return PhotoDataModel.fromFirestore(doc.data()!, doc.id);
+        return MediaDataModel.fromFirestore(doc.data()!, doc.id);
       }
       return null;
     } catch (e) {
@@ -376,27 +430,25 @@ class PhotoRepository {
   }
 
   /// 삭제된 사진 목록 조회 (사용자별)
-  Future<List<PhotoDataModel>> getDeletedPhotosByUser(String userId) async {
+  Future<List<MediaDataModel>> getDeletedPhotosByUser(String userId) async {
     try {
       // 1. 사용자가 속한 모든 카테고리 조회
-      final categorySnapshot =
-          await _firestore
-              .collection('categories')
-              .where('mates', arrayContains: userId)
-              .get();
+      final categorySnapshot = await _firestore
+          .collection('categories')
+          .where('mates', arrayContains: userId)
+          .get();
 
-      List<PhotoDataModel> deletedPhotos = [];
+      List<MediaDataModel> deletedPhotos = [];
       Set<String> seenPhotoIds = {}; // 중복 방지
 
       // 2. 각 카테고리에서 삭제된 사진들 조회
       for (final categoryDoc in categorySnapshot.docs) {
         try {
-          final photosSnapshot =
-              await categoryDoc.reference
-                  .collection('photos')
-                  .where('status', isEqualTo: PhotoStatus.deleted.name)
-                  .orderBy('deletedAt', descending: true)
-                  .get();
+          final photosSnapshot = await categoryDoc.reference
+              .collection('photos')
+              .where('status', isEqualTo: PhotoStatus.deleted.name)
+              .orderBy('deletedAt', descending: true)
+              .get();
 
           for (final photoDoc in photosSnapshot.docs) {
             // 중복 방지 (같은 사진이 여러 카테고리에 있을 수 있음)
@@ -404,7 +456,7 @@ class PhotoRepository {
               continue;
             }
 
-            final photoData = PhotoDataModel.fromFirestore(
+            final photoData = MediaDataModel.fromFirestore(
               photoDoc.data(),
               photoDoc.id,
             );
@@ -531,12 +583,11 @@ class PhotoRepository {
   /// 사진 통계 조회
   Future<Map<String, int>> getPhotoStats(String categoryId) async {
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('categories')
-              .doc(categoryId)
-              .collection('photos')
-              .get();
+      final querySnapshot = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .collection('photos')
+          .get();
 
       int totalPhotos = 0;
       int activePhotos = 0;
@@ -569,14 +620,13 @@ class PhotoRepository {
     required Function(String audioUrl) extractWaveformData,
   }) async {
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('categories')
-              .doc(categoryId)
-              .collection('photos')
-              .where('status', isEqualTo: PhotoStatus.active.name)
-              .where('audioUrl', isNotEqualTo: '')
-              .get();
+      final querySnapshot = await _firestore
+          .collection('categories')
+          .doc(categoryId)
+          .collection('photos')
+          .where('status', isEqualTo: PhotoStatus.active.name)
+          .where('audioUrl', isNotEqualTo: '')
+          .get();
 
       for (final doc in querySnapshot.docs) {
         final data = doc.data();

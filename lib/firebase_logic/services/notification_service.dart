@@ -5,7 +5,7 @@ import '../repositories/notification_repository.dart';
 import '../repositories/friend_repository.dart';
 import '../repositories/user_search_repository.dart';
 import 'category_service.dart';
-import 'photo_service.dart';
+import 'media_service.dart';
 import 'auth_service.dart';
 import 'friend_service.dart';
 

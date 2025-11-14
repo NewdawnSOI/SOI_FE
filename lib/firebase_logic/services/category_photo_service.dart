@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../repositories/category_repository.dart';
 import '../models/auth_result.dart';
 import 'notification_service.dart';
-import 'photo_service.dart';
+import 'media_service.dart';
 import 'friend_service.dart';
 import '../repositories/friend_repository.dart';
 import '../repositories/user_search_repository.dart';
@@ -19,7 +19,7 @@ class CategoryPhotoService {
 
   final CategoryRepository _repository = CategoryRepository();
 
-  // Lazy initialization
+  // lazy 초기화
   NotificationService? _notificationService;
   NotificationService get notificationService {
     _notificationService ??= NotificationService();

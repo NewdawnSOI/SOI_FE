@@ -83,7 +83,7 @@ class FeedDataManager {
 
       // PhotoController의 데이터를 UI용 형태로 변환
       final List<Map<String, dynamic>> photoDataList = [];
-      for (PhotoDataModel photo in photoController.photos) {
+      for (MediaDataModel photo in photoController.photos) {
         final category = userCategories.firstWhere(
           (c) => c.id == photo.categoryId,
           orElse: () => userCategories.first,
@@ -160,7 +160,7 @@ class FeedDataManager {
 
       // 새로 로드된 사진들을 UI용 형태로 변환
       final List<Map<String, dynamic>> newPhotoDataList = [];
-      for (PhotoDataModel photo in newPhotos) {
+      for (MediaDataModel photo in newPhotos) {
         final category = userCategories.firstWhere(
           (c) => c.id == photo.categoryId,
           orElse: () => userCategories.first,

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/photo_data_model.dart';
-import '../repositories/photo_repository.dart';
+import '../repositories/media_repository.dart';
 import '../repositories/audio_repository.dart';
 import '../repositories/friend_repository.dart';
 import '../repositories/user_search_repository.dart';
@@ -18,7 +18,7 @@ class PhotoService {
   factory PhotoService() => _instance;
   PhotoService._internal();
 
-  final PhotoRepository _photoRepository = PhotoRepository();
+  final MediaRepository _photoRepository = MediaRepository();
   final AudioRepository _audioRepository = AudioRepository();
   final AudioService _audioService = AudioService();
 
@@ -94,7 +94,7 @@ class PhotoService {
       }
 
       // 3. 사진 데이터 모델 생성
-      final photoData = PhotoDataModel(
+      final photoData = MediaDataModel(
         id: '', // Firestore에서 자동 생성
         imageUrl: imageUrl,
         audioUrl: audioUrl ?? '',
@@ -319,7 +319,7 @@ class PhotoService {
   // ==================== 사진 조회 비즈니스 로직 ====================
 
   /// 모든 카테고리에서 사진을 페이지네이션으로 조회 (무한 스크롤용)
-  Future<({List<PhotoDataModel> photos, String? lastPhotoId, bool hasMore})>
+  Future<({List<MediaDataModel> photos, String? lastPhotoId, bool hasMore})>
   getPhotosFromAllCategoriesPaginated({
     required List<String> categoryIds,
     int limit = 20,
@@ -355,12 +355,12 @@ class PhotoService {
         hasMore: result.hasMore,
       );
     } catch (e) {
-      return (photos: <PhotoDataModel>[], lastPhotoId: null, hasMore: false);
+      return (photos: <MediaDataModel>[], lastPhotoId: null, hasMore: false);
     }
   }
 
   /// 카테고리별 사진 목록 조회 (차단된 사용자 필터링 포함)
-  Future<List<PhotoDataModel>> getPhotosByCategory(String categoryId) async {
+  Future<List<MediaDataModel>> getPhotosByCategory(String categoryId) async {
     try {
       if (categoryId.isEmpty) {
         throw ArgumentError('카테고리 ID가 필요합니다.');
@@ -379,7 +379,7 @@ class PhotoService {
   }
 
   /// 카테고리별 사진 스트림 (차단된 사용자 필터링 포함)
-  Stream<List<PhotoDataModel>> getPhotosByCategoryStream(String categoryId) {
+  Stream<List<MediaDataModel>> getPhotosByCategoryStream(String categoryId) {
     if (categoryId.isEmpty) {
       return Stream.value([]);
     }
@@ -394,7 +394,7 @@ class PhotoService {
   }
 
   /// 특정 사진을 ID로 조회
-  Future<PhotoDataModel?> getPhotoById({
+  Future<MediaDataModel?> getPhotoById({
     required String categoryId,
     required String photoId,
   }) async {
@@ -414,7 +414,7 @@ class PhotoService {
   }
 
   /// 사용자별 사진 목록 조회 (차단된 사용자 필터링 포함)
-  Future<List<PhotoDataModel>> getPhotosByUser(String userId) async {
+  Future<List<MediaDataModel>> getPhotosByUser(String userId) async {
     try {
       if (userId.isEmpty) {
         throw ArgumentError('사용자 ID가 필요합니다.');
@@ -432,7 +432,7 @@ class PhotoService {
   }
 
   /// 특정 사진 상세 조회
-  Future<PhotoDataModel?> getPhotoDetails({
+  Future<MediaDataModel?> getPhotoDetails({
     required String categoryId,
     required String photoId,
     String? viewerUserId,
@@ -591,10 +591,11 @@ class PhotoService {
   }
 
   /// 사진 비즈니스 규칙 적용
-  List<PhotoDataModel> _applyPhotoBusinessRules(List<PhotoDataModel> photos) {
+  List<MediaDataModel> _applyPhotoBusinessRules(List<MediaDataModel> photos) {
     // 활성 상태만 필터링
-    final activePhotos =
-        photos.where((photo) => photo.status == PhotoStatus.active).toList();
+    final activePhotos = photos
+        .where((photo) => photo.status == PhotoStatus.active)
+        .toList();
 
     // 최신순 정렬
     activePhotos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -653,8 +654,8 @@ class PhotoService {
   }
 
   /// 차단된 사용자의 사진을 필터링하는 메서드
-  Future<List<PhotoDataModel>> _filterPhotosWithBlockedUsers(
-    List<PhotoDataModel> photos,
+  Future<List<MediaDataModel>> _filterPhotosWithBlockedUsers(
+    List<MediaDataModel> photos,
   ) async {
     try {
       // 내가 차단한 사용자 목록만 조회 (단방향 필터링)
@@ -677,7 +678,7 @@ class PhotoService {
   // ==================== 삭제된 사진 관리 ====================
 
   /// 사용자의 삭제된 사진 목록 조회
-  Future<List<PhotoDataModel>> getDeletedPhotosByUser(String userId) async {
+  Future<List<MediaDataModel>> getDeletedPhotosByUser(String userId) async {
     try {
       // 입력 검증
       if (userId.isEmpty) {

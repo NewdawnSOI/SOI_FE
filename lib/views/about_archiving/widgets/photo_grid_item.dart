@@ -10,8 +10,8 @@ import '../screens/archive_detail/photo_detail_screen.dart';
 import 'wave_form_widget/custom_waveform_widget.dart';
 
 class PhotoGridItem extends StatefulWidget {
-  final PhotoDataModel photo;
-  final List<PhotoDataModel> allPhotos;
+  final MediaDataModel photo;
+  final List<MediaDataModel> allPhotos;
   final int currentIndex;
   final String categoryName;
   final String categoryId;

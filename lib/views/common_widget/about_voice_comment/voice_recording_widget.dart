@@ -9,7 +9,7 @@ import 'voice_comment_text_widget.dart';
 /// 피드에서 음성 댓글 녹음과 관련된 모든 기능을 담당합니다.
 /// 음성 댓글 버튼, VoiceCommentWidget, 저장된 프로필 이미지 표시 등을 포함합니다.
 class VoiceRecordingWidget extends StatelessWidget {
-  final PhotoDataModel photo;
+  final MediaDataModel photo;
   final Map<String, bool> voiceCommentActiveStates;
   final Map<String, bool> voiceCommentSavedStates;
   final Map<String, String> userProfileImages;

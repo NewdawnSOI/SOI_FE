@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 사진 데이터 모델 (순수 데이터 클래스)
-class PhotoDataModel {
+class MediaDataModel {
   final String id; // 사진 문서 ID
   final String imageUrl; // 사진 URL
   final String audioUrl; // 사진을 올릴 때, 함께 올린 음성 URL
@@ -15,8 +15,11 @@ class PhotoDataModel {
   final bool unactive; // 사용자 비활성화 상태
   final DateTime? deletedAt; // 삭제된 시간 (30일 후 영구 삭제를 위해)
   final String? caption; // 게시글 텍스트
+  final bool isVideo; // 비디오 여부
+  final String? videoUrl; // 비디오 URL
+  final String? thumbnailUrl; // 썸네일 URL
 
-  PhotoDataModel({
+  MediaDataModel({
     required this.id,
     required this.imageUrl,
     required this.audioUrl,
@@ -30,10 +33,13 @@ class PhotoDataModel {
     this.unactive = false, // 기본값 false
     this.deletedAt, // 삭제 시간
     this.caption, // 게시글
+    this.isVideo = false, // 기본값 false
+    this.videoUrl, // 비디오 URL
+    this.thumbnailUrl, // 썸네일 URL
   });
 
   // Firestore에서 데이터를 가져올 때 사용
-  factory PhotoDataModel.fromFirestore(Map<String, dynamic> data, String id) {
+  factory MediaDataModel.fromFirestore(Map<String, dynamic> data, String id) {
     // waveformData 타입 캐스팅 처리
     List<double>? waveformData;
     if (data['waveformData'] != null) {
@@ -48,7 +54,7 @@ class PhotoDataModel {
       }
     }
 
-    return PhotoDataModel(
+    return MediaDataModel(
       id: id,
       imageUrl: data['imageUrl'] ?? '',
       audioUrl: data['audioUrl'] ?? '',
@@ -65,6 +71,9 @@ class PhotoDataModel {
       unactive: data['unactive'] ?? false, // 사용자 비활성화 상태 추가
       deletedAt: (data['deletedAt'] as Timestamp?)?.toDate(), // 삭제 시간 추가
       caption: data['caption'] as String?, // 게시글 추가
+      isVideo: data['isVideo'] ?? false, // 비디오 여부
+      videoUrl: data['videoUrl'] as String?, // 비디오 URL
+      thumbnailUrl: data['thumbnailUrl'] as String?, // 썸네일 URL
     );
   }
 
@@ -80,6 +89,9 @@ class PhotoDataModel {
       'status': status.name,
       'duration': duration.inSeconds, // 음성 길이 추가 (초 단위로 저장)
       'unactive': unactive, // 사용자 비활성화 상태 추가
+      'isVideo': isVideo, // 비디오 여부 추가
+      'videoUrl': videoUrl, // 비디오 URL 추가
+      'thumbnailUrl': thumbnailUrl, // 썸네일 URL 추가
     };
 
     // caption이 있을 때만 추가
@@ -109,7 +121,7 @@ class PhotoDataModel {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is PhotoDataModel &&
+      other is MediaDataModel &&
           runtimeType == other.runtimeType &&
           id == other.id;
 

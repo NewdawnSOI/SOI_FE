@@ -9,7 +9,7 @@ import 'voice_comment_widget.dart';
 ///
 /// VoiceCommentWidget을 표시하고 음성 녹음 기능을 제공합니다.
 class VoiceCommentActiveWidget extends StatelessWidget {
-  final PhotoDataModel photo;
+  final MediaDataModel photo;
   final Map<String, bool> voiceCommentActiveStates;
   final Map<String, String> userProfileImages;
   final Map<String, List<CommentRecordModel>> photoComments;

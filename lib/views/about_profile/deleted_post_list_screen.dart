@@ -15,9 +15,9 @@ class DeletedPostListScreen extends StatefulWidget {
 }
 
 class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
-  List<PhotoDataModel> _deletedPosts = [];
-  List<PhotoDataModel> selectedPosts = [];
-  Map<PhotoDataModel, bool> isSelected = {};
+  List<MediaDataModel> _deletedPosts = [];
+  List<MediaDataModel> selectedPosts = [];
+  Map<MediaDataModel, bool> isSelected = {};
   bool _isLoading = true;
   String? _error;
 
@@ -228,7 +228,7 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
     );
   }
 
-  Widget _buildDeletedPostItem(PhotoDataModel photo, int index) {
+  Widget _buildDeletedPostItem(MediaDataModel photo, int index) {
     final bool isPhotoSelected = isSelected[photo] ?? false;
 
     return GestureDetector(
@@ -299,7 +299,7 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
     );
   }
 
-  void _togglePhotoSelection(PhotoDataModel photo) {
+  void _togglePhotoSelection(MediaDataModel photo) {
     setState(() {
       final bool currentlySelected = isSelected[photo] ?? false;
       if (currentlySelected) {

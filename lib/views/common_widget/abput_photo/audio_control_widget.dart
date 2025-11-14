@@ -12,7 +12,7 @@ import '../../about_archiving/widgets/wave_form_widget/custom_waveform_widget.da
 
 /// 오디오 컨트롤 위젯 (프로필 - 파형 - 시간)
 class AudioControlWidget extends StatelessWidget {
-  final PhotoDataModel photo;
+  final MediaDataModel photo;
   final VoidCallback onAudioTap;
   final VoidCallback? onCommentIconTap;
   final bool hasComments;

@@ -19,7 +19,7 @@ import 'audio_control_widget.dart';
 
 /// 사진 표시 위젯
 class PhotoDisplayWidget extends StatefulWidget {
-  final PhotoDataModel photo;
+  final MediaDataModel photo;
   final String categoryName;
   // Archive 여부에 따라 카테고리 라벨 숨김
   final bool isArchive;
@@ -27,7 +27,7 @@ class PhotoDisplayWidget extends StatefulWidget {
   final Map<String, String> userProfileImages;
   final Map<String, bool> profileLoadingStates;
   final Function(String, Offset) onProfileImageDragged;
-  final Function(PhotoDataModel) onToggleAudio;
+  final Function(MediaDataModel) onToggleAudio;
   final Map<String, PendingVoiceComment> pendingVoiceComments;
 
   const PhotoDisplayWidget({

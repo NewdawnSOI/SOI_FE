@@ -6,7 +6,7 @@ import '../../../firebase_logic/models/photo_data_model.dart';
 
 class FeedAudioManager {
   /// 오디오 재생/일시정지 토글
-  Future<void> toggleAudio(PhotoDataModel photo, BuildContext context) async {
+  Future<void> toggleAudio(MediaDataModel photo, BuildContext context) async {
     if (photo.audioUrl.isEmpty) {
       return;
     }

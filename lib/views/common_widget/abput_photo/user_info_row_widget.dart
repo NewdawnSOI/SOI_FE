@@ -12,7 +12,7 @@ import 'package:provider/provider.dart';
 ///
 /// 피드에서 사진 하단에 표시되는 사용자 닉네임과 날짜 정보를 담당합니다.
 class UserInfoWidget extends StatelessWidget {
-  final PhotoDataModel photo;
+  final MediaDataModel photo;
   final Map<String, String> userNames;
   final bool isCurrentUserPhoto; // 현재 사용자 사진인지 여부
   final VoidCallback? onDeletePressed; // 삭제 콜백 (피드 갱신 위해 상위 전달)

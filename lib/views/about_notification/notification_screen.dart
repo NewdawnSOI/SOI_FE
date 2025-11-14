@@ -414,7 +414,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ),
       );
 
-      List<PhotoDataModel> photos = [];
+      List<MediaDataModel> photos = [];
       int initialIndex = -1;
       int retryCount = 0;
       const maxRetries = 5;

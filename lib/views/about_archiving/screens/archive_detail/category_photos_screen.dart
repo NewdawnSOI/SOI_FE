@@ -140,7 +140,7 @@ class _CategoryPhotosScreenState extends State<CategoryPhotosScreen> {
             ),
             backgroundColor: AppTheme.lightTheme.colorScheme.surface,
           ),
-          body: StreamBuilder<List<PhotoDataModel>>(
+          body: StreamBuilder<List<MediaDataModel>>(
             stream: photoController.getPhotosByCategoryStream(
               currentCategory.id,
             ),

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../services/photo_service.dart';
+import '../services/media_service.dart';
 import '../models/photo_data_model.dart';
 
 /// Photo Controller - UI와 비즈니스 로직을 연결하는 Controller
@@ -13,9 +13,9 @@ class PhotoController extends ChangeNotifier {
   double _uploadProgress = 0.0;
   String? _error;
 
-  List<PhotoDataModel> _photos = [];
-  List<PhotoDataModel> _userPhotos = [];
-  PhotoDataModel? _selectedPhoto;
+  List<MediaDataModel> _photos = [];
+  List<MediaDataModel> _userPhotos = [];
+  MediaDataModel? _selectedPhoto;
   Map<String, int> _photoStats = {};
 
   // 무한 스크롤 페이지네이션 상태
@@ -29,7 +29,7 @@ class PhotoController extends ChangeNotifier {
   // 페이지당 로드할 사진 개수
   static const int _pageSize = 10;
 
-  StreamSubscription<List<PhotoDataModel>>? _photosSubscription;
+  StreamSubscription<List<MediaDataModel>>? _photosSubscription;
 
   // Service 인스턴스 - 모든 비즈니스 로직은 Service에서 처리
   final PhotoService _photoService = PhotoService();
@@ -39,9 +39,9 @@ class PhotoController extends ChangeNotifier {
   bool get isUploading => _isUploading;
   double get uploadProgress => _uploadProgress;
   String? get error => _error;
-  List<PhotoDataModel> get photos => _photos;
-  List<PhotoDataModel> get userPhotos => _userPhotos;
-  PhotoDataModel? get selectedPhoto => _selectedPhoto;
+  List<MediaDataModel> get photos => _photos;
+  List<MediaDataModel> get userPhotos => _userPhotos;
+  MediaDataModel? get selectedPhoto => _selectedPhoto;
   Map<String, int> get photoStats => _photoStats;
 
   // Getters - 페이지네이션
@@ -350,7 +350,7 @@ class PhotoController extends ChangeNotifier {
 
         return true;
       } else {
-        // ❌ 실패 시 UI 피드백
+        // 실패 시 UI 피드백
         debugPrint('사진 정보 업데이트에 실패했습니다. 다시 시도해주세요.');
         return false;
       }
@@ -401,7 +401,7 @@ class PhotoController extends ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        // ❌ 실패 시 UI 피드백
+        // 실패 시 UI 피드백
         debugPrint('사진 삭제에 실패했습니다. 다시 시도해주세요.');
         return false;
       }
@@ -417,10 +417,10 @@ class PhotoController extends ChangeNotifier {
 
   // ==================== 삭제된 사진 관리 ====================
 
-  List<PhotoDataModel> _deletedPhotos = [];
+  List<MediaDataModel> _deletedPhotos = [];
 
   /// 삭제된 사진 목록 getter
-  List<PhotoDataModel> get deletedPhotos => _deletedPhotos;
+  List<MediaDataModel> get deletedPhotos => _deletedPhotos;
 
   /// 사용자의 삭제된 사진 목록 로드
   Future<void> loadDeletedPhotosByUser(String userId) async {
@@ -517,12 +517,12 @@ class PhotoController extends ChangeNotifier {
   }
 
   /// 카테고리별 사진 스트림 직접 반환 (StreamBuilder 용)
-  Stream<List<PhotoDataModel>> getPhotosByCategoryStream(String categoryId) {
+  Stream<List<MediaDataModel>> getPhotosByCategoryStream(String categoryId) {
     return _photoService.getPhotosByCategoryStream(categoryId);
   }
 
   /// 특정 사진을 직접 조회 (알림에서 사용)
-  Future<PhotoDataModel?> getPhotoById({
+  Future<MediaDataModel?> getPhotoById({
     required String categoryId,
     required String photoId,
   }) async {
@@ -532,19 +532,19 @@ class PhotoController extends ChangeNotifier {
         photoId: photoId,
       );
     } catch (e) {
-      debugPrint('❌ PhotoController: 사진 조회 실패 - $e');
+      debugPrint('PhotoController: 사진 조회 실패 - $e');
       return null;
     }
   }
 
   /// 카테고리의 모든 사진을 직접 조회 (스트림이 아닌 일회성)
-  Future<List<PhotoDataModel>> getPhotosByCategoryDirect(
+  Future<List<MediaDataModel>> getPhotosByCategoryDirect(
     String categoryId,
   ) async {
     try {
       return await _photoService.getPhotosByCategory(categoryId);
     } catch (e) {
-      debugPrint('❌ PhotoController: 카테고리 사진 조회 실패 - $e');
+      debugPrint('PhotoController: 카테고리 사진 조회 실패 - $e');
       return [];
     }
   }

@@ -16,7 +16,7 @@ import '../../../about_feed/manager/voice_comment_state_manager.dart';
 /// 카테고리 내에서 사진 하나를 개별적으로 보여주는 화면
 /// 사용자는 사진에 대한 댓글을 달고, 음성 댓글을 남기고, 사진을 공유할 수 있습니다.
 class PhotoDetailScreen extends StatefulWidget {
-  final List<PhotoDataModel> photos;
+  final List<MediaDataModel> photos;
   final int initialIndex;
   final String categoryName;
   final String categoryId;
@@ -429,7 +429,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
     }
   }
 
-  void _toggleAudio(PhotoDataModel photo) async {
+  void _toggleAudio(MediaDataModel photo) async {
     if (photo.audioUrl.isEmpty) return;
     try {
       await _getAudioController.toggleAudio(photo.audioUrl);
@@ -712,7 +712,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
   void _onLikePressed() {}
 
-  Future<void> _deletePhoto(PhotoDataModel photo) async {
+  Future<void> _deletePhoto(MediaDataModel photo) async {
     try {
       final auth = _getAuthController;
       final currentUserId = auth.getUserId;
@@ -738,7 +738,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
     }
   }
 
-  void _handleSuccessfulDeletion(PhotoDataModel photo) {
+  void _handleSuccessfulDeletion(MediaDataModel photo) {
     if (widget.photos.length <= 1) {
       Navigator.of(context).pop();
       return;

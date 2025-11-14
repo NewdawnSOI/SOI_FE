@@ -56,7 +56,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     _feedDataManager?.setOnPhotosLoaded((newPhotos) {
       final currentUserId = _authController?.getUserId ?? '';
       for (Map<String, dynamic> photoData in newPhotos) {
-        final PhotoDataModel photo = photoData['photo'] as PhotoDataModel;
+        final MediaDataModel photo = photoData['photo'] as MediaDataModel;
         _profileCacheManager?.loadUserProfileForPhoto(photo.userID, context);
         _voiceCommentStateManager?.subscribeToVoiceCommentsForPhoto(
           photo.id,
@@ -188,7 +188,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     // 새로 로드된 사진들의 프로필 정보 및 음성 댓글 구독
     final allPhotos = _feedDataManager?.allPhotos;
     for (Map<String, dynamic> photoData in allPhotos!) {
-      final PhotoDataModel photo = photoData['photo'] as PhotoDataModel;
+      final MediaDataModel photo = photoData['photo'] as MediaDataModel;
       _loadUserProfileForPhoto(photo.userID);
       _voiceCommentStateManager?.subscribeToVoiceCommentsForPhoto(
         photo.id,
@@ -204,7 +204,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   }
 
   /// 오디오 재생/일시정지 토글
-  Future<void> _toggleAudio(PhotoDataModel photo) async {
+  Future<void> _toggleAudio(MediaDataModel photo) async {
     await _feedAudioManager?.toggleAudio(photo, context);
   }
 
@@ -363,7 +363,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
               }
 
               final photoData = _feedDataManager!.allPhotos[index];
-              final PhotoDataModel photo = photoData['photo'] as PhotoDataModel;
+              final MediaDataModel photo = photoData['photo'] as MediaDataModel;
               final String categoryName = photoData['categoryName'] as String;
               final String categoryId = photoData['categoryId'] as String;
               final currentUserId = _authController?.getUserId;

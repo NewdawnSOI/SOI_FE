@@ -23,7 +23,7 @@ class FeedPageBuilder extends StatelessWidget {
   final Map<String, String> commentProfileImageUrls;
 
   // 콜백 함수들
-  final Function(PhotoDataModel) onToggleAudio;
+  final Function(MediaDataModel) onToggleAudio;
   final Function(String) onToggleVoiceComment;
   final Function(String, String?, List<double>?, int?) onVoiceCommentCompleted;
   final Function(String, String) onTextCommentCompleted; // 텍스트 댓글 완료 콜백
@@ -80,7 +80,7 @@ class FeedPageBuilder extends StatelessWidget {
         }
 
         final photoData = photos[index];
-        final PhotoDataModel photo = photoData['photo'] as PhotoDataModel;
+        final MediaDataModel photo = photoData['photo'] as MediaDataModel;
         final String categoryName = photoData['categoryName'] as String;
         final String categoryId = photoData['categoryId'] as String;
 
@@ -125,7 +125,7 @@ class FeedPageBuilder extends StatelessWidget {
     BuildContext context,
     int index,
     String categoryId,
-    PhotoDataModel photo,
+    MediaDataModel photo,
   ) async {
     try {
       final photoController = Provider.of<PhotoController>(

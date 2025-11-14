@@ -8,7 +8,7 @@ import '../about_voice_comment/voice_recording_widget.dart';
 import 'photo_display_widget.dart';
 
 class PhotoCardWidgetCommon extends StatefulWidget {
-  final PhotoDataModel photo;
+  final MediaDataModel photo;
   final String categoryName;
   final String categoryId;
   final int index;
@@ -30,7 +30,7 @@ class PhotoCardWidgetCommon extends StatefulWidget {
   final Map<String, PendingVoiceComment> pendingVoiceComments;
 
   // 콜백 함수들
-  final Function(PhotoDataModel) onToggleAudio;
+  final Function(MediaDataModel) onToggleAudio;
   final Function(String) onToggleVoiceComment;
   final Function(String, String?, List<double>?, int?) onVoiceCommentCompleted;
   final Function(String, String) onTextCommentCompleted; // 텍스트 댓글 완료 콜백
