@@ -239,11 +239,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
   Future<void> _loadUserCategories({bool forceReload = false}) async {
     if (!forceReload && _categoriesLoaded) return;
-    if (!forceReload) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+
     final currentUser = _authController.currentUser;
     if (currentUser == null) {
       if (mounted) {
@@ -254,16 +250,21 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       }
       return;
     }
+
+    // 바텀시트를 먼저 올림 (로딩 시작 전)
+    // 바텀 시트를 먼저 올리고 아래에서 로딩을 시작한다.
+    if (_shouldAutoOpenCategorySheet) {
+      _shouldAutoOpenCategorySheet = false;
+      _animateSheetTo(_kLockedSheetExtent, lockExtent: true);
+    }
+
     try {
+      // 카테고리를 로드하는 동안, shimmer를 표시해서 사용자에게 로딩 중임을 알린다.
       await _categoryController.loadUserCategories(
         currentUser.uid,
         forceReload: forceReload,
       );
       _categoriesLoaded = true;
-      if (_shouldAutoOpenCategorySheet) {
-        _shouldAutoOpenCategorySheet = false;
-        _animateSheetTo(_kLockedSheetExtent, lockExtent: true);
-      }
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
@@ -277,6 +278,11 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   void _handleCategorySelection(String categoryId) {
     final wasEmpty = _selectedCategoryIds.isEmpty;
 
+    // 현재 바텀시트 위치 확인
+    final currentExtent = _draggableScrollController.isAttached
+        ? _draggableScrollController.size
+        : _kLockedSheetExtent;
+
     setState(() {
       if (_selectedCategoryIds.contains(categoryId)) {
         _selectedCategoryIds.remove(categoryId);
@@ -289,6 +295,11 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     if (_selectedCategoryIds.isEmpty) {
       _animateSheetTo(_kLockedSheetExtent);
     } else if (wasEmpty) {
+      // 바텀시트가 이미 확장된 상태(0.19보다 크게 열린 상태)라면 위치 유지
+      if (currentExtent > _kLockedSheetExtent + 0.05) {
+        // 바텀시트를 움직이지 않음 (사용자가 올린 위치 유지)
+        return;
+      }
       _animateSheetTo(_kExpandedSheetExtent);
     }
   }
@@ -302,7 +313,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
 
       await _draggableScrollController.animateTo(
         size,
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
       );
 
@@ -656,6 +667,22 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
           ? null
           : NotificationListener<DraggableScrollableNotification>(
               onNotification: (notification) {
+                // 🎯 카테고리가 선택된 상태에서는 바텀시트가 너무 내려가지 않도록 방지
+                if (_selectedCategoryIds.isNotEmpty) {
+                  // 바텀시트가 locked 위치 아래로 내려가려고 하면 방지
+                  if (notification.extent < _kLockedSheetExtent - 0.02) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted &&
+                          !_isDisposing &&
+                          _draggableScrollController.isAttached) {
+                        _draggableScrollController.jumpTo(_kLockedSheetExtent);
+                      }
+                    });
+                  }
+                  return true;
+                }
+
+                // 카테고리 선택 없을 때는 기존 로직
                 if (!_hasLockedSheetExtent && notification.extent < 0.01) {
                   if (mounted && !_isDisposing && !_hasLockedSheetExtent) {
                     _animateSheetTo(_kLockedSheetExtent, lockExtent: true);
