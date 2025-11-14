@@ -12,6 +12,7 @@ import '../../../firebase_logic/controllers/category_controller.dart';
 import '../../../firebase_logic/models/photo_data_model.dart';
 import '../../../firebase_logic/models/comment_record_model.dart';
 import '../../../utils/position_converter.dart';
+import '../../../utils/app_route_observer.dart';
 import '../../about_feed/manager/voice_comment_state_manager.dart';
 import '../../about_archiving/screens/archive_detail/category_photos_screen.dart';
 import '../about_voice_comment/voice_comment_list_sheet.dart';
@@ -49,7 +50,8 @@ class PhotoDisplayWidget extends StatefulWidget {
   State<PhotoDisplayWidget> createState() => _PhotoDisplayWidgetState();
 }
 
-class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
+class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget>
+    with RouteAware {
   // 상수
   static const double _avatarSize = 27.0;
   static const double _avatarRadius = 13.5;
@@ -72,6 +74,8 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
   bool _isVideoInitialized = false;
   bool _isMuted = false;
   BoxFit _videoFit = BoxFit.contain;
+  ModalRoute<dynamic>? _route;
+  bool _isVisible = true;
 
   @override
   void initState() {
@@ -80,7 +84,26 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      if (_route != route) {
+        if (_route != null) {
+          appRouteObserver.unsubscribe(this);
+        }
+        _route = route;
+        appRouteObserver.subscribe(this, route);
+      }
+    }
+    _updateVisibility(TickerMode.of(context));
+  }
+
+  @override
   void dispose() {
+    if (_route != null) {
+      appRouteObserver.unsubscribe(this);
+    }
     _videoController?.dispose();
     super.dispose();
   }
@@ -101,7 +124,7 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
             _isVideoInitialized = true;
           });
           // 초기화 완료 후 자동 재생
-          _videoController!.play();
+          _resumeVideoPlayback();
         }
       } catch (e) {
         debugPrint('비디오 초기화 실패: $e');
@@ -124,6 +147,45 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
     setState(() {
       _videoFit = _videoFit == BoxFit.contain ? BoxFit.cover : BoxFit.contain;
     });
+  }
+
+  void _updateVisibility(bool isVisible) {
+    if (_isVisible == isVisible) return;
+    _isVisible = isVisible;
+    if (_isVisible) {
+      _resumeVideoPlayback();
+    } else {
+      _pauseVideoPlayback();
+    }
+  }
+
+  void _pauseVideoPlayback() {
+    if (_videoController != null &&
+        _isVideoInitialized &&
+        _videoController!.value.isPlaying) {
+      _videoController!.pause();
+      _videoController!.seekTo(Duration.zero);
+    }
+  }
+
+  void _resumeVideoPlayback() {
+    if (_videoController != null &&
+        _isVideoInitialized &&
+        !_videoController!.value.isPlaying) {
+      _videoController!.play();
+    }
+  }
+
+  @override
+  void didPushNext() {
+    _pauseVideoPlayback();
+    super.didPushNext();
+  }
+
+  @override
+  void didPopNext() {
+    _resumeVideoPlayback();
+    super.didPopNext();
   }
 
   /// 공통 Circle Avatar 빌더
@@ -554,17 +616,13 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
                       // 메모리 최적화: 배경 이미지 크기 제한
                       GestureDetector(
                         onTap: () {
-                          // 비디오가 아닌 경우에만 음성 댓글 토글
-                          if (!widget.photo.isVideo) {
-                            // 음성 댓글이 있을 때만 토글 동작
-                            final hasComments =
-                                (widget.photoComments[widget.photo.id] ?? [])
-                                    .isNotEmpty;
-                            if (hasComments) {
-                              setState(() {
-                                _isShowingComments = !_isShowingComments;
-                              });
-                            }
+                          final hasComments =
+                              (widget.photoComments[widget.photo.id] ?? [])
+                                  .isNotEmpty;
+                          if (hasComments) {
+                            setState(() {
+                              _isShowingComments = !_isShowingComments;
+                            });
                           }
                         },
                         onDoubleTap: () {
