@@ -8,7 +8,13 @@ doc/ApiResponseDtoFriendRespDto.md
 doc/ApiResponseDtoListString.md
 doc/ApiResponseDtoListUserFindRespDto.md
 doc/ApiResponseDtoListUserRespDto.md
+doc/ApiResponseDtoLong.md
 doc/ApiResponseDtoUserRespDto.md
+doc/AuthCheckReqDto.md
+doc/CategoryAPIApi.md
+doc/CategoryCreateReqDto.md
+doc/CategoryInviteReqDto.md
+doc/CategoryInviteResponseReqDto.md
 doc/FriendAPIApi.md
 doc/FriendReqDto.md
 doc/FriendRespDto.md
@@ -20,6 +26,7 @@ doc/UserRespDto.md
 git_push.sh
 lib/api.dart
 lib/api/api_api.dart
+lib/api/category_api_api.dart
 lib/api/friend_api_api.dart
 lib/api/user_api_api.dart
 lib/api_client.dart
@@ -35,7 +42,12 @@ lib/model/api_response_dto_friend_resp_dto.dart
 lib/model/api_response_dto_list_string.dart
 lib/model/api_response_dto_list_user_find_resp_dto.dart
 lib/model/api_response_dto_list_user_resp_dto.dart
+lib/model/api_response_dto_long.dart
 lib/model/api_response_dto_user_resp_dto.dart
+lib/model/auth_check_req_dto.dart
+lib/model/category_create_req_dto.dart
+lib/model/category_invite_req_dto.dart
+lib/model/category_invite_response_req_dto.dart
 lib/model/friend_req_dto.dart
 lib/model/friend_resp_dto.dart
 lib/model/friend_update_resp_dto.dart

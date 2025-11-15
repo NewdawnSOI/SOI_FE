@@ -62,6 +62,9 @@ Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *APIApi* | [**getPresignedUrl**](doc//APIApi.md#getpresignedurl) | **GET** /media/get-url | Presigned URL 요청
 *APIApi* | [**uploadMedia**](doc//APIApi.md#uploadmedia) | **POST** /media/upload | 미디어 업로드
+*CategoryAPIApi* | [**create1**](doc//CategoryAPIApi.md#create1) | **POST** /category/create | 카테고리 추가
+*CategoryAPIApi* | [**inviteReponse**](doc//CategoryAPIApi.md#invitereponse) | **POST** /category/invite/response | 카테고리에 초대된 유저가 초대 승낙여부를 결정하는 API
+*CategoryAPIApi* | [**inviteUser**](doc//CategoryAPIApi.md#inviteuser) | **POST** /category/invite |  카테고리에 유저 추가
 *FriendAPIApi* | [**blockFriend**](doc//FriendAPIApi.md#blockfriend) | **POST** /friend/block | 친구 차단
 *FriendAPIApi* | [**create**](doc//FriendAPIApi.md#create) | **POST** /friend/create | 친구 추가
 *FriendAPIApi* | [**deleteFriend**](doc//FriendAPIApi.md#deletefriend) | **POST** /friend/get-all | 친구 삭제
@@ -69,6 +72,7 @@ Class | Method | HTTP request | Description
 *FriendAPIApi* | [**unBlockFriend**](doc//FriendAPIApi.md#unblockfriend) | **POST** /friend/unblock | 친구 차단 해제
 *FriendAPIApi* | [**update**](doc//FriendAPIApi.md#update) | **POST** /friend/update | 친구 상태 업데이트
 *UserAPIApi* | [**authSMS**](doc//UserAPIApi.md#authsms) | **POST** /user/auth | 전화번호 인증
+*UserAPIApi* | [**checkAuthSMS**](doc//UserAPIApi.md#checkauthsms) | **POST** /user/auth/check | 전화번호 인증확인
 *UserAPIApi* | [**createUser**](doc//UserAPIApi.md#createuser) | **POST** /user/create | 사용자 생성
 *UserAPIApi* | [**deleteUser**](doc//UserAPIApi.md#deleteuser) | **DELETE** /user/delete | Id로 사용자 삭제
 *UserAPIApi* | [**findUser**](doc//UserAPIApi.md#finduser) | **GET** /user/find-by-keyword | 키워드로 사용자 검색
@@ -84,7 +88,12 @@ Class | Method | HTTP request | Description
  - [ApiResponseDtoListString](doc//ApiResponseDtoListString.md)
  - [ApiResponseDtoListUserFindRespDto](doc//ApiResponseDtoListUserFindRespDto.md)
  - [ApiResponseDtoListUserRespDto](doc//ApiResponseDtoListUserRespDto.md)
+ - [ApiResponseDtoLong](doc//ApiResponseDtoLong.md)
  - [ApiResponseDtoUserRespDto](doc//ApiResponseDtoUserRespDto.md)
+ - [AuthCheckReqDto](doc//AuthCheckReqDto.md)
+ - [CategoryCreateReqDto](doc//CategoryCreateReqDto.md)
+ - [CategoryInviteReqDto](doc//CategoryInviteReqDto.md)
+ - [CategoryInviteResponseReqDto](doc//CategoryInviteResponseReqDto.md)
  - [FriendReqDto](doc//FriendReqDto.md)
  - [FriendRespDto](doc//FriendRespDto.md)
  - [FriendUpdateRespDto](doc//FriendUpdateRespDto.md)

@@ -29,6 +29,7 @@ part 'auth/http_basic_auth.dart';
 part 'auth/http_bearer_auth.dart';
 
 part 'api/api_api.dart';
+part 'api/category_api_api.dart';
 part 'api/friend_api_api.dart';
 part 'api/user_api_api.dart';
 
@@ -37,7 +38,12 @@ part 'model/api_response_dto_friend_resp_dto.dart';
 part 'model/api_response_dto_list_string.dart';
 part 'model/api_response_dto_list_user_find_resp_dto.dart';
 part 'model/api_response_dto_list_user_resp_dto.dart';
+part 'model/api_response_dto_long.dart';
 part 'model/api_response_dto_user_resp_dto.dart';
+part 'model/auth_check_req_dto.dart';
+part 'model/category_create_req_dto.dart';
+part 'model/category_invite_req_dto.dart';
+part 'model/category_invite_response_req_dto.dart';
 part 'model/friend_req_dto.dart';
 part 'model/friend_resp_dto.dart';
 part 'model/friend_update_resp_dto.dart';

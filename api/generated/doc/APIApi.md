@@ -57,23 +57,23 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **uploadMedia**
-> ApiResponseDtoListString uploadMedia(types, id, file)
+> ApiResponseDtoListString uploadMedia(tpes, userId, files)
 
 미디어 업로드
 
-파일을 업로드합니다.
+단일, 여러개의 파일을 올릴 수 있습니다. 여러개의 파일 업로드시 , 로 구분해서 type을 명시합니다.id값은 고유 id를 받습니다.
 
 ### Example
 ```dart
 import 'package:soi_api_client/api.dart';
 
 final api_instance = APIApi();
-final types = []; // List<String> | 
-final id = 789; // int | 
-final file = BINARY_DATA_HERE; // MultipartFile | 업로드할 파일
+final tpes = []; // List<String> | 
+final userId = 789; // int | 
+final files = [/path/to/file.txt]; // List<MultipartFile> | 
 
 try {
-    final result = api_instance.uploadMedia(types, id, file);
+    final result = api_instance.uploadMedia(tpes, userId, files);
     print(result);
 } catch (e) {
     print('Exception when calling APIApi->uploadMedia: $e\n');
@@ -84,9 +84,9 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **types** | [**List<String>**](String.md)|  | [default to const []]
- **id** | **int**|  | 
- **file** | **MultipartFile**| 업로드할 파일 | 
+ **tpes** | [**List<String>**](String.md)|  | [default to const []]
+ **userId** | **int**|  | 
+ **files** | [**List<MultipartFile>**](MultipartFile.md)|  | 
 
 ### Return type
 

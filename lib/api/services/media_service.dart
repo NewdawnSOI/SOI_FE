@@ -83,11 +83,12 @@ class MediaService {
 
       // File을 MultipartFile로 변환
       final multipartFile = await http.MultipartFile.fromPath(
-        'file',
+        'files', // OpenAPI 스펙에서 요구하는 필드명
         file.path,
       );
 
-      final response = await _mediaApi.uploadMedia(types, id, multipartFile);
+      // API는 List<MultipartFile>을 받으므로 리스트로 전달
+      final response = await _mediaApi.uploadMedia(types, id, [multipartFile]);
 
       if (response?.data == null) {
         return Failure(ApiException.serverError('미디어 업로드에 실패했습니다'));
@@ -128,7 +129,7 @@ class MediaService {
     );
   }
 
-  /// 다중 파일 업로드 (순차 처리)
+  /// 다중 파일 업로드 (한번에 업로드)
   ///
   /// [files] 업로드할 파일 리스트
   /// [types] 각 파일의 타입 리스트
@@ -144,27 +145,31 @@ class MediaService {
         return Failure(ApiException.badRequest('파일과 타입의 개수가 일치하지 않습니다'));
       }
 
-      final allKeys = <String>[];
+      developer.log('다중 미디어 업로드: ${files.length}개', name: 'MediaService');
 
-      for (int i = 0; i < files.length; i++) {
-        final result = await uploadMedia(
-          file: files[i],
-          types: [types[i]],
-          id: id,
+      // 모든 파일을 MultipartFile로 변환
+      final multipartFiles = <http.MultipartFile>[];
+      for (final file in files) {
+        final multipartFile = await http.MultipartFile.fromPath(
+          'files', // OpenAPI 스펙에서 요구하는 필드명
+          file.path,
         );
-
-        final keys = await result.when(
-          success: (keys) => keys,
-          failure: (exception) => throw exception,
-        );
-
-        allKeys.addAll(keys);
+        multipartFiles.add(multipartFile);
       }
 
-      developer.log('다중 미디어 업로드 성공: ${allKeys.length}개', name: 'MediaService');
-      return Success(allKeys);
-    } on ApiException catch (e) {
-      return Failure(e);
+      // 한번에 모든 파일 업로드
+      final response = await _mediaApi.uploadMedia(types, id, multipartFiles);
+
+      if (response?.data == null) {
+        return Failure(ApiException.serverError('다중 미디어 업로드에 실패했습니다'));
+      }
+
+      final s3Keys = response!.data;
+      developer.log('다중 미디어 업로드 성공: ${s3Keys.length}개', name: 'MediaService');
+      return Success(s3Keys);
+    } on api.ApiException catch (e) {
+      developer.log('다중 미디어 업로드 실패: ${e.message}', name: 'MediaService');
+      return Failure(ApiException.fromStatusCode(e.code, e.message));
     } catch (e) {
       developer.log('다중 미디어 업로드 오류: $e', name: 'MediaService');
       return Failure(ApiException.networkError());

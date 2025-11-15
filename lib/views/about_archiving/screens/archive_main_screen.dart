@@ -63,14 +63,15 @@ class _ArchiveMainScreenState extends State<ArchiveMainScreen> {
       editingController: _editingNameController,
       onStartEdit: startEditMode,
     ),
-    MyArchivesScreen(
+
+    SharedArchivesScreen(
       layoutMode: _layoutMode,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
       onStartEdit: startEditMode,
     ),
-    SharedArchivesScreen(
+    MyArchivesScreen(
       layoutMode: _layoutMode,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,

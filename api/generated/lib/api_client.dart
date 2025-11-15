@@ -192,8 +192,18 @@ class ApiClient {
           return ApiResponseDtoListUserFindRespDto.fromJson(value);
         case 'ApiResponseDtoListUserRespDto':
           return ApiResponseDtoListUserRespDto.fromJson(value);
+        case 'ApiResponseDtoLong':
+          return ApiResponseDtoLong.fromJson(value);
         case 'ApiResponseDtoUserRespDto':
           return ApiResponseDtoUserRespDto.fromJson(value);
+        case 'AuthCheckReqDto':
+          return AuthCheckReqDto.fromJson(value);
+        case 'CategoryCreateReqDto':
+          return CategoryCreateReqDto.fromJson(value);
+        case 'CategoryInviteReqDto':
+          return CategoryInviteReqDto.fromJson(value);
+        case 'CategoryInviteResponseReqDto':
+          return CategoryInviteResponseReqDto.fromJson(value);
         case 'FriendReqDto':
           return FriendReqDto.fromJson(value);
         case 'FriendRespDto':

@@ -139,7 +139,7 @@ Spring Boot API가 변경되면 다음 단계를 반복:
 
 ```bash
 # 1. 최신 OpenAPI 스펙 다운로드
-curl -o api/openapi.json https://newdawnsoi.site/v3/api-docs
+curl -o api/openapi.yaml https://newdawnsoi.site/v3/api-docs
 
 # 2. 기존 generated 폴더 백업 (선택사항)
 mv api/generated api/generated.backup

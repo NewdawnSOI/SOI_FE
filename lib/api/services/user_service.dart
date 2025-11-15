@@ -39,6 +39,37 @@ class UserService {
     }
   }
 
+  /// 전화번호 인증 확인
+  ///
+  /// [phoneNumber] 인증할 전화번호
+  /// [code] 사용자가 입력한 인증 코드
+  /// Returns: 인증 성공 여부
+  Future<ApiResult<bool>> checkAuthSMS({
+    required String phoneNumber,
+    required String code,
+  }) async {
+    try {
+      developer.log('SMS 인증 확인: $phoneNumber, 코드: $code', name: 'UserService');
+
+      final reqDto = api.AuthCheckReqDto(phoneNumber: phoneNumber, code: code);
+
+      final response = await _userApi.checkAuthSMS(reqDto);
+
+      if (response == null) {
+        return Failure(ApiException.serverError('인증 확인에 실패했습니다'));
+      }
+
+      developer.log('SMS 인증 확인 ${response ? "성공" : "실패"}', name: 'UserService');
+      return Success(response);
+    } on api.ApiException catch (e) {
+      developer.log('SMS 인증 확인 실패: ${e.message}', name: 'UserService');
+      return Failure(ApiException.fromStatusCode(e.code, e.message));
+    } catch (e) {
+      developer.log('SMS 인증 확인 오류: $e', name: 'UserService');
+      return Failure(ApiException.networkError());
+    }
+  }
+
   /// 사용자 생성
   /// 새로운 사용자를 등록합니다.
   Future<ApiResult<api.UserRespDto>> createUser({

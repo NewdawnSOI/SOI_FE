@@ -10,6 +10,7 @@ All URIs are relative to *https://newdawnsoi.site*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**authSMS**](UserAPIApi.md#authsms) | **POST** /user/auth | 전화번호 인증
+[**checkAuthSMS**](UserAPIApi.md#checkauthsms) | **POST** /user/auth/check | 전화번호 인증확인
 [**createUser**](UserAPIApi.md#createuser) | **POST** /user/create | 사용자 생성
 [**deleteUser**](UserAPIApi.md#deleteuser) | **DELETE** /user/delete | Id로 사용자 삭제
 [**findUser**](UserAPIApi.md#finduser) | **GET** /user/find-by-keyword | 키워드로 사용자 검색
@@ -57,6 +58,49 @@ No authorization required
 ### HTTP request headers
 
  - **Content-Type**: Not defined
+ - **Accept**: */*
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **checkAuthSMS**
+> bool checkAuthSMS(authCheckReqDto)
+
+전화번호 인증확인
+
+사용자 전화번호와 사용자가 입력한 인증코드를 보내서 인증확인을 진행합니다.
+
+### Example
+```dart
+import 'package:soi_api_client/api.dart';
+
+final api_instance = UserAPIApi();
+final authCheckReqDto = AuthCheckReqDto(); // AuthCheckReqDto | 
+
+try {
+    final result = api_instance.checkAuthSMS(authCheckReqDto);
+    print(result);
+} catch (e) {
+    print('Exception when calling UserAPIApi->checkAuthSMS: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **authCheckReqDto** | [**AuthCheckReqDto**](AuthCheckReqDto.md)|  | 
+
+### Return type
+
+**bool**
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
  - **Accept**: */*
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

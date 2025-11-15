@@ -74,6 +74,62 @@ class UserAPIApi {
     return null;
   }
 
+  /// 전화번호 인증확인
+  ///
+  /// 사용자 전화번호와 사용자가 입력한 인증코드를 보내서 인증확인을 진행합니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [AuthCheckReqDto] authCheckReqDto (required):
+  Future<Response> checkAuthSMSWithHttpInfo(AuthCheckReqDto authCheckReqDto,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/auth/check';
+
+    // ignore: prefer_final_locals
+    Object? postBody = authCheckReqDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 전화번호 인증확인
+  ///
+  /// 사용자 전화번호와 사용자가 입력한 인증코드를 보내서 인증확인을 진행합니다.
+  ///
+  /// Parameters:
+  ///
+  /// * [AuthCheckReqDto] authCheckReqDto (required):
+  Future<bool?> checkAuthSMS(AuthCheckReqDto authCheckReqDto,) async {
+    final response = await checkAuthSMSWithHttpInfo(authCheckReqDto,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'bool',) as bool;
+    
+    }
+    return null;
+  }
+
   /// 사용자 생성
   ///
   /// 새로운 사용자를 등록합니다.
