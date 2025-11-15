@@ -130,6 +130,7 @@ flutter:
     - assets/
     - assets/fonts/PretendardVariable.ttf
     - assets/notification.png
+    - assets/app_launch_video/SOI.mp4
     - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see

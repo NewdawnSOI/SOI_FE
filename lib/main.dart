@@ -51,11 +51,28 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'views/home_navigator_screen.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'utils/app_route_observer.dart';
+import 'views/launch_video_screen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Flutter 바인딩 초기화
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+
+  // SharedPreferences에서 인트로 비디오 시청 여부 확인
+  final prefs = await SharedPreferences.getInstance();
+
+  // 앱 최초 실행 시 인트로 비디오 재생을 위해 스플래시 화면 유지
+  final hasSeenLaunchVideo = prefs.getBool('hasSeenLaunchVideo') ?? false;
+
+  // 앱 최초 실행이 아닌 경우에만 스플래시 화면 유지
+  if (hasSeenLaunchVideo) {
+    FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  } else {
+    FlutterNativeSplash.remove();
+  }
 
   // 환경 변수 로드
   await dotenv.load(fileName: ".env");
@@ -121,11 +138,16 @@ void main() async {
 
   debugPaintSizeEnabled = false;
 
-  runApp(const MyApp());
+  if (hasSeenLaunchVideo) {
+    FlutterNativeSplash.remove();
+  }
+
+  runApp(MyApp(hasSeenLaunchVideo: hasSeenLaunchVideo));
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final bool hasSeenLaunchVideo;
+  const MyApp({super.key, required this.hasSeenLaunchVideo});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -198,10 +220,11 @@ class _MyAppState extends State<MyApp> {
       child: ScreenUtilInit(
         designSize: const Size(393, 852),
         child: MaterialApp(
-          initialRoute: '/',
+          initialRoute: widget.hasSeenLaunchVideo ? '/' : '/launch_video',
           navigatorObservers: [appRouteObserver],
           debugShowCheckedModeBanner: false,
           routes: {
+            '/launch_video': (context) => const LaunchVideoScreen(),
             '/': (context) => const StartScreen(),
             '/home_navigation_screen': (context) =>
                 HomePageNavigationBar(currentPageIndex: 1),
