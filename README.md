@@ -315,7 +315,78 @@ ArchiveMainScreen (아카이브 탭)
 
 ---
 
-## � 다른 레포지토리에 브랜치 구조 복제하기
+## 🔀 Git 브랜치 관리 가이드
+
+### 📤 현재 레포지토리에 푸시하기
+
+**기본적인 작업 후 원격 저장소에 푸시하는 방법**
+
+#### Firebase 버전 푸시
+
+```bash
+# 1. firebase-version 브랜치로 전환
+git checkout firebase-version
+
+# 2. 변경사항 확인
+git status
+
+# 3. 변경된 파일 스테이징
+git add .
+
+# 4. 커밋
+git commit -m "feat: 기능 추가 설명"
+
+# 5. 원격 저장소에 푸시
+git push origin firebase-version
+```
+
+#### API 버전 푸시
+
+```bash
+# 1. api-version 브랜치로 전환
+git checkout api-version
+
+# 2. 변경사항 확인
+git status
+
+# 3. 변경된 파일 스테이징
+git add .
+
+# 4. 커밋
+git commit -m "feat: 기능 추가 설명"
+
+# 5. 원격 저장소에 푸시
+git push origin api-version
+```
+
+#### 유용한 Git 명령어
+
+```bash
+# 현재 브랜치 확인
+git branch
+
+# 모든 브랜치 확인 (원격 포함)
+git branch -a
+
+# 최신 변경사항 받아오기
+git pull origin [브랜치명]
+
+# 변경사항 임시 저장
+git stash
+
+# 임시 저장한 내용 복원
+git stash pop
+
+# 커밋 히스토리 확인
+git log --oneline --graph --all
+
+# 원격 저장소 정보 확인
+git remote -v
+```
+
+---
+
+## 🔄 다른 레포지토리에 브랜치 구조 복제하기
 
 다른 Git 레포지토리(예: 팀 레포지토리)에도 동일한 브랜치 구조를 만들고 싶다면 아래 방법을 사용하세요.
 
@@ -373,6 +444,12 @@ git ls-remote newdawn
 ```
 
 **✅ 완료!** 이제 대상 레포지토리에도 `firebase-version`과 `api-version` 브랜치가 생성되었습니다.
+
+#### ⚠️ 주의사항
+
+- 대상 레포지토리에 푸시 권한이 있어야 합니다
+- 두 레포지토리의 코드가 호환되는지 확인하세요
+- 필요시 대상 레포지토리에서 별도로 코드 수정 후 커밋하세요
 
 ---
 
