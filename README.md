@@ -156,6 +156,16 @@ git commit -m "WIP: 작업 중"
 git checkout [브랜치명]
 \`\`\`
 
+#### 🔄 다른 레포지토리에 동일한 브랜치 구조로 푸시하기
+```bash
+git add .
+git commit -m "message"
+git push newdawn firebase-version(newdawn의 firebase-version인 경우)
+git push newdawn api-version(newdawn의 firebase-version인 경우)
+git push origin firebase-version(minchan의 firebase-version인 경우)
+git push origin api-version(minchan의 firebase-version인 경우)
+```
+
 ---
 
 ## 🛠 기술 스택
@@ -315,7 +325,7 @@ ArchiveMainScreen (아카이브 탭)
 
 ---
 
-## 🔀 Git 브랜치 관리 가이드
+## � Git 브랜치 관리 가이드
 
 ### 📤 현재 레포지토리에 푸시하기
 
