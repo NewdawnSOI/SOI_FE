@@ -315,7 +315,68 @@ ArchiveMainScreen (아카이브 탭)
 
 ---
 
-## 🚀 시작하기
+## � 다른 레포지토리에 브랜치 구조 복제하기
+
+다른 Git 레포지토리(예: 팀 레포지토리)에도 동일한 브랜치 구조를 만들고 싶다면 아래 방법을 사용하세요.
+
+### 옵션 A: 브랜치 복사 방식 (빠른 방법 ⭐)
+
+**현재 레포지토리의 브랜치를 다른 레포지토리에 푸시하는 방법**
+
+#### 1단계: 대상 레포지토리를 remote로 추가
+
+```bash
+# 현재 SOI 디렉토리에서 실행
+git remote add target https://github.com/[조직명]/[레포명].git
+
+# 예시: NewdawnSOI/SOI_FE 레포지토리에 추가
+git remote add newdawn https://github.com/NewdawnSOI/SOI_FE.git
+
+# remote 확인
+git remote -v
+```
+
+#### 2단계: firebase-version 브랜치 푸시
+
+```bash
+# firebase-version 브랜치로 전환
+git checkout firebase-version
+
+# 대상 레포지토리에 푸시
+git push target firebase-version
+
+# 예시
+git push newdawn firebase-version
+```
+
+#### 3단계: api-version 브랜치 푸시
+
+```bash
+# api-version 브랜치로 전환
+git checkout api-version
+
+# 대상 레포지토리에 푸시
+git push target api-version
+
+# 예시
+git push newdawn api-version
+```
+
+#### 4단계: 푸시 확인
+
+```bash
+# 대상 레포지토리의 브랜치 확인
+git ls-remote target
+
+# 예시
+git ls-remote newdawn
+```
+
+**✅ 완료!** 이제 대상 레포지토리에도 `firebase-version`과 `api-version` 브랜치가 생성되었습니다.
+
+---
+
+## �🚀 시작하기
 
 ### 프로젝트 설정
 
