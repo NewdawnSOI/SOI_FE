@@ -55,12 +55,25 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   bool _categoriesLoaded = false;
   bool _shouldAutoOpenCategorySheet = true;
   bool _isDisposing = false;
+
   static const double _kInitialSheetExtent = 0.0;
+  // 잠금된 바텀시트 높이
   static const double _kLockedSheetExtent = 0.19;
+
+  // 확장된 바텀시트 높이
   static const double _kExpandedSheetExtent = 0.31;
+
+  // 최대 바텀시트 높이ß
   static const double _kMaxSheetExtent = 0.8;
+
+  // 최소 크기는 처음에는 0에서 시작하여 애니메이션으로 잠금 위치까지 이동
   double _minChildSize = _kInitialSheetExtent;
+
+  // 초기값은 0에서 시작
   double _initialChildSize = _kInitialSheetExtent;
+
+  // 잠금 상태 플래그
+  // 이 플래그로 바텀시트가 잠금 상태인지 여부를 추적
   bool _hasLockedSheetExtent = false;
   List<double>? _recordedWaveformData;
   String? _recordedAudioPath;
@@ -89,6 +102,11 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     _primeImmediatePreview();
     _initializeScreen();
     _captionController.addListener(_handleCaptionChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _captionFocusNode.unfocus();
+      }
+    });
   }
 
   @override
@@ -717,7 +735,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
           ? null
           : NotificationListener<DraggableScrollableNotification>(
               onNotification: (notification) {
-                // 🎯 카테고리가 선택된 상태에서는 바텀시트가 너무 내려가지 않도록 방지
+                // 카테고리가 선택된 상태에서는 바텀시트가 너무 내려가지 않도록 방지
                 if (_selectedCategoryIds.isNotEmpty) {
                   // 바텀시트가 locked 위치 아래로 내려가려고 하면 방지
                   if (notification.extent < _kLockedSheetExtent - 0.02) {
@@ -816,6 +834,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                                                       _categoryNameController
                                                           .clear();
                                                     });
+                                                    // 바텀시트를 잠금된 상태로 복원
                                                     _animateSheetTo(
                                                       _kLockedSheetExtent,
                                                     );
