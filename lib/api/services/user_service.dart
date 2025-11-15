@@ -49,9 +49,24 @@ class UserService {
     required String code,
   }) async {
     try {
-      developer.log('SMS 인증 확인: $phoneNumber, 코드: $code', name: 'UserService');
+      // 전화번호 앞의 0 제거 (국제 형식으로 변환 시도)
+      final cleanPhone = phoneNumber.startsWith('0')
+          ? phoneNumber.substring(1)
+          : phoneNumber;
 
-      final reqDto = api.AuthCheckReqDto(phoneNumber: phoneNumber, code: code);
+      developer.log(
+        'SMS 인증 확인 - 원본: $phoneNumber, 정제: $cleanPhone, 코드: $code',
+        name: 'UserService',
+      );
+
+      final reqDto = api.AuthCheckReqDto(
+        phoneNumber: phoneNumber, // 원본 사용
+        code: code,
+      );
+
+      // 디버깅: 실제 전송되는 JSON 확인
+      final jsonData = reqDto.toJson();
+      developer.log('전송할 JSON: $jsonData', name: 'UserService');
 
       final response = await _userApi.checkAuthSMS(reqDto);
 

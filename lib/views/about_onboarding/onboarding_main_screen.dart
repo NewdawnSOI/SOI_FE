@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-
+import '../../api/services/user_service.dart';
 import '../../firebase_logic/controllers/auth_controller.dart';
 
 class OnboardingMainScreen extends StatefulWidget {
@@ -80,12 +81,56 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
     final String birthDate = (registration['birthDate'] as String?) ?? '';
     final String? profileImagePath =
         registration['profileImagePath'] as String?;
+    final bool agreeServiceTerms =
+        registration['agreeServiceTerms'] as bool? ?? false;
+    final bool agreePrivacyTerms =
+        registration['agreePrivacyTerms'] as bool? ?? false;
+    final bool agreeMarketingInfo =
+        registration['agreeMarketingInfo'] as bool? ?? false;
 
     setState(() {
       _isCompleting = true;
     });
 
     try {
+      // 1. Spring Boot API를 통한 사용자 생성
+      final userService = UserService();
+      final createResult = await userService.createUser(
+        name: name,
+        userId: id,
+        phone: phone,
+        birthDate: birthDate,
+        profileImage: profileImagePath,
+        serviceAgreed: agreeServiceTerms,
+        privacyPolicyAgreed: agreePrivacyTerms,
+        marketingAgreed: agreeMarketingInfo,
+      );
+
+      // API 호출 실패 시 처리
+      final bool apiSuccess = createResult.when(
+        success: (userResp) {
+          debugPrint('백엔드 사용자 생성 성공: ${userResp.userId}');
+          return true;
+        },
+        failure: (error) {
+          debugPrint('백엔드 사용자 생성 실패: ${error.message}');
+          Fluttertoast.showToast(
+            msg: '회원가입에 실패했습니다. ${error.message}',
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
+          );
+          return false;
+        },
+      );
+
+      if (!apiSuccess) {
+        setState(() {
+          _isCompleting = false;
+        });
+        return;
+      }
+
+      // 2. Firebase에 사용자 문서 생성
       await authController.createUserInFirestore(
         user,
         id,
@@ -94,6 +139,7 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
         birthDate,
       );
 
+      // 3. 프로필 이미지 업로드 (있는 경우)
       if (profileImagePath != null && profileImagePath.isNotEmpty) {
         try {
           await authController.uploadProfileImageFromPath(profileImagePath);
@@ -102,9 +148,20 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
         }
       }
 
+      // 4. 로그인 상태 저장
       await authController.saveLoginState(userId: user.uid, phoneNumber: phone);
     } catch (e) {
       debugPrint('Failed to finalize onboarding: $e');
+      setState(() {
+        _isCompleting = false;
+      });
+
+      Fluttertoast.showToast(
+        msg: '회원가입 중 오류가 발생했습니다.',
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+      return;
     }
 
     if (!mounted) return;
