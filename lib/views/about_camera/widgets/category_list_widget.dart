@@ -15,7 +15,6 @@ class CategoryListWidget extends StatefulWidget {
   final Function(String categoryId) onCategorySelected;
   final VoidCallback addCategoryPressed;
   final VoidCallback? onConfirmSelection;
-  final bool isLoading;
 
   const CategoryListWidget({
     super.key,
@@ -24,7 +23,6 @@ class CategoryListWidget extends StatefulWidget {
     required this.onCategorySelected,
     required this.addCategoryPressed,
     this.onConfirmSelection,
-    required this.isLoading,
   });
 
   @override
@@ -54,18 +52,18 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
   Widget build(BuildContext context) {
     super.build(context);
 
-    if (widget.isLoading) {
-      return _buildShimmerGrid();
-    }
+    return Consumer<CategoryController>(
+      builder: (context, viewModel, child) {
+        if (viewModel.isLoading) {
+          return _buildShimmerGrid();
+        }
 
-    return Stack(
-      alignment: Alignment.bottomCenter,
-      children: [
-        Consumer<CategoryController>(
-          builder: (context, viewModel, child) {
-            final categories = viewModel.userCategoryList;
+        final categories = viewModel.userCategoryList;
 
-            return AnimatedPadding(
+        return Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            AnimatedPadding(
               // padding 변화를 부드럽게 애니메이션 처리
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeInOut,
@@ -115,47 +113,47 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
                   }
                 },
               ),
-            );
-          },
-        ),
+            ),
 
-        // FloatingActionButton - 카테고리 선택 시 표시
-        Padding(
-          padding: EdgeInsets.only(bottom: (37).h),
-          child: AnimatedSlide(
-            // 버튼이 아래에서 위로 슬라이드되도록 offset 조건 추가
-            offset: widget.selectedCategoryIds.isNotEmpty
-                ? Offset.zero
-                : Offset(0, 0.3.h),
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOutCubic,
-            child: AnimatedOpacity(
-              // 투명도 애니메이션 (0 → 1)
-              opacity: widget.selectedCategoryIds.isNotEmpty ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOut,
-              child: IgnorePointer(
-                // 버튼이 보이지 않을 때 터치 이벤트 무시
-                ignoring: widget.selectedCategoryIds.isEmpty,
-                child: ElevatedButton(
-                  onPressed: widget.onConfirmSelection,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26.9),
-                    ),
-                  ),
-                  child: SizedBox(
-                    width: 349.w,
-                    height: 45.h,
-                    child: Center(
-                      child: Text(
-                        '전송',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 20.sp,
-                          fontFamily: 'Pretendard',
-                          fontWeight: FontWeight.w600,
+            // FloatingActionButton - 카테고리 선택 시 표시
+            Padding(
+              padding: EdgeInsets.only(bottom: (37).h),
+              child: AnimatedSlide(
+                // 버튼이 아래에서 위로 슬라이드되도록 offset 조건 추가
+                offset: widget.selectedCategoryIds.isNotEmpty
+                    ? Offset.zero
+                    : Offset(0, 0.3.h),
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  // 투명도 애니메이션 (0 → 1)
+                  opacity: widget.selectedCategoryIds.isNotEmpty ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOut,
+                  child: IgnorePointer(
+                    // 버튼이 보이지 않을 때 터치 이벤트 무시
+                    ignoring: widget.selectedCategoryIds.isEmpty,
+                    child: ElevatedButton(
+                      onPressed: widget.onConfirmSelection,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(26.9),
+                        ),
+                      ),
+                      child: SizedBox(
+                        width: 349.w,
+                        height: 45.h,
+                        child: Center(
+                          child: Text(
+                            '전송',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 20.sp,
+                              fontFamily: 'Pretendard',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -163,9 +161,9 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
                 ),
               ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 

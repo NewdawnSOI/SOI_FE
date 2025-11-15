@@ -851,8 +851,6 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
                                             );
                                             _animateSheetTo(0.65);
                                           },
-                                          isLoading:
-                                              _categoryController.isLoading,
                                         ),
                                 ),
                               ),
