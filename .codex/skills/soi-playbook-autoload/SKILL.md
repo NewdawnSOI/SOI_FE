@@ -1,55 +1,73 @@
 ---
 name: soi-playbook-autoload
-description: Automatically load and apply `docs/AI_AGENT_PLAYBOOK.md` for SOI repository work. Use for any SOI request (planning, implementation, review, debugging) so the playbook is read before task execution, cached per session, and reloaded only when the file fingerprint changes.
+description: Load and apply `AGENTS.md` as the primary always-on rule set for SOI work, and read `docs/AI_AGENT_PLAYBOOK.md` only when deep detail is required.
 ---
 
-# SOI Playbook Autoload
+# SOI Rules Autoload (Token-Efficient)
 
 ## Overview
 
-Load `docs/AI_AGENT_PLAYBOOK.md` before handling SOI tasks.
-Keep a session-level fingerprint cache and re-read only when content changes.
+Use `AGENTS.md` as the default rule source for SOI tasks.
+Only read detailed playbook sections when the task actually needs them.
 
 ## Workflow
 
-1. Validate playbook path first.
+1. Validate primary rule file first.
 
 ```bash
-test -f docs/AI_AGENT_PLAYBOOK.md
+test -f AGENTS.md
 ```
 
-- If the file is missing, stop and report:
-  - Missing required file: `docs/AI_AGENT_PLAYBOOK.md`
-  - Request user confirmation of the correct path or restoration.
-- Do not continue task execution without resolving this file.
+- If missing, fallback to `docs/AI_AGENT_PLAYBOOK.md`.
+- If both are missing, stop and report missing required guidance files.
 
 2. Compute fingerprint for change detection.
 
 ```bash
-shasum docs/AI_AGENT_PLAYBOOK.md
+shasum AGENTS.md
 ```
 
 3. Apply session load policy.
 
-- If there is no cached fingerprint for this session:
-  - Read the full file once.
-  - Cache fingerprint and short checklist summary.
-- If cached fingerprint matches current fingerprint:
-  - Skip full re-read.
+- If no cached fingerprint in this session:
+  - Read `AGENTS.md` once.
+  - Cache fingerprint + short checklist.
+- If fingerprint matches:
+  - Skip re-read.
   - Reuse cached checklist.
-- If cached fingerprint differs:
-  - Re-read the full file.
-  - Refresh fingerprint and checklist.
+- If fingerprint changed:
+  - Re-read `AGENTS.md`.
+  - Refresh checklist.
 
-4. Build and keep a short execution checklist from the playbook.
+4. Conditional deep-read policy for playbook docs.
 
-- Branch/source-of-truth checks (`git branch`, `git status`, contract precedence)
-- API sync rules (`api/openapi.yaml`, `api/generated`, `lib/api` boundaries)
+Read `docs/AI_AGENT_PLAYBOOK.md` (partial section read, not full-file by default) only when task requires detailed contract/guardrail semantics:
+
+- OpenAPI/DTO contract or regeneration work
+- Media compression/cache/performance tuning
+- Caching policy matrix reconciliation
+- Localization policy changes
+- High-risk release review scenarios
+
+Guideline:
+- Use targeted section reads (e.g., `rg`, `sed -n` around specific headings).
+- Avoid full-file playbook reads unless absolutely necessary.
+
+5. Build and keep a short execution checklist from AGENTS.
+
+- Branch/source-of-truth checks (`git branch`, `git status`)
+- API boundary rules (`api/generated` read-only, wrapper sync boundaries)
 - Provider ownership/dispose rules for global controllers
-- Caching/performance guardrails and error classification rules
+- Media/caching guardrails and validation baseline
 
-5. Execute the user request under the checklist constraints.
+6. Execute the user request under the checklist.
 
-- Prefer code-as-truth when documentation and code conflict.
-- Surface constraints early when a requested change would violate the playbook.
-- Re-check fingerprint before critical steps when the session has been long-running.
+- Prefer code-as-truth when docs and code conflict.
+- Surface constraint violations early.
+- Re-check AGENTS fingerprint in long-running sessions before critical steps.
+
+## Fallback behavior
+
+If `AGENTS.md` does not exist:
+- Use `docs/AI_AGENT_PLAYBOOK.md` as the temporary source.
+- Recommend creating/updating `AGENTS.md` for token-efficient operation.

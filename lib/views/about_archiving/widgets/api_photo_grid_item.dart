@@ -1,17 +1,14 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:soi/views/about_archiving/screens/archive_detail/api_photo_detail_screen.dart';
 import '../../../api/models/post.dart';
-import '../../../api/controller/audio_controller.dart';
-import '../../../api/controller/media_controller.dart';
 import '../../../utils/video_thumbnail_cache.dart';
-import 'wave_form_widget/custom_waveform_widget.dart';
 
+/// Hero 애니메이션에서 이미지가 확대/축소될 때,
+/// 원본 위젯이 아닌 새로 생성된 위젯을 사용하여 부드러운 전환을 구현하는 함수
 Widget _heroFlightShuttleBuilder(
   BuildContext flightContext,
   Animation<double> animation,
@@ -74,16 +71,9 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   static const _kReverseTransitionDuration = Duration(milliseconds: 220);
   bool _isNavigatingToDetail = false; // 상세 화면으로 이동 중인지 여부 (중복 방지)
 
-  // 오디오 관련 상태
-  bool _hasAudio = false;
-  List<double>? _waveformData;
-  String? _audioUrl;
-  bool _isAudioLoading = false;
-
   // 프로필 이미지 캐시
   String? _profileImageUrl;
   bool _isLoadingProfile = true;
-  late final MediaController _mediaController;
   Uint8List? _videoThumbnailBytes;
   bool _isVideoThumbnailLoading = false;
 
@@ -100,9 +90,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   void initState() {
     super.initState();
     _commentCount = widget.initialCommentCount;
-    _initializeWaveformData();
-    _mediaController = Provider.of<MediaController>(context, listen: false);
-    // _loadAudioUrl(widget.post.audioUrl);
     _loadVideoThumbnailIfNeeded();
     // 빌드 완료 후 프로필 이미지 로드 (notifyListeners 충돌 방지)
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -116,9 +103,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     if (oldWidget.post.userProfileImageKey != widget.post.userProfileImageKey ||
         oldWidget.post.userProfileImageUrl != widget.post.userProfileImageUrl) {
       _loadProfileImage(widget.post.userProfileImageKey);
-    }
-    if (oldWidget.post.audioUrl != widget.post.audioUrl) {
-      _loadAudioUrl(widget.post.audioUrl);
     }
     if (oldWidget.postUrl != widget.postUrl ||
         oldWidget.post.postFileKey != widget.post.postFileKey) {
@@ -186,72 +170,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     });
   }
 
-  /// waveformData String을 `List<double>`로 파싱
-  void _initializeWaveformData() {
-    // 넘겨 받은 오디오 URL을 가지고 온다.
-    final audioUrl = widget.post.audioUrl;
-
-    // 오디오 URL이 없으면 오디오 없음 처리
-    if (audioUrl == null || audioUrl.isEmpty) {
-      setState(() {
-        _hasAudio = false;
-      });
-      return;
-    }
-
-    // 넘겨 받은 waveformData 문자열을 가지고 온다.
-    final waveformString = widget.post.waveformData;
-    debugPrint('[ApiPhotoGridItem] waveformString: $waveformString');
-
-    // waveformData가 있으면 파싱 시도
-    if (waveformString != null && waveformString.isNotEmpty) {
-      final parsedData = _parseWaveformString(waveformString);
-      if (parsedData != null) {
-        setState(() {
-          _hasAudio = true;
-          _waveformData = parsedData;
-        });
-        return;
-      }
-      debugPrint('[ApiPhotoGridItem] waveformData 파싱 실패: $waveformString');
-    }
-
-    setState(() {
-      _hasAudio = true;
-      _waveformData = null;
-    });
-  }
-
-  /// waveformData 문자열을 `List<double>`로 파싱
-  ///
-  /// Parameters:
-  /// - [raw]: 파싱할 문자열
-  ///
-  /// Returns: 파싱된 `List<double>` 또는 null
-  List<double>? _parseWaveformString(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return null;
-
-    try {
-      final decoded = jsonDecode(trimmed);
-      if (decoded is List) {
-        return decoded.map((e) => (e as num).toDouble()).toList();
-      }
-    } catch (_) {
-      final sanitized = trimmed.replaceAll('[', '').replaceAll(']', '');
-      final parts = sanitized
-          .split(RegExp(r'[,\s]+'))
-          .where((p) => p.isNotEmpty);
-      try {
-        final values = parts.map((p) => double.parse(p)).toList();
-        return values.isEmpty ? null : values;
-      } catch (_) {
-        return null;
-      }
-    }
-    return null;
-  }
-
   /// 프로필 이미지 URL 설정 (서버에서 직접 제공)
   void _loadProfileImage(String? profileKey) {
     if (!mounted) return;
@@ -260,42 +178,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       _profileImageUrl = (url != null && url.isNotEmpty) ? url : null;
       _isLoadingProfile = false;
     });
-  }
-
-  Future<void> _loadAudioUrl(String? audioKey) async {
-    if (audioKey == null || audioKey.isEmpty) {
-      setState(() {
-        _audioUrl = null;
-        _isAudioLoading = false;
-      });
-      return;
-    }
-
-    final uri = Uri.tryParse(audioKey);
-    if (uri != null && uri.hasScheme) {
-      setState(() {
-        _audioUrl = audioKey;
-        _isAudioLoading = false;
-      });
-      return;
-    }
-
-    setState(() => _isAudioLoading = true);
-    try {
-      final url = await _mediaController.getPresignedUrl(audioKey);
-      if (!mounted) return;
-      setState(() {
-        _audioUrl = url;
-        _isAudioLoading = false;
-      });
-    } catch (e) {
-      debugPrint('[ApiPhotoGridItem] 오디오 URL 발급 실패: $e');
-      if (!mounted) return;
-      setState(() {
-        _audioUrl = null;
-        _isAudioLoading = false;
-      });
-    }
   }
 
   String get _heroTag => 'archive_photo_${widget.categoryId}_${widget.post.id}';
@@ -451,7 +333,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
             ),
           ),
 
-          // 하단 프로필 + 파형
+          // 하단 프로필
           Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -464,29 +346,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
                     height: 28.h,
                     decoration: const BoxDecoration(shape: BoxShape.circle),
                     child: _buildProfileImage(),
-                  ),
-                  SizedBox(width: 7.w),
-                  // 파형 위젯
-                  Expanded(
-                    child:
-                        (!_hasAudio ||
-                            _waveformData == null ||
-                            _waveformData!.isEmpty)
-                        ? Container()
-                        : GestureDetector(
-                            onTap: () => _toggleAudioPlayback(),
-                            child: Container(
-                              width: 140.w,
-                              height: 21.h,
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xff171717,
-                                ).withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              child: _buildWaveformWidget(),
-                            ),
-                          ),
                   ),
                   SizedBox(width: 5.w),
                 ],
@@ -661,69 +520,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
         ),
         child: const Icon(Icons.person, color: Colors.white, size: 26),
       ),
-    );
-  }
-
-  /// 오디오 재생/일시정지 토글
-  void _toggleAudioPlayback() async {
-    if (!_hasAudio || _audioUrl == null || _audioUrl!.isEmpty) return;
-
-    final audioController = Provider.of<AudioController>(
-      context,
-      listen: false,
-    );
-
-    audioController.togglePlayPause(_audioUrl!);
-  }
-
-  /// 파형 위젯 빌드
-  Widget _buildWaveformWidget() {
-    return Consumer<AudioController>(
-      builder: (context, audioController, child) {
-        final isCurrentAudio =
-            audioController.isPlaying &&
-            _audioUrl != null &&
-            audioController.currentAudioUrl == _audioUrl;
-
-        double progress = 0.0;
-        if (isCurrentAudio &&
-            audioController.totalDuration.inMilliseconds > 0) {
-          progress =
-              (audioController.currentPosition.inMilliseconds /
-                      audioController.totalDuration.inMilliseconds)
-                  .clamp(0.0, 1.0);
-        }
-
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              height: 21,
-              padding: EdgeInsets.symmetric(horizontal: 10.w),
-              child: CustomWaveformWidget(
-                waveformData: _waveformData!,
-                color: isCurrentAudio
-                    ? const Color(0xff5a5a5a)
-                    : const Color(0xffffffff),
-                activeColor: Colors.white,
-                progress: progress,
-                barThickness: 3.0,
-                barSpacing: 7.0,
-                maxBarHeightFactor: 0.5,
-                amplitudeScale: 1.0,
-                minBarHeight: 0.0,
-                strokeCap: StrokeCap.round,
-              ),
-            ),
-            if (_isAudioLoading)
-              const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-          ],
-        );
-      },
     );
   }
 }

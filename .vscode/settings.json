@@ -1,6 +1,6 @@
 {
   "[typescript]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
   },
   "cmake.sourceDirectory": "/Users/minchanpark/Documents/SOI/linux",
   "deno.enable": true,

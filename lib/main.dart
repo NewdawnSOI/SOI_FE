@@ -280,44 +280,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         );
       }
     }
-
-    /* if (!mounted) return;
-    await _showInviteDialog(
-      context: context,
-      userId: userId,
-      nickName: nickName,
-    );*/
   }
-
-  /* ㅇ Future<void> _showInviteDialog({
-    required BuildContext context,
-    required String userId,
-    required String nickName,
-  }) async {
-    if (_isInviteDialogShowing) return;
-    _isInviteDialogShowing = true;
-    try {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
-          final displayUserId = userId.isEmpty ? '-' : userId;
-          final displayNickName = nickName.isEmpty ? '-' : nickName;
-          return AlertDialog(
-            title: const Text('친구 추가 요청이 왔어요!'),
-            content: Text('userId: $displayUserId\nnickName: $displayNickName'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('확인'),
-              ),
-            ],
-          );
-        },
-      );
-    } finally {
-      _isInviteDialogShowing = false;
-    }
-  }*/
 
   @override
   Widget build(BuildContext context) {

@@ -79,6 +79,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
     return 'archive_category_image_${categoryId}_$normalizedUrl';
   }
 
+  /// 카테고리 사진 화면으로 이동하는 라우트 빌드 함수
   Route<void> _buildCategoryPhotosRoute({
     required BuildContext context,
     required api_category.Category category,
@@ -97,6 +98,9 @@ class ApiArchiveCardWidget extends StatelessWidget {
       );
     }
 
+    // 커스텀 페이드 트랜지션 라우트
+    // iOS/macOS에서는 기본적으로 제스처 백이 지원되는 MaterialPageRoute를 사용하고,
+    // 그 외 플랫폼에서는 커스텀 페이드 트랜지션을 적용한 PageRouteBuilder를 사용합니다.
     return PageRouteBuilder<void>(
       transitionDuration: _kForwardTransitionDuration,
       reverseTransitionDuration: _kReverseTransitionDuration,
@@ -175,7 +179,6 @@ class ApiArchiveCardWidget extends StatelessWidget {
           //_buildPinnedBadge(top: 5.sp, left: 5.sp),
 
           // 신규 배지
-          // TODO: 위치 조정 필요
           _buildNewBadge(top: 16.sp, left: (140.39).sp),
 
           // 카테고리 제목: 왼쪽 위
@@ -300,7 +303,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
               fit: BoxFit.cover,
 
               // shimmer placeholder 및 에러 위젯 처리
-              // shimmer는 한번만 보여주고, 이후에는 기본 아이콘을 보여줍니다.
+              // shimmer 후에도 로딩 실패 시 검은 배경 박스를 유지합니다.
               placeholder: (context, url) => ShimmerOnceThenFallbackIcon(
                 key: ValueKey('ph_${category.id}_$layoutMode'),
                 width: width,
@@ -311,13 +314,8 @@ class ApiArchiveCardWidget extends StatelessWidget {
                 width: width,
                 height: height,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFCACACA).withValues(alpha: 0.9),
+                  color: Colors.black,
                   borderRadius: BorderRadius.circular(borderRadius),
-                ),
-                child: Icon(
-                  Icons.image,
-                  color: const Color(0xff5a5a5a),
-                  size: 32,
                 ),
               ),
             ),
@@ -327,12 +325,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
-          child: Container(
-            width: width,
-            height: height,
-            color: const Color(0xFFCACACA).withValues(alpha: 0.9),
-            child: Icon(Icons.image, color: const Color(0xff5a5a5a), size: 32),
-          ),
+          child: Container(width: width, height: height, color: Colors.black),
         );
       },
     );

@@ -357,55 +357,14 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
       itemCount: 6,
       itemBuilder: (context, index) {
         return Shimmer.fromColors(
-          baseColor: const Color(0xFF2A2A2A),
-          highlightColor: const Color(0xFF3A3A3A),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1C),
-              borderRadius: BorderRadius.circular(6.61),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 146.8.h,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(6.61),
-                  ),
-                ),
-                SizedBox(height: 8.7.h),
-                Padding(
-                  padding: EdgeInsets.only(left: 14.w),
-                  child: Container(
-                    width: 80.w,
-                    height: 14.h,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16.87.h),
-                Padding(
-                  padding: EdgeInsets.only(left: 14.w),
-                  child: Row(
-                    children: List.generate(
-                      3,
-                      (i) => Container(
-                        width: 24.w,
-                        height: 24.w,
-                        margin: EdgeInsets.only(right: 4.w),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          baseColor: const Color(0xFF1C1C1C),
+          highlightColor: const Color(0xFF2A2A2A),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10.7),
+            child: Container(
+              width: 170.sp,
+              height: 204.sp,
+              color: Colors.black,
             ),
           ),
         );

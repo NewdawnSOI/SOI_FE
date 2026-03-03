@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-/// shimmer는 한 번만 보여주고, 로딩이 계속되면 기본 아이콘을 보여줍니다.
+/// shimmer는 한 번만 보여주고, 로딩이 계속되면 검은 배경 박스로 대체합니다.
 ///
 /// 네트워크가 느리거나 요청이 hang 되는 경우 shimmer가 무한히 도는 UX를 방지합니다.
 /// 이미지가 실제로 로드되면 CachedNetworkImage가 이 placeholder를 자동으로 대체합니다.
@@ -62,10 +62,9 @@ class _ShimmerOnceThenFallbackIconState
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(
-          color: const Color(0xFFCACACA).withValues(alpha: 0.9),
+          color: Colors.black,
           borderRadius: BorderRadius.circular(widget.borderRadius),
         ),
-        child: const Icon(Icons.image, color: Color(0xff5a5a5a), size: 32),
       );
     }
 
