@@ -4,7 +4,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:soi/views/about_archiving/models/archive_layout_model.dart';
 import '../../../../api/controller/category_controller.dart';
 import '../../../../api/controller/post_controller.dart';
 import '../../../../api/controller/user_controller.dart';
@@ -27,7 +26,6 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 /// - [isEditing]: 현재 편집 중인지 여부
 /// - [editingController]: 편집 중인 텍스트 컨트롤러
 /// - [onStartEdit]: 편집 시작 콜백
-/// - [layoutMode]: 아카이브 레이아웃 모드
 ///
 /// Returns:
 /// - [Widget]: 카테고리 카드 위젯
@@ -44,7 +42,6 @@ class ApiArchiveCardWidget extends StatelessWidget {
   final bool isEditing;
   final TextEditingController? editingController;
   final VoidCallback? onStartEdit;
-  final ArchiveLayoutMode layoutMode;
 
   const ApiArchiveCardWidget({
     super.key,
@@ -53,7 +50,6 @@ class ApiArchiveCardWidget extends StatelessWidget {
     this.isEditing = false,
     this.editingController,
     this.onStartEdit,
-    this.layoutMode = ArchiveLayoutMode.grid,
   });
 
   @override
@@ -279,7 +275,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
           final imageCard = ClipRRect(
             borderRadius: BorderRadius.circular(borderRadius),
             child: CachedNetworkImage(
-              key: ValueKey('category_image_${category.id}_$layoutMode'),
+              key: ValueKey('category_image_${category.id}'),
               imageUrl: photoUrl,
               cacheKey: _buildCategoryImageCacheKey(category.id, photoUrl),
               fadeInDuration: Duration.zero,
@@ -305,7 +301,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
               // shimmer placeholder 및 에러 위젯 처리
               // shimmer 후에도 로딩 실패 시 검은 배경 박스를 유지합니다.
               placeholder: (context, url) => ShimmerOnceThenFallbackIcon(
-                key: ValueKey('ph_${category.id}_$layoutMode'),
+                key: ValueKey('ph_${category.id}'),
                 width: width,
                 height: height,
                 borderRadius: borderRadius,

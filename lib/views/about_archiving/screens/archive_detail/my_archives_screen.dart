@@ -3,7 +3,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:soi/views/about_archiving/models/archive_layout_model.dart';
 import '../../../../api/controller/category_controller.dart';
 import '../../../../api/controller/user_controller.dart';
 import '../../../../api/models/category.dart';
@@ -18,7 +17,6 @@ class MyArchivesScreen extends StatefulWidget {
   final String? editingCategoryId;
   final TextEditingController? editingController;
   final Function(String categoryId, String currentName)? onStartEdit;
-  final ArchiveLayoutMode layoutMode;
 
   const MyArchivesScreen({
     super.key,
@@ -26,7 +24,6 @@ class MyArchivesScreen extends StatefulWidget {
     this.editingCategoryId,
     this.editingController,
     this.onStartEdit,
-    this.layoutMode = ArchiveLayoutMode.grid,
   });
 
   @override
@@ -203,15 +200,10 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
             onRefresh: _refresh,
             color: Colors.white,
             backgroundColor: const Color(0xFF1C1C1C),
-            child: widget.layoutMode == ArchiveLayoutMode.grid
-                ? _buildGridView(
-                    displayCategories,
-                    searchController.searchQuery,
-                  )
-                : _buildListView(
-                    displayCategories,
-                    searchController.searchQuery,
-                  ),
+            child: _buildGridView(
+              displayCategories,
+              searchController.searchQuery,
+            ),
           );
         },
       ),
@@ -236,7 +228,7 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
         return ApiArchiveCardWidget(
           key: ValueKey('my_archive_card_${category.id}'),
           category: category,
-          layoutMode: ArchiveLayoutMode.grid,
+
           isEditMode: widget.isEditMode,
           isEditing:
               widget.isEditMode &&
@@ -253,39 +245,6 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
           },
         );
       },
-    );
-  }
-
-  Widget _buildListView(List<Category> categories, String searchQuery) {
-    return ListView.separated(
-      key: ValueKey('my_list_${categories.length}_$searchQuery'),
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.only(left: 22.w, right: 20.w, top: 8.h, bottom: 20.h),
-      itemBuilder: (context, index) {
-        final category = categories[index];
-
-        return ApiArchiveCardWidget(
-          key: ValueKey('my_archive_list_card_${category.id}'),
-          category: category,
-          layoutMode: ArchiveLayoutMode.list,
-          isEditMode: widget.isEditMode,
-          isEditing:
-              widget.isEditMode &&
-              widget.editingCategoryId == category.id.toString(),
-          editingController:
-              widget.isEditMode &&
-                  widget.editingCategoryId == category.id.toString()
-              ? widget.editingController
-              : null,
-          onStartEdit: () {
-            if (widget.onStartEdit != null) {
-              widget.onStartEdit!(category.id.toString(), category.name);
-            }
-          },
-        );
-      },
-      separatorBuilder: (_, __) => SizedBox(height: 12.h),
-      itemCount: categories.length,
     );
   }
 

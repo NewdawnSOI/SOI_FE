@@ -97,8 +97,10 @@ class PostController extends ChangeNotifier {
     int? userId,
     required String nickName,
     String? content,
-    List<String> postFileKey = const [],
-    List<String> audioFileKey = const [],
+    List<String> postFileKey =
+        const [], // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
+    List<String> audioFileKey =
+        const [], // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
     List<int> categoryIds = const [],
     String? waveformData,
     int? duration,
@@ -121,8 +123,9 @@ class PostController extends ChangeNotifier {
         userId: userId,
         nickName: nickName,
         content: content,
-        postFileKey: postFileKey,
-        audioFileKey: audioFileKey,
+        postFileKey: postFileKey, // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
+        audioFileKey:
+            audioFileKey, // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
         categoryIds: categoryIds,
         waveformData: waveformData,
         duration: duration,
@@ -138,48 +141,6 @@ class PostController extends ChangeNotifier {
       _setError('게시물 생성 실패: $e');
       _setLoading(false);
       return false;
-    }
-  }
-
-  /// 게시물 생성 후 ID 반환 (UI 전용)
-  Future<int?> createPostAndReturnId({
-    required int userId,
-    required String nickName,
-    String? content,
-    List<int> categoryIds = const [],
-    String? postFileKey,
-    String? audioFileKey,
-    String? waveformData,
-    int? duration,
-    double? savedAspectRatio,
-    bool? isFromGallery,
-    PostType? postType,
-  }) async {
-    debugPrint("[PostController] createPostAndReturnId 호출됨");
-    try {
-      debugPrint("[PostController] 전달된 nickName: $nickName");
-      debugPrint("[PostController] 전달된 content: $content");
-      debugPrint("[PostController] 전달된 categoryIds: $categoryIds");
-      debugPrint("[PostController] 전달된 postFileKey: $postFileKey");
-      debugPrint("[PostController] 전달된 audioFileKey: $audioFileKey");
-      debugPrint("[PostController] 전달된 waveformData: $waveformData");
-      debugPrint("[PostController] 전달된 duration: $duration");
-      return await _postService.createPostAndReturnId(
-        userId: userId,
-        nickName: nickName,
-        content: content,
-        categoryIds: categoryIds,
-        postFileKey: postFileKey,
-        audioFileKey: audioFileKey,
-        waveformData: waveformData,
-        duration: duration,
-        savedAspectRatio: savedAspectRatio,
-        isFromGallery: isFromGallery,
-        postType: postType,
-      );
-    } catch (e) {
-      _setError('[PostController]게시물 생성 실패: $e');
-      return null;
     }
   }
 

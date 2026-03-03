@@ -37,26 +37,61 @@ class HomePageNavigationBar extends StatefulWidget {
 
 class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
   late int _currentPageIndex;
+  late final PageController _pageController; // 페이지 뷰 컨트롤러
   static const _inactiveColor = Color(0xff535252);
   static const _activeColor = Color(0xffffffff);
 
   void _setCurrentPageIndex(int index) {
     if (!mounted) return;
     if (_currentPageIndex == index) return;
-    setState(() {
-      _currentPageIndex = index;
-    });
+    _moveToPage(index, animate: false);
   }
 
   @override
   void initState() {
     super.initState();
-    _currentPageIndex = widget.currentPageIndex;
+    _currentPageIndex = widget.currentPageIndex; // 초기 페이지 인덱스 설정
+    _pageController = PageController(
+      initialPage: _currentPageIndex,
+    ); // 페이지 컨트롤러 초기화
     unawaited(CameraService.instance.prepareSessionIfPermitted());
   }
 
-  // 잘못된 프로필 이미지 URL을 확인하고 정리하는 함수
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
+  /// 페이지 이동 함수
+  void _moveToPage(int index, {bool animate = true}) {
+    if (!mounted) return;
+    if (_currentPageIndex != index) {
+      setState(() {
+        _currentPageIndex = index;
+      });
+    }
+
+    if (index == 2) {
+      unawaited(CameraService.instance.activateSession());
+    }
+
+    if (!_pageController.hasClients) return;
+
+    if (animate) {
+      // 페이지 이동 애니메이션
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+
+    _pageController.jumpToPage(index); // 즉시 페이지 이동 (애니메이션 없이)
+  }
+
+  // 잘못된 프로필 이미지 URL을 확인하고 정리하는 함수
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -71,13 +106,7 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
             backgroundColor: AppTheme.lightTheme.colorScheme.surface,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
             onDestinationSelected: (int index) {
-              if (index == 2) {
-                unawaited(CameraService.instance.activateSession());
-              }
-
-              setState(() {
-                _currentPageIndex = index;
-              });
+              _moveToPage(index); // 페이지 이동 함수 호출
             },
             selectedIndex: _currentPageIndex,
             destinations: <Widget>[
@@ -149,8 +178,17 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
           ),
         ),
       ),
-      body: IndexedStack(
-        index: _currentPageIndex,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          if (!mounted || _currentPageIndex == index) return;
+          setState(() {
+            _currentPageIndex = index;
+          });
+          if (index == 2) {
+            unawaited(CameraService.instance.activateSession());
+          }
+        },
         children: [
           _buildPage(0, const APIArchiveMainScreen()),
           _buildPage(1, const FeedHomeScreen()),

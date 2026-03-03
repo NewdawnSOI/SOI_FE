@@ -14,7 +14,6 @@ import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/controller/category_search_controller.dart';
 import 'package:soi/api/models/category.dart';
 import 'package:soi/api/models/friend.dart';
-import 'package:soi/views/about_archiving/models/archive_layout_model.dart';
 import '../../../theme/theme.dart';
 import '../../../utils/snackbar_utils.dart';
 import '../../../utils/video_thumbnail_cache.dart';
@@ -32,7 +31,6 @@ class APIArchiveMainScreen extends StatefulWidget {
 
 class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   int _selectedIndex = 0;
-  final ArchiveLayoutMode _layoutMode = ArchiveLayoutMode.grid;
 
   // 컨트롤러들
   final _categoryNameController = TextEditingController();
@@ -81,7 +79,6 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   // 탭 화면 목록을 동적으로 생성하는 메서드
   List<Widget> get _screens => [
     AllArchivesScreen(
-      layoutMode: _layoutMode,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
@@ -89,14 +86,12 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
     ),
 
     SharedArchivesScreen(
-      layoutMode: _layoutMode,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
       onStartEdit: startEditMode,
     ),
     MyArchivesScreen(
-      layoutMode: _layoutMode,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
@@ -644,6 +639,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
             Expanded(
               child: PageView(
                 controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
                 onPageChanged: (index) {
                   setState(() {
                     _selectedIndex = index;

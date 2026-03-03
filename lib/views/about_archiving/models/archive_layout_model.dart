@@ -1,1 +1,0 @@
-enum ArchiveLayoutMode { grid, list }
