@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 
+/// 게시물 관리 화면
+/// 게시물 관리 기능을 제공하는 화면입니다.
+/// 현재는 아카이브 관리 기능만 포함되어 있으며, 보관된 게시물 기능은 추후 추가 예정입니다.
 class PostManagementScreen extends StatefulWidget {
   const PostManagementScreen({super.key});
 

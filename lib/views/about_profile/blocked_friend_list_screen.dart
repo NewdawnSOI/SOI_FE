@@ -11,6 +11,9 @@ import '../../api/controller/user_controller.dart';
 import '../../api/models/friend.dart';
 import '../../api/models/user.dart';
 
+/// 차단된 친구 목록 화면
+/// 사용자가 차단한 친구들의 목록을 보여주는 화면입니다.
+/// 각 친구 항목에서는 친구의 프로필 이미지, 이름, 아이디를 표시하며, 차단 해제 버튼을 제공합니다. 사용자는 이 화면에서 차단된 친구를 관리할 수 있습니다.
 class BlockedFriendListScreen extends StatefulWidget {
   const BlockedFriendListScreen({super.key});
 

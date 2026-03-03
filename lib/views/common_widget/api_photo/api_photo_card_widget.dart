@@ -7,10 +7,10 @@ import '../../../api/models/comment.dart';
 import '../../../api/controller/audio_controller.dart';
 import 'api_photo_display_widget.dart';
 import 'api_user_info_widget.dart';
-import '../about_comment_version_2/comment_composer_v2_widget.dart';
-import '../about_comment_version_2/comment_media_tag_preview_widget.dart';
-import '../about_comment_version_1/api_voice_comment_list_sheet.dart';
-import '../about_comment_version_1/pending_api_voice_comment.dart';
+import '../about_comment/comment_composer_v2_widget.dart';
+import '../about_comment/comment_media_tag_preview_widget.dart';
+import '../about_comment/api_voice_comment_list_sheet.dart';
+import '../about_comment/pending_api_voice_comment.dart';
 import '../report/report_bottom_sheet.dart';
 import 'tag_pointer.dart';
 

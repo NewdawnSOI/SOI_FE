@@ -106,7 +106,8 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
       /// 카테고리 초기 로드
       await _categoryController!.loadCategories(
         currentUser.id,
-        fetchAllPages: true,
+        forceReload: false, // 강제 새로고침 없이 캐시 활용
+        fetchAllPages: true, // 모든 페이지를 로드하여 완전한 목록 확보
         maxPages: 2, // 처음 로드 시 최대 2페이지만 로드
       );
       if (mounted) {

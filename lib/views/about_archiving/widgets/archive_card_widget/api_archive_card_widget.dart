@@ -61,14 +61,28 @@ class ApiArchiveCardWidget extends StatelessWidget {
     return _buildGridLayout(context);
   }
 
-  String _buildCategoryHeaderHeroTag(int categoryId) =>
-      'archive_category_header_$categoryId';
+  /// 이미지의 URL 주소에서 불필요한 부분(쿼리 파라미터와 프래그먼트)을 제거하는 함수입니다.
+  ///
+  /// 예를 들어 'https://example.com/image.jpg?size=large#section' 같은 URL에서
+  /// '?size=large'와 '#section' 부분을 없애서 'https://example.com/image.jpg'으로 만듭니다.
+  ///
+  /// 이렇게 정리된 URL을 이미지 캐시의 키(식별자)로 사용하여 같은 이미지를
+  /// 효율적으로 저장하고 불러올 수 있습니다.
+  /// 이미지 URL에서 쿼리 파라미터와 프래그먼트를 제거하여 캐시 키로 사용하기 위한 정규화 함수
+  String _normalizeImageUrlForCache(String rawUrl) {
+    final uri = Uri.tryParse(rawUrl);
+    return uri?.replace(query: '', fragment: '').toString() ?? rawUrl;
+  }
+
+  String _buildCategoryImageCacheKey(int categoryId, String photoUrl) {
+    final normalizedUrl = _normalizeImageUrlForCache(photoUrl);
+    return 'archive_category_image_${categoryId}_$normalizedUrl';
+  }
 
   Route<void> _buildCategoryPhotosRoute({
     required BuildContext context,
     required api_category.Category category,
     required CategoryHeaderImagePrefetch? prefetchedHeaderImage,
-    required String? entryHeroTag,
   }) {
     final platform = Theme.of(context).platform;
     final useGestureBackRoute =
@@ -79,7 +93,6 @@ class ApiArchiveCardWidget extends StatelessWidget {
         builder: (_) => ApiCategoryPhotosScreen(
           category: category,
           prefetchedHeaderImage: prefetchedHeaderImage,
-          entryHeroTag: entryHeroTag,
         ),
       );
     }
@@ -90,7 +103,6 @@ class ApiArchiveCardWidget extends StatelessWidget {
       pageBuilder: (_, animation, __) => ApiCategoryPhotosScreen(
         category: category,
         prefetchedHeaderImage: prefetchedHeaderImage,
-        entryHeroTag: entryHeroTag,
       ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final curved = CurvedAnimation(
@@ -117,11 +129,6 @@ class ApiArchiveCardWidget extends StatelessWidget {
                   CategoryHeaderImagePrefetch.fromCategory(
                     latestCategory,
                   ); // 프리페칭 페이로드 생성
-              final hasHeaderImage =
-                  latestCategory.photoUrl?.isNotEmpty == true;
-              final entryHeroTag = hasHeaderImage
-                  ? _buildCategoryHeaderHeroTag(latestCategory.id)
-                  : null;
               if (headerImagePrefetch != null) {
                 // 프리페칭: 네비게이션 시작과 동시에 헤더 이미지 프리페칭
                 _prefetchCategoryHeaderImage(context, headerImagePrefetch);
@@ -151,7 +158,6 @@ class ApiArchiveCardWidget extends StatelessWidget {
                   context: context,
                   category: latestCategory,
                   prefetchedHeaderImage: headerImagePrefetch,
-                  entryHeroTag: entryHeroTag,
                 ),
               );
             },
@@ -270,9 +276,9 @@ class ApiArchiveCardWidget extends StatelessWidget {
           final imageCard = ClipRRect(
             borderRadius: BorderRadius.circular(borderRadius),
             child: CachedNetworkImage(
-              key: ValueKey('${category.id}_${photoUrl}_$layoutMode'),
+              key: ValueKey('category_image_${category.id}_$layoutMode'),
               imageUrl: photoUrl,
-              cacheKey: '${category.id}_$photoUrl',
+              cacheKey: _buildCategoryImageCacheKey(category.id, photoUrl),
               fadeInDuration: Duration.zero,
               fadeOutDuration: Duration.zero,
               useOldImageOnUrlChange: true,
@@ -296,7 +302,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
               // shimmer placeholder 및 에러 위젯 처리
               // shimmer는 한번만 보여주고, 이후에는 기본 아이콘을 보여줍니다.
               placeholder: (context, url) => ShimmerOnceThenFallbackIcon(
-                key: ValueKey('ph_${category.id}_$photoUrl'),
+                key: ValueKey('ph_${category.id}_$layoutMode'),
                 width: width,
                 height: height,
                 borderRadius: borderRadius,
@@ -316,13 +322,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
               ),
             ),
           );
-          return Hero(
-            tag: _buildCategoryHeaderHeroTag(category.id),
-            createRectTween: (begin, end) =>
-                MaterialRectArcTween(begin: begin, end: end),
-            transitionOnUserGestures: true,
-            child: imageCard,
-          );
+          return imageCard;
         }
 
         return ClipRRect(

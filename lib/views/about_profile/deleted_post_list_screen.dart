@@ -9,6 +9,9 @@ import 'package:soi/api/controller/post_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/post.dart';
 
+/// 삭제된 게시물 목록 화면
+/// 사용자가 삭제한 게시물들을 보여주는 화면입니다.
+/// 사용자는 이 화면에서 삭제된 게시물을 선택하여 복원할 수 있습니다.
 class DeletedPostListScreen extends StatefulWidget {
   const DeletedPostListScreen({super.key});
 

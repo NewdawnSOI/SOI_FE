@@ -654,12 +654,9 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
                   _applySearch();
                 },
                 children: List<Widget>.generate(screens.length, (index) {
-                  return HeroMode(
-                    enabled: _selectedIndex == index,
-                    child: KeyedSubtree(
-                      key: ValueKey('archive_tab_$index'),
-                      child: screens[index],
-                    ),
+                  return KeyedSubtree(
+                    key: ValueKey('archive_tab_$index'),
+                    child: screens[index],
                   );
                 }),
               ),

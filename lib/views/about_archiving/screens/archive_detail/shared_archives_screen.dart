@@ -85,7 +85,8 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
       await categoryController.loadCategories(
         currentUser.id,
         filter: CategoryFilter.public_,
-        fetchAllPages: true,
+        forceReload: false, // 강제 새로고침 없이 캐시 활용
+        fetchAllPages: true, // 모든 페이지를 로드하여 완전한 목록 확보
         maxPages: 2,
       );
       if (mounted) {

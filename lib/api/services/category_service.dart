@@ -52,6 +52,8 @@ enum CategoryInviteStatus {
 /// ```
 class CategoryService {
   final CategoryAPIApi _categoryApi;
+  final Map<String, Future<List<Category>>> _inFlightCategoryQueries =
+      {}; // 중복 API 호출 방지용 캐시
 
   CategoryService({CategoryAPIApi? categoryApi})
     : _categoryApi = categoryApi ?? SoiApiClient.instance.categoryApi;
@@ -71,10 +73,6 @@ class CategoryService {
   /// - [isPublic]: 공개 여부 (true: 그룹, false: 개인)
   ///
   /// Returns: 생성된 카테고리 ID (int)
-  ///
-  /// Throws:
-  /// - [BadRequestException]: 필수 정보 누락
-  /// - [SoiApiException]: 카테고리 생성 실패
   Future<int> createCategory({
     required int requesterId,
     required String name,
@@ -89,7 +87,9 @@ class CategoryService {
         isPublic: isPublic,
       );
 
-      final response = await _categoryApi.create4(dto);
+      final response = await _categoryApi.create4(
+        dto,
+      ); // API 명세에 따라 create4로 호출
 
       if (response == null) {
         throw const DataValidationException(message: '카테고리 생성 응답이 없습니다.');
@@ -155,63 +155,45 @@ class CategoryService {
   /// - [fetchAllPages]: 모든 페이지를 조회할지 여부 (기본값: true)
   /// - [maxPages]: 최대 조회 페이지 수 (기본값: 50)
   ///
-  /// Returns: 카테고리 목록 (List<Category>)
+  /// Returns: 카테고리 목록 (`List<Category>`)
   Future<List<Category>> getCategories({
     required int userId,
     CategoryFilter filter = CategoryFilter.all,
     int page = 0,
-    bool fetchAllPages = true,
+    bool fetchAllPages = true, // 페이지네이션이 필요한 경우 true로 설정 (기본값: true)
     int maxPages = 50,
   }) async {
+    final normalizedPage = page < 0 ? 0 : page;
+    final normalizedMaxPages = maxPages < 1 ? 1 : maxPages;
+
+    // 요청 파라미터를 조합하여 고유 키 생성 (중복 API 호출 방지용)
+    final requestKey = [
+      userId,
+      filter.value,
+      normalizedPage,
+      fetchAllPages,
+      normalizedMaxPages,
+    ].join(':');
+
+    final inFlight =
+        _inFlightCategoryQueries[requestKey]; // 동일한 요청이 이미 진행 중인지 확인
+    if (inFlight != null) {
+      return inFlight; // 진행 중인 요청이 있으면 해당 Future를 반환하여 중복 API 호출 방지
+    }
+
+    // 새로운 요청이므로 API 호출 시작
+    // API 호출을 Future로 저장하여 다른 동일 요청이 들어올 때 재사용할 수 있도록 함
+    final task = _getCategoriesInternal(
+      userId: userId,
+      filter: filter,
+      page: normalizedPage,
+      fetchAllPages: fetchAllPages,
+      maxPages: normalizedMaxPages,
+    );
+    _inFlightCategoryQueries[requestKey] = task; // 요청 키에 대한 진행 중인 작업 저장
+
     try {
-      // 단일 페이지 조회
-      if (!fetchAllPages) {
-        final dtos = await _fetchCategoryPage(
-          filterValue: filter.value,
-          userId: userId,
-          page: page,
-        );
-        return dtos.map((dto) => Category.fromDto(dto)).toList();
-      }
-
-      // 전체 페이지 조회
-      final allCategories = <Category>[];
-      final seenIds = <int>{};
-      var currentPage = page;
-      int? firstPageSize;
-
-      for (var i = 0; i < maxPages; i++) {
-        final dtos = await _fetchCategoryPage(
-          filterValue: filter.value,
-          userId: userId,
-          page: currentPage,
-        );
-
-        if (dtos.isEmpty) break;
-
-        // 첫 페이지 크기를 기록하여 마지막 페이지 감지에 활용
-        firstPageSize ??= dtos.length;
-
-        // DTO id로 중복 체크 후 Category 객체 생성 (불필요한 객체 생성 방지)
-        var addedCount = 0;
-        for (final dto in dtos) {
-          final dtoId = dto.id;
-          if (dtoId != null && seenIds.add(dtoId)) {
-            allCategories.add(Category.fromDto(dto));
-            addedCount++;
-          }
-        }
-
-        // 서버가 같은 페이지를 반복 반환할 경우 무한 루프 방지
-        if (addedCount == 0) break;
-
-        // 마지막 페이지 감지: 반환 항목이 첫 페이지보다 적으면 종료
-        if (dtos.length < firstPageSize) break;
-
-        currentPage++;
-      }
-
-      return allCategories;
+      return await task;
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {
@@ -219,7 +201,75 @@ class CategoryService {
     } catch (e) {
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '카테고리 목록 조회 실패: $e', originalException: e);
+    } finally {
+      // API 호출이 완료된 후에도 동일한 요청이 들어올 수 있으므로,
+      // 등록된 작업이 현재 작업과 동일한 경우에만 제거하여 중복 API 호출 방지 로직 유지
+      final registeredTask = _inFlightCategoryQueries[requestKey];
+      if (identical(registeredTask, task)) {
+        // 현재 작업이 등록된 작업과 동일한 경우에만 제거
+        _inFlightCategoryQueries.remove(requestKey);
+      }
     }
+  }
+
+  /// 카테고리 목록 조회 내부 구현
+  /// API 호출과 페이지네이션 로직을 처리합니다.
+  /// 중복 API 호출 방지 로직은 getCategories()에서 처리하므로 이 메서드는 단일 요청에 집중할 수 있습니다.
+  Future<List<Category>> _getCategoriesInternal({
+    required int userId,
+    required CategoryFilter filter,
+    required int page,
+    required bool fetchAllPages,
+    required int maxPages,
+  }) async {
+    // 단일 페이지 조회
+    if (!fetchAllPages) {
+      final dtos = await _fetchCategoryPage(
+        filterValue: filter.value,
+        userId: userId,
+        page: page,
+      );
+      return dtos.map((dto) => Category.fromDto(dto)).toList();
+    }
+
+    // 전체 페이지 조회
+    final allCategories = <Category>[];
+    final seenIds = <int>{};
+    var currentPage = page;
+    int? firstPageSize;
+
+    for (var i = 0; i < maxPages; i++) {
+      final dtos = await _fetchCategoryPage(
+        filterValue: filter.value,
+        userId: userId,
+        page: currentPage,
+      );
+
+      if (dtos.isEmpty) break;
+
+      // 첫 페이지 크기를 기록하여 마지막 페이지 감지에 활용
+      firstPageSize ??= dtos.length;
+
+      // DTO id로 중복 체크 후 Category 객체 생성 (불필요한 객체 생성 방지)
+      var addedCount = 0;
+      for (final dto in dtos) {
+        final dtoId = dto.id;
+        if (dtoId != null && seenIds.add(dtoId)) {
+          allCategories.add(Category.fromDto(dto));
+          addedCount++;
+        }
+      }
+
+      // 서버가 같은 페이지를 반복 반환할 경우 무한 루프 방지
+      if (addedCount == 0) break;
+
+      // 마지막 페이지 감지: 반환 항목이 첫 페이지보다 적으면 종료
+      if (dtos.length < firstPageSize) break;
+
+      currentPage++;
+    }
+
+    return allCategories;
   }
 
   // ============================================

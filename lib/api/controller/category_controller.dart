@@ -73,7 +73,7 @@ class CategoryController extends ChangeNotifier {
     model.CategoryFilter filter = model.CategoryFilter.all,
     bool forceReload = true,
     int page = 0,
-    bool fetchAllPages = true,
+    bool fetchAllPages = true, // 페이지네이션이 필요한 경우 true로 설정 (기본값: true)
     int maxPages = 50,
   }) async {
     final now = DateTime.now();

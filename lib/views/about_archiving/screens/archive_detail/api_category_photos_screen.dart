@@ -45,13 +45,11 @@ import 'package:flutter/foundation.dart' as foundation show kDebugMode;
 class ApiCategoryPhotosScreen extends StatefulWidget {
   final Category category;
   final CategoryHeaderImagePrefetch? prefetchedHeaderImage;
-  final String? entryHeroTag;
 
   const ApiCategoryPhotosScreen({
     super.key,
     required this.category,
     this.prefetchedHeaderImage,
-    this.entryHeroTag,
   });
 
   @override
@@ -200,7 +198,7 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
     _applyPendingDeletedPostsFromDetail();
     if (!_needsRefreshOnVisible) return;
 
-    // 상세 -> 목록 복귀 직후 Hero/레이아웃 안정화를 위해 약간 지연 후 새로고침합니다.
+    // 상세 -> 목록 복귀 직후 레이아웃 안정화를 위해 약간 지연 후 새로고침합니다.
     _deferredVisibleRefreshTimer?.cancel();
     _deferredVisibleRefreshTimer = Timer(const Duration(milliseconds: 260), () {
       if (!mounted || !_isRouteVisible || !_needsRefreshOnVisible) return;
@@ -847,7 +845,6 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
               category: _currentCategory,
               backgroundImageUrl: _headerImagePrefetch?.imageUrl,
               backgroundImageCacheKey: _headerImagePrefetch?.cacheKey,
-              heroTag: widget.entryHeroTag,
               collapsedHeight: collapsedHeight,
               expandedHeight: expandedHeight,
               onBackPressed: () => Navigator.of(context).maybePop(),

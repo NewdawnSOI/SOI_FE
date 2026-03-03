@@ -19,8 +19,8 @@ import '../../../utils/position_converter.dart';
 import '../../about_archiving/screens/archive_detail/api_category_photos_screen.dart';
 import 'first_line_ellipsis_text.dart';
 import 'api_audio_control_widget.dart';
-import '../about_comment_version_1/api_voice_comment_list_sheet.dart';
-import '../about_comment_version_1/pending_api_voice_comment.dart';
+import '../about_comment/api_voice_comment_list_sheet.dart';
+import '../about_comment/pending_api_voice_comment.dart';
 import 'tag_pointer.dart';
 
 part 'extension/api_photo_display_widget_video.dart';
