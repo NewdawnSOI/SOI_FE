@@ -14,7 +14,7 @@ import '../api/services/camera_service.dart';
 class HomePageNavigationBar extends StatefulWidget {
   final int currentPageIndex;
 
-  /// 전역에서 홈 탭(Archive/Feed/Camera/Friend/Profile)을 바꾸기 위한 키입니다.
+  /// 전역에서 홈 탭(Feed/Archive/Camera/Friend/Profile)을 바꾸기 위한 키입니다.
   ///
   /// (배포버전 프리즈 방지) `pushAndRemoveUntil`로 홈을 "새로" 만드는 대신,
   /// 기존 홈을 유지한 채 탭만 바꾸도록 유도합니다.
@@ -190,8 +190,8 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
           }
         },
         children: [
-          _buildPage(0, const APIArchiveMainScreen()),
-          _buildPage(1, const FeedHomeScreen()),
+          _buildPage(0, const FeedHomeScreen()),
+          _buildPage(1, const APIArchiveMainScreen()),
           _buildPage(2, CameraScreen(isActive: _currentPageIndex == 2)),
           _buildPage(3, const FriendManagementScreen()),
           _buildPage(4, const ProfileScreen()),

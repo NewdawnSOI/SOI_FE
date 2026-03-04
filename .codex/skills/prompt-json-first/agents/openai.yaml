@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prompt JSON First"
+  short_description: "Convert a request into JSON, then execute it."
+  default_prompt: "Convert user prompt to JSON schema and perform the task."

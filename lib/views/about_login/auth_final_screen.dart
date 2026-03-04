@@ -141,7 +141,7 @@ class _AuthFinalScreenState extends State<AuthFinalScreen> {
         context,
         MaterialPageRoute(
           builder: (context) =>
-              const HomePageNavigationBar(currentPageIndex: 1),
+              const HomePageNavigationBar(currentPageIndex: 0),
         ),
         (route) => false,
       );
