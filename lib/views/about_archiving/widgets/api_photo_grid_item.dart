@@ -71,8 +71,8 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   static const _kForwardTransitionDuration = Duration(milliseconds: 260);
   static const _kReverseTransitionDuration = Duration(milliseconds: 220);
   static const double _kMediaAspectRatio = 170 / 204;
-  static const double _kTextOnlyMaxWidth = 170;
-  static const double _kTextOnlyMaxHeight = 204;
+  double get _textOnlyMaxWidth => 170.sp;
+  double get _textOnlyMaxHeight => 204.sp;
   bool _isNavigatingToDetail = false; // 상세 화면으로 이동 중인지 여부 (중복 방지)
 
   // 프로필 이미지 캐시
@@ -264,7 +264,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final heroChild = _isTextOnlyPost
-            ? _buildTextOnlyCard(math.min(width, _kTextOnlyMaxWidth))
+            ? _buildTextOnlyCard(math.min(width, _textOnlyMaxWidth))
             : SizedBox(
                 width: width,
                 height: width / _kMediaAspectRatio,
@@ -472,25 +472,29 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   ///   - SliverToBoxAdapter를 사용하여 화면 중앙에 "사진이 없습니다" 메시지를 표시
   Widget _buildTextOnlyCard(double cardWidth) {
     final text = widget.post.content?.trim() ?? '';
-    final outerHorizontalPadding = 18.w;
-    final outerTopPadding = 18.h;
-    final outerBottomPadding = 56.h;
+    final outerHorizontalPadding = 18.sp;
+    final outerTopPadding = 18.sp;
+    final outerBottomPadding = 56.sp;
+    final textScaler = MediaQuery.textScalerOf(context);
     final maxTextHeight = math.max(
       0.0,
-      _kTextOnlyMaxHeight - outerTopPadding - outerBottomPadding,
+      _textOnlyMaxHeight - outerTopPadding - outerBottomPadding,
     );
     final textMaxWidth = math.max(
       0.0,
       cardWidth - (outerHorizontalPadding * 2),
     );
-    final textStyle = _resolveTextOnlyStyle(
+    final textLayout = _resolveTextOnlyLayout(
       text: text,
       maxWidth: textMaxWidth,
       maxHeight: maxTextHeight,
+      textScaler: textScaler,
     );
     final cardHeight = math.min(
-      _kTextOnlyMaxHeight,
-      textStyle.painter.height + outerTopPadding + outerBottomPadding,
+      _textOnlyMaxHeight,
+      textLayout.painter.height.ceilToDouble() +
+          outerTopPadding +
+          outerBottomPadding,
     );
 
     return SizedBox(
@@ -518,7 +522,10 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
               child: Text(
                 text,
                 textAlign: TextAlign.center,
-                style: textStyle.style,
+                style: textLayout.style,
+                maxLines: textLayout.maxLines,
+                overflow: TextOverflow.ellipsis,
+                textScaler: textScaler,
               ),
             ),
           ),
@@ -527,59 +534,191 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     );
   }
 
-  _ResolvedTextStyle _resolveTextOnlyStyle({
+  _ResolvedTextLayout _resolveTextOnlyLayout({
     required String text,
     required double maxWidth,
     required double maxHeight,
+    required TextScaler textScaler,
   }) {
+    // 기본 스타일 설정
     final baseStyle = TextStyle(
       color: const Color(0xfff8f8f8),
-      fontSize: 30.sp,
+      fontSize: 20.sp,
       fontFamily: 'Pretendard Variable',
       fontWeight: FontWeight.w500,
       height: 1.25,
     );
-    const minFontSize = 8.0;
+    const minFontSize = 5.0; // 최소 폰트 크기 설정
+    final heightSafetyPadding = 4.sp; // 하단 글리프 잘림 방지를 위한 여유값
 
-    TextStyle selectedStyle = baseStyle;
-    TextPainter selectedPainter = TextPainter(
-      text: TextSpan(text: text, style: baseStyle),
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: maxWidth);
+    TextStyle selectedStyle = baseStyle; // 최종 선택된 스타일 (초기값은 기본 스타일)
+    int? selectedMaxLines;
+    TextPainter selectedPainter = _buildTextPainter(
+      text: text,
+      style: baseStyle,
+      maxWidth: maxWidth,
+      maxLines: null,
+      ellipsis: null,
+      textScaler: textScaler,
+    );
 
-    final baseFont = baseStyle.fontSize ?? 30.0;
-    var fitFound = false;
+    final baseFont = baseStyle.fontSize ?? 20.0; // 기본 폰트 크기
+    var fitFound = false; // 텍스트가 최대 높이 내에 맞는 스타일을 찾았는지 여부
+
+    // 폰트 크기를 줄여가며 텍스트가 최대 높이 내에 맞는지 확인하는 반복문
     for (double fontSize = baseFont; fontSize >= minFontSize; fontSize -= 1) {
-      final style = baseStyle.copyWith(fontSize: fontSize);
-      final painter = TextPainter(
-        text: TextSpan(text: text, style: style),
-        textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: maxWidth);
+      final style = baseStyle.copyWith(fontSize: fontSize); // 폰트 크기 조정
+
+      final fullPainter = _buildTextPainter(
+        text: text,
+        style: style,
+        maxWidth: maxWidth,
+        maxLines: null,
+        ellipsis: null,
+        textScaler: textScaler,
+      );
+
+      // 전체 텍스트가 들어가면 ellipsis 없이 확정
+      if (fullPainter.height <= maxHeight - heightSafetyPadding) {
+        selectedStyle = style;
+        selectedMaxLines = null;
+        selectedPainter = fullPainter;
+        fitFound = true; // 텍스트가 최대 높이 내에 맞는 경우, 반복 종료
+        break;
+      }
+
+      // 전체 텍스트가 안 들어가는 경우, 들어갈 수 있는 최대 줄수로 ellipsis 처리
+      final fittedMaxLines = _findFittingMaxLines(
+        text: text,
+        style: style,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight - heightSafetyPadding,
+        textScaler: textScaler,
+      );
+      final ellipsisPainter = _buildTextPainter(
+        text: text,
+        style: style,
+        maxWidth: maxWidth,
+        maxLines: fittedMaxLines,
+        ellipsis: '...',
+        textScaler: textScaler,
+      );
+
       selectedStyle = style;
-      selectedPainter = painter;
-      if (painter.height <= maxHeight) {
+      selectedMaxLines = fittedMaxLines;
+      selectedPainter = ellipsisPainter;
+
+      if (ellipsisPainter.height <= maxHeight - heightSafetyPadding) {
         fitFound = true;
         break;
       }
     }
 
     if (!fitFound && selectedPainter.height > 0 && maxHeight > 0) {
-      final scaleRatio = maxHeight / selectedPainter.height;
+      final scaleRatio = maxHeight / selectedPainter.height; // 높이에 맞춰 비율 계산
+      // 폰트 크기 스케일링 (최소 폰트 크기 이하로는 줄이지 않음)
       final scaledFontSize = math.max(
-        1.0,
+        minFontSize,
         (selectedStyle.fontSize ?? minFontSize) * scaleRatio,
       );
+      // 스타일 업데이트 - 폰트 크기만 조정
       selectedStyle = selectedStyle.copyWith(fontSize: scaledFontSize);
-      selectedPainter = TextPainter(
-        text: TextSpan(text: text, style: selectedStyle),
-        textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: maxWidth);
+      selectedMaxLines = _findFittingMaxLines(
+        text: text,
+        style: selectedStyle,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight - heightSafetyPadding,
+        textScaler: textScaler,
+      );
+
+      // 스타일 업데이트 후 텍스트 레이아웃 재계산
+      selectedPainter = _buildTextPainter(
+        text: text,
+        style: selectedStyle,
+        maxWidth: maxWidth,
+        maxLines: selectedMaxLines,
+        ellipsis: '...',
+        textScaler: textScaler,
+      );
     }
 
-    return _ResolvedTextStyle(style: selectedStyle, painter: selectedPainter);
+    return _ResolvedTextLayout(
+      style: selectedStyle,
+      maxLines: selectedMaxLines,
+      painter: selectedPainter,
+    );
+  }
+
+  /// 주어진 스타일/영역에서 ellipsis를 포함해 들어갈 수 있는 최대 줄 수를 계산하는 함수
+  ///
+  /// Parameters:
+  ///   - [text]: 레이아웃을 계산할 텍스트
+  ///   - [style]: 텍스트 스타일 (폰트 크기, 줄 높이 등)
+  ///   - [maxWidth]: 텍스트가 차지할 수 있는 최대 너비
+  ///   - [maxHeight]: 텍스트가 차지할 수 있는 최대 높이
+  ///
+  /// Returns:
+  ///   - 최대 줄 수 (1 이상)
+  int _findFittingMaxLines({
+    required String text,
+    required TextStyle style,
+    required double maxWidth,
+    required double maxHeight,
+    required TextScaler textScaler,
+  }) {
+    if (maxHeight <= 0) return 1;
+    final fontSize = style.fontSize ?? 14.0;
+    final lineHeight = fontSize * (style.height ?? 1.0);
+    final roughMaxLines = lineHeight > 0
+        ? math.max(1, (maxHeight / lineHeight).ceil() + 2)
+        : 20;
+
+    var best = 1;
+    for (int lines = 1; lines <= roughMaxLines; lines++) {
+      final painter = _buildTextPainter(
+        text: text,
+        style: style,
+        maxWidth: maxWidth,
+        maxLines: lines,
+        ellipsis: '...',
+        textScaler: textScaler,
+      );
+      if (painter.height <= maxHeight) {
+        best = lines;
+      } else {
+        break;
+      }
+    }
+
+    return best;
+  }
+
+  /// 텍스트 레이아웃을 계산하는 함수
+  ///
+  /// Parameters:
+  ///   - [text]: 레이아웃을 계산할 텍스트
+  ///   - [style]: 텍스트 스타일
+  ///   - [maxWidth]: 텍스트가 차지할 수 있는 최대 너비
+  ///   - [maxLines]: 텍스트가 차지할 수 있는 최대 줄 수
+  ///
+  /// Returns:
+  ///   - TextPainter: 계산된 텍스트 레이아웃 정보를 담은 TextPainter 객체
+  TextPainter _buildTextPainter({
+    required String text,
+    required TextStyle style,
+    required double maxWidth,
+    required int? maxLines,
+    required String? ellipsis,
+    required TextScaler textScaler,
+  }) {
+    return TextPainter(
+      text: TextSpan(text: text, style: style),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+      textScaler: textScaler,
+      maxLines: maxLines,
+      ellipsis: ellipsis,
+    )..layout(maxWidth: maxWidth);
   }
 
   /// 프로필 이미지 빌드
@@ -642,9 +781,14 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   }
 }
 
-class _ResolvedTextStyle {
+class _ResolvedTextLayout {
   final TextStyle style;
+  final int? maxLines;
   final TextPainter painter;
 
-  const _ResolvedTextStyle({required this.style, required this.painter});
+  const _ResolvedTextLayout({
+    required this.style,
+    required this.maxLines,
+    required this.painter,
+  });
 }
