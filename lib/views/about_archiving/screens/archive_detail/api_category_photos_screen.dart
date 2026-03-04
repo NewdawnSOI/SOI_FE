@@ -803,15 +803,9 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
     );
   }
 
-  /// 그리드 레이아웃을 구성하는 메서드
-  SliverGridDelegateWithFixedCrossAxisCount _buildPhotoGridDelegate() {
-    return SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      childAspectRatio: 170 / 204,
-      mainAxisSpacing: 11.sp,
-      crossAxisSpacing: 11.sp,
-    );
-  }
+  int get _gridCrossAxisCount => 2; // 그리드의 열 수
+  double get _gridMainAxisSpacing => 11.sp; // 그리드의 행 간격
+  double get _gridCrossAxisSpacing => 11.sp; // 그리드의 열 간격
 
   /// 그리드 패딩을 반환하는 게터
   EdgeInsets get _gridPadding => EdgeInsets.only(
@@ -867,7 +861,9 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
         // 로딩 중에는 로딩 슬리버만 표시
         ApiCategoryPhotosLoadingSliver(
           padding: _gridPadding,
-          gridDelegate: _buildPhotoGridDelegate(),
+          crossAxisCount: _gridCrossAxisCount,
+          mainAxisSpacing: _gridMainAxisSpacing,
+          crossAxisSpacing: _gridCrossAxisSpacing,
         ),
       ];
     }
@@ -893,7 +889,9 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
         categoryName: _currentCategory.name,
         categoryId: _currentCategory.id,
         padding: _gridPadding,
-        gridDelegate: _buildPhotoGridDelegate(),
+        crossAxisCount: _gridCrossAxisCount,
+        mainAxisSpacing: _gridMainAxisSpacing,
+        crossAxisSpacing: _gridCrossAxisSpacing,
         onPostsDeleted: _onPostsDeletedFromDetail,
       ),
     ];

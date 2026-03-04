@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -69,6 +70,9 @@ class ApiPhotoGridItem extends StatefulWidget {
 class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   static const _kForwardTransitionDuration = Duration(milliseconds: 260);
   static const _kReverseTransitionDuration = Duration(milliseconds: 220);
+  static const double _kMediaAspectRatio = 170 / 204;
+  static const double _kTextOnlyMaxWidth = 170;
+  static const double _kTextOnlyMaxHeight = 204;
   bool _isNavigatingToDetail = false; // 상세 화면으로 이동 중인지 여부 (중복 방지)
 
   // 프로필 이미지 캐시
@@ -182,11 +186,20 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
 
   String get _heroTag => 'archive_photo_${widget.categoryId}_${widget.post.id}';
 
+  /// 상세 화면으로 이동하는 함수
+  /// 중복 탭 방지 위해 이동 중에는 추가 탭 무시
+  ///
+  /// Parameters
+  /// - [context]: 빌드 컨텍스트
+  ///
+  /// Returns
+  /// - [Future<List<int>>] (상세 화면에서 삭제된 게시물 ID 리스트를 받아 상위 콜백으로 전달)
   Route<List<int>> _buildDetailRoute(BuildContext context) {
     final platform = Theme.of(context).platform;
     final useGestureBackRoute =
         platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
 
+    // iOS/macOS에서는 제스처 백이 자연스럽게 작동하는 MaterialPageRoute 사용
     if (useGestureBackRoute) {
       return MaterialPageRoute<List<int>>(
         builder: (_) => ApiPhotoDetailScreen(
@@ -198,6 +211,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       );
     }
 
+    // 그 외 플랫폼에서는 커스텀 페이지 라우트로 빠른 전환과 안정적인 Hero 애니메이션 구현
     return PageRouteBuilder<List<int>>(
       transitionDuration: _kForwardTransitionDuration,
       reverseTransitionDuration: _kReverseTransitionDuration,
@@ -215,21 +229,21 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   /// 상세 화면으로 이동하는 함수
   /// 중복 탭 방지 위해 이동 중에는 추가 탭 무시
   ///
-  /// Parameters:
-  /// - 없음
+  /// Parameters: null
   ///
   /// Returns: `Future<void>` (상세 화면에서 삭제된 게시물 ID 리스트를 받아 상위 콜백으로 전달)
   Future<void> _openDetailScreen() async {
     if (_isNavigatingToDetail) return;
     _isNavigatingToDetail = true;
-    final onPostsDeleted = widget.onPostsDeleted;
-    final detailRoute = _buildDetailRoute(context);
+    final onPostsDeleted =
+        widget.onPostsDeleted; // 삭제 콜백 참조 (null이 될 수 있으므로 지역 변수로 참조)
+    final detailRoute = _buildDetailRoute(context); // 상세 화면으로 이동하기 위한 라우트 생성
 
     try {
       final deletedPostIds = await Navigator.push<List<int>>(
         context,
         detailRoute,
-      );
+      ); // 상세 화면으로 이동하고, 삭제된 게시물 ID 리스트를 기다림
       if (deletedPostIds == null || deletedPostIds.isEmpty) return;
       // 상세 pop 역방향 Hero가 안정화된 뒤 목록을 갱신합니다.
       await Future<void>.delayed(_kReverseTransitionDuration);
@@ -240,58 +254,88 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     }
   }
 
+  /// Hero 미디어 카드를 빌드하는 함수
+  ///
+  /// Parameters: null
+  ///
+  /// Returns: Hero 위젯으로 감싸진 미디어 카드 (사진 또는 비디오 썸네일)
   Widget _buildHeroMediaCard() {
-    final mediaContent = _isTextOnlyPost
-        ? _buildTextOnlyCard()
-        : ClipRRect(
-            borderRadius: BorderRadius.circular(11),
-            child: widget.post.isVideo
-                ? _buildVideoThumbnail()
-                : (widget.postUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: widget.postUrl,
-                          // presigned URL이 바뀌어도 같은 파일이면 디스크 캐시 재사용
-                          cacheKey: widget.post.postFileKey,
-                          useOldImageOnUrlChange: true,
-                          fadeInDuration: Duration.zero,
-                          fadeOutDuration: Duration.zero,
-                          memCacheWidth: (170 * 2).round(),
-                          maxWidthDiskCache: (170 * 2).round(),
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Shimmer.fromColors(
-                            baseColor: Colors.grey.shade800,
-                            highlightColor: Colors.grey.shade700,
-                            period: const Duration(milliseconds: 1500),
-                            child: Container(color: Colors.grey.shade800),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey.shade800,
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.image,
-                              color: Colors.grey.shade600,
-                              size: 32.sp,
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: Colors.grey.shade800,
-                          alignment: Alignment.center,
-                          child: Icon(
-                            Icons.image,
-                            color: Colors.grey.shade600,
-                            size: 32.sp,
-                          ),
-                        )),
-          );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final heroChild = _isTextOnlyPost
+            ? _buildTextOnlyCard(math.min(width, _kTextOnlyMaxWidth))
+            : SizedBox(
+                width: width,
+                height: width / _kMediaAspectRatio,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    border: Border.all(
+                      color: const Color(0xff2b2b2b),
+                      width: 2.0,
+                    ),
+                    borderRadius: BorderRadius.circular(20.0),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18.0),
+                    child: widget.post.isVideo
+                        ? _buildVideoThumbnail()
+                        : (widget.postUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: widget.postUrl,
+                                  // presigned URL이 바뀌어도 같은 파일이면 디스크 캐시 재사용
+                                  cacheKey: widget.post.postFileKey,
+                                  useOldImageOnUrlChange: true,
+                                  fadeInDuration: Duration.zero,
+                                  fadeOutDuration: Duration.zero,
+                                  memCacheWidth: (170 * 2).round(),
+                                  maxWidthDiskCache: (170 * 2).round(),
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) =>
+                                      Shimmer.fromColors(
+                                        baseColor: Colors.grey.shade800,
+                                        highlightColor: Colors.grey.shade700,
+                                        period: const Duration(
+                                          milliseconds: 1500,
+                                        ),
+                                        child: Container(
+                                          color: Colors.grey.shade800,
+                                        ),
+                                      ),
+                                  errorWidget: (context, url, error) =>
+                                      Container(
+                                        color: Colors.grey.shade800,
+                                        alignment: Alignment.center,
+                                        child: Icon(
+                                          Icons.image,
+                                          color: Colors.grey.shade600,
+                                          size: 32.sp,
+                                        ),
+                                      ),
+                                )
+                              : Container(
+                                  color: Colors.grey.shade800,
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    Icons.image,
+                                    color: Colors.grey.shade600,
+                                    size: 32.sp,
+                                  ),
+                                )),
+                  ),
+                ),
+              );
 
-    return Hero(
-      tag: _heroTag,
-      createRectTween: (begin, end) =>
-          MaterialRectArcTween(begin: begin, end: end),
-      transitionOnUserGestures: true,
-      flightShuttleBuilder: _heroFlightShuttleBuilder,
-      child: SizedBox(width: 170.sp, height: 204.sp, child: mediaContent),
+        return Hero(
+          tag: _heroTag,
+          createRectTween: (begin, end) =>
+              MaterialRectArcTween(begin: begin, end: end),
+          transitionOnUserGestures: true,
+          flightShuttleBuilder: _heroFlightShuttleBuilder,
+          child: heroChild,
+        );
+      },
     );
   }
 
@@ -421,47 +465,121 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     );
   }
 
-  Widget _buildTextOnlyCard() {
+  /// 카테고리 사진 화면에서 사진이 "하나도 없을 때" 보여주는 슬리버 위젯
+  /// Parameters:
+  ///   - 없음
+  /// Returns:
+  ///   - SliverToBoxAdapter를 사용하여 화면 중앙에 "사진이 없습니다" 메시지를 표시
+  Widget _buildTextOnlyCard(double cardWidth) {
     final text = widget.post.content?.trim() ?? '';
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border.all(color: const Color(0xff2b2b2b), width: 2.0),
-        borderRadius: BorderRadius.circular(20.0),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18.0),
-        child: Container(
-          color: const Color(0xff1e1e1e),
-          alignment: Alignment.center,
-          padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 18.h),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.center,
-                  child: SizedBox(
-                    width: constraints.maxWidth,
-                    child: Text(
-                      text,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: const Color(0xfff8f8f8),
-                        fontSize: 30.sp,
-                        fontFamily: 'Pretendard Variable',
-                        fontWeight: FontWeight.w500,
-                        height: 1.25,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
+    final outerHorizontalPadding = 18.w;
+    final outerTopPadding = 18.h;
+    final outerBottomPadding = 56.h;
+    final maxTextHeight = math.max(
+      0.0,
+      _kTextOnlyMaxHeight - outerTopPadding - outerBottomPadding,
+    );
+    final textMaxWidth = math.max(
+      0.0,
+      cardWidth - (outerHorizontalPadding * 2),
+    );
+    final textStyle = _resolveTextOnlyStyle(
+      text: text,
+      maxWidth: textMaxWidth,
+      maxHeight: maxTextHeight,
+    );
+    final cardHeight = math.min(
+      _kTextOnlyMaxHeight,
+      textStyle.painter.height + outerTopPadding + outerBottomPadding,
+    );
+
+    return SizedBox(
+      width: cardWidth,
+      height: cardHeight,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border.all(color: const Color(0xff2b2b2b), width: 2.0),
+          borderRadius: BorderRadius.circular(20.0),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18.0),
+          child: Container(
+            color: const Color(0xff1e1e1e),
+            alignment: Alignment.center,
+            padding: EdgeInsets.only(
+              left: outerHorizontalPadding,
+              right: outerHorizontalPadding,
+              top: outerTopPadding,
+              bottom: outerBottomPadding,
+            ),
+            child: SizedBox(
+              width: textMaxWidth,
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: textStyle.style,
+              ),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  _ResolvedTextStyle _resolveTextOnlyStyle({
+    required String text,
+    required double maxWidth,
+    required double maxHeight,
+  }) {
+    final baseStyle = TextStyle(
+      color: const Color(0xfff8f8f8),
+      fontSize: 30.sp,
+      fontFamily: 'Pretendard Variable',
+      fontWeight: FontWeight.w500,
+      height: 1.25,
+    );
+    const minFontSize = 8.0;
+
+    TextStyle selectedStyle = baseStyle;
+    TextPainter selectedPainter = TextPainter(
+      text: TextSpan(text: text, style: baseStyle),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth);
+
+    final baseFont = baseStyle.fontSize ?? 30.0;
+    var fitFound = false;
+    for (double fontSize = baseFont; fontSize >= minFontSize; fontSize -= 1) {
+      final style = baseStyle.copyWith(fontSize: fontSize);
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: maxWidth);
+      selectedStyle = style;
+      selectedPainter = painter;
+      if (painter.height <= maxHeight) {
+        fitFound = true;
+        break;
+      }
+    }
+
+    if (!fitFound && selectedPainter.height > 0 && maxHeight > 0) {
+      final scaleRatio = maxHeight / selectedPainter.height;
+      final scaledFontSize = math.max(
+        1.0,
+        (selectedStyle.fontSize ?? minFontSize) * scaleRatio,
+      );
+      selectedStyle = selectedStyle.copyWith(fontSize: scaledFontSize);
+      selectedPainter = TextPainter(
+        text: TextSpan(text: text, style: selectedStyle),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: maxWidth);
+    }
+
+    return _ResolvedTextStyle(style: selectedStyle, painter: selectedPainter);
   }
 
   /// 프로필 이미지 빌드
@@ -522,4 +640,11 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       ),
     );
   }
+}
+
+class _ResolvedTextStyle {
+  final TextStyle style;
+  final TextPainter painter;
+
+  const _ResolvedTextStyle({required this.style, required this.painter});
 }

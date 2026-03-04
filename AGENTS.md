@@ -129,4 +129,9 @@ rg -n "supportedLocales|Locale\('en'\)|visibleFraction >= 0.6|cacheKey: widget.p
 - 한국어 상세: `docs/AI_AGENT_PLAYBOOK.md`
 - 영어 상세: `docs/AI_AGENT_PLAYBOOK.en.md`
 
+## 12. Skill 라우팅 강제 규칙
+- 모든 사용자 프롬프트는 구현/분석/실행 전에 반드시 `prompt-json-first` 스킬을 먼저 적용한다.
+- 다른 스킬이 함께 필요한 경우에도 순서는 항상 `prompt-json-first` -> 대상 스킬 순서를 유지한다.
+- 사용자가 특정 스킬만 명시했더라도, 충돌 지시가 없는 한 `prompt-json-first`를 선행 적용한다.
+
 이 파일은 "항상 적용되는 압축 규칙"이며, 상세 정책은 위 문서의 해당 섹션만 필요한 만큼 조회한다.
