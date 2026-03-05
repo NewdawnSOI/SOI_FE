@@ -471,6 +471,83 @@ class CategoryAPIApi {
     return null;
   }
 
+  /// 유저가 속한 카테고를 검색하는 API
+  ///
+  /// CategoryFilter : ALL, PUBLIC, PRIVATE -> 옵션에 따라서 전체, 그룹, 개인으로 가져올 수 있음, keyword에 검색어 입력, 만약 검색어가 null이거나 빈문자열일경우 그냥 전체 카테고리를 가져옴
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] categoryFilter (required):
+  ///
+  /// * [int] userId (required):
+  ///
+  /// * [String] keyword:
+  ///
+  /// * [int] page:
+  Future<Response> getCategories1WithHttpInfo(String categoryFilter, int userId, { String? keyword, int? page, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/category/find-by-keyword';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'categoryFilter', categoryFilter));
+      queryParams.addAll(_queryParams('', 'userId', userId));
+    if (keyword != null) {
+      queryParams.addAll(_queryParams('', 'keyword', keyword));
+    }
+    if (page != null) {
+      queryParams.addAll(_queryParams('', 'page', page));
+    }
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 유저가 속한 카테고를 검색하는 API
+  ///
+  /// CategoryFilter : ALL, PUBLIC, PRIVATE -> 옵션에 따라서 전체, 그룹, 개인으로 가져올 수 있음, keyword에 검색어 입력, 만약 검색어가 null이거나 빈문자열일경우 그냥 전체 카테고리를 가져옴
+  ///
+  /// Parameters:
+  ///
+  /// * [String] categoryFilter (required):
+  ///
+  /// * [int] userId (required):
+  ///
+  /// * [String] keyword:
+  ///
+  /// * [int] page:
+  Future<ApiResponseDtoListCategoryRespDto?> getCategories1(String categoryFilter, int userId, { String? keyword, int? page, }) async {
+    final response = await getCategories1WithHttpInfo(categoryFilter, userId,  keyword: keyword, page: page, );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoListCategoryRespDto',) as ApiResponseDtoListCategoryRespDto;
+    
+    }
+    return null;
+  }
+
   /// 카테고리에 초대된 유저가 초대 승낙여부를 결정하는 API
   ///
   /// status에 넣을 수 있는 상태 : PENDING, ACCEPTED, DECLINED, EXPIRED

@@ -6,6 +6,7 @@ enum CommentType {
   text, // 텍스트 댓글
   audio, // 음성 댓글
   photo, // 사진 댓글
+  video, // 비디오 댓글
   reply, // 답글 댓글
 }
 
@@ -36,6 +37,9 @@ class Comment {
 
   /// 댓글로 등록되는 이미지/비디오의 Key
   final String? fileKey;
+
+  /// 해당 댓글의 대댓글 작성자 수
+  final int? replyUserCount;
 
   /// 텍스트 댓글 내용
   final String? text;
@@ -70,6 +74,7 @@ class Comment {
     this.userProfileKey,
     this.fileUrl,
     this.fileKey,
+    this.replyUserCount,
     this.text,
     this.emojiId,
     this.audioUrl,
@@ -91,6 +96,7 @@ class Comment {
       userProfileKey: dto.userProfileKey,
       fileKey: dto.fileKey,
       fileUrl: dto.fileUrl,
+      replyUserCount: dto.replyUserCount,
       text: dto.text,
       emojiId: dto.emojiId,
       audioUrl: dto.audioUrl,
@@ -113,6 +119,8 @@ class Comment {
         return CommentType.audio;
       case CommentRespDtoCommentTypeEnum.PHOTO:
         return CommentType.photo;
+      case CommentRespDtoCommentTypeEnum.VIDEO:
+        return CommentType.video;
       case CommentRespDtoCommentTypeEnum.REPLY:
         return CommentType.reply;
       default:
@@ -133,6 +141,7 @@ class Comment {
       userProfileKey: json['userProfileKey'] as String?,
       fileKey: json['fileKey'] as String?,
       fileUrl: json['fileUrl'] as String?,
+      replyUserCount: json['replyUserCount'] as int?,
       text: json['text'] as String?,
       emojiId: json['emojiId'] as int?,
       audioUrl: json['audioUrl'] as String?,
@@ -155,6 +164,8 @@ class Comment {
         return CommentType.audio;
       case 'PHOTO':
         return CommentType.photo;
+      case 'VIDEO':
+        return CommentType.video;
       case 'REPLY':
         return CommentType.reply;
       default:
@@ -191,6 +202,8 @@ class Comment {
         return 'AUDIO';
       case CommentType.photo:
         return 'PHOTO';
+      case CommentType.video:
+        return 'VIDEO';
       case CommentType.reply:
         return 'REPLY';
     }
@@ -207,6 +220,7 @@ class Comment {
       'userProfileKey': userProfileKey,
       'fileUrl': fileUrl,
       'fileKey': fileKey,
+      'replyUserCount': replyUserCount,
       'text': text,
       'emojiId': emojiId,
       'audioUrl': audioUrl,
@@ -231,7 +245,10 @@ class Comment {
   /// 사진 댓글인지 확인
   bool get isPhoto => type == CommentType.photo;
 
-  /// 답글 댓글인지 확인
+  /// 비디오 댓글인지 확인
+  bool get isVideo => type == CommentType.video;
+
+  /// 대댓글인지 확인
   bool get isReply => type == CommentType.reply;
 
   /// 오디오 길이 (초 단위)
@@ -249,6 +266,7 @@ class Comment {
     String? userProfileKey,
     String? fileUrl,
     String? fileKey,
+    int? replyUserCount,
     String? replyUserName,
     String? text,
     int? emojiId,
@@ -268,6 +286,7 @@ class Comment {
       userProfileKey: userProfileKey ?? this.userProfileKey,
       fileUrl: fileUrl ?? this.fileUrl,
       fileKey: fileKey ?? this.fileKey,
+      replyUserCount: replyUserCount ?? this.replyUserCount,
       text: text ?? this.text,
       emojiId: emojiId ?? this.emojiId,
       audioUrl: audioUrl ?? this.audioUrl,
@@ -281,6 +300,6 @@ class Comment {
 
   @override
   String toString() {
-    return 'Comment{id: $id, userId: $userId, nickname: $nickname, replyUserName: $replyUserName, fileUrl: $fileUrl, fileKey: $fileKey, type: $type, text: $text, emojiId: $emojiId}';
+    return 'Comment{id: $id, userId: $userId, nickname: $nickname, replyUserName: $replyUserName, fileUrl: $fileUrl, fileKey: $fileKey, replyUserCount: $replyUserCount, type: $type, text: $text, emojiId: $emojiId}';
   }
 }

@@ -331,6 +331,7 @@ class CommentReqDtoCommentTypeEnum {
   static const TEXT = CommentReqDtoCommentTypeEnum._(r'TEXT');
   static const AUDIO = CommentReqDtoCommentTypeEnum._(r'AUDIO');
   static const PHOTO = CommentReqDtoCommentTypeEnum._(r'PHOTO');
+  static const VIDEO = CommentReqDtoCommentTypeEnum._(r'VIDEO');
   static const REPLY = CommentReqDtoCommentTypeEnum._(r'REPLY');
 
   /// List of all possible values in this [enum][CommentReqDtoCommentTypeEnum].
@@ -339,6 +340,7 @@ class CommentReqDtoCommentTypeEnum {
     TEXT,
     AUDIO,
     PHOTO,
+    VIDEO,
     REPLY,
   ];
 
@@ -382,6 +384,7 @@ class CommentReqDtoCommentTypeEnumTypeTransformer {
         case r'TEXT': return CommentReqDtoCommentTypeEnum.TEXT;
         case r'AUDIO': return CommentReqDtoCommentTypeEnum.AUDIO;
         case r'PHOTO': return CommentReqDtoCommentTypeEnum.PHOTO;
+        case r'VIDEO': return CommentReqDtoCommentTypeEnum.VIDEO;
         case r'REPLY': return CommentReqDtoCommentTypeEnum.REPLY;
         default:
           if (!allowNull) {

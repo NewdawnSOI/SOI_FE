@@ -141,21 +141,18 @@ Spring Boot API가 변경되면 다음 단계를 반복:
 # 1. 최신 OpenAPI 스펙 다운로드
 curl -o api/openapi.yaml https://newdawnsoi.site/v3/api-docs
 
-# 2. 기존 generated 폴더 백업 (선택사항)
-mv api/generated api/generated.backup
-
-# 3. 코드 재생성
+# 2. 코드 재생성
 cd api
 openapi-generator generate -c config.yaml
 
-# 4. 패치 스크립트 실행 (필수!)
+# 3. 패치 스크립트 실행 (필수!)
 ./patch_generated.sh
-
-# 5. 의존성 재설치
+  
+# 4. 의존성 재설치
 cd generated
 flutter pub get
 
-# 6. 메인 프로젝트 의존성 업데이트
+# 5. 메인 프로젝트 의존성 업데이트
 cd ../..
 flutter pub get
 ```

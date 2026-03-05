@@ -24,6 +24,7 @@ Name | Type | Description | Notes
 **commentType** | **String** |  | [optional] 
 **fileUrl** | **String** |  | [optional] 
 **fileKey** | **String** |  | [optional] 
+**replyUserCount** | **int** |  | [optional] 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

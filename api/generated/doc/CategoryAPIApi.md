@@ -16,6 +16,7 @@ Method | HTTP request | Description
 [**customProfile**](CategoryAPIApi.md#customprofile) | **POST** /category/set/profile | 카테고리 프로필 수정
 [**delete**](CategoryAPIApi.md#delete) | **POST** /category/delete | 카테고리 나가기 (삭제)
 [**getCategories**](CategoryAPIApi.md#getcategories) | **POST** /category/find | 유저가 속한 카테고리 리스트를 가져오는 API
+[**getCategories1**](CategoryAPIApi.md#getcategories1) | **POST** /category/find-by-keyword | 유저가 속한 카테고를 검색하는 API
 [**inviteResponse**](CategoryAPIApi.md#inviteresponse) | **POST** /category/invite/response | 카테고리에 초대된 유저가 초대 승낙여부를 결정하는 API
 [**inviteUser**](CategoryAPIApi.md#inviteuser) | **POST** /category/invite |  카테고리에 유저 추가(초대)
 
@@ -322,6 +323,55 @@ Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **categoryFilter** | **String**|  | 
  **userId** | **int**|  | 
+ **page** | **int**|  | [optional] [default to 0]
+
+### Return type
+
+[**ApiResponseDtoListCategoryRespDto**](ApiResponseDtoListCategoryRespDto.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: */*
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **getCategories1**
+> ApiResponseDtoListCategoryRespDto getCategories1(categoryFilter, userId, keyword, page)
+
+유저가 속한 카테고를 검색하는 API
+
+CategoryFilter : ALL, PUBLIC, PRIVATE -> 옵션에 따라서 전체, 그룹, 개인으로 가져올 수 있음, keyword에 검색어 입력, 만약 검색어가 null이거나 빈문자열일경우 그냥 전체 카테고리를 가져옴
+
+### Example
+```dart
+import 'package:soi_api_client/api.dart';
+
+final api_instance = CategoryAPIApi();
+final categoryFilter = categoryFilter_example; // String | 
+final userId = 789; // int | 
+final keyword = keyword_example; // String | 
+final page = 56; // int | 
+
+try {
+    final result = api_instance.getCategories1(categoryFilter, userId, keyword, page);
+    print(result);
+} catch (e) {
+    print('Exception when calling CategoryAPIApi->getCategories1: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **categoryFilter** | **String**|  | 
+ **userId** | **int**|  | 
+ **keyword** | **String**|  | [optional] 
  **page** | **int**|  | [optional] [default to 0]
 
 ### Return type

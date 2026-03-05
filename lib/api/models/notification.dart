@@ -1,19 +1,19 @@
 import 'package:soi_api_client/api.dart';
 
-/// 알림 타입 (앱 모델용)
-///
-/// API generated enum(NotificationRespDtoTypeEnum)에 직접 의존하지 않고,
-/// UI/도메인 레이어에서 쉽게 비교/분기하기 위한 enum입니다.
+/// 알림 유형
+/// API의 NotificationRespDtoTypeEnum과 매핑되는 앱 내부에서 사용하기 위한 열거형입니다.
+/// 알림 유형은 API에서 정의된 문자열 값을 기반으로 하며, 앱에서는 AppNotificationType 열거형으로 사용됩니다.
 enum AppNotificationType {
-  categoryInvite('CATEGORY_INVITE'),
-  categoryAdded('CATEGORY_ADDED'),
-  photoAdded('PHOTO_ADDED'),
-  commentAdded('COMMENT_ADDED'),
-  commentAudioAdded('COMMENT_AUDIO_ADDED'),
-  commentReactAdded('COMMENT_REACT_ADDED'),
-  commentReplyAdded('COMMENT_REPLY_ADDED'),
-  friendRequest('FRIEND_REQUEST'),
-  friendRespond('FRIEND_RESPOND');
+  categoryInvite('CATEGORY_INVITE'), // 카테고리 초대 알림
+  categoryAdded('CATEGORY_ADDED'), // 카테고리에 추가됐음을 알리는 알림
+  photoAdded('PHOTO_ADDED'), // 게시물에 사진이 추가됐음을 알리는 알림
+  commentAdded('COMMENT_ADDED'), // 게시물에 댓글이 추가됐음을 알리는 알림
+  commentAudioAdded('COMMENT_AUDIO_ADDED'), // 게시물에 음성 댓글이 추가됐음을 알리는 알림
+  commentVideoAdded('COMMENT_VIDEO_ADDED'), // 게시물에 비디오 댓글이 추가됐음을 알리는 알림
+  commentPhotoAdded('COMMENT_PHOTO_ADDED'), // 게시물에 사진 댓글이 추가됐음을 알리는 알림
+  commentReplyAdded('COMMENT_REPLY_ADDED'), // 게시물에 대댓글이 추가됐음을 알리는 알림
+  friendRequest('FRIEND_REQUEST'), // 친구 요청 알림
+  friendRespond('FRIEND_RESPOND'); // 친구 요청에 대한 응답 알림
 
   final String value;
   const AppNotificationType(this.value);
@@ -102,8 +102,10 @@ class AppNotification {
         return AppNotificationType.commentAdded;
       case NotificationRespDtoTypeEnum.COMMENT_AUDIO_ADDED:
         return AppNotificationType.commentAudioAdded;
-      case NotificationRespDtoTypeEnum.COMMENT_REACT_ADDED:
-        return AppNotificationType.commentReactAdded;
+      case NotificationRespDtoTypeEnum.COMMENT_VIDEO_ADDED:
+        return AppNotificationType.commentVideoAdded;
+      case NotificationRespDtoTypeEnum.COMMENT_PHOTO_ADDED:
+        return AppNotificationType.commentPhotoAdded;
       case NotificationRespDtoTypeEnum.COMMENT_REPLY_ADDED:
         return AppNotificationType.commentReplyAdded;
       case NotificationRespDtoTypeEnum.FRIEND_REQUEST:
@@ -152,8 +154,10 @@ class AppNotification {
         return AppNotificationType.commentAdded;
       case 'COMMENT_AUDIO_ADDED':
         return AppNotificationType.commentAudioAdded;
-      case 'COMMENT_REACT_ADDED':
-        return AppNotificationType.commentReactAdded;
+      case 'COMMENT_VIDEO_ADDED':
+        return AppNotificationType.commentVideoAdded;
+      case 'COMMENT_PHOTO_ADDED':
+        return AppNotificationType.commentPhotoAdded;
       case 'COMMENT_REPLY_ADDED':
         return AppNotificationType.commentReplyAdded;
       case 'FRIEND_REQUEST':

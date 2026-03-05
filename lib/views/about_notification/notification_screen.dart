@@ -578,6 +578,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
     if (type == AppNotificationType.photoAdded ||
         type == AppNotificationType.commentAdded ||
         type == AppNotificationType.commentAudioAdded ||
+        type == AppNotificationType.commentVideoAdded ||
+        type == AppNotificationType.commentPhotoAdded ||
         type == AppNotificationType.commentReplyAdded) {
       final postId = notification.relatedId;
       final categoryId = notification.categoryIdForPost;

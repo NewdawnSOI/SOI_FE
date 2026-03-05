@@ -17,6 +17,9 @@ import '../../../utils/video_thumbnail_cache.dart';
 import '../../about_feed/manager/feed_data_manager.dart';
 import '../report/report_bottom_sheet.dart';
 
+/// 댓글 리스트를 보여주는 바텀 시트
+/// Comment.dart(Model)을 사용하여 댓글 정보를 표시합니다.
+/// API의 CommentRespDto와 달리, Comment 모델은 UI/도메인 레이어에서 사용하기 위한 모델입니다.
 class ApiVoiceCommentListSheet extends StatefulWidget {
   final int postId;
   final List<Comment> comments;
@@ -371,6 +374,8 @@ class _ApiCommentRow extends StatelessWidget {
       case CommentType.audio:
         return _buildAudioRow(context);
       case CommentType.photo:
+        return _buildMediaRow(context);
+      case CommentType.video:
         return _buildMediaRow(context);
       case CommentType.reply:
         return _buildTextRow(context);

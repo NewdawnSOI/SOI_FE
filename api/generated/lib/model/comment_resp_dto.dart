@@ -29,6 +29,7 @@ class CommentRespDto {
     this.commentType,
     this.fileUrl,
     this.fileKey,
+    this.replyUserCount,
   });
 
   ///
@@ -153,6 +154,14 @@ class CommentRespDto {
   ///
   String? fileKey;
 
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? replyUserCount;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is CommentRespDto &&
     other.id == id &&
@@ -170,7 +179,8 @@ class CommentRespDto {
     other.locationY == locationY &&
     other.commentType == commentType &&
     other.fileUrl == fileUrl &&
-    other.fileKey == fileKey;
+    other.fileKey == fileKey &&
+    other.replyUserCount == replyUserCount;
 
   @override
   int get hashCode =>
@@ -190,10 +200,11 @@ class CommentRespDto {
     (locationY == null ? 0 : locationY!.hashCode) +
     (commentType == null ? 0 : commentType!.hashCode) +
     (fileUrl == null ? 0 : fileUrl!.hashCode) +
-    (fileKey == null ? 0 : fileKey!.hashCode);
+    (fileKey == null ? 0 : fileKey!.hashCode) +
+    (replyUserCount == null ? 0 : replyUserCount!.hashCode);
 
   @override
-  String toString() => 'CommentRespDto[id=$id, userProfileUrl=$userProfileUrl, userProfileKey=$userProfileKey, userId=$userId, nickname=$nickname, text=$text, emojiId=$emojiId, replyUserName=$replyUserName, audioUrl=$audioUrl, waveFormData=$waveFormData, duration=$duration, locationX=$locationX, locationY=$locationY, commentType=$commentType, fileUrl=$fileUrl, fileKey=$fileKey]';
+  String toString() => 'CommentRespDto[id=$id, userProfileUrl=$userProfileUrl, userProfileKey=$userProfileKey, userId=$userId, nickname=$nickname, text=$text, emojiId=$emojiId, replyUserName=$replyUserName, audioUrl=$audioUrl, waveFormData=$waveFormData, duration=$duration, locationX=$locationX, locationY=$locationY, commentType=$commentType, fileUrl=$fileUrl, fileKey=$fileKey, replyUserCount=$replyUserCount]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -277,6 +288,11 @@ class CommentRespDto {
     } else {
       json[r'fileKey'] = null;
     }
+    if (this.replyUserCount != null) {
+      json[r'replyUserCount'] = this.replyUserCount;
+    } else {
+      json[r'replyUserCount'] = null;
+    }
     return json;
   }
 
@@ -315,6 +331,7 @@ class CommentRespDto {
         commentType: CommentRespDtoCommentTypeEnum.fromJson(json[r'commentType']),
         fileUrl: mapValueOfType<String>(json, r'fileUrl'),
         fileKey: mapValueOfType<String>(json, r'fileKey'),
+        replyUserCount: mapValueOfType<int>(json, r'replyUserCount'),
       );
     }
     return null;
@@ -382,6 +399,7 @@ class CommentRespDtoCommentTypeEnum {
   static const TEXT = CommentRespDtoCommentTypeEnum._(r'TEXT');
   static const AUDIO = CommentRespDtoCommentTypeEnum._(r'AUDIO');
   static const PHOTO = CommentRespDtoCommentTypeEnum._(r'PHOTO');
+  static const VIDEO = CommentRespDtoCommentTypeEnum._(r'VIDEO');
   static const REPLY = CommentRespDtoCommentTypeEnum._(r'REPLY');
 
   /// List of all possible values in this [enum][CommentRespDtoCommentTypeEnum].
@@ -390,6 +408,7 @@ class CommentRespDtoCommentTypeEnum {
     TEXT,
     AUDIO,
     PHOTO,
+    VIDEO,
     REPLY,
   ];
 
@@ -433,6 +452,7 @@ class CommentRespDtoCommentTypeEnumTypeTransformer {
         case r'TEXT': return CommentRespDtoCommentTypeEnum.TEXT;
         case r'AUDIO': return CommentRespDtoCommentTypeEnum.AUDIO;
         case r'PHOTO': return CommentRespDtoCommentTypeEnum.PHOTO;
+        case r'VIDEO': return CommentRespDtoCommentTypeEnum.VIDEO;
         case r'REPLY': return CommentRespDtoCommentTypeEnum.REPLY;
         default:
           if (!allowNull) {
