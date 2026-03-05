@@ -110,7 +110,8 @@
       "prepare_failed": "Can't prepare recording file"
     },
     "reply_action": "Reply",
-    "time_placeholder": "6h ago"
+    "time_placeholder": "6h ago",
+    "add_comment": "Add comment"
   },
   "audio": {
     "upload_failed": "Upload failed",

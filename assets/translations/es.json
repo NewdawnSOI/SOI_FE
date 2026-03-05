@@ -73,7 +73,8 @@
       "prepare_failed": "No se pudo preparar el audio grabado."
     },
     "reply_action": "Responder",
-    "time_placeholder": "hace 6 h"
+    "time_placeholder": "hace 6 h",
+    "add_comment": "Agregar comentario"
   },
   "audio": {
     "upload_failed": "No se subió",

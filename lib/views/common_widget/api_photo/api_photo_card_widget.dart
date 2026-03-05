@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../api/models/post.dart';
 import '../../../api/models/comment.dart';
@@ -146,6 +147,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     super.dispose();
   }
 
+  // 미디어 댓글이 확장 가능한지 여부를 판단하는 메서드
   void _removeExpandedMediaOverlay() {
     _overlayExpandController.stop();
     _overlayExpandController.reset();
@@ -154,6 +156,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     _expandedOverlayData = null;
   }
 
+  // 미디어 댓글이 확장 가능한지 여부를 판단하는 메서드
   void _handleExpandedMediaOverlayChanged(ExpandedMediaTagOverlayData? data) {
     if (!mounted) return;
     if (data == null) {
@@ -163,7 +166,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
 
     _expandedOverlayData = data;
 
-    final overlay = Overlay.of(context, rootOverlay: true);
+    final overlay = Overlay.of(context, rootOverlay: true); // 최상위 Overlay
 
     if (_expandedOverlayEntry == null) {
       _expandedOverlayEntry = OverlayEntry(
@@ -258,108 +261,134 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
         ? 10.0
         : (widget.isCategory ? 55.0 : 10.0);
 
-    return Stack(
-      clipBehavior: Clip.none, // 오버레이와 하단 코멘트 컴포저 레이어를 유지
-      children: [
-        SingleChildScrollView(
-          clipBehavior: Clip.none,
-          physics: const NeverScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // 피드 페이지에 SOI Appbar를 표시하지 않는 경우를 대비한 공간 확보
-              // if (!widget.isArchive) SizedBox(height: 90.h),
+    return VisibilityDetector(
+      key: ValueKey('api_photo_card_${widget.post.id}'),
+      onVisibilityChanged: (info) {
+        if (info.visibleFraction < 0.55 && _expandedOverlayEntry != null) {
+          _removeExpandedMediaOverlay();
+        }
+      },
+      child: Stack(
+        clipBehavior: Clip.none, // 오버레이와 하단 코멘트 컴포저 레이어를 유지
+        children: [
+          SingleChildScrollView(
+            clipBehavior: Clip.none,
+            physics: const NeverScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 피드 페이지에 SOI Appbar를 표시하지 않는 경우를 대비한 공간 확보
+                // if (!widget.isArchive) SizedBox(height: 90.h),
 
-              // 사진 표시 위젯
-              ApiPhotoDisplayWidget(
-                key: ValueKey(widget.post.id),
-                post: widget.post,
-                categoryId: widget.categoryId,
-                categoryName: widget.categoryName,
-                isArchive: widget.isArchive,
-                isFromCamera: widget.isFromCamera,
-                postComments: widget.postComments,
-                onProfileImageDragged: widget.onProfileImageDragged,
-                onToggleAudio: widget.onToggleAudio,
-                pendingVoiceComments: widget.pendingVoiceComments,
-                onCommentsReloadRequested: widget.onCommentsReloadRequested,
-                onExpandedMediaOverlayChanged:
-                    _handleExpandedMediaOverlayChanged,
-              ),
-              SizedBox(height: 12.h),
+                // 사진 표시 위젯
+                ApiPhotoDisplayWidget(
+                  key: ValueKey(widget.post.id),
+                  post: widget.post,
+                  categoryId: widget.categoryId,
+                  categoryName: widget.categoryName,
+                  isArchive: widget.isArchive,
+                  isFromCamera: widget.isFromCamera,
+                  postComments: widget.postComments,
+                  onProfileImageDragged: widget.onProfileImageDragged,
+                  onToggleAudio: widget.onToggleAudio,
+                  pendingVoiceComments: widget.pendingVoiceComments,
+                  onCommentsReloadRequested: widget.onCommentsReloadRequested,
+                  onExpandedMediaOverlayChanged:
+                      _handleExpandedMediaOverlayChanged,
+                ),
+                SizedBox(height: 12.h),
 
-              // 사용자 정보 위젯 (아이디와 날짜)
-              ApiUserInfoWidget(
-                post: widget.post,
-                isCurrentUserPost: widget.isOwner,
-                onDeletePressed: widget.onDeletePressed,
-                onReportSubmitted: widget.onReportSubmitted == null
-                    ? null
-                    : (result) =>
-                          widget.onReportSubmitted!(widget.post, result),
-                onCommentPressed: () {
-                  // 댓글 리스트 Bottom Sheet 표시
-                  final comments = widget.postComments[widget.post.id] ?? [];
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (ctx) {
-                      return ChangeNotifierProvider(
-                        create: (_) => AudioController(),
-                        child: SizedBox(
-                          height: 480.h,
-                          child: ApiVoiceCommentListSheet(
-                            postId: widget.post.id,
-                            comments: comments,
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-              SizedBox(height: 10.h),
+                // 사용자 정보 위젯 (아이디와 날짜)
+                ApiUserInfoWidget(
+                  post: widget.post,
+                  isCurrentUserPost: widget.isOwner,
+                  onDeletePressed: widget.onDeletePressed,
+                  onReportSubmitted: widget.onReportSubmitted == null
+                      ? null
+                      : (result) =>
+                            widget.onReportSubmitted!(widget.post, result),
+                  onCommentPressed: () {
+                    // 댓글 리스트 Bottom Sheet 표시
+                    final comments = widget.postComments[widget.post.id] ?? [];
+                    const draggableThreshold = 3;
+                    final useDraggableSheet =
+                        comments.length > draggableThreshold;
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (ctx) {
+                        return ChangeNotifierProvider(
+                          create: (_) => AudioController(),
+                          child: useDraggableSheet
+                              ? DraggableScrollableSheet(
+                                  initialChildSize: 0.6,
+                                  minChildSize: 0.45,
+                                  maxChildSize: 0.8,
+                                  expand: false,
+                                  builder: (context, scrollController) {
+                                    return ApiVoiceCommentListSheet(
+                                      postId: widget.post.id,
+                                      comments: comments,
+                                      listScrollController: scrollController,
+                                    );
+                                  },
+                                )
+                              : ApiVoiceCommentListSheet(
+                                  postId: widget.post.id,
+                                  comments: comments,
+                                ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                SizedBox(height: 10.h),
 
-              // 음성 녹음 위젯을 위한 공간 확보
-              SizedBox(height: 90.h),
-            ],
+                // 음성 녹음 위젯을 위한 공간 확보
+                SizedBox(height: 90.h),
+              ],
+            ),
           ),
-        ),
 
-        // 음성 녹음 위젯을 Stack 위에 배치
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: bottomPadding,
-          child: CommentComposerV2Widget(
-            postId: widget.post.id,
-            pendingCommentDrafts: widget.pendingCommentDrafts,
-            onTextCommentCompleted: (postId, text) =>
-                _handleTextCommentCreated(text),
-            onAudioCommentCompleted:
-                (postId, audioPath, waveformData, durationMs) =>
-                    widget.onAudioCommentCompleted(
-                      postId,
-                      audioPath,
-                      waveformData,
-                      durationMs,
-                    ),
-            onMediaCommentCompleted: (postId, localFilePath, isVideo) =>
-                widget.onMediaCommentCompleted(postId, localFilePath, isVideo),
-            resolveDropRelativePosition: _resolveDropRelativePosition,
-            onCommentSaveProgress: widget.onCommentSaveProgress,
-            onCommentSaveSuccess: widget.onCommentSaveSuccess,
-            onCommentSaveFailure: widget.onCommentSaveFailure,
-            onTextFieldFocusChanged: (isFocused) {
-              setState(() {
-                _isTextFieldFocused = isFocused;
-              });
-            },
+          // 음성 녹음 위젯을 Stack 위에 배치
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: bottomPadding,
+            child: CommentComposerV2Widget(
+              postId: widget.post.id,
+              pendingCommentDrafts: widget.pendingCommentDrafts,
+              onTextCommentCompleted: (postId, text) =>
+                  _handleTextCommentCreated(text),
+              onAudioCommentCompleted:
+                  (postId, audioPath, waveformData, durationMs) =>
+                      widget.onAudioCommentCompleted(
+                        postId,
+                        audioPath,
+                        waveformData,
+                        durationMs,
+                      ),
+              onMediaCommentCompleted: (postId, localFilePath, isVideo) =>
+                  widget.onMediaCommentCompleted(
+                    postId,
+                    localFilePath,
+                    isVideo,
+                  ),
+              resolveDropRelativePosition: _resolveDropRelativePosition,
+              onCommentSaveProgress: widget.onCommentSaveProgress,
+              onCommentSaveSuccess: widget.onCommentSaveSuccess,
+              onCommentSaveFailure: widget.onCommentSaveFailure,
+              onTextFieldFocusChanged: (isFocused) {
+                setState(() {
+                  _isTextFieldFocused = isFocused;
+                });
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

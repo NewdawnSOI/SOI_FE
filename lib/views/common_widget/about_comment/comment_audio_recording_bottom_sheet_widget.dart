@@ -81,9 +81,8 @@ class _CommentAudioRecordingBottomSheetWidgetState
       await _stopRecordingIfNeeded(force: true);
       _audioController.clearCurrentRecording();
 
-      // native 녹음부터 시작한 뒤 wave recorder를 시작한다.
+      // native recorder 단일 경로로 녹음을 시작한다.
       await _audioController.startRecording();
-      await _recorderController.record();
 
       _recordingStartedAt = DateTime.now();
       if (!mounted) {
@@ -121,13 +120,7 @@ class _CommentAudioRecordingBottomSheetWidgetState
 
     _isTransitioning = true;
     try {
-      var waveform = List<double>.from(
-        _recorderController.waveData,
-      ).map((value) => value.abs()).toList();
-
-      if (_recorderController.isRecording) {
-        await _recorderController.stop();
-      }
+      var waveform = <double>[];
 
       await _audioController.stopRecordingSimple(force: true);
 
@@ -205,12 +198,6 @@ class _CommentAudioRecordingBottomSheetWidgetState
   }
 
   Future<void> _stopRecordingIfNeeded({bool force = false}) async {
-    if (_recorderController.isRecording) {
-      try {
-        await _recorderController.stop();
-      } catch (_) {}
-    }
-
     if (force || _audioController.isRecording) {
       try {
         await _audioController.stopRecordingSimple(force: force);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class CommentTextInputWidget extends StatefulWidget {
   final Future<void> Function(String text) onSubmitText;
@@ -109,12 +110,12 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: widget.hintText,
-                hintStyle: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                  fontFamily: 'Pretendard',
-                  fontWeight: FontWeight.w300,
-                  letterSpacing: -0.6,
+                hintStyle: TextStyle(
+                  color: Color(0xFFF8F8F8),
+                  fontSize: 16.sp,
+                  fontFamily: 'Pretendard Variable',
+                  fontWeight: FontWeight.w200,
+                  letterSpacing: -1.14,
                 ),
               ),
             ),
