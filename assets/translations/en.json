@@ -1,5 +1,398 @@
 {
   "register": {
-    "id_not_allowed": "사용할 수 없는 아이디입니다. 다른 아이디를 선택해주세요."
+    "id_not_allowed": "ID not allowed",
+    "name_title": "Your name",
+    "name_hint": "Name",
+    "id_title": "Choose ID",
+    "id_hint": "ID",
+    "id_available": "ID available.",
+    "id_unavailable": "ID taken.",
+    "id_check_error": "ID check error",
+    "phone_title": "Enter phone",
+    "phone_hint": "Phone",
+    "sms_title": "Enter code",
+    "sms_hint": "Code",
+    "sms_resend": "Resend code",
+    "birth_title": "Enter birth date",
+    "skip": "Skip",
+    "profile_image_title": "Choose profile photo",
+    "profile_image_error": "Image error",
+    "friend_share_title": "Share link to add friends",
+    "contact_sync": "Contact sync",
+    "share_link": "Share friend link",
+    "share_text": "Become a friend on the SOI app! {link}",
+    "share_subject": "Invite SOI friends",
+    "share_failed_with_reason": "Can't share link: {error}",
+    "agreement_welcome": "Welcome, {name}",
+    "agreement_description": "Personalized information based on the information you choose We will provide you with service",
+    "agreement_all": "Agree to all terms and conditions",
+    "agreement_service_required": "Agree to Terms of Use (required)",
+    "agreement_privacy_required": "Consent to collection and use of personal information (required)",
+    "agreement_marketing_optional": "Consent to receive e-mail and SMS advertising information (optional)",
+    "member_default": "member",
+    "country_kr": "korea",
+    "country_us": "USA",
+    "country_mx": "Mexico",
+    "complete_title": "Membership registration completed",
+    "complete_description": "You can now use all SOI features"
+  },
+  "common": {
+    "error_occurred": "Error",
+    "retry": "Retry",
+    "confirm": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "done": "Done",
+    "add": "Add",
+    "send": "Send",
+    "more": "More",
+    "delete": "Delete",
+    "block": "Block",
+    "report": "Report",
+    "continue": "Continue",
+    "please_wait": "Please wait",
+    "search_empty": "No results",
+    "login_required": "Login required",
+    "login_required_relogin": "Login required. login again",
+    "login_required_retry": "Login and Retry",
+    "login_info_required": "Login info required",
+    "user_info_unavailable": "User info unavailable",
+    "login": "Login",
+    "signup": "Sign up",
+    "unknown": "Unknown",
+    "report_received": "Received",
+    "block_success": "Blocked",
+    "block_failed": "Block failed"
+  },
+  "archive": {
+    "tabs": {
+      "all": "All",
+      "shared": "Shared",
+      "mine": "Mine"
+    },
+    "menu": {
+      "edit_name": "Edit category name",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "leave": "Leave"
+    },
+    "edit_name_required": "enter your name",
+    "category_info_unavailable": "Category information not found",
+    "edit_name_success": "Category name updated",
+    "edit_name_error": "modifying the name",
+    "create_category_title": "Create a new category",
+    "create_category_name_hint": "enter the name of the category",
+    "create_category_name_counter": "{count}/20 characters",
+    "create_category_name_required": "enter the category name",
+    "category_info_invalid": "Category information is incorrect",
+    "create_category_failed": "Create failed",
+    "create_category_success": "Category added",
+    "search_empty": "No results.",
+    "empty_categories": "No categories",
+    "empty_shared_categories": "No shared categories",
+    "empty_photos": "No photos",
+    "photo_load_failed": "load photo.",
+    "photo_deleted": "Photo deleted",
+    "delete_error": "deletion.",
+    "delete_error_with_reason": "deleting: {error}"
+  },
+  "comments": {
+    "delete": "Delete comment",
+    "delete_unavailable": "Can't delete this comment",
+    "delete_success": "Comment deleted",
+    "delete_failed": "Delete failed",
+    "delete_error": "deleting comment",
+    "save_failed": "Save failed",
+    "save_error": "saving your comment",
+    "audio_sheet": {
+      "start_tag": "Start voice tag",
+      "recording_failed": "Recording can't start",
+      "prepare_failed": "Can't prepare recording file"
+    },
+    "reply_action": "Reply",
+    "time_placeholder": "6h ago"
+  },
+  "audio": {
+    "upload_failed": "Upload failed",
+    "waveform_empty": "No waveform"
+  },
+  "camera": {
+    "preview_start_failed": "Can't start camera. Restart app",
+    "video_saved": "Your video saved",
+    "gallery_access_failed": "Gallery access failed",
+    "capture_error_stop_audio": "Camera error. Stop audio recording and retry",
+    "video_record_start_failed": "Can't start video recording",
+    "switch_not_supported_while_recording": "Can't switch camera while recording",
+    "zoom_set_error": "Zoom error",
+    "zoom_set_error_with_reason": "Zoom error: {error}",
+    "gallery_pick_failed": "Can't pick media from gallery",
+    "recording_short": "REC",
+    "caption_hint": "Add post..",
+    "mode_text": "Text",
+    "mode_camera": "Camera",
+    "text_input_hint": "enter your text",
+    "text_mode_switch_blocked_recording": "You can't switch to text mode while recording",
+    "photo_load_failed": "Image load failed. Retry",
+    "photo_unavailable": "Image unavailable",
+    "video_unavailable": "Video unavailable",
+    "editor": {
+      "image_not_found": "Image file not found",
+      "image_load_error_with_reason": "Error loading image: {error}",
+      "category_load_error_with_reason": "Error loading category: {error}",
+      "category_create_failed_retry": "Category creation failed. Retry",
+      "category_create_error": "creating a category",
+      "upload_file_not_found": "Upload file not found"
+    }
+  },
+  "category": {
+    "edit_title": "Edit",
+    "name_label": "Category name",
+    "cover": {
+      "edit_button": "Edit cover photo",
+      "edit_sheet_title": "Edit cover photo",
+      "change_title": "Change cover photo",
+      "select_take_photo": "Take a photo",
+      "select_from_library": "Choose from library",
+      "select_from_category": "Select from category",
+      "delete_button": "Delete cover",
+      "upload_failed": "upload cover photo",
+      "update_failed": "Cover update failed",
+      "updated": "Cover updated",
+      "update_error": "Cover update error",
+      "delete_failed": "Cover delete failed",
+      "deleted": "Cover deleted",
+      "delete_error": "Cover delete error",
+      "camera_error": "shooting with the camera",
+      "gallery_error": "selecting a gallery",
+      "no_photos": "No photos yet"
+    },
+    "members": {
+      "add": "Add",
+      "add_friend": "add friend",
+      "add_friend_action": "Add friends",
+      "more": "+ See more",
+      "collapse": "fold"
+    },
+    "leave": {
+      "button": "Exit",
+      "title": "Leave category",
+      "confirm": "Are you sure you want to leave this category? If you leave, you will no longer be able to see photos in this category",
+      "success": "You left the category",
+      "failed": "You can't leave the category"
+    },
+    "notification": {
+      "title": "Notification settings",
+      "enabled": "Notifications are enabled",
+      "disabled": "Notifications are disabled",
+      "error": "Changing notification settings failed"
+    }
+  },
+  "friends": {
+    "list_title": "friends list",
+    "search_hint": "Search",
+    "empty": "No friends",
+    "load_failed": "load friends list",
+    "load_failed_title": "load friends list",
+    "load_failed_detail": "load friends list",
+    "add_friend": "Add friend",
+    "select_to_add": "choose the friend you want to add",
+    "invite_sent": "I sent an invitation to {count} friends",
+    "invite_error_with_reason": "inviting a friend: {error}",
+    "invite_check_title": "Check your friends",
+    "menu": {
+      "delete": "delete friend",
+      "block": "block"
+    },
+    "blocked": {
+      "title": "blocked friends",
+      "empty": "No friends are blocked",
+      "unblock": "unblock",
+      "load_error": "load blocked friends"
+    },
+    "delete_confirm_title": "Are you sure you want to delete {name}?",
+    "delete_confirm_desc": "When deleted, it may be deleted from the added category",
+    "block_confirm_title": "Do you want to block {name}?",
+    "block_confirm_desc": "When blocked, this friend will no longer include me in the category. You can't invite or make friend requests",
+    "delete_success": "Your friend deleted",
+    "delete_failed": "delete friend.",
+    "delete_error": "deleting a friend",
+    "block_success": "Your friend blocked",
+    "block_failed": "block friend.",
+    "block_error": "blocking a friend",
+    "manage": {
+      "add_title": "Add friend",
+      "invite_link": "Invitation link",
+      "requests": "friend request",
+      "list": "friends list",
+      "suggest": "Recommend a friend",
+      "init_error": "initialization: {error}",
+      "settings_error": "Can't open settings screen: {error}"
+    },
+    "options": {
+      "contact_sync": "Contact sync",
+      "id_label": "ID",
+      "add_by_id": "Add by ID"
+    },
+    "request": {
+      "login_required": "Login required",
+      "load_failed": "Your friend request failed to load",
+      "not_found": "Requested information not found",
+      "accepted": "I accepted your friend request",
+      "rejected": "I declined your friend request",
+      "failed": "Request processing failed. Retry later",
+      "loading": "Loading friend request.",
+      "empty": "No friend requests received",
+      "default_text": "A new friend request arrived",
+      "subtitle": "You can accept or decline a friend request",
+      "accept": "acceptance",
+      "reject": "refusal"
+    },
+    "invite": {
+      "share_text": "Become a friend on the SOI app! {link}",
+      "share_subject": "Invite SOI friends",
+      "link_copied": "Link copied",
+      "instagram_missing": "Instagram is not installed",
+      "sms_unavailable": "Can't open Messages app",
+      "kakao_title": "Become a friend on the SOI app!",
+      "kakao_description": "A new SNS that communicates through photos and voice",
+      "kakao_button": "Getting started with SOI",
+      "kakao_failed": "KakaoTalk sharing failed",
+      "kakao_missing": "KakaoTalk is not installed",
+      "copy": "Copy link",
+      "share": "share",
+      "kakao": "kakaotalk",
+      "instagram": "Instagram",
+      "message": "message"
+    },
+    "suggest": {
+      "request_sent": "I sent a friend request to {name}",
+      "sms_message": "Check out your friends’ photos and voices right now! {link}",
+      "invite_sms_sent": "Send an invitation message to {name}",
+      "pending": "requested",
+      "add": "add friend",
+      "loading": "Searching for friends in your contacts.",
+      "empty": "I no friends to recommend",
+      "no_name": "no name",
+      "no_contacts": "I can't find my friends in my contacts",
+      "enable_sync": "enable contact synchronization"
+    },
+    "add_by_id": {
+      "title": "Add by ID",
+      "search_hint": "Find friend ID",
+      "not_found": "There is no ID. enter again",
+      "request_sent": "I sent a friend request to {name}",
+      "request_failed": "Friend request failed",
+      "status_friend": "friend",
+      "status_pending": "requested",
+      "status_blocked": "blocked",
+      "status_add": "add friend"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "section": {
+      "account": "account",
+      "app_settings": "App settings",
+      "usage_guide": "App settings",
+      "other": "etc"
+    },
+    "account": {
+      "id_label": "id",
+      "name_label": "name",
+      "birth_label": "birthday",
+      "phone_label": "phone"
+    },
+    "settings": {
+      "language": "Language",
+      "language_ko": "korean",
+      "privacy": "Privacy",
+      "post_management": "Post Management"
+    },
+    "usage": {
+      "privacy_policy": "privacy policy",
+      "terms_of_service": "Terms of Service",
+      "app_version": "app version",
+      "app_version_value": "1.0.0"
+    },
+    "other": {
+      "app_info_consent": "App information consent settings",
+      "delete_account": "Withdraw membership",
+      "logout": "log out"
+    },
+    "logout": {
+      "title": "Would you like to log out?",
+      "confirm": "OK"
+    },
+    "delete_account": {
+      "title": "Unsubscribe",
+      "description": "When you choose the withdrawal button, your account will be It will be deleted and can't be recovered",
+      "confirm": "secession"
+    },
+    "snackbar": {
+      "login_required": "Login required. login again",
+      "image_not_found": "The image you selected can't be found",
+      "upload_failed": "Profile image upload failed",
+      "profile_updated": "Your profile image changed",
+      "profile_update_failed": "You can't change your profile image",
+      "logout_failed": "logging out.",
+      "delete_account_failed": "deleting your account: {error}"
+    }
+  },
+  "privacy": {
+    "title": "Privacy protection",
+    "blocked_users": "blocked user",
+    "contact_sync": "Contact sync"
+  },
+  "deleted_posts": {
+    "title": "post recovery",
+    "restore_button": "Show on post",
+    "empty": "No posts been deleted",
+    "restore_success": "{count} posts been restored",
+    "restore_failed": "Post restoration failed",
+    "restore_partial": "{success} restoration succeeded, {fail} failed"
+  },
+  "post_management": {
+    "title": "Post Management",
+    "restore_deleted": "Recover deleted posts"
+  },
+  "notification": {
+    "title": "Notifications",
+    "recent_7_days": "Last 7 days",
+    "loading_short": "Loading..",
+    "pending_requests": "{count} pending requests",
+    "no_requests": "No requests received",
+    "friend_requests": "friend request",
+    "loading": "Loading notifications.",
+    "load_failed": "Can't load notifications",
+    "load_failed_with_reason": "Can't load notification: {error}",
+    "unknown_error": "An unknown error occurred",
+    "empty": "No notifications",
+    "empty_subtitle": "When new notifications come in, you'll see them here",
+    "login_required": "Login required",
+    "invalid_notification": "Notification information can't be confirmed",
+    "category_not_found": "No category info found",
+    "category_default": "Category",
+    "invite_accepted": "You accepted the category invitation",
+    "invite_accept_failed": "accept invitation",
+    "invite_declined": "I declined the category invitation",
+    "invite_decline_failed": "decline invitation",
+    "post_not_found": "Post information not found",
+    "unsupported": "This notification type is not supported",
+    "confirm": "OK",
+    "invite": {
+      "title": "You are invited to the category \"{name}\"",
+      "message": "This is a category where unknown friends are added. Do you want to accept?",
+      "accept": "acceptance"
+    }
+  },
+  "onboarding": {
+    "message_1": "Capturing this moment with a camera, Get ready to capture your emotions",
+    "message_2": "Record the voice over the photo you took, You can send it directly to the category you want",
+    "message_3": "You can view all, shared records, and my records, You can collect them in categories",
+    "message_4": "Listen to your friends' records. Enjoy your friends’ photos and voices one by one",
+    "message_5": "Listen to funny voice comments from your friends Leave a voice comment yourself!"
+  },
+  "start": {
+    "welcome": "Welcome to SOI!"
   }
 }

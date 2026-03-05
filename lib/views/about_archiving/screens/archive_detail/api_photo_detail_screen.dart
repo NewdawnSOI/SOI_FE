@@ -99,7 +99,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     required String currentUserNickname,
   }) {
     for (final comment in comments.reversed) {
-      if (comment.type != CommentType.emoji) continue;
+      if (comment.emojiId == null || comment.emojiId == 0) continue;
       if (comment.nickname != currentUserNickname) continue;
       return _emojiFromId(comment.emojiId);
     }

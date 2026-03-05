@@ -114,7 +114,7 @@ extension _ApiPhotoDisplayWidgetCommentTagsExtension
     if (!_isShowingComments) return const [];
 
     final filteredComments = _postComments
-        .where((c) => c.type != CommentType.emoji && c.hasLocation)
+        .where((c) => c.hasLocation)
         .toList();
 
     final actualSize = _imageSize;

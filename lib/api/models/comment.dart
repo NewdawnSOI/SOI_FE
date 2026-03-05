@@ -2,7 +2,6 @@ import 'package:soi_api_client/api.dart';
 
 /// 댓글 유형
 enum CommentType {
-  emoji, // 이모지 댓글
   text, // 텍스트 댓글
   audio, // 음성 댓글
   photo, // 사진 댓글
@@ -63,6 +62,7 @@ class Comment {
   final double? locationY;
 
   /// 댓글 유형 (텍스트/음성/이모지)
+  /// 대댓글은 무조건 CommentType.reply로 처리합니다.
   final CommentType type;
 
   const Comment({
@@ -111,8 +111,6 @@ class Comment {
   /// DTO 타입을 CommentType으로 변환
   static CommentType _typeFromDto(CommentRespDtoCommentTypeEnum? type) {
     switch (type) {
-      case CommentRespDtoCommentTypeEnum.EMOJI:
-        return CommentType.emoji;
       case CommentRespDtoCommentTypeEnum.TEXT:
         return CommentType.text;
       case CommentRespDtoCommentTypeEnum.AUDIO:
@@ -156,8 +154,6 @@ class Comment {
   /// 문자열을 CommentType으로 변환
   static CommentType _typeFromString(String? type) {
     switch (type?.toUpperCase()) {
-      case 'EMOJI':
-        return CommentType.emoji;
       case 'TEXT':
         return CommentType.text;
       case 'AUDIO':
@@ -194,8 +190,6 @@ class Comment {
 
   static String _commentTypeToApiValue(CommentType type) {
     switch (type) {
-      case CommentType.emoji:
-        return 'EMOJI';
       case CommentType.text:
         return 'TEXT';
       case CommentType.audio:
@@ -232,9 +226,6 @@ class Comment {
       'commentType': _commentTypeToApiValue(type),
     };
   }
-
-  /// 이모지 댓글인지 확인
-  bool get isEmoji => type == CommentType.emoji;
 
   /// 텍스트 댓글인지 확인
   bool get isText => type == CommentType.text;

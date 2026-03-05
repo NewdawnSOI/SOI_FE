@@ -82,21 +82,17 @@ class CommentController extends ChangeNotifier {
 
       final inferredType =
           type ??
-          (normalizedEmojiId > 0
-              ? CommentType.emoji
-              : (normalizedAudioKey.isNotEmpty
-                    ? CommentType.audio
-                    : (normalizedReplyUserId > 0 || normalizedParentId > 0
-                          ? CommentType.reply
-                          : (normalizedFileKey.isNotEmpty
-                                ? CommentType.photo
-                                : CommentType.text))));
+          (normalizedAudioKey.isNotEmpty
+              ? CommentType.audio
+              : (normalizedReplyUserId > 0 || normalizedParentId > 0
+                    ? CommentType.reply
+                    : (normalizedFileKey.isNotEmpty
+                          ? CommentType.photo
+                          : CommentType.text)));
 
       // Swagger에서 동작하는 형태에 맞춰, 서버가 null 값에 민감할 수 있는 필드들을 기본값으로 맞춥니다.
       final payloadText =
-          inferredType == CommentType.emoji || inferredType == CommentType.audio
-          ? ''
-          : normalizedText;
+          inferredType == CommentType.audio ? '' : normalizedText;
       final payloadAudioKey = inferredType == CommentType.audio
           ? normalizedAudioKey
           : '';
@@ -110,7 +106,7 @@ class CommentController extends ChangeNotifier {
       final result = await _commentService.createComment(
         postId: postId,
         userId: userId,
-        emojiId: inferredType == CommentType.emoji ? normalizedEmojiId : 0,
+        emojiId: normalizedEmojiId,
         parentId: normalizedParentId,
         replyUserId: normalizedReplyUserId,
         text: payloadText,
@@ -181,30 +177,6 @@ class CommentController extends ChangeNotifier {
       locationY: locationY,
       type: CommentType.audio,
     );
-  }
-
-  /// 이모지 댓글 생성
-  Future<CommentCreationResult> createEmojiComment({
-    required int postId,
-    required int userId,
-    required int emojiId,
-  }) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      final result = await _commentService.createEmojiComment(
-        postId: postId,
-        userId: userId,
-        emojiId: emojiId,
-      );
-      _setLoading(false);
-      return result;
-    } catch (e) {
-      _setError('이모지 댓글 생성 실패: $e');
-      _setLoading(false);
-      return const CommentCreationResult.failure();
-    }
   }
 
   // ============================================

@@ -367,8 +367,6 @@ class _ApiCommentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     switch (comment.type) {
-      case CommentType.emoji:
-        return _buildEmojiRow(context);
       case CommentType.text:
         return _buildTextRow(context);
       case CommentType.audio:
@@ -385,11 +383,13 @@ class _ApiCommentRow extends StatelessWidget {
   String get _profileUrl => comment.userProfileUrl ?? '';
   String get _userName => comment.nickname ?? '알 수 없는 사용자';
 
+  /// 댓글이 본인 또는 다른 사용자의 댓글인지에 따라 액션 메뉴(신고/차단)를 보여줄지 결정하는 메서드
   bool _shouldShowActions(BuildContext context) {
     final currentUserId = context.read<UserController>().currentUser?.userId;
     return _canShowActions(currentUserId);
   }
 
+  /// 사용자 이름을 표시하기 위한 TextStyle
   TextStyle _userNameStyle() => TextStyle(
     color: Colors.white,
     fontSize: 14.sp,
@@ -397,6 +397,7 @@ class _ApiCommentRow extends StatelessWidget {
     fontWeight: FontWeight.w600,
   );
 
+  /// 상대적인 시간을 표시하기 위한 TextStyle
   TextStyle _relativeTimeStyle() => TextStyle(
     color: const Color(0xFFC4C4C4),
     fontSize: 10.sp,
@@ -405,11 +406,32 @@ class _ApiCommentRow extends StatelessWidget {
     letterSpacing: -0.40,
   );
 
-  Widget _buildRelativeTimeRow() {
+  Widget _buildReplyAndTimeRow() {
+    const profileSize = 44.0;
+    const profileToContentGap = 12.0;
+
     return Row(
       children: [
+        SizedBox(width: (profileSize + profileToContentGap).w),
+        TextButton(
+          onPressed: () {},
+          style: TextButton.styleFrom(
+            minimumSize: Size.zero,
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(
+            tr('comments.reply_action'),
+            style: TextStyle(
+              color: const Color(0xFFF8F8F8),
+              fontSize: 10.sp,
+              fontFamily: 'Pretendard',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
         const Spacer(),
-        Text(_formatRelativeTime(), style: _relativeTimeStyle()),
+        Text(tr('comments.time_placeholder'), style: _relativeTimeStyle()),
         SizedBox(width: 12.w),
       ],
     );
@@ -459,35 +481,8 @@ class _ApiCommentRow extends StatelessWidget {
             ],
           ),
           SizedBox(height: 7.h),
-          _buildRelativeTimeRow(),
+          _buildReplyAndTimeRow(),
         ],
-      ),
-    );
-  }
-
-  String _emojiFromId(int? emojiId) {
-    switch (emojiId) {
-      case 0:
-        return '😀';
-      case 1:
-        return '😍';
-      case 2:
-        return '😭';
-      case 3:
-        return '😡';
-      default:
-        return '❓';
-    }
-  }
-
-  Widget _buildEmojiRow(BuildContext context) {
-    return _buildCommentRowLayout(
-      context: context,
-      showActions: _shouldShowActions(context),
-      bodySpacing: 0,
-      body: Text(
-        _emojiFromId(comment.emojiId),
-        style: TextStyle(fontSize: 22.sp),
       ),
     );
   }
@@ -591,13 +586,17 @@ class _ApiCommentRow extends StatelessWidget {
     return _buildCommentRowLayout(
       context: context,
       showActions: _shouldShowActions(context),
+      bodySpacing: 6,
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _ApiCommentMediaPreview(
-            source: mediaSource,
-            isVideo: isVideo,
-            cacheKey: cacheKey,
+          Align(
+            alignment: Alignment.center,
+            child: _ApiCommentMediaPreview(
+              source: mediaSource,
+              isVideo: isVideo,
+              cacheKey: cacheKey,
+            ),
           ),
           if (trimmedText.isNotEmpty) ...[
             SizedBox(height: 8.h),
@@ -678,10 +677,6 @@ class _ApiCommentRow extends StatelessWidget {
     }
 
     return [];
-  }
-
-  String _formatRelativeTime() {
-    return '';
   }
 }
 
@@ -974,12 +969,24 @@ class _ApiCommentMediaPreviewState extends State<_ApiCommentMediaPreview> {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        width: 82.w,
-        height: 82.w,
-        child: widget.isVideo ? _buildVideoPreview() : _buildImagePreview(),
+    final previewSize = (123.88).sp;
+    final borderSize = 137.sp;
+    final borderPadding = (borderSize - previewSize) / 2;
+
+    return Container(
+      width: borderSize,
+      height: borderSize,
+      padding: EdgeInsets.all(borderPadding),
+      decoration: const BoxDecoration(
+        color: Color(0xFF959595),
+        shape: BoxShape.circle,
+      ),
+      child: ClipOval(
+        child: SizedBox(
+          width: previewSize,
+          height: previewSize,
+          child: widget.isVideo ? _buildVideoPreview() : _buildImagePreview(),
+        ),
       ),
     );
   }

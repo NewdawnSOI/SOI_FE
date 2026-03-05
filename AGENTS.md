@@ -80,6 +80,8 @@
 - 사용자 노출 문자열 변경 시 `ko/es/en` 동시 반영.
 - locale 관련 변경 시 `lib/main.dart`의 `supportedLocales`에 `Locale('en')` 포함 여부 확인.
 - 키 네임스페이스 유지: `common.*`, `camera.editor.*` 등 기존 패턴.
+- `Text`/`RichText` 등 사용자 노출 문자열을 새로 만들거나 변경할 때 하드코딩 금지, 반드시 로컬라이제이션 키(`tr()`)를 사용한다.
+- 로컬라이즈 키를 추가/수정한 경우 `ko/es/en` 리소스를 같은 턴에서 함께 갱신한다.
 
 ## 8. 고위험 파일 (수정 시 강화 점검)
 - `lib/main.dart`

@@ -71,7 +71,9 @@
       "start_tag": "Iniciar etiqueta de voz",
       "recording_failed": "No se pudo iniciar la grabación.",
       "prepare_failed": "No se pudo preparar el audio grabado."
-    }
+    },
+    "reply_action": "Responder",
+    "time_placeholder": "hace 6 h"
   },
   "audio": {
     "upload_failed": "No se subió",

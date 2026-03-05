@@ -50,6 +50,7 @@ Use this shape unless the user asks for a different schema:
 - Record inferred details in `assumptions`.
 - Record fragile points in `risks`.
 - Keep schema stable across turns unless user asks to change it.
+- If the task includes Flutter UI text creation/update, add localization constraints explicitly in `constraints.must` (no hardcoded user-visible text, use localization keys).
 
 ## Execution Rules
 
@@ -57,6 +58,7 @@ Use this shape unless the user asks for a different schema:
 - Run listed `validation.commands` when possible.
 - If a required field is unknowable and high-risk, ask one concise clarification.
 - If low-risk, proceed with an assumption and document it.
+- For Flutter UI text changes, implement localized keys/usages and include locale resource update steps (`ko/es/en`) in `execution_plan`.
 
 ## Response Format
 

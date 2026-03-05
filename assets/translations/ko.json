@@ -71,7 +71,9 @@
       "start_tag": "음성 태그 시작하기",
       "recording_failed": "녹음을 시작할 수 없습니다.",
       "prepare_failed": "녹음 파일을 준비할 수 없습니다."
-    }
+    },
+    "reply_action": "답장 달기",
+    "time_placeholder": "6시간 전"
   },
   "audio": {
     "upload_failed": "음성 업로드에 실패했습니다.",

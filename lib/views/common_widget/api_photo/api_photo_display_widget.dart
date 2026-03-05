@@ -311,7 +311,6 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     final pendingMarker = _buildPendingMarker();
     final deletePopup = _showActionOverlay ? _buildDeleteActionPopup() : null;
     final showCaptionOverlay = _hasCaption && !_isTextOnlyPost;
-    final showCommentToggle = _hasComments || _hasPendingMarker;
 
     return Center(
       child: SizedBox(
@@ -423,8 +422,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                             waveformData: waveformData,
                           ),
                         ),
-                      if (!widget.post.hasAudio &&
-                          (showCaptionOverlay || showCommentToggle))
+                      if (!widget.post.hasAudio && showCaptionOverlay)
                         Positioned(
                           left: 16.w,
                           right: 16.w,
@@ -435,27 +433,6 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                             children: [
                               if (showCaptionOverlay)
                                 Expanded(child: _buildCaptionOverlay(true)),
-                              if (showCommentToggle) ...[
-                                if (showCaptionOverlay) SizedBox(width: 12.w),
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _isShowingComments = !_isShowingComments;
-                                      if (!_isShowingComments) {
-                                        _expandedMediaTagKey = null;
-                                      }
-                                    });
-                                    if (!_isShowingComments) {
-                                      _clearExpandedMediaOverlay();
-                                    }
-                                  },
-                                  child: Image.asset(
-                                    "assets/comment_profile_icon.png",
-                                    width: 25,
-                                    height: 25,
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ),

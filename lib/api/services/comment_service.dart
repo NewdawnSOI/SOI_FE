@@ -191,26 +191,6 @@ class CommentService {
     );
   }
 
-  /// 이모지 댓글 생성 (편의 메서드)
-  Future<CommentCreationResult> createEmojiComment({
-    required int postId,
-    required int userId,
-    required int emojiId,
-  }) async {
-    return createComment(
-      postId: postId,
-      userId: userId,
-      emojiId: emojiId,
-      text: '',
-      audioFileKey: '',
-      waveformData: '',
-      duration: 0,
-      locationX: 0,
-      locationY: 0,
-      type: CommentType.emoji,
-    );
-  }
-
   /// 댓글 생성 응답에서 Comment 객체 파싱
   ///
   /// Parameters:
@@ -393,10 +373,10 @@ class CommentService {
         return CommentReqDtoCommentTypeEnum.TEXT;
       case CommentType.audio:
         return CommentReqDtoCommentTypeEnum.AUDIO;
-      case CommentType.emoji:
-        return CommentReqDtoCommentTypeEnum.EMOJI;
       case CommentType.photo:
         return CommentReqDtoCommentTypeEnum.PHOTO;
+      case CommentType.video:
+        return CommentReqDtoCommentTypeEnum.VIDEO;
       case CommentType.reply:
         return CommentReqDtoCommentTypeEnum.REPLY;
       default:
