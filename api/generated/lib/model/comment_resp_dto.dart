@@ -29,6 +29,7 @@ class CommentRespDto {
     this.commentType,
     this.fileUrl,
     this.fileKey,
+    this.createdAt,
     this.replyUserCount,
   });
 
@@ -160,6 +161,14 @@ class CommentRespDto {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
+  DateTime? createdAt;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
   int? replyUserCount;
 
   @override
@@ -180,6 +189,7 @@ class CommentRespDto {
     other.commentType == commentType &&
     other.fileUrl == fileUrl &&
     other.fileKey == fileKey &&
+    other.createdAt == createdAt &&
     other.replyUserCount == replyUserCount;
 
   @override
@@ -201,10 +211,11 @@ class CommentRespDto {
     (commentType == null ? 0 : commentType!.hashCode) +
     (fileUrl == null ? 0 : fileUrl!.hashCode) +
     (fileKey == null ? 0 : fileKey!.hashCode) +
+    (createdAt == null ? 0 : createdAt!.hashCode) +
     (replyUserCount == null ? 0 : replyUserCount!.hashCode);
 
   @override
-  String toString() => 'CommentRespDto[id=$id, userProfileUrl=$userProfileUrl, userProfileKey=$userProfileKey, userId=$userId, nickname=$nickname, text=$text, emojiId=$emojiId, replyUserName=$replyUserName, audioUrl=$audioUrl, waveFormData=$waveFormData, duration=$duration, locationX=$locationX, locationY=$locationY, commentType=$commentType, fileUrl=$fileUrl, fileKey=$fileKey, replyUserCount=$replyUserCount]';
+  String toString() => 'CommentRespDto[id=$id, userProfileUrl=$userProfileUrl, userProfileKey=$userProfileKey, userId=$userId, nickname=$nickname, text=$text, emojiId=$emojiId, replyUserName=$replyUserName, audioUrl=$audioUrl, waveFormData=$waveFormData, duration=$duration, locationX=$locationX, locationY=$locationY, commentType=$commentType, fileUrl=$fileUrl, fileKey=$fileKey, createdAt=$createdAt, replyUserCount=$replyUserCount]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -288,6 +299,11 @@ class CommentRespDto {
     } else {
       json[r'fileKey'] = null;
     }
+    if (this.createdAt != null) {
+      json[r'createdAt'] = this.createdAt!.toUtc().toIso8601String();
+    } else {
+      json[r'createdAt'] = null;
+    }
     if (this.replyUserCount != null) {
       json[r'replyUserCount'] = this.replyUserCount;
     } else {
@@ -331,6 +347,7 @@ class CommentRespDto {
         commentType: CommentRespDtoCommentTypeEnum.fromJson(json[r'commentType']),
         fileUrl: mapValueOfType<String>(json, r'fileUrl'),
         fileKey: mapValueOfType<String>(json, r'fileKey'),
+        createdAt: mapDateTime(json, r'createdAt', r''),
         replyUserCount: mapValueOfType<int>(json, r'replyUserCount'),
       );
     }

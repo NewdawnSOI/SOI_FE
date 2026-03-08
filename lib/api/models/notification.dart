@@ -59,6 +59,12 @@ class AppNotification {
   /// 댓글 관련 알림일 경우 --> Comment ID
   final int? relatedId;
 
+  /// 답글 알림의 경우, 실제 답글 댓글 ID
+  final int? replyCommentId;
+
+  /// 답글 알림의 경우, 부모 댓글 ID
+  final int? parentCommentId;
+
   const AppNotification({
     this.id,
     this.text,
@@ -70,6 +76,8 @@ class AppNotification {
     this.isRead,
     this.categoryIdForPost,
     this.relatedId,
+    this.replyCommentId,
+    this.parentCommentId,
   });
 
   /// NotificationRespDto에서 AppNotification 모델 생성
@@ -85,6 +93,8 @@ class AppNotification {
       isRead: dto.isRead,
       categoryIdForPost: dto.categoryIdForPost,
       relatedId: dto.relatedId,
+      replyCommentId: dto.replyCommentId,
+      parentCommentId: dto.parentCommentId,
     );
   }
 
@@ -131,6 +141,8 @@ class AppNotification {
       isRead: json['isRead'] as bool?,
       categoryIdForPost: json['categoryIdForPost'] as int?,
       relatedId: json['relatedId'] as int?,
+      replyCommentId: json['replyCommentId'] as int?,
+      parentCommentId: json['parentCommentId'] as int?,
     );
   }
 
@@ -181,6 +193,8 @@ class AppNotification {
       'isRead': isRead,
       'categoryIdForPost': categoryIdForPost,
       'relatedId': relatedId,
+      'replyCommentId': replyCommentId,
+      'parentCommentId': parentCommentId,
     };
   }
 
@@ -206,6 +220,8 @@ class AppNotification {
     bool? isRead,
     int? categoryIdForPost,
     int? relatedId,
+    int? replyCommentId,
+    int? parentCommentId,
   }) {
     return AppNotification(
       id: id ?? this.id,
@@ -218,6 +234,8 @@ class AppNotification {
       isRead: isRead ?? this.isRead,
       categoryIdForPost: categoryIdForPost ?? this.categoryIdForPost,
       relatedId: relatedId ?? this.relatedId,
+      replyCommentId: replyCommentId ?? this.replyCommentId,
+      parentCommentId: parentCommentId ?? this.parentCommentId,
     );
   }
 
@@ -229,6 +247,8 @@ class AppNotification {
           id == other.id &&
           text == other.text &&
           relatedId == other.relatedId &&
+          replyCommentId == other.replyCommentId &&
+          parentCommentId == other.parentCommentId &&
           type == other.type;
 
   @override
@@ -236,11 +256,13 @@ class AppNotification {
       (id?.hashCode ?? 0) ^
       (text?.hashCode ?? 0) ^
       (relatedId?.hashCode ?? 0) ^
+      (replyCommentId?.hashCode ?? 0) ^
+      (parentCommentId?.hashCode ?? 0) ^
       (type?.hashCode ?? 0);
 
   @override
   String toString() {
-    return 'AppNotification{id: $id, type: $type, relatedId: $relatedId, text: $text}';
+    return 'AppNotification{id: $id, type: $type, relatedId: $relatedId, replyCommentId: $replyCommentId, parentCommentId: $parentCommentId, text: $text}';
   }
 }
 

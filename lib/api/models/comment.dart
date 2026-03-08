@@ -37,6 +37,9 @@ class Comment {
   /// 댓글로 등록되는 이미지/비디오의 Key
   final String? fileKey;
 
+  /// 댓글 생성 시각
+  final DateTime? createdAt;
+
   /// 해당 댓글의 대댓글 작성자 수
   final int? replyUserCount;
 
@@ -74,6 +77,7 @@ class Comment {
     this.userProfileKey,
     this.fileUrl,
     this.fileKey,
+    this.createdAt,
     this.replyUserCount,
     this.text,
     this.emojiId,
@@ -96,6 +100,7 @@ class Comment {
       userProfileKey: dto.userProfileKey,
       fileKey: dto.fileKey,
       fileUrl: dto.fileUrl,
+      createdAt: dto.createdAt,
       replyUserCount: dto.replyUserCount,
       text: dto.text,
       emojiId: dto.emojiId,
@@ -139,6 +144,7 @@ class Comment {
       userProfileKey: json['userProfileKey'] as String?,
       fileKey: json['fileKey'] as String?,
       fileUrl: json['fileUrl'] as String?,
+      createdAt: _dateTimeFromJson(json['createdAt']),
       replyUserCount: json['replyUserCount'] as int?,
       text: json['text'] as String?,
       emojiId: json['emojiId'] as int?,
@@ -173,6 +179,16 @@ class Comment {
     return json['waveFormData'] as String? ??
         json['waveformData'] as String? ??
         json['waveformdata'] as String?;
+  }
+
+  static DateTime? _dateTimeFromJson(dynamic raw) {
+    if (raw is DateTime) {
+      return raw;
+    }
+    if (raw is String && raw.isNotEmpty) {
+      return DateTime.tryParse(raw);
+    }
+    return null;
   }
 
   static CommentType _typeFromJsonValue(dynamic raw) {
@@ -214,6 +230,7 @@ class Comment {
       'userProfileKey': userProfileKey,
       'fileUrl': fileUrl,
       'fileKey': fileKey,
+      'createdAt': createdAt?.toIso8601String(),
       'replyUserCount': replyUserCount,
       'text': text,
       'emojiId': emojiId,
@@ -257,6 +274,7 @@ class Comment {
     String? userProfileKey,
     String? fileUrl,
     String? fileKey,
+    DateTime? createdAt,
     int? replyUserCount,
     String? replyUserName,
     String? text,
@@ -277,6 +295,7 @@ class Comment {
       userProfileKey: userProfileKey ?? this.userProfileKey,
       fileUrl: fileUrl ?? this.fileUrl,
       fileKey: fileKey ?? this.fileKey,
+      createdAt: createdAt ?? this.createdAt,
       replyUserCount: replyUserCount ?? this.replyUserCount,
       text: text ?? this.text,
       emojiId: emojiId ?? this.emojiId,
@@ -291,6 +310,6 @@ class Comment {
 
   @override
   String toString() {
-    return 'Comment{id: $id, userId: $userId, nickname: $nickname, replyUserName: $replyUserName, fileUrl: $fileUrl, fileKey: $fileKey, replyUserCount: $replyUserCount, type: $type, text: $text, emojiId: $emojiId}';
+    return 'Comment{id: $id, userId: $userId, nickname: $nickname, replyUserName: $replyUserName, fileUrl: $fileUrl, fileKey: $fileKey, createdAt: $createdAt, replyUserCount: $replyUserCount, type: $type, text: $text, emojiId: $emojiId}';
   }
 }

@@ -11,6 +11,10 @@ default_platform(:android)
 platform :android do
   # --- pubspec.yaml version helpers ---
 
+  def play_permission_denied?(message)
+    message.to_s.downcase.include?("caller does not have permission")
+  end
+
   def read_pubspec_version(pubspec_path)
     content = File.read(pubspec_path)
     m = content.match(/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)\s*$/)
@@ -41,6 +45,11 @@ platform :android do
         json_key: ENV["GOOGLE_PLAY_JSON_KEY_PATH"]
       ).max.to_i
     rescue => e
+      if play_permission_denied?(e.message)
+        UI.user_error!(
+          "Google Play API 권한 오류: 서비스 계정을 Play Console 앱 권한(Release Manager 이상)으로 연결하세요."
+        )
+      end
       UI.message("Google Play versionCode 조회 실패(초기 배포일 수 있음): #{e.message}")
       latest_build = 0
     end
@@ -66,6 +75,26 @@ platform :android do
     aab
   end
 
+  def upload_aab_to_play_store!(aab_path:, package_name:, track:)
+    supply(
+      aab: aab_path,
+      package_name: package_name,
+      track: track,
+      json_key: ENV["GOOGLE_PLAY_JSON_KEY_PATH"],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: "draft"
+    )
+  rescue => e
+    if play_permission_denied?(e.message)
+      UI.user_error!(
+        "Google Play API 권한 오류: 서비스 계정을 Play Console 앱 권한(Release Manager 이상)으로 연결하세요."
+      )
+    end
+    raise
+  end
+
   # -------------------------
   # Lane 1) Flutter 빌드 -> Play Store (Internal Track)
   # -------------------------
@@ -86,16 +115,7 @@ platform :android do
     aab_path = find_latest_aab(project_root)
     UI.message("AAB: #{aab_path}")
 
-    supply(
-      aab: aab_path,
-      package_name: package_name,
-      track: track,
-      json_key: ENV["GOOGLE_PLAY_JSON_KEY_PATH"],
-      skip_upload_metadata: true,
-      skip_upload_images: true,
-      skip_upload_screenshots: true,
-      release_status: "draft"
-    )
+    upload_aab_to_play_store!(aab_path: aab_path, package_name: package_name, track: track)
 
     UI.success("Play Store (#{track}) 업로드 완료!")
   end
@@ -143,16 +163,7 @@ platform :android do
 
     UI.message("Play Store 업로드 시작...")
 
-    supply(
-      aab: aab_path,
-      package_name: package_name,
-      track: track,
-      json_key: ENV["GOOGLE_PLAY_JSON_KEY_PATH"],
-      skip_upload_metadata: true,
-      skip_upload_images: true,
-      skip_upload_screenshots: true,
-      release_status: "draft"
-    )
+    upload_aab_to_play_store!(aab_path: aab_path, package_name: package_name, track: track)
 
     UI.success("모든 작업 완료!")
   end

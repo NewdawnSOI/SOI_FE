@@ -63,11 +63,12 @@ ApiResponseDtoSliceCommentRespDto _sliceResponse({
   );
 }
 
-CommentRespDto _commentDto(int id) {
+CommentRespDto _commentDto(int id, {DateTime? createdAt}) {
   return CommentRespDto(
     id: id,
     nickname: 'user$id',
     commentType: CommentRespDtoCommentTypeEnum.TEXT,
+    createdAt: createdAt,
   );
 }
 
@@ -162,7 +163,13 @@ void main() {
             parentCalls.add('$postId:$page');
             if (page == 0) {
               return _sliceResponse(
-                content: [_commentDto(1), _commentDto(2)],
+                content: [
+                  _commentDto(
+                    1,
+                    createdAt: DateTime.parse('2026-03-08T10:00:00Z'),
+                  ),
+                  _commentDto(2),
+                ],
                 last: false,
                 empty: false,
               );
@@ -208,6 +215,7 @@ void main() {
       expect(parentCalls, ['99:0', '99:1']);
       expect(childCalls, ['1:0', '2:0', '3:0']);
       expect(comments.map((e) => e.id), [1, 11, 2, 3, 31, 32]);
+      expect(comments.first.createdAt, DateTime.parse('2026-03-08T10:00:00Z'));
     });
 
     test(

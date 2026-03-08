@@ -23,6 +23,8 @@ class NotificationRespDto {
     this.isRead,
     this.categoryIdForPost,
     this.relatedId,
+    this.replyCommentId,
+    this.parentCommentId,
     this.categoryInvitedUsers = const [],
   });
 
@@ -100,6 +102,22 @@ class NotificationRespDto {
   ///
   int? relatedId;
 
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? replyCommentId;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? parentCommentId;
+
   List<NotificationUserRespDto> categoryInvitedUsers;
 
   @override
@@ -114,6 +132,8 @@ class NotificationRespDto {
     other.isRead == isRead &&
     other.categoryIdForPost == categoryIdForPost &&
     other.relatedId == relatedId &&
+    other.replyCommentId == replyCommentId &&
+    other.parentCommentId == parentCommentId &&
     _deepEquality.equals(other.categoryInvitedUsers, categoryInvitedUsers);
 
   @override
@@ -129,10 +149,12 @@ class NotificationRespDto {
     (isRead == null ? 0 : isRead!.hashCode) +
     (categoryIdForPost == null ? 0 : categoryIdForPost!.hashCode) +
     (relatedId == null ? 0 : relatedId!.hashCode) +
+    (replyCommentId == null ? 0 : replyCommentId!.hashCode) +
+    (parentCommentId == null ? 0 : parentCommentId!.hashCode) +
     (categoryInvitedUsers.hashCode);
 
   @override
-  String toString() => 'NotificationRespDto[id=$id, text=$text, name=$name, nickname=$nickname, userProfileKey=$userProfileKey, imageUrl=$imageUrl, type=$type, isRead=$isRead, categoryIdForPost=$categoryIdForPost, relatedId=$relatedId, categoryInvitedUsers=$categoryInvitedUsers]';
+  String toString() => 'NotificationRespDto[id=$id, text=$text, name=$name, nickname=$nickname, userProfileKey=$userProfileKey, imageUrl=$imageUrl, type=$type, isRead=$isRead, categoryIdForPost=$categoryIdForPost, relatedId=$relatedId, replyCommentId=$replyCommentId, parentCommentId=$parentCommentId, categoryInvitedUsers=$categoryInvitedUsers]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -186,6 +208,16 @@ class NotificationRespDto {
     } else {
       json[r'relatedId'] = null;
     }
+    if (this.replyCommentId != null) {
+      json[r'replyCommentId'] = this.replyCommentId;
+    } else {
+      json[r'replyCommentId'] = null;
+    }
+    if (this.parentCommentId != null) {
+      json[r'parentCommentId'] = this.parentCommentId;
+    } else {
+      json[r'parentCommentId'] = null;
+    }
       json[r'categoryInvitedUsers'] = this.categoryInvitedUsers;
     return json;
   }
@@ -219,6 +251,8 @@ class NotificationRespDto {
         isRead: mapValueOfType<bool>(json, r'isRead'),
         categoryIdForPost: mapValueOfType<int>(json, r'categoryIdForPost'),
         relatedId: mapValueOfType<int>(json, r'relatedId'),
+        replyCommentId: mapValueOfType<int>(json, r'replyCommentId'),
+        parentCommentId: mapValueOfType<int>(json, r'parentCommentId'),
         categoryInvitedUsers: NotificationUserRespDto.listFromJson(json[r'categoryInvitedUsers']),
       );
     }

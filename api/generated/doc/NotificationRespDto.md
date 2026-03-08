@@ -18,6 +18,8 @@ Name | Type | Description | Notes
 **isRead** | **bool** |  | [optional] 
 **categoryIdForPost** | **int** |  | [optional] 
 **relatedId** | **int** |  | [optional] 
+**replyCommentId** | **int** |  | [optional] 
+**parentCommentId** | **int** |  | [optional] 
 **categoryInvitedUsers** | [**List<NotificationUserRespDto>**](NotificationUserRespDto.md) |  | [optional] [default to const []]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
