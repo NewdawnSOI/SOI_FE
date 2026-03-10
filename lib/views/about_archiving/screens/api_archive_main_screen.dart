@@ -31,6 +31,7 @@ class APIArchiveMainScreen extends StatefulWidget {
 
 class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   int _selectedIndex = 0;
+  bool _isListView = false;
 
   // 컨트롤러들
   final _categoryNameController = TextEditingController();
@@ -79,6 +80,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   // 탭 화면 목록을 동적으로 생성하는 메서드
   List<Widget> get _screens => [
     AllArchivesScreen(
+      isListView: _isListView,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
@@ -86,12 +88,14 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
     ),
 
     SharedArchivesScreen(
+      isListView: _isListView,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
       onStartEdit: startEditMode,
     ),
     MyArchivesScreen(
+      isListView: _isListView,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
@@ -596,7 +600,9 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
                   SizedBox(width: 4.w),
                   IconButton(
                     onPressed: () {
-                      // TODO: list switch
+                      setState(() {
+                        _isListView = !_isListView;
+                      });
                     },
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),

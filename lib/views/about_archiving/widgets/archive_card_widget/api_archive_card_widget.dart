@@ -37,8 +37,15 @@ class ApiArchiveCardWidget extends StatelessWidget {
     milliseconds: 220,
   );
   static const Color _kEmptyCategoryBackgroundColor = Color(0xFF1C1C1C);
+  static const Color _kListEmptyCategoryBackgroundColor = Color(0xFF5A5A5A);
+  static final Color _kCategoryCardBorderColor = const Color(
+    0xFF1C1C1C,
+  ).withValues(alpha: 0.5); // 테두리 색상 (투명도 50%)
+  static const double _kGridCardBorderRadius = 10.7;
+  static const double _kListCardBorderRadius = 9.3;
 
   final api_category.Category category;
+  final bool isListView;
   final bool isEditMode;
   final bool isEditing;
   final TextEditingController? editingController;
@@ -47,6 +54,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
   const ApiArchiveCardWidget({
     super.key,
     required this.category,
+    this.isListView = false,
     this.isEditMode = false,
     this.isEditing = false,
     this.editingController,
@@ -55,7 +63,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _buildGridLayout(context);
+    return isListView ? _buildListLayout(context) : _buildGridLayout(context);
   }
 
   /// 이미지의 URL 주소에서 불필요한 부분(쿼리 파라미터와 프래그먼트)을 제거하는 함수입니다.
@@ -116,59 +124,51 @@ class ApiArchiveCardWidget extends StatelessWidget {
     );
   }
 
+  void _handleTap(BuildContext context) {
+    final latestCategory =
+        context.read<CategoryController>().getCategoryById(category.id) ??
+        category;
+    final headerImagePrefetch = CategoryHeaderImagePrefetch.fromCategory(
+      latestCategory,
+    );
+    if (headerImagePrefetch != null) {
+      _prefetchCategoryHeaderImage(context, headerImagePrefetch);
+    }
+
+    final postController = context.read<PostController>();
+    final userController = context.read<UserController>();
+    final friendController = context.read<FriendController>();
+    final currentUser = userController.currentUser;
+
+    if (currentUser != null) {
+      _prefetchCategoryData(
+        postController: postController,
+        friendController: friendController,
+        categoryId: latestCategory.id,
+        userId: currentUser.id,
+      );
+    }
+
+    Navigator.push(
+      context,
+      _buildCategoryPhotosRoute(
+        context: context,
+        category: latestCategory,
+        prefetchedHeaderImage: headerImagePrefetch,
+      ),
+    );
+  }
+
   Widget _buildGridLayout(BuildContext context) {
     return InkWell(
-      onTap: isEditMode
-          ? null
-          : () {
-              final latestCategory =
-                  context.read<CategoryController>().getCategoryById(
-                    category.id,
-                  ) ??
-                  category; // 최신 카테고리 데이터 가져오기 (업데이트된 정보 반영)
-              final headerImagePrefetch =
-                  CategoryHeaderImagePrefetch.fromCategory(
-                    latestCategory,
-                  ); // 프리페칭 페이로드 생성
-              if (headerImagePrefetch != null) {
-                // 프리페칭: 네비게이션 시작과 동시에 헤더 이미지 프리페칭
-                _prefetchCategoryHeaderImage(context, headerImagePrefetch);
-              }
-
-              // 프리페칭: 네비게이션 시작과 동시에 데이터 로드
-              final postController = context.read<PostController>();
-              final userController = context.read<UserController>();
-              final friendController = context.read<FriendController>();
-              final currentUser = userController.currentUser;
-
-              // 백그라운드에서 데이터 프리페칭 시작 (await 없이)
-              if (currentUser != null) {
-                // 카테고리 데이터 프리페칭 (포스트, 친구 목록 등)
-                _prefetchCategoryData(
-                  postController: postController,
-                  friendController: friendController,
-                  categoryId: latestCategory.id,
-                  userId: currentUser.id,
-                );
-              }
-
-              // 동시에 화면 이동
-              Navigator.push(
-                context,
-                _buildCategoryPhotosRoute(
-                  context: context,
-                  category: latestCategory,
-                  prefetchedHeaderImage: headerImagePrefetch,
-                ),
-              );
-            },
+      onTap: isEditMode ? null : () => _handleTap(context),
       child: Stack(
         children: [
           // 카테고리 이미지 (전체 채우기)
           _buildCategoryImage(
             width: 170.sp,
             height: 204.sp,
-            borderRadius: 10.7,
+            borderRadius: _kGridCardBorderRadius,
           ),
 
           // 고정 배지
@@ -213,16 +213,101 @@ class ApiArchiveCardWidget extends StatelessWidget {
     );
   }
 
+  Widget _buildListLayout(BuildContext context) {
+    return InkWell(
+      onTap: isEditMode ? null : () => _handleTap(context),
+      borderRadius: BorderRadius.circular(_kListCardBorderRadius),
+      child: SizedBox(
+        height: 90.h,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final imageWidth = constraints.maxWidth * 0.408;
+            final cardHeight = constraints.maxHeight;
+            final listBorderRadius = BorderRadius.circular(
+              _kListCardBorderRadius,
+            );
+
+            return Container(
+              decoration: BoxDecoration(
+                color: _kEmptyCategoryBackgroundColor,
+                borderRadius: listBorderRadius,
+                border: Border.all(color: _kCategoryCardBorderColor, width: 1),
+              ),
+              child: Stack(
+                children: [
+                  Row(
+                    children: [
+                      // 카테고리 이미지 (왼쪽 절반)
+                      _buildCategoryImageSurface(
+                        width: imageWidth,
+                        height: cardHeight,
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(_kListCardBorderRadius),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: (14.4).sp,
+                            right: 13.sp,
+                            top: 9.sp,
+                            bottom: 5.sp,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: _buildTitleWidget(
+                                      context,
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Pretendard Variable',
+                                      maxLines: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8.w),
+                                  _buildNewBadgeContent(size: 15.sp),
+                                ],
+                              ),
+                              const Spacer(),
+                              Align(
+                                alignment: Alignment.bottomRight,
+                                child: _buildProfileRow(isListStyle: true),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   /// 카테고리 제목 위젯 빌드
-  Widget _buildTitleWidget(BuildContext context, {required double fontSize}) {
+  Widget _buildTitleWidget(
+    BuildContext context, {
+    required double fontSize,
+    FontWeight fontWeight = FontWeight.bold,
+    String fontFamily = 'Pretendard',
+    int maxLines = 1,
+  }) {
     if (isEditing && editingController != null) {
       return TextField(
         controller: editingController,
         style: TextStyle(
           color: const Color(0xFFF8F8F8),
           fontSize: fontSize,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'Pretendard Variable',
+          fontWeight: fontWeight,
+          fontFamily: fontFamily,
         ),
         cursorColor: const Color(0xfff9f9f9),
         decoration: const InputDecoration(
@@ -249,11 +334,11 @@ class ApiArchiveCardWidget extends StatelessWidget {
           style: TextStyle(
             color: const Color(0xFFF9F9F9),
             fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Pretendard',
+            fontWeight: fontWeight,
+            fontFamily: fontFamily,
             letterSpacing: -0.4,
           ),
-          maxLines: 1,
+          maxLines: maxLines,
           overflow: TextOverflow.ellipsis,
         );
       },
@@ -266,15 +351,38 @@ class ApiArchiveCardWidget extends StatelessWidget {
     required double height,
     required double borderRadius,
   }) {
+    return Container(
+      width: width,
+      height: height,
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(color: _kCategoryCardBorderColor, width: 1),
+      ),
+      child: _buildCategoryImageSurface(
+        width: width,
+        height: height,
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    );
+  }
+
+  Widget _buildCategoryImageSurface({
+    required double width,
+    required double height,
+    required BorderRadius borderRadius,
+  }) {
     return Selector<CategoryController, String?>(
       selector: (_, controller) =>
           controller.getCategoryById(category.id)?.photoUrl ??
           category.photoUrl,
       builder: (context, photoUrl, _) {
+        final emptyBackgroundColor = isListView
+            ? _kListEmptyCategoryBackgroundColor
+            : _kEmptyCategoryBackgroundColor;
         final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
         if (hasPhoto) {
-          final imageCard = ClipRRect(
-            borderRadius: BorderRadius.circular(borderRadius),
+          return ClipRRect(
+            borderRadius: borderRadius,
             child: CachedNetworkImage(
               key: ValueKey('category_image_${category.id}'),
               imageUrl: photoUrl,
@@ -285,12 +393,8 @@ class ApiArchiveCardWidget extends StatelessWidget {
               width: width,
               height: height,
 
-              // Opacity 적용
               color: Colors.white.withValues(alpha: 0.8),
               colorBlendMode: BlendMode.modulate,
-
-              // 메모리 캐시, 디스크 캐시 해상도 조정
-              // MediaQuery.of(context).devicePixelRatio: 디바이스 픽셀 비율 고려
               memCacheWidth:
                   (width * MediaQuery.of(context).devicePixelRatio * 1.5)
                       .round(),
@@ -298,34 +402,30 @@ class ApiArchiveCardWidget extends StatelessWidget {
                   (width * MediaQuery.of(context).devicePixelRatio * 1.5)
                       .round(),
               fit: BoxFit.cover,
-
-              // shimmer placeholder 및 에러 위젯 처리
-              // shimmer 후에도 로딩 실패 시 검은 배경 박스를 유지합니다.
               placeholder: (context, url) => ShimmerOnceThenFallbackIcon(
                 key: ValueKey('ph_${category.id}'),
                 width: width,
                 height: height,
-                borderRadius: borderRadius,
+                borderRadius: borderRadius.topLeft.x,
               ),
               errorWidget: (context, url, error) => Container(
                 width: width,
                 height: height,
                 decoration: BoxDecoration(
-                  color: _kEmptyCategoryBackgroundColor,
-                  borderRadius: BorderRadius.circular(borderRadius),
+                  color: emptyBackgroundColor,
+                  borderRadius: borderRadius,
                 ),
               ),
             ),
           );
-          return imageCard;
         }
 
         return ClipRRect(
-          borderRadius: BorderRadius.circular(borderRadius),
+          borderRadius: borderRadius,
           child: Container(
             width: width,
             height: height,
-            color: _kEmptyCategoryBackgroundColor,
+            color: emptyBackgroundColor,
           ),
         );
       },
@@ -374,12 +474,48 @@ class ApiArchiveCardWidget extends StatelessWidget {
           top: top,
           left: left,
           right: right,
-          child: Image.asset(
-            'assets/new_icon.png',
-            width: 15.sp,
-            height: 15.sp,
-          ),
+          child: _buildNewBadgeContent(size: 15.sp),
         );
+      },
+    );
+  }
+
+  Widget _buildNewBadgeContent({required double size}) {
+    return Selector<CategoryController, bool>(
+      selector: (_, controller) =>
+          controller.getCategoryById(category.id)?.isNew ?? category.isNew,
+      builder: (context, isNew, _) {
+        if (!isNew) {
+          return const SizedBox.shrink();
+        }
+
+        return Image.asset('assets/new_icon.png', width: size, height: size);
+      },
+    );
+  }
+
+  // 프로필 Row 위젯 빌드 (리스트 스타일과 그리드 스타일 모두에서 사용)
+  Widget _buildProfileRow({required bool isListStyle}) {
+    return Selector<CategoryController, CategoryProfileRowData>(
+      selector: (_, controller) {
+        final latest = controller.getCategoryById(category.id);
+        return CategoryProfileRowData(
+          profileUrlKeys: latest?.usersProfileKey ?? category.usersProfileKey,
+          totalUserCount: latest?.totalUserCount ?? category.totalUserCount,
+        );
+      },
+      builder: (context, data, _) {
+        final profileRow = ApiArchiveProfileRowWidget(
+          profileUrlKeys: data.profileUrlKeys,
+          totalUserCount: data.totalUserCount,
+          avatarSize: isListStyle ? 19.84.sp : 23.44.sp,
+        );
+
+        if (!isListStyle) {
+          return profileRow;
+        }
+
+        return profileRow;
       },
     );
   }

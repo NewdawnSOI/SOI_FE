@@ -13,6 +13,7 @@ import '../../../../api/controller/category_search_controller.dart';
 // 공유 아카이브 화면 (REST API 버전)
 // 다른 사용자와 공유된 카테고리만 표시
 class SharedArchivesScreen extends StatefulWidget {
+  final bool isListView;
   final bool isEditMode;
   final String? editingCategoryId;
   final TextEditingController? editingController;
@@ -20,6 +21,7 @@ class SharedArchivesScreen extends StatefulWidget {
 
   const SharedArchivesScreen({
     super.key,
+    this.isListView = false,
     this.isEditMode = false,
     this.editingCategoryId,
     this.editingController,
@@ -122,7 +124,7 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
     if (_isInitialLoad) {
       return Scaffold(
         backgroundColor: AppTheme.lightTheme.colorScheme.surface,
-        body: _buildShimmerGrid(),
+        body: widget.isListView ? _buildShimmerList() : _buildShimmerGrid(),
       );
     }
 
@@ -139,7 +141,9 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
 
           // 로딩 중
           if (categoryController.isLoading && categories.isEmpty) {
-            return _buildShimmerGrid();
+            return widget.isListView
+                ? _buildShimmerList()
+                : _buildShimmerGrid();
           }
 
           // 에러가 있을 때
@@ -198,10 +202,15 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
             onRefresh: _refresh,
             color: Colors.white,
             backgroundColor: const Color(0xFF1C1C1C),
-            child: _buildGridView(
-              displayCategories,
-              searchController.searchQuery,
-            ),
+            child: widget.isListView
+                ? _buildListView(
+                    displayCategories,
+                    searchController.searchQuery,
+                  )
+                : _buildGridView(
+                    displayCategories,
+                    searchController.searchQuery,
+                  ),
           );
         },
       ),
@@ -226,7 +235,40 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
         return ApiArchiveCardWidget(
           key: ValueKey('shared_archive_card_${category.id}'),
           category: category,
+          isListView: false,
+          isEditMode: widget.isEditMode,
+          isEditing:
+              widget.isEditMode &&
+              widget.editingCategoryId == category.id.toString(),
+          editingController:
+              widget.isEditMode &&
+                  widget.editingCategoryId == category.id.toString()
+              ? widget.editingController
+              : null,
+          onStartEdit: () {
+            if (widget.onStartEdit != null) {
+              widget.onStartEdit!(category.id.toString(), category.name);
+            }
+          },
+        );
+      },
+    );
+  }
 
+  Widget _buildListView(List<Category> categories, String searchQuery) {
+    return ListView.separated(
+      key: ValueKey('shared_list_${categories.length}_$searchQuery'),
+      padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: categories.length,
+      separatorBuilder: (_, __) => SizedBox(height: 10.h),
+      itemBuilder: (context, index) {
+        final category = categories[index];
+
+        return ApiArchiveCardWidget(
+          key: ValueKey('shared_archive_list_card_${category.id}'),
+          category: category,
+          isListView: true,
           isEditMode: widget.isEditMode,
           isEditing:
               widget.isEditMode &&
@@ -268,6 +310,28 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
               width: 170.sp,
               height: 204.sp,
               color: Colors.black,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return ListView.separated(
+      padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: 6,
+      separatorBuilder: (_, __) => SizedBox(height: 10.h),
+      itemBuilder: (context, index) {
+        return Shimmer.fromColors(
+          baseColor: const Color(0xFF1C1C1C),
+          highlightColor: const Color(0xFF2A2A2A),
+          child: Container(
+            height: 90.h,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(9.3),
             ),
           ),
         );

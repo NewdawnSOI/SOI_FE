@@ -313,10 +313,6 @@ extension _ApiPhotoDisplayWidgetCommentActionsExtension
   ///  - [selectedKey]: 선택된 댓글의 고유 키
   void _openCommentSheet(String selectedKey) {
     final comments = _postComments;
-    const draggableThreshold = 3; // 댓글이 3개 이상이면 드래그 가능한 시트로 표시
-
-    // 댓글이 일정 수 이상이면 useDraggableSheet이 true가 되고, 드래그 가능한 시트로 표시됩니다.
-    final useDraggableSheet = comments.length > draggableThreshold;
     if (_expandedMediaTagKey != null) {
       setState(() {
         _expandedMediaTagKey = null; // 댓글 시트 열 때 미디어 태그 확장 해제
@@ -330,31 +326,11 @@ extension _ApiPhotoDisplayWidgetCommentActionsExtension
       builder: (sheetContext) {
         return ChangeNotifierProvider(
           create: (_) => AudioController(),
-          child: useDraggableSheet
-              ?
-                // 드래그 가능한 경우, DraggableScrollableSheet 위젯으로 감싸서 표시하는 부분
-                DraggableScrollableSheet(
-                  initialChildSize: 0.6, // 드래그 가능한 시트의 초기 크기 설정
-                  minChildSize: 0.45, // 드래그 가능한 시트의 최소 크기 설정
-                  maxChildSize: 0.7, // 드래그 가능한 시트의 최대 크기 설정
-                  expand: false,
-                  builder: (context, scrollController) {
-                    return ApiVoiceCommentListSheet(
-                      postId: widget.post.id,
-                      comments: comments,
-                      selectedCommentId: selectedKey,
-                      listScrollController:
-                          scrollController, // 스크롤 컨트롤러 전달하여 시트가 스크롤이 가능하도록 만듬
-                    );
-                  },
-                )
-              :
-                // 드래그 불가능한 경우, 일반적인 ListView로 표시하는 부분
-                ApiVoiceCommentListSheet(
-                  postId: widget.post.id,
-                  comments: comments,
-                  selectedCommentId: selectedKey,
-                ),
+          child: ApiVoiceCommentListSheet(
+            postId: widget.post.id,
+            comments: comments,
+            selectedCommentId: selectedKey,
+          ),
         );
       },
     );

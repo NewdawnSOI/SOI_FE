@@ -15,13 +15,15 @@ import '../../../../api/controller/category_search_controller.dart';
 // 모든 사용자의 아카이브 목록을 표시
 // 아카이브를 클릭하면 아카이브 상세 화면으로 이동
 class AllArchivesScreen extends StatefulWidget {
-  final bool isEditMode;
-  final String? editingCategoryId;
+  final bool isListView; // 그리드 뷰와 리스트 뷰를 전환하는 플래그
+  final bool isEditMode; // 편집 모드 여부 (편집 모드에서는 카테고리 이름 수정 UI가 활성화됨)
+  final String? editingCategoryId; // 편집 중인 카테고리 ID (편집 모드에서만 사용)
   final TextEditingController? editingController;
   final Function(String categoryId, String currentName)? onStartEdit;
 
   const AllArchivesScreen({
     super.key,
+    this.isListView = false,
     this.isEditMode = false,
     this.editingCategoryId,
     this.editingController,
@@ -141,7 +143,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
     if (_isInitialLoad) {
       return Scaffold(
         backgroundColor: AppTheme.lightTheme.colorScheme.surface,
-        body: _buildShimmerGrid(),
+        body: widget.isListView ? _buildShimmerList() : _buildShimmerGrid(),
       );
     }
 
@@ -185,7 +187,9 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
 
           // 로딩 중 (카테고리 목록이 비어있는 경우에만)
           if (state.isInitialLoading) {
-            return _buildShimmerGrid();
+            return widget.isListView
+                ? _buildShimmerList()
+                : _buildShimmerGrid();
           }
 
           // 에러가 있을 때 (카테고리 목록이 비어있는 경우에만)
@@ -245,10 +249,15 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
             onRefresh: _refresh,
             color: Colors.white,
             backgroundColor: const Color(0xFF1C1C1C),
-            child: _buildGridView(
-              displayCategoryIds,
-              searchController.searchQuery,
-            ),
+            child: widget.isListView
+                ? _buildListView(
+                    displayCategoryIds,
+                    searchController.searchQuery,
+                  )
+                : _buildGridView(
+                    displayCategoryIds,
+                    searchController.searchQuery,
+                  ),
           );
         },
       ),
@@ -278,7 +287,45 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
         return ApiArchiveCardWidget(
           key: ValueKey('archive_card_$categoryId'), // 고유 키 지정
           category: category,
+          isListView: false,
+          isEditMode: widget.isEditMode,
+          isEditing:
+              widget.isEditMode &&
+              widget.editingCategoryId == categoryId.toString(),
+          editingController:
+              widget.isEditMode &&
+                  widget.editingCategoryId == categoryId.toString()
+              ? widget.editingController
+              : null,
+          onStartEdit: () {
+            if (widget.onStartEdit != null) {
+              final latest =
+                  categoryController.getCategoryById(categoryId) ?? category;
+              widget.onStartEdit!(categoryId.toString(), latest.name);
+            }
+          },
+        );
+      },
+    );
+  }
 
+  Widget _buildListView(List<int> categoryIds, String searchQuery) {
+    return ListView.separated(
+      key: ValueKey('list_${categoryIds.length}_$searchQuery'),
+      padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: categoryIds.length,
+      separatorBuilder: (_, __) => SizedBox(height: 10.h),
+      itemBuilder: (context, index) {
+        final categoryId = categoryIds[index];
+        final categoryController = context.read<CategoryController>();
+        final category = categoryController.getCategoryById(categoryId);
+        if (category == null) return const SizedBox.shrink();
+
+        return ApiArchiveCardWidget(
+          key: ValueKey('archive_list_card_$categoryId'),
+          category: category,
+          isListView: true,
           isEditMode: widget.isEditMode,
           isEditing:
               widget.isEditMode &&
@@ -323,6 +370,28 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
               width: 170.sp,
               height: 204.sp,
               color: Colors.black,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return ListView.separated(
+      padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: 6,
+      separatorBuilder: (_, __) => SizedBox(height: 10.h),
+      itemBuilder: (context, index) {
+        return Shimmer.fromColors(
+          baseColor: const Color(0xFF1C1C1C),
+          highlightColor: const Color(0xFF2A2A2A),
+          child: Container(
+            height: 90.h,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(9.3),
             ),
           ),
         );

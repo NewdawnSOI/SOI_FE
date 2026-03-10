@@ -311,9 +311,6 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   onCommentPressed: () {
                     // 댓글 리스트 Bottom Sheet 표시
                     final comments = widget.postComments[widget.post.id] ?? [];
-                    const draggableThreshold = 3;
-                    final useDraggableSheet =
-                        comments.length > draggableThreshold;
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -321,24 +318,10 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                       builder: (ctx) {
                         return ChangeNotifierProvider(
                           create: (_) => AudioController(),
-                          child: useDraggableSheet
-                              ? DraggableScrollableSheet(
-                                  initialChildSize: 0.6,
-                                  minChildSize: 0.45,
-                                  maxChildSize: 0.8,
-                                  expand: false,
-                                  builder: (context, scrollController) {
-                                    return ApiVoiceCommentListSheet(
-                                      postId: widget.post.id,
-                                      comments: comments,
-                                      listScrollController: scrollController,
-                                    );
-                                  },
-                                )
-                              : ApiVoiceCommentListSheet(
-                                  postId: widget.post.id,
-                                  comments: comments,
-                                ),
+                          child: ApiVoiceCommentListSheet(
+                            postId: widget.post.id,
+                            comments: comments,
+                          ),
                         );
                       },
                     );

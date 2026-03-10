@@ -13,6 +13,7 @@ import 'comment_text_input_widget.dart';
 
 enum _CommentComposerMode { base, typing, placing }
 
+///
 class CommentComposerV2Widget extends StatefulWidget {
   final int postId;
   final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
