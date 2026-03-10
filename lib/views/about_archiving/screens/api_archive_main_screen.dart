@@ -164,9 +164,6 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
     }
     _categoryController = categoryController;
     _categoryDataListener ??= () {
-      if (_categorySearchController?.searchQuery.isNotEmpty == true) {
-        _applySearch();
-      }
       // ✨ 카테고리 로드 완료 시 포스트 프리페칭 시작
       _prefetchPostsForCategories();
     };
@@ -305,13 +302,13 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       return;
     }
 
-    final categoryController = context.read<CategoryController>();
-    final filter = _currentFilter;
-    final categories = _getCategoriesForFilter(categoryController, filter);
-    _categorySearchController?.searchCategories(
-      categories,
-      query,
-      filter: filter,
+    final userId = _userController?.currentUser?.id;
+    if (userId == null) return;
+
+    _categorySearchController?.searchCategoriesFromApi(
+      userId: userId,
+      query: query,
+      filter: _currentFilter,
     );
   }
 
@@ -323,20 +320,6 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
         return CategoryFilter.private_;
       default:
         return CategoryFilter.all;
-    }
-  }
-
-  List<Category> _getCategoriesForFilter(
-    CategoryController controller,
-    CategoryFilter filter,
-  ) {
-    switch (filter) {
-      case CategoryFilter.public_:
-        return controller.publicCategories;
-      case CategoryFilter.private_:
-        return controller.privateCategories;
-      case CategoryFilter.all:
-        return controller.allCategories;
     }
   }
 
@@ -568,74 +551,65 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
                 top: 15.h,
                 bottom: 5.h,
               ),
-              child: Container(
-                height: 41.h,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1C),
-                  borderRadius: BorderRadius.circular(16.6),
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(width: 10.w),
-                    Icon(
-                      Icons.search,
-                      color: const Color(0xFFCCCCCC),
-                      size: 24.sp,
-                    ),
-                    SizedBox(width: 10.w),
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: 12.h),
-                        child: TextField(
-                          controller: _searchController,
-                          textAlignVertical: TextAlignVertical.center,
-                          cursorColor: const Color(0xFFCCCCCC),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14.sp,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 41.h,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1C1C1C),
+                        borderRadius: BorderRadius.circular(16.6),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(width: 10.w),
+                          Icon(
+                            Icons.search,
+                            color: const Color(0xFFCCCCCC),
+                            size: 24.sp,
                           ),
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
-                              vertical: 10.w,
+                          SizedBox(width: 10.w),
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(bottom: 12.h),
+                              child: TextField(
+                                controller: _searchController,
+                                textAlignVertical: TextAlignVertical.center,
+                                cursorColor: const Color(0xFFCCCCCC),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14.sp,
+                                ),
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    vertical: 10.w,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  SizedBox(width: 4.w),
+                  IconButton(
+                    onPressed: () {
+                      // TODO: list switch
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Image.asset(
+                      'assets/list_switch_icon.png',
+                      width: 19.w,
+                      height: 15.03.h,
+                    ),
+                  ),
+                ],
               ),
             ),
             SizedBox(height: 25.h),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                /* IconButton(
-                  onPressed: () {
-                    setState(() {
-                      _layoutMode =
-                          _layoutMode == ArchiveLayoutMode.grid
-                              ? ArchiveLayoutMode.list
-                              : ArchiveLayoutMode.grid;
-                    });
-                  },
-                 icon:
-                      _layoutMode == ArchiveLayoutMode.grid
-                          ? Image.asset(
-                            "assets/list_icon.png",
-                            width: (16.92).w,
-                            height: (17.27).h,
-                          )
-                          : Image.asset(
-                            "assets/grid_icon.png",
-                            width: (17.36).w,
-                            height: (17.36).h,
-                          ),
-                ),*/
-                SizedBox(width: (10).w),
-              ],
-            ),
             Expanded(
               child: PageView(
                 controller: _pageController,

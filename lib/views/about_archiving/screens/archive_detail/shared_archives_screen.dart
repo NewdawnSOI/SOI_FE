@@ -132,11 +132,9 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
         builder: (context, categoryController, child) {
           final categories = categoryController.publicCategories;
           final searchController = context.watch<CategorySearchController>();
-          final isSearchActive =
-              searchController.searchQuery.isNotEmpty &&
-              searchController.activeFilter == CategoryFilter.public_;
+          final isSearchActive = searchController.searchQuery.isNotEmpty;
           final displayCategories = isSearchActive
-              ? searchController.filteredCategories
+              ? searchController.filteredCategoriesFor(CategoryFilter.public_)
               : categories;
 
           // 로딩 중

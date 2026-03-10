@@ -74,8 +74,10 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
 
   Timer? _autoRefreshTimer; // 자동 새로고침 타이머
   static const Duration _autoRefreshInterval = Duration(
-    minutes: 30,
-  ); // 자동 새로고침 간격
+    // 자동 새로고침 간격 (Short Polling)
+    // 너무 짧으면 서버에 부담이 될 수 있고, 너무 길면 변경사항 반영이 늦어질 수 있습니다.
+    seconds: 30,
+  );
 
   PostController? postController;
   UserController? userController;
@@ -87,9 +89,13 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
   int _nextPage = 1; // 다음에 로드할 페이지 번호
   final Set<int> _seenPostIds = <int>{};
   Set<String> _blockedIds = <String>{};
-  bool _isRouteVisible = true; // 현재 라우트가 사용자에게 보이는 상태인지 여부
-  bool _needsRefreshOnVisible =
-      false; // 보이지 않는 상태에서 변경 감지 시, 복귀 시 1회 새로고침이 필요한지 여부
+
+  // 현재 라우트가 사용자에게 보이는 상태인지 여부
+  // 사용자가 화면을 보고 있는 지를 체크하는 변수이다.
+  bool _isRouteVisible = true;
+
+  // 보이지 않는 상태에서 변경 감지 시, 복귀 시 1회 새로고침이 필요한지 여부
+  bool _needsRefreshOnVisible = false;
   final Set<int> _pendingDeletedPostIdsFromDetail =
       <int>{}; // 상세에서 전달된 삭제 결과를 안전 시점에 반영하기 위한 임시 버퍼
   Timer? _deferredVisibleRefreshTimer;
@@ -304,6 +310,7 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
           notificationId: null,
           page: 0,
           notifyLoading: false,
+          forceRefresh: forceRefresh,
         ),
         friendController!.getAllFriends(
           userId: currentUser.id,
@@ -356,6 +363,7 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
             loadedPages: 1,
             totalFetchedPosts: firstPagePosts.length,
             totalDedupedPosts: firstPageResult.duplicateRemoved,
+            forceRefresh: forceRefresh,
           ),
         );
       } else {
@@ -465,6 +473,7 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
     required int loadedPages,
     required int totalFetchedPosts,
     required int totalDedupedPosts,
+    bool forceRefresh = false,
   }) async {
     var pagesLoaded = loadedPages;
     var fetchedPosts = totalFetchedPosts;
@@ -484,6 +493,7 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
           notificationId: null,
           page: currentPage,
           notifyLoading: false,
+          forceRefresh: forceRefresh,
         );
         if (!mounted || generation != _pagingGeneration) return;
 
@@ -621,6 +631,9 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
         _autoRefreshTimer?.cancel();
         return;
       }
+
+      // 화면이 보이지 않을 때는 API 호출 생략
+      if (!_isRouteVisible) return;
 
       // 데이터 새로고침
       await _loadPosts(forceRefresh: true);

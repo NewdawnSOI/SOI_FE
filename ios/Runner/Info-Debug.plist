@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>SOI</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>soi_app</string>
+
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+				<string>app-1-1074708164096-ios-f6a0558949723c8c4d32e5</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>soi.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>soi</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>kakao</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kakaoaadcbbe2e6220d8e24c009091e5b5bdf</string>
+			</array>
+		</dict>
+	</array>
+
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
+	<key>FirebaseAuthCAPTCHAFallbackEnabled</key>
+	<false/>
+	<key>FirebaseAuthReCAPTCHABypassEnabled</key>
+	<true/>
+
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+	</array>
+
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_dartVmService._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>SOI uses local network access in debug builds so Flutter tools can discover the Dart VM service for hot reload and DevTools while you are developing on a physical iPhone.</string>
+
+	<key>NSCameraUsageDescription</key>
+	<string>SOI uses the camera to let you take photos or record videos for your posts, and to capture or update your profile photo. For example, you can snap a photo for a new post or take a profile picture directly in the app.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SOI uses the microphone to record audio you choose to add to your content. For example, you can record a short voice message to capture your current mood and attach it to a photo or post, or leave a voice comment by recording audio and tagging it on an image.</string>
+
+	<key>NSContactsUsageDescription</key>
+	<string>SOI requests access to Contacts only to help you invite friends by sending an invite link via SMS. Your contacts are used on-device for selection and are NEVER uploaded to, stored on, or processed by our servers.</string>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SOI needs access to your Photo Library to show a preview of your gallery and let you select photos or videos to create a post. For example, you can browse your device gallery, pick media, and continue to the post creation screen.</string>
+
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>SOI needs permission to save photos and videos you create or edit in the app to your Photo Library. For example, after editing a photo or creating a video post, you can choose to save it to your device.</string>
+
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
+
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+
+	<key>UIRequiresFullScreen</key>
+	<true/>
+
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
+
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>kakaokompassauth</string>
+		<string>kakaolink</string>
+		<string>kakaoplus</string>
+		<string>instagram</string>
+	</array>
+
+	<key>UIStatusBarHidden</key>
+	<false/>
+
+	<key>FLTEnableWideGamut</key>
+	<false/>
+
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+</dict>
+</plist>

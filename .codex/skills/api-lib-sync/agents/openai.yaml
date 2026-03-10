@@ -1,4 +1,4 @@
 interface:
   display_name: "API Lib Sync"
-  short_description: "Sync lib/api with root api contract changes (fast path)"
-  default_prompt: "Use $api-lib-sync in fast mode: run impact detection first, keep contract-only scope, then update only impacted lib/api wrappers."
+  short_description: "Sync lib/api wrappers to api/generated contracts with fast diff or full audit"
+  default_prompt: "Use $api-lib-sync with api/generated/lib as source of truth: run impact detection or --full-audit, compare generated APIs/models against lib/api wrappers, then update services/controllers/models/api.dart/api_client.dart."

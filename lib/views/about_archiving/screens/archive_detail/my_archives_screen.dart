@@ -132,11 +132,9 @@ class _MyArchivesScreenState extends State<MyArchivesScreen>
         builder: (context, categoryController, child) {
           final categories = categoryController.privateCategories;
           final searchController = context.watch<CategorySearchController>();
-          final isSearchActive =
-              searchController.searchQuery.isNotEmpty &&
-              searchController.activeFilter == CategoryFilter.private_;
+          final isSearchActive = searchController.searchQuery.isNotEmpty;
           final displayCategories = isSearchActive
-              ? searchController.filteredCategories
+              ? searchController.filteredCategoriesFor(CategoryFilter.private_)
               : categories;
 
           // 로딩 중

@@ -4,6 +4,7 @@ import 'package:soi/api/controller/audio_controller.dart';
 import 'package:soi/api/controller/category_controller.dart' as api_category;
 import 'package:soi/api/controller/category_search_controller.dart'
     as api_category_search;
+import 'package:soi/api/services/category_search_service.dart';
 import 'package:soi/api/controller/comment_audio_controller.dart';
 import 'package:soi/api/controller/comment_controller.dart';
 import 'package:soi/api/controller/contact_controller.dart';
@@ -22,7 +23,9 @@ List<SingleChildWidget> buildAppProviders(UserController userController) {
       create: (_) => api_category.CategoryController(),
     ),
     ChangeNotifierProvider<api_category_search.CategorySearchController>(
-      create: (_) => api_category_search.CategorySearchController(),
+      create: (_) => api_category_search.CategorySearchController(
+        searchService: CategorySearchService(),
+      ),
     ),
     ChangeNotifierProvider<PostController>(create: (_) => PostController()),
     ChangeNotifierProvider<FeedDataManager>(create: (_) => FeedDataManager()),

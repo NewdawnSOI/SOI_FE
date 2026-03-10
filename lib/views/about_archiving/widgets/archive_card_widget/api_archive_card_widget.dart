@@ -36,6 +36,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
   static const Duration _kReverseTransitionDuration = Duration(
     milliseconds: 220,
   );
+  static const Color _kEmptyCategoryBackgroundColor = Color(0xFF1C1C1C);
 
   final api_category.Category category;
   final bool isEditMode;
@@ -310,7 +311,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
                 width: width,
                 height: height,
                 decoration: BoxDecoration(
-                  color: Colors.black,
+                  color: _kEmptyCategoryBackgroundColor,
                   borderRadius: BorderRadius.circular(borderRadius),
                 ),
               ),
@@ -321,7 +322,11 @@ class ApiArchiveCardWidget extends StatelessWidget {
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
-          child: Container(width: width, height: height, color: Colors.black),
+          child: Container(
+            width: width,
+            height: height,
+            color: _kEmptyCategoryBackgroundColor,
+          ),
         );
       },
     );

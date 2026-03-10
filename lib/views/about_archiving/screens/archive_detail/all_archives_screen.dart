@@ -171,14 +171,17 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
         },
         builder: (context, state, child) {
           final searchController = context.watch<CategorySearchController>();
-          final isSearchActive =
-              searchController.searchQuery.isNotEmpty &&
-              searchController.activeFilter == CategoryFilter.all;
+          final isSearchActive = searchController.searchQuery.isNotEmpty;
           final displayCategoryIds = isSearchActive
-              ? searchController.filteredCategories
+              ?
+                // 검색어가 있을 때는 검색 결과로 표시할 카테고리 ID 목록을 가져온다.
+                searchController
+                    .filteredCategoriesFor(CategoryFilter.all)
                     .map((c) => c.id)
                     .toList(growable: false)
-              : state.categoryIds;
+              :
+                // 검색어가 없을 때는 전체 카테고리 ID 목록을 표시한다.
+                state.categoryIds;
 
           // 로딩 중 (카테고리 목록이 비어있는 경우에만)
           if (state.isInitialLoading) {
@@ -193,6 +196,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // 에러 메시지와 재시도 버튼
                     Text(
                       'common.error_occurred',
                       style: TextStyle(color: Colors.white, fontSize: 16.sp),

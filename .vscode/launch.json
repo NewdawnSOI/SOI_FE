@@ -2,17 +2,9 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "iPhone (Debug, disable DDS)",
+      "name": "SOI",
       "type": "dart",
-      "request": "launch",
-      "deviceId": "00008110-000465623EA0401E",
-      "args": ["--disable-dds"]
-    },
-    {
-      "name": "Android (Debug)",
-      "type": "dart",
-      "request": "launch",
-      "flutterMode": "debug"
+      "request": "launch"
     }
   ]
 }

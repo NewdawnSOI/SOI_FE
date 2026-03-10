@@ -135,7 +135,7 @@ class PostController extends ChangeNotifier {
       );
       if (kDebugMode) debugPrint("[PostController] 게시물 생성 결과: $result");
       _setLoading(false);
-      if (result) _notifyPostsChanged();
+      if (result) _notifyPostsChanged(); // 게시물 생성 성공 시 변경 알림 트리거
       return result;
     } catch (e) {
       _setError('게시물 생성 실패: $e');
@@ -200,13 +200,15 @@ class PostController extends ChangeNotifier {
     int? notificationId,
     int page = 0,
     bool notifyLoading = true, // 백그라운드 페이징 시 로딩/에러 상태를 UI에 알리지 않도록 하는 옵션
+    bool forceRefresh = false, // 캐시를 무시하고 강제로 API 호출
   }) async {
     // 캐시 키 생성
     final cacheKey = '$userId:$categoryId:$page';
 
-    // 캐시 확인 (만료 안 된 것만)
+    // 캐시 확인 (만료 안 된 것만, forceRefresh면 건너뜀)
     final cached = _categoryCache[cacheKey];
-    if (cached != null &&
+    if (!forceRefresh &&
+        cached != null &&
         DateTime.now().difference(cached.cachedAt) < _controllerCacheTtl) {
       if (kDebugMode) {
         debugPrint('[PostController] 캐시 히트: $cacheKey');
