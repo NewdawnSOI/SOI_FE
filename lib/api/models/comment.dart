@@ -40,7 +40,7 @@ class Comment {
   /// 댓글 생성 시각
   final DateTime? createdAt;
 
-  /// 해당 댓글의 대댓글 작성자 수
+  /// 해당 댓글의 대댓글 작성자 수 --> 이게 곧 대댓글의 개수와 동일
   final int? replyUserCount;
 
   /// 텍스트 댓글 내용

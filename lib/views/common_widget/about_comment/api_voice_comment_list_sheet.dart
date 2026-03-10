@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:provider/provider.dart';
+import '../../../api/controller/comment_controller.dart';
+import '../../../api/controller/user_controller.dart';
 import '../../../api/models/comment.dart';
+import 'comment_text_input_widget.dart';
 import 'widget/about_comment_list_sheet/api_comment_row.dart';
 
 /// 댓글 리스트를 보여주는 바텀 시트
@@ -29,6 +33,18 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   static const double _commentDividerVerticalPadding = 20.0;
 
   late final ScrollController _scrollController;
+  late final TextEditingController _replyDraftController;
+  late final FocusNode _replyDraftFocusNode;
+  late final List<Comment> _comments;
+  final GlobalKey _commentListViewportKey = GlobalKey(
+    debugLabel: 'comment_list_viewport',
+  );
+  final Map<String, GlobalKey> _commentKeys = <String, GlobalKey>{};
+  Comment? _replyTargetComment;
+  bool _isReplyDraftArmed = false;
+  bool _isTextInputMode = false;
+  String _pendingInitialReplyText = '';
+  int _textInputSession = 0;
 
   /// 선택된 댓글 ID에서 해시코드를 추출하는 함수
   int? _selectedHashCode(String? selectedCommentId) {
@@ -42,6 +58,10 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    _replyDraftController = TextEditingController();
+    _replyDraftFocusNode = FocusNode();
+    _replyDraftFocusNode.addListener(_handleReplyDraftFocusChanged);
+    _comments = widget.comments.toList();
 
     if (widget.selectedCommentId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -52,6 +72,9 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
 
   @override
   void dispose() {
+    _replyDraftFocusNode.removeListener(_handleReplyDraftFocusChanged);
+    _replyDraftFocusNode.dispose();
+    _replyDraftController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -63,112 +86,337 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     final targetHash = _selectedHashCode(widget.selectedCommentId);
     if (targetHash == null) return;
 
-    final filteredComments = widget.comments.toList();
-    final targetIndex = filteredComments.indexWhere(
-      (comment) => comment.hashCode == targetHash,
+    final targetComment = _comments.cast<Comment?>().firstWhere(
+      (comment) => comment?.hashCode == targetHash,
+      orElse: () => null,
     );
-    if (targetIndex < 0) return;
+    if (targetComment == null) return;
 
-    if (_scrollController.hasClients) {
-      const itemHeight = 80.0;
-      const separatorHeight = _commentDividerVerticalPadding * 2;
-      final scrollOffset = targetIndex * (itemHeight + separatorHeight);
+    _scrollCommentAboveActionBar(targetComment, animated: false);
+  }
 
-      final viewportHeight = _scrollController.position.viewportDimension;
-      final centeredOffset =
-          scrollOffset - (viewportHeight / 2) + (itemHeight / 2);
-
-      _scrollController.jumpTo(
-        centeredOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-      );
+  void _showReplyInput({Comment? replyTarget}) {
+    if (replyTarget != null &&
+        (replyTarget.id == null || replyTarget.userId == null)) {
+      _showSnackBar(tr('common.user_info_unavailable'));
+      return;
     }
+
+    setState(() {
+      _replyTargetComment = replyTarget;
+      _isReplyDraftArmed = true;
+      _isTextInputMode = false;
+      _pendingInitialReplyText = '';
+    });
+
+    _replyDraftController.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      FocusScope.of(context).requestFocus(_replyDraftFocusNode);
+      if (replyTarget != null) {
+        _scrollCommentAboveActionBar(replyTarget);
+      }
+    });
+  }
+
+  String _commentKeyId(Comment comment) {
+    final idPart = comment.id?.toString() ?? 'hash_${comment.hashCode}';
+    return '${comment.type.name}_$idPart';
+  }
+
+  GlobalKey _keyForComment(Comment comment) {
+    return _commentKeys.putIfAbsent(
+      _commentKeyId(comment),
+      () => GlobalKey(debugLabel: 'comment_${_commentKeyId(comment)}'),
+    );
+  }
+
+  Future<void> _scrollCommentAboveActionBar(
+    Comment targetComment, {
+    bool animated = true,
+  }) async {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+
+    final viewportContext = _commentListViewportKey.currentContext;
+    final targetContext = _keyForComment(targetComment).currentContext;
+    if (viewportContext == null || targetContext == null) {
+      return;
+    }
+
+    final viewportBox = viewportContext.findRenderObject() as RenderBox?;
+    final targetBox = targetContext.findRenderObject() as RenderBox?;
+    if (viewportBox == null || targetBox == null) {
+      return;
+    }
+
+    final viewportTopLeft = viewportBox.localToGlobal(Offset.zero);
+    final targetTopLeft = targetBox.localToGlobal(Offset.zero);
+    final viewportBottom = viewportTopLeft.dy + viewportBox.size.height;
+    final targetBottom = targetTopLeft.dy + targetBox.size.height;
+    final scrollDelta = targetBottom - viewportBottom;
+
+    if (scrollDelta.abs() < 1) {
+      return;
+    }
+
+    final nextOffset = (_scrollController.offset + scrollDelta).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
+
+    if (animated) {
+      await _scrollController.animateTo(
+        nextOffset,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+      return;
+    }
+
+    _scrollController.jumpTo(nextOffset);
+  }
+
+  void _handleReplyDraftFocusChanged() {
+    if (_replyDraftFocusNode.hasFocus ||
+        _isTextInputMode ||
+        !_isReplyDraftArmed ||
+        _replyDraftController.text.trim().isNotEmpty) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _replyTargetComment = null;
+      _isReplyDraftArmed = false;
+    });
+  }
+
+  void _handleReplyDraftChanged(String value) {
+    if (!_isReplyDraftArmed || _isTextInputMode || value.isEmpty) {
+      return;
+    }
+
+    final replyTarget = _replyTargetComment;
+    _replyDraftFocusNode.unfocus();
+    setState(() {
+      _pendingInitialReplyText = value;
+      _isTextInputMode = true;
+      _textInputSession++;
+    });
+    _replyDraftController.clear();
+    if (replyTarget != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _scrollCommentAboveActionBar(replyTarget);
+      });
+    }
+  }
+
+  void _hideReplyInput() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _replyTargetComment = null;
+      _isReplyDraftArmed = false;
+      _isTextInputMode = false;
+      _pendingInitialReplyText = '';
+    });
+    _replyDraftController.clear();
+    _replyDraftFocusNode.unfocus();
+  }
+
+  Future<void> _submitTextComment(String text) async {
+    final currentUser = context.read<UserController>().currentUser;
+    if (currentUser == null) {
+      _showSnackBar(tr('common.login_required'));
+      throw StateError('login_required');
+    }
+
+    final replyTarget = _replyTargetComment;
+    final result = await context.read<CommentController>().createComment(
+      postId: widget.postId,
+      userId: currentUser.id,
+      parentId: replyTarget?.id ?? 0,
+      replyUserId: replyTarget?.userId ?? 0,
+      text: text,
+      type: replyTarget != null ? CommentType.reply : CommentType.text,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!result.success) {
+      _showSnackBar(tr('comments.save_failed'));
+      throw StateError('comment_save_failed');
+    }
+
+    final savedComment =
+        result.comment ??
+        Comment(
+          id: null,
+          userId: currentUser.id,
+          nickname: currentUser.userId,
+          replyUserName: replyTarget?.nickname,
+          userProfileUrl: null,
+          userProfileKey: currentUser.profileImageUrlKey,
+          createdAt: DateTime.now(),
+          text: text,
+          type: replyTarget != null ? CommentType.reply : CommentType.text,
+        );
+
+    final insertIndex = _resolveInsertIndex(replyTarget);
+    setState(() {
+      _comments.insert(insertIndex, savedComment);
+      _replyTargetComment = null;
+      _isReplyDraftArmed = false;
+      _isTextInputMode = false;
+      _pendingInitialReplyText = '';
+    });
+  }
+
+  int _resolveInsertIndex(Comment? replyTarget) {
+    if (replyTarget == null) {
+      return _comments.length;
+    }
+
+    final targetIndex = _comments.indexWhere(
+      (comment) =>
+          comment.id == replyTarget.id &&
+          comment.hashCode == replyTarget.hashCode,
+    );
+    if (targetIndex < 0) {
+      return _comments.length;
+    }
+
+    if (replyTarget.isReply) {
+      return targetIndex + 1;
+    }
+
+    var insertIndex = targetIndex + 1;
+    while (insertIndex < _comments.length && _comments[insertIndex].isReply) {
+      insertIndex++;
+    }
+    return insertIndex;
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF5A5A5A),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final sheetHeight = MediaQuery.of(context).size.height * _sheetHeightFactor;
 
-    return Container(
-      width: double.infinity,
-      height: sheetHeight,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1c1c1c),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24.8),
-          topRight: Radius.circular(24.8),
-        ),
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      padding: EdgeInsets.only(bottom: 10.sp),
-      child: Column(
-        children: [
-          SizedBox(height: 20.sp),
-          Text(
-            "댓글",
-            style: TextStyle(
-              color: const Color(0xFFF8F8F8),
-              fontSize: 18.sp,
-              fontFamily: 'Pretendard Variable',
-              fontWeight: FontWeight.w700,
-            ),
+      child: Container(
+        width: double.infinity,
+        height: sheetHeight,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1c1c1c),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24.8),
+            topRight: Radius.circular(24.8),
           ),
-          SizedBox(height: 15.sp),
-          _buildCommentList(),
-          SizedBox(height: 10.sp),
-          _buildCommentActionBar(),
-        ],
+        ),
+        padding: EdgeInsets.only(bottom: 10.sp),
+        child: Column(
+          children: [
+            SizedBox(height: 20.sp),
+            Text(
+              "댓글",
+              style: TextStyle(
+                color: const Color(0xFFF8F8F8),
+                fontSize: 18.sp,
+                fontFamily: 'Pretendard Variable',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 15.sp),
+            _buildCommentList(),
+            //SizedBox(height: 10.sp),
+            _buildCommentActionBar(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildCommentList() {
-    final filteredComments = widget.comments.toList();
     final selectedHash = _selectedHashCode(widget.selectedCommentId);
     return Expanded(
-      child: filteredComments.isEmpty
-          ? LayoutBuilder(
-              builder: (context, constraints) {
-                return ListView(
-                  controller: _scrollController,
-                  physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
-                  ),
-                  children: [
-                    SizedBox(
-                      height: constraints.maxHeight,
-                      child: Center(
-                        child: Text(
-                          '댓글이 없습니다',
-                          style: TextStyle(
-                            color: const Color(0xFF9E9E9E),
-                            fontSize: 16.sp,
-                            fontFamily: 'Pretendard',
-                            fontWeight: FontWeight.w500,
+      child: Container(
+        key: _commentListViewportKey,
+        child: _comments.isEmpty
+            ? LayoutBuilder(
+                builder: (context, constraints) {
+                  return ListView(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    children: [
+                      SizedBox(
+                        height: constraints.maxHeight,
+                        child: Center(
+                          child: Text(
+                            '댓글이 없습니다',
+                            style: TextStyle(
+                              color: const Color(0xFF9E9E9E),
+                              fontSize: 16.sp,
+                              fontFamily: 'Pretendard',
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ),
+                    ],
+                  );
+                },
+              )
+            : ListView.separated(
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                primary: false,
+                itemCount: _comments.length,
+                separatorBuilder: (_, __) => _buildCommentDivider(),
+                itemBuilder: (context, index) {
+                  final comment = _comments[index];
+                  final isHighlighted =
+                      selectedHash != null && comment.hashCode == selectedHash;
+                  return KeyedSubtree(
+                    key: _keyForComment(comment),
+                    child: ApiCommentRow(
+                      comment: comment,
+                      isHighlighted: isHighlighted,
+                      onReplyTap: (target) =>
+                          _showReplyInput(replyTarget: target),
                     ),
-                  ],
-                );
-              },
-            )
-          : ListView.separated(
-              controller: _scrollController,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
+                  );
+                },
               ),
-              primary: false,
-              itemCount: filteredComments.length,
-              separatorBuilder: (_, __) => _buildCommentDivider(),
-              itemBuilder: (context, index) {
-                final comment = filteredComments[index];
-                final isHighlighted =
-                    selectedHash != null && comment.hashCode == selectedHash;
-                return ApiCommentRow(
-                  comment: comment,
-                  isHighlighted: isHighlighted,
-                );
-              },
-            ),
+      ),
     );
   }
 
@@ -185,61 +433,109 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   /// CommentListSheet 내부에 있는 댓글 추가 액션 바
   Widget _buildCommentActionBar() {
     return Center(
-      child: Container(
-        width: 353.sp,
-        height: 46.sp,
-        decoration: BoxDecoration(
-          color: const Color(0xFF0B0B0B),
-          borderRadius: BorderRadius.circular(52.r),
-        ),
-        padding: EdgeInsets.symmetric(horizontal: 10.sp),
-        child: Row(
-          children: [
-            IconButton(
-              onPressed: () {},
-              padding: EdgeInsets.zero,
-              icon: Container(
-                width: 32.sp,
-                height: 32.sp,
-                decoration: ShapeDecoration(
-                  color: const Color(0xFF323232),
-                  shape: const CircleBorder(),
-                ),
-                child: Center(
-                  child: Image.asset(
-                    'assets/camera_mode.png',
-                    width: (17.78).sp,
-                    height: 16.sp,
-                    fit: BoxFit.contain,
+      child: SizedBox(
+        height: 52.sp,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          child: _isTextInputMode
+              ? KeyedSubtree(
+                  key: ValueKey(
+                    'reply_input_${_replyTargetComment?.id ?? 0}_$_textInputSession',
+                  ),
+                  child: CommentTextInputWidget(
+                    initialText: _pendingInitialReplyText,
+                    onSubmitText: _submitTextComment,
+                    onEditingCancelled: _hideReplyInput,
+                    hintText: tr('comments.add_comment'),
+                  ),
+                )
+              : KeyedSubtree(
+                  key: const ValueKey('comment_action_bar'),
+                  child: Container(
+                    width: 353.sp,
+                    height: 46.sp,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0B0B0B),
+                      borderRadius: BorderRadius.circular(52.r),
+                    ),
+                    padding: EdgeInsets.symmetric(horizontal: 10.sp),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () {},
+                          padding: EdgeInsets.zero,
+                          icon: Container(
+                            width: 32.sp,
+                            height: 32.sp,
+                            decoration: ShapeDecoration(
+                              color: const Color(0xFF323232),
+                              shape: const CircleBorder(),
+                            ),
+                            child: Center(
+                              child: Image.asset(
+                                'assets/camera_mode.png',
+                                width: (17.78).sp,
+                                height: 16.sp,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12.sp),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: IgnorePointer(
+                              ignoring: !_isReplyDraftArmed,
+                              child: TextField(
+                                controller: _replyDraftController,
+                                focusNode: _replyDraftFocusNode,
+                                autofocus: false,
+                                minLines: 1,
+                                maxLines: 1,
+                                onChanged: _handleReplyDraftChanged,
+                                onTapOutside: (_) =>
+                                    FocusScope.of(context).unfocus(),
+                                style: TextStyle(
+                                  color: const Color(0xFFF8F8F8),
+                                  fontSize: 16.sp,
+                                  fontFamily: 'Pretendard Variable',
+                                  fontWeight: FontWeight.w200,
+                                  letterSpacing: -1.14,
+                                ),
+                                cursorColor: Colors.white,
+                                decoration: InputDecoration(
+                                  isCollapsed: true,
+                                  border: InputBorder.none,
+                                  hintText: tr('comments.add_comment'),
+                                  hintStyle: TextStyle(
+                                    color: const Color(0xFFF8F8F8),
+                                    fontSize: 16.sp,
+                                    fontFamily: 'Pretendard Variable',
+                                    fontWeight: FontWeight.w200,
+                                    letterSpacing: -1.14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {},
+                          padding: EdgeInsets.zero,
+                          icon: Image.asset(
+                            'assets/record_icon.png',
+                            width: 36.sp,
+                            height: 36.sp,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-            SizedBox(width: 12.sp),
-
-            // "댓글 추가" 텍스트
-            Expanded(
-              child: Text(
-                tr('comments.add_comment'),
-                style: TextStyle(
-                  color: const Color(0xFFF8F8F8),
-                  fontSize: 16.sp,
-                  fontFamily: 'Pretendard Variable',
-                  fontWeight: FontWeight.w200,
-                  letterSpacing: -1.14,
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: () {},
-              padding: EdgeInsets.zero,
-              icon: Image.asset(
-                'assets/record_icon.png',
-                width: 36.sp,
-                height: 36.sp,
-              ),
-            ),
-          ],
         ),
       ),
     );

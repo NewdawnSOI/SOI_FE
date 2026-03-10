@@ -13,6 +13,7 @@ import '../../../../../api/controller/friend_controller.dart';
 import '../../../../../api/controller/post_controller.dart';
 import '../../../../../api/controller/user_controller.dart';
 import '../../../../../api/models/comment.dart';
+import '../../../../../utils/format_utils.dart';
 import '../../../../about_feed/manager/feed_data_manager.dart';
 import '../../../report/report_bottom_sheet.dart';
 import 'api_comment_media_preview.dart';
@@ -25,11 +26,13 @@ import 'api_waveform_playback_bar.dart';
 class ApiCommentRow extends StatelessWidget {
   final Comment comment;
   final bool isHighlighted;
+  final ValueChanged<Comment>? onReplyTap;
 
   const ApiCommentRow({
     super.key,
     required this.comment,
     this.isHighlighted = false,
+    this.onReplyTap,
   });
 
   bool _canShowActions(String? currentUserId) {
@@ -274,8 +277,10 @@ class ApiCommentRow extends StatelessWidget {
     return Row(
       children: [
         SizedBox(width: (profileSize + profileToContentGap).sp),
+
+        // "답장 달기" 버튼
         TextButton(
-          onPressed: () {},
+          onPressed: () => onReplyTap?.call(comment),
           style: TextButton.styleFrom(
             minimumSize: Size.zero,
             padding: EdgeInsets.zero,
@@ -292,7 +297,12 @@ class ApiCommentRow extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        Text(tr('comments.time_placeholder'), style: _relativeTimeStyle()),
+        Text(
+          comment.createdAt != null
+              ? FormatUtils.formatRelativeTime(comment.createdAt!)
+              : '',
+          style: _relativeTimeStyle(),
+        ),
         SizedBox(width: 12.sp),
       ],
     );

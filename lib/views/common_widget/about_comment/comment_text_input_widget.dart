@@ -6,6 +6,7 @@ class CommentTextInputWidget extends StatefulWidget {
   final ValueChanged<bool>? onFocusChanged;
   final VoidCallback? onEditingCancelled;
   final String hintText;
+  final String initialText;
   final bool autoFocus;
 
   const CommentTextInputWidget({
@@ -14,6 +15,7 @@ class CommentTextInputWidget extends StatefulWidget {
     this.onFocusChanged,
     this.onEditingCancelled,
     this.hintText = '댓글 추가...',
+    this.initialText = '',
     this.autoFocus = true,
   });
 
@@ -29,6 +31,10 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
   @override
   void initState() {
     super.initState();
+    _controller.text = widget.initialText;
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
     _focusNode.addListener(_handleFocusChanged);
   }
 
@@ -61,14 +67,19 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
       _isSubmitting = true;
     });
 
+    var submissionSucceeded = false;
     try {
       await widget.onSubmitText(text);
-      if (!mounted) {
-        return;
+      submissionSucceeded = true;
+    } catch (_) {
+      if (mounted) {
+        _focusNode.requestFocus();
       }
-      _controller.clear();
-      FocusScope.of(context).unfocus();
     } finally {
+      if (mounted && submissionSucceeded) {
+        _controller.clear();
+        FocusScope.of(context).unfocus();
+      }
       if (mounted) {
         setState(() {
           _isSubmitting = false;
