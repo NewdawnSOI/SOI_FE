@@ -26,6 +26,7 @@ class CommentCameraSheetResult {
 
 enum _PendingVideoAction { none, stop, cancel }
 
+/// 카메라 권한 요청, 사진 촬영, 최대 30초까지의 영상 촬영 기능을 제공하는 하단 시트 위젯입니다.
 class CommentCameraRecordingBottomSheetWidget extends StatefulWidget {
   const CommentCameraRecordingBottomSheetWidget({super.key});
 

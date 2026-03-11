@@ -245,6 +245,18 @@ class ApiCommentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (comment.isReply) {
+      if (_resolveMediaSource() != null) {
+        return _buildMediaRow(context);
+      }
+      final audioUrl = (comment.audioUrl ?? '').trim();
+      final waveformData = (comment.waveformData ?? '').trim();
+      if (audioUrl.isNotEmpty || waveformData.isNotEmpty) {
+        return _buildAudioRow(context);
+      }
+      return _buildTextRow(context);
+    }
+
     switch (comment.type) {
       case CommentType.text:
         return _buildTextRow(context);

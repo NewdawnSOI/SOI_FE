@@ -313,5 +313,65 @@ void main() {
       expect(capturedLocationY, 0.0);
       expect(capturedType, CommentType.text);
     });
+
+    test('createComment keeps audio payload for reply comment', () async {
+      int? capturedParentId;
+      int? capturedReplyUserId;
+      String? capturedText;
+      String? capturedAudioKey;
+      String? capturedWaveform;
+      int? capturedDuration;
+      CommentType? capturedType;
+
+      final controller = CommentController(
+        commentService: _FakeCommentService(
+          onCreate:
+              ({
+                required int postId,
+                required int userId,
+                int? emojiId,
+                int? parentId,
+                int? replyUserId,
+                String? text,
+                String? audioFileKey,
+                String? fileKey,
+                String? waveformData,
+                int? duration,
+                double? locationX,
+                double? locationY,
+                CommentType? type,
+              }) async {
+                capturedParentId = parentId;
+                capturedReplyUserId = replyUserId;
+                capturedText = text;
+                capturedAudioKey = audioFileKey;
+                capturedWaveform = waveformData;
+                capturedDuration = duration;
+                capturedType = type;
+                return const CommentCreationResult(success: true);
+              },
+        ),
+      );
+
+      final result = await controller.createComment(
+        postId: 77,
+        userId: 88,
+        parentId: 12,
+        replyUserId: 34,
+        audioKey: 'reply/audio.m4a',
+        waveformData: '[0.1,0.2]',
+        duration: 5,
+        type: CommentType.reply,
+      );
+
+      expect(result.success, isTrue);
+      expect(capturedParentId, 12);
+      expect(capturedReplyUserId, 34);
+      expect(capturedText, '');
+      expect(capturedAudioKey, 'reply/audio.m4a');
+      expect(capturedWaveform, '[0.1,0.2]');
+      expect(capturedDuration, 5);
+      expect(capturedType, CommentType.reply);
+    });
   });
 }

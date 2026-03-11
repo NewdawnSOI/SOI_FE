@@ -25,6 +25,7 @@ class CommentAudioSheetResult {
 
 enum _CommentAudioSheetState { ready, recording, playback }
 
+/// 댓글 작성 시 음성 댓글 녹음과 재생을 담당하는 하단 시트 위젯입니다.
 class CommentAudioRecordingBottomSheetWidget extends StatefulWidget {
   const CommentAudioRecordingBottomSheetWidget({super.key});
 

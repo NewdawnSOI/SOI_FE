@@ -90,18 +90,14 @@ class CommentController extends ChangeNotifier {
                           ? CommentType.photo
                           : CommentType.text)));
 
+      final hasAudioPayload = normalizedAudioKey.isNotEmpty;
+
       // Swagger에서 동작하는 형태에 맞춰, 서버가 null 값에 민감할 수 있는 필드들을 기본값으로 맞춥니다.
-      final payloadText =
-          inferredType == CommentType.audio ? '' : normalizedText;
-      final payloadAudioKey = inferredType == CommentType.audio
-          ? normalizedAudioKey
-          : '';
-      final payloadWaveform = inferredType == CommentType.audio
-          ? normalizedWaveform
-          : '';
-      final payloadDuration = inferredType == CommentType.audio
-          ? normalizedDuration
-          : 0;
+      // REPLY 타입이어도 오디오 답글은 audio payload를 함께 전달해야 합니다.
+      final payloadText = hasAudioPayload ? '' : normalizedText;
+      final payloadAudioKey = hasAudioPayload ? normalizedAudioKey : '';
+      final payloadWaveform = hasAudioPayload ? normalizedWaveform : '';
+      final payloadDuration = hasAudioPayload ? normalizedDuration : 0;
 
       final result = await _commentService.createComment(
         postId: postId,
