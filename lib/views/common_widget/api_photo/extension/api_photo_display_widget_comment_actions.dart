@@ -330,6 +330,12 @@ extension _ApiPhotoDisplayWidgetCommentActionsExtension
             postId: widget.post.id,
             comments: comments,
             selectedCommentId: selectedKey,
+            onCommentsUpdated: (updatedComments) {
+              if (!mounted) return;
+              setState(() {
+                widget.postComments[widget.post.id] = updatedComments;
+              });
+            },
           ),
         );
       },

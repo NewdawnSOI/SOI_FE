@@ -321,6 +321,13 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                           child: ApiVoiceCommentListSheet(
                             postId: widget.post.id,
                             comments: comments,
+                            onCommentsUpdated: (updatedComments) {
+                              if (!mounted) return;
+                              setState(() {
+                                widget.postComments[widget.post.id] =
+                                    updatedComments;
+                              });
+                            },
                           ),
                         );
                       },

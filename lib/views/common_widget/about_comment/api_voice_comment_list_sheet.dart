@@ -15,12 +15,14 @@ class ApiVoiceCommentListSheet extends StatefulWidget {
   final int postId;
   final List<Comment> comments;
   final String? selectedCommentId;
+  final ValueChanged<List<Comment>>? onCommentsUpdated;
 
   const ApiVoiceCommentListSheet({
     super.key,
     required this.postId,
     required this.comments,
     this.selectedCommentId,
+    this.onCommentsUpdated,
   });
 
   @override
@@ -40,6 +42,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     debugLabel: 'comment_list_viewport',
   );
   final Map<String, GlobalKey> _commentKeys = <String, GlobalKey>{};
+  final Set<String> _expandedReplyParentKeys = <String>{};
   Comment? _replyTargetComment;
   bool _isReplyDraftArmed = false;
   bool _isTextInputMode = false;
@@ -62,6 +65,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _replyDraftFocusNode = FocusNode();
     _replyDraftFocusNode.addListener(_handleReplyDraftFocusChanged);
     _comments = widget.comments.toList();
+    _expandSelectedReplyParentIfNeeded();
 
     if (widget.selectedCommentId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,6 +97,22 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     if (targetComment == null) return;
 
     _scrollCommentAboveActionBar(targetComment, animated: false);
+  }
+
+  void _expandSelectedReplyParentIfNeeded() {
+    final targetHash = _selectedHashCode(widget.selectedCommentId);
+    if (targetHash == null) return;
+
+    final targetComment = _comments.cast<Comment?>().firstWhere(
+      (comment) => comment?.hashCode == targetHash,
+      orElse: () => null,
+    );
+    if (targetComment == null || !targetComment.isReply) return;
+
+    final parentComment = _findParentComment(targetComment);
+    if (parentComment == null) return;
+
+    _expandedReplyParentKeys.add(_commentKeyId(parentComment));
   }
 
   void _showReplyInput({Comment? replyTarget}) {
@@ -267,7 +287,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
           userId: currentUser.id,
           nickname: currentUser.userId,
           replyUserName: replyTarget?.nickname,
-          userProfileUrl: null,
+          userProfileUrl: currentUser.profileImageUrlKey,
           userProfileKey: currentUser.profileImageUrlKey,
           createdAt: DateTime.now(),
           text: text,
@@ -276,12 +296,26 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
 
     final insertIndex = _resolveInsertIndex(replyTarget);
     setState(() {
+      if (replyTarget != null) {
+        final parentComment = _findParentComment(replyTarget);
+        if (parentComment != null) {
+          final parentIndex = _indexOfComment(parentComment);
+          if (parentIndex >= 0) {
+            final currentParent = _comments[parentIndex];
+            _comments[parentIndex] = currentParent.copyWith(
+              replyUserCount: (currentParent.replyUserCount ?? 0) + 1,
+            );
+            _expandedReplyParentKeys.add(_commentKeyId(currentParent));
+          }
+        }
+      }
       _comments.insert(insertIndex, savedComment);
       _replyTargetComment = null;
       _isReplyDraftArmed = false;
       _isTextInputMode = false;
       _pendingInitialReplyText = '';
     });
+    _notifyCommentsUpdated();
   }
 
   int _resolveInsertIndex(Comment? replyTarget) {
@@ -309,6 +343,73 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     return insertIndex;
   }
 
+  int _indexOfComment(Comment target) {
+    return _comments.indexWhere(
+      (comment) =>
+          comment.id == target.id && comment.hashCode == target.hashCode,
+    );
+  }
+
+  Comment? _findParentComment(Comment comment) {
+    final targetIndex = _indexOfComment(comment);
+    if (targetIndex < 0) return null;
+    if (!comment.isReply) return comment;
+
+    for (var index = targetIndex - 1; index >= 0; index--) {
+      final candidate = _comments[index];
+      if (!candidate.isReply) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  List<Comment> _visibleComments() {
+    final visible = <Comment>[];
+    Comment? currentParent;
+    var isCurrentParentExpanded = false;
+
+    for (final comment in _comments) {
+      if (!comment.isReply) {
+        currentParent = comment;
+        isCurrentParentExpanded = _expandedReplyParentKeys.contains(
+          _commentKeyId(comment),
+        );
+        visible.add(comment);
+        continue;
+      }
+
+      if (currentParent == null || isCurrentParentExpanded) {
+        visible.add(comment);
+      }
+    }
+
+    return visible;
+  }
+
+  void _showRepliesForComment(Comment comment) {
+    final parentComment = comment.isReply
+        ? _findParentComment(comment)
+        : comment;
+    if (parentComment == null || !mounted) return;
+
+    setState(() {
+      _expandedReplyParentKeys.add(_commentKeyId(parentComment));
+    });
+  }
+
+  void _hideRepliesForComment(Comment comment) {
+    final parentComment = comment.isReply
+        ? _findParentComment(comment)
+        : comment;
+    if (parentComment == null || !mounted) return;
+
+    setState(() {
+      _expandedReplyParentKeys.remove(_commentKeyId(parentComment));
+    });
+  }
+
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -316,6 +417,21 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
         backgroundColor: const Color(0xFF5A5A5A),
       ),
     );
+  }
+
+  void _notifyCommentsUpdated() {
+    widget.onCommentsUpdated?.call(List<Comment>.unmodifiable(_comments));
+  }
+
+  Widget _buildCommentSeparator({
+    required Comment current,
+    required Comment next,
+  }) {
+    // 다음 항목이 대댓글이면 같은 reply 묶음으로 간주해 선을 숨깁니다.
+    if (next.isReply) {
+      return SizedBox(height: (_commentDividerVerticalPadding * 2).sp);
+    }
+    return _buildCommentDivider();
   }
 
   @override
@@ -363,6 +479,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
 
   Widget _buildCommentList() {
     final selectedHash = _selectedHashCode(widget.selectedCommentId);
+    final visibleComments = _visibleComments();
     return Expanded(
       child: Container(
         key: _commentListViewportKey,
@@ -399,10 +516,13 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
                 primary: false,
-                itemCount: _comments.length,
-                separatorBuilder: (_, __) => _buildCommentDivider(),
+                itemCount: visibleComments.length,
+                separatorBuilder: (_, index) => _buildCommentSeparator(
+                  current: visibleComments[index],
+                  next: visibleComments[index + 1],
+                ),
                 itemBuilder: (context, index) {
-                  final comment = _comments[index];
+                  final comment = visibleComments[index];
                   final isHighlighted =
                       selectedHash != null && comment.hashCode == selectedHash;
                   return KeyedSubtree(
@@ -412,6 +532,20 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                       isHighlighted: isHighlighted,
                       onReplyTap: (target) =>
                           _showReplyInput(replyTarget: target),
+                      showHideRepliesButton:
+                          !comment.isReply &&
+                          (comment.replyUserCount ?? 0) > 0 &&
+                          _expandedReplyParentKeys.contains(
+                            _commentKeyId(comment),
+                          ),
+                      showViewMoreRepliesButton:
+                          !comment.isReply &&
+                          (comment.replyUserCount ?? 0) > 0 &&
+                          !_expandedReplyParentKeys.contains(
+                            _commentKeyId(comment),
+                          ),
+                      onHideRepliesTap: _hideRepliesForComment,
+                      onViewMoreRepliesTap: _showRepliesForComment,
                     ),
                   );
                 },

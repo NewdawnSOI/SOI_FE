@@ -24,15 +24,27 @@ import 'api_waveform_playback_bar.dart';
 /// 댓글 작성자의 프로필 이미지와 닉네임도 함께 보여줍니다.
 /// 댓글이 작성자 본인의 것이 아닌 경우, 신고 및 차단 메뉴도 표시됩니다.
 class ApiCommentRow extends StatelessWidget {
+  static const double _baseHorizontalPadding = 27.0;
+  static const double _profileImageSize = 38.0;
+  static const double _profileToContentGap = 12.0;
+
   final Comment comment;
   final bool isHighlighted;
   final ValueChanged<Comment>? onReplyTap;
+  final bool showViewMoreRepliesButton;
+  final bool showHideRepliesButton;
+  final ValueChanged<Comment>? onViewMoreRepliesTap;
+  final ValueChanged<Comment>? onHideRepliesTap;
 
   const ApiCommentRow({
     super.key,
     required this.comment,
     this.isHighlighted = false,
     this.onReplyTap,
+    this.showViewMoreRepliesButton = false,
+    this.showHideRepliesButton = false,
+    this.onViewMoreRepliesTap,
+    this.onHideRepliesTap,
   });
 
   bool _canShowActions(String? currentUserId) {
@@ -247,8 +259,22 @@ class ApiCommentRow extends StatelessWidget {
     }
   }
 
-  String get _profileUrl => comment.userProfileUrl ?? '';
-  String get _userName => comment.nickname ?? '알 수 없는 사용자';
+  String get _profileUrl {
+    final profileUrl = (comment.userProfileUrl ?? '').trim();
+    if (profileUrl.isNotEmpty) {
+      return profileUrl;
+    }
+    return (comment.userProfileKey ?? '').trim();
+  }
+
+  String get _userName {
+    final nickname = comment.nickname ?? '알 수 없는 사용자';
+    final replyUserName = comment.replyUserName?.trim() ?? '';
+    if (!comment.isReply || replyUserName.isEmpty) {
+      return nickname;
+    }
+    return '$nickname --- $replyUserName';
+  }
 
   bool _shouldShowActions(BuildContext context) {
     final currentUserId = context.read<UserController>().currentUser?.userId;
@@ -262,6 +288,7 @@ class ApiCommentRow extends StatelessWidget {
     fontWeight: FontWeight.w600,
   );
 
+  /// 댓글 작성 시각 텍스트의 스타일
   TextStyle _relativeTimeStyle() => TextStyle(
     color: const Color(0xFFC4C4C4),
     fontSize: 10.sp,
@@ -270,13 +297,29 @@ class ApiCommentRow extends StatelessWidget {
     letterSpacing: -0.40,
   );
 
-  Widget _buildReplyAndTimeRow() {
-    const profileSize = 44.0;
-    const profileToContentGap = 12.0;
+  /// "답장 달기" 버튼 텍스트의 스타일
+  TextStyle _replyActionStyle() => TextStyle(
+    color: Colors.white,
+    fontSize: 10.sp,
+    fontFamily: 'Pretendard Variable',
+    fontWeight: FontWeight.w500,
+    letterSpacing: -0.50,
+  );
 
+  /// "답글 보기"/"답글 숨기기" 버튼 텍스트의 스타일
+  TextStyle _replyVisibilityButtonStyle() => TextStyle(
+    color: Colors.white,
+    fontSize: 12.sp,
+    fontFamily: 'Pretendard Variable',
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.50,
+  );
+
+  /// "답장 달기"와 댓글 작성 시각이 있는 행을 빌드하는 메서드
+  Widget _buildReplyAndTimeRow() {
     return Row(
       children: [
-        SizedBox(width: (profileSize + profileToContentGap).sp),
+        SizedBox(width: (_profileImageSize + _profileToContentGap).sp),
 
         // "답장 달기" 버튼
         TextButton(
@@ -286,17 +329,11 @@ class ApiCommentRow extends StatelessWidget {
             padding: EdgeInsets.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          child: Text(
-            tr('comments.reply_action'),
-            style: TextStyle(
-              color: const Color(0xFFF8F8F8),
-              fontSize: 10.sp,
-              fontFamily: 'Pretendard',
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          child: Text(tr('comments.reply_action'), style: _replyActionStyle()),
         ),
         const Spacer(),
+
+        // 댓글 작성 시각
         Text(
           comment.createdAt != null
               ? FormatUtils.formatRelativeTime(comment.createdAt!)
@@ -308,19 +345,74 @@ class ApiCommentRow extends StatelessWidget {
     );
   }
 
+  /// "답글 보기"/"답글 숨기기" 버튼을 빌드하는 메서드
+  Widget _buildReplyVisibilityButton() {
+    final replyCount = comment.replyUserCount ?? 0;
+
+    if (comment.isReply || replyCount <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    if (!showViewMoreRepliesButton && !showHideRepliesButton) {
+      return const SizedBox.shrink();
+    }
+
+    final buttonText = showHideRepliesButton
+        ?
+          // 답글 숨기기
+          tr('comments.hide_replies')
+        :
+          // 답글 보기 (답글 개수 표시)
+          tr(
+            'comments.view_more_replies',
+            namedArgs: {'count': replyCount.toString()},
+          );
+
+    return Padding(
+      padding: EdgeInsets.only(top: 30.sp),
+      child: Row(
+        children: [
+          SizedBox(width: (_profileImageSize + _profileToContentGap).sp),
+
+          // 답글 보기 / 답글 숨기기 버튼
+          TextButton(
+            onPressed: () {
+              if (showHideRepliesButton) {
+                onHideRepliesTap?.call(comment);
+                return;
+              }
+              onViewMoreRepliesTap?.call(comment);
+            },
+            style: TextButton.styleFrom(
+              minimumSize: Size.zero,
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(buttonText, style: _replyVisibilityButtonStyle()),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _wrapRowContent(Widget content) {
+    final horizontalPadding = EdgeInsets.only(
+      left: comment.isReply
+          ? (_baseHorizontalPadding + _profileImageSize + _profileToContentGap)
+                .sp
+          : _baseHorizontalPadding.sp,
+      right: _baseHorizontalPadding.sp,
+    );
+
     if (isHighlighted) {
       return Container(
         color: const Color(0xff000000).withValues(alpha: 0.23),
-        padding: EdgeInsets.symmetric(horizontal: 27.sp, vertical: 10.sp),
+        padding: horizontalPadding.add(EdgeInsets.symmetric(vertical: 10.sp)),
         child: content,
       );
     }
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 27.sp),
-      child: content,
-    );
+    return Padding(padding: horizontalPadding, child: content);
   }
 
   Widget _buildCommentRowLayout({
@@ -353,6 +445,7 @@ class ApiCommentRow extends StatelessWidget {
           ),
           SizedBox(height: 7.sp),
           _buildReplyAndTimeRow(),
+          _buildReplyVisibilityButton(),
         ],
       ),
     );
@@ -492,26 +585,26 @@ class ApiCommentRow extends StatelessWidget {
       child: profileUrl != null && profileUrl.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: profileUrl,
-              width: 44.sp,
-              height: 44.sp,
-              memCacheHeight: (44 * 2).toInt(),
-              memCacheWidth: (44 * 2).toInt(),
+              width: _profileImageSize.sp, // 38.sp
+              height: _profileImageSize.sp, // 38.sp
+              memCacheHeight: (_profileImageSize * 2).toInt(),
+              memCacheWidth: (_profileImageSize * 2).toInt(),
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(
-                width: 44.sp,
-                height: 44.sp,
+                width: _profileImageSize.sp, // 38.sp
+                height: _profileImageSize.sp, // 38.sp
                 color: const Color(0xFF4E4E4E),
               ),
               errorWidget: (context, url, error) => Container(
-                width: 44.sp,
-                height: 44.sp,
+                width: _profileImageSize.sp, // 38.sp
+                height: _profileImageSize.sp, // 38.sp
                 color: const Color(0xFF4E4E4E),
                 child: const Icon(Icons.person, color: Colors.white),
               ),
             )
           : Container(
-              width: 44.sp,
-              height: 44.sp,
+              width: _profileImageSize.sp,
+              height: _profileImageSize.sp,
               color: const Color(0xFF4E4E4E),
               child: const Icon(Icons.person, color: Colors.white),
             ),

@@ -73,6 +73,8 @@
       "prepare_failed": "녹음 파일을 준비할 수 없습니다."
     },
     "reply_action": "답장 달기",
+    "view_more_replies": "+ 답글 {count}개 더 보기",
+    "hide_replies": "답글 숨기기",
     "time_placeholder": "6시간 전",
     "add_comment": "댓글 추가"
   },

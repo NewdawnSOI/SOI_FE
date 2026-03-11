@@ -73,6 +73,8 @@
       "prepare_failed": "No se pudo preparar el audio grabado."
     },
     "reply_action": "Responder",
+    "view_more_replies": "+ Ver {count} respuestas más",
+    "hide_replies": "Ocultar respuestas",
     "time_placeholder": "hace 6 h",
     "add_comment": "Agregar comentario"
   },

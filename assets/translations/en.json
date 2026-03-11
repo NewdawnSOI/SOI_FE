@@ -110,6 +110,8 @@
       "prepare_failed": "Can't prepare recording file"
     },
     "reply_action": "Reply",
+    "view_more_replies": "+ View {count} more replies",
+    "hide_replies": "Hide replies",
     "time_placeholder": "6h ago",
     "add_comment": "Add comment"
   },
