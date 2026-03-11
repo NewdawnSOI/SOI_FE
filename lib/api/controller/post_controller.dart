@@ -32,6 +32,7 @@ class PostController extends ChangeNotifier {
   // ✨ Controller 레벨 캐시
   final Map<String, _CachedCategoryPosts> _categoryCache = {};
   static const Duration _controllerCacheTtl = Duration(hours: 1);
+  final Map<String, int> _categoryMutationRevisions = {};
 
   // 게시물 변경 리스너 목록
   final List<VoidCallback> _onPostsChangedListeners = [];
@@ -54,6 +55,30 @@ class PostController extends ChangeNotifier {
     for (final listener in _onPostsChangedListeners) {
       listener();
     }
+  }
+
+  String _categoryRevisionKey({required int userId, required int categoryId}) {
+    return '$userId:$categoryId';
+  }
+
+  void _markCategoriesUpdated({
+    required int userId,
+    required Iterable<int> categoryIds,
+  }) {
+    final uniqueIds = categoryIds.toSet();
+    for (final categoryId in uniqueIds) {
+      final key = _categoryRevisionKey(userId: userId, categoryId: categoryId);
+      _categoryMutationRevisions[key] =
+          (_categoryMutationRevisions[key] ?? 0) + 1;
+    }
+  }
+
+  int getCategoryMutationRevision({
+    required int userId,
+    required int categoryId,
+  }) {
+    final key = _categoryRevisionKey(userId: userId, categoryId: categoryId);
+    return _categoryMutationRevisions[key] ?? 0;
   }
 
   /// 외부에서 게시물 변경 알림 트리거
@@ -135,7 +160,12 @@ class PostController extends ChangeNotifier {
       );
       if (kDebugMode) debugPrint("[PostController] 게시물 생성 결과: $result");
       _setLoading(false);
-      if (result) _notifyPostsChanged(); // 게시물 생성 성공 시 변경 알림 트리거
+      if (result) {
+        if (userId != null && categoryIds.isNotEmpty) {
+          _markCategoriesUpdated(userId: userId, categoryIds: categoryIds);
+        }
+        _notifyPostsChanged(); // 게시물 생성 성공 시 변경 알림 트리거
+      }
       return result;
     } catch (e) {
       _setError('게시물 생성 실패: $e');

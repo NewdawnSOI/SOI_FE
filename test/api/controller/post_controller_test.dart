@@ -121,5 +121,52 @@ void main() {
         expect(capturedPostType, PostType.textOnly);
       },
     );
+
+    test('bumps category mutation revisions for created categories', () async {
+      final controller = PostController(
+        postService: _FakePostService(
+          onCreate:
+              ({
+                int? userId,
+                required String nickName,
+                String? content,
+                List<String> postFileKey = const [],
+                List<String> audioFileKey = const [],
+                List<int> categoryIds = const [],
+                String? waveformData,
+                int? duration,
+                double? savedAspectRatio,
+                bool? isFromGallery,
+                PostType? postType,
+              }) async => true,
+        ),
+      );
+
+      expect(
+        controller.getCategoryMutationRevision(userId: 100, categoryId: 1),
+        0,
+      );
+
+      final result = await controller.createPost(
+        userId: 100,
+        nickName: 'tester',
+        categoryIds: const [1, 2, 2],
+        postType: PostType.textOnly,
+      );
+
+      expect(result, isTrue);
+      expect(
+        controller.getCategoryMutationRevision(userId: 100, categoryId: 1),
+        1,
+      );
+      expect(
+        controller.getCategoryMutationRevision(userId: 100, categoryId: 2),
+        1,
+      );
+      expect(
+        controller.getCategoryMutationRevision(userId: 100, categoryId: 3),
+        0,
+      );
+    });
   });
 }

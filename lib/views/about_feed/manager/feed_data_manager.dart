@@ -262,6 +262,7 @@ class FeedDataManager extends ChangeNotifier {
             final posts = await postController.getPostsByCategory(
               categoryId: category.id,
               userId: currentUser.id,
+              forceRefresh: forceRefresh,
             );
 
             // 게시물과 카테고리 정보를 결합

@@ -33,7 +33,6 @@ import 'package:flutter/foundation.dart' as foundation show kDebugMode;
 /// - 카테고리에 속한 사진(포스트) 목록을 로드하여 그리드로 표시
 /// - 로딩, 에러, 빈 상태에 따른 UI 표시
 /// - 당겨서 새로고침 기능
-/// - 자동 새로고침 타이머 (30분마다)
 /// - 카테고리 멤버 확인 및 친구 추가 기능
 /// - 카테고리 편집 화면으로 이동 기능
 ///
@@ -71,13 +70,6 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
   List<Post> _posts = []; // 로드된 포스트 목록
   Category? _category; // 갱신된 카테고리 정보
   CategoryHeaderImagePrefetch? _headerImagePrefetch;
-
-  Timer? _autoRefreshTimer; // 자동 새로고침 타이머
-  static const Duration _autoRefreshInterval = Duration(
-    // 자동 새로고침 간격 (Short Polling)
-    // 너무 짧으면 서버에 부담이 될 수 있고, 너무 길면 변경사항 반영이 늦어질 수 있습니다.
-    seconds: 30,
-  );
 
   PostController? postController;
   UserController? userController;
@@ -138,14 +130,12 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
       _attachPostChangedListenerIfNeeded();
 
       await _loadPosts(); // 초기 데이터 로드
-      _startAutoRefreshTimer(); // 자동 새로고침 타이머 시작
     });
   }
 
   // Provider가 관리하는 컨트롤러는 dispose하지 않음
   @override
   void dispose() {
-    _autoRefreshTimer?.cancel();
     _deferredVisibleRefreshTimer?.cancel();
     if (_isRouteObserverSubscribed) {
       appRouteObserver.unsubscribe(this);
@@ -268,10 +258,27 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
         userId: currentUser.id,
         categoryId: _currentCategory.id,
       );
+      // 캐시 유효성 판단을 위한 현재 카테고리의 포스트 변경 이력 번호를 가져옵니다.
+      final currentMutationRevision =
+          postController?.getCategoryMutationRevision(
+            userId: currentUser.id,
+            categoryId: _currentCategory.id,
+          ) ??
+          0;
 
       // Optimistic UI: 만료된 캐시도 일단 사용
-      final cached = _getValidCache(cacheKey, allowExpired: true);
-      final freshCache = _getValidCache(cacheKey, allowExpired: false);
+      final cached = _getValidCache(
+        cacheKey,
+        allowExpired: true,
+        currentMutationRevision: currentMutationRevision,
+      );
+
+      // 신선한(?) 캐시를 즉시 UI에 반영하고, 만료 여부와 관계없이 캐시가 존재하면 API 호출을 백그라운드에서 진행합니다.
+      final freshCache = _getValidCache(
+        cacheKey,
+        allowExpired: false,
+        currentMutationRevision: currentMutationRevision,
+      );
 
       if (cached != null && !forceRefresh) {
         // 즉시 캐시 데이터 표시 (만료 여부와 관계없이)
@@ -337,7 +344,10 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
         });
       }
 
-      _syncCategoryPostsCache(cacheKey);
+      _syncCategoryPostsCache(
+        cacheKey,
+        mutationRevision: currentMutationRevision,
+      );
 
       // 비디오 썸네일 프리페칭 (백그라운드)
       _prefetchVideoThumbnails(visiblePosts);
@@ -395,7 +405,6 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
   /// 새로고침
   Future<void> _onRefresh() async {
     await _loadPosts(forceRefresh: true);
-    _startAutoRefreshTimer();
   }
 
   /// 상세 화면에서 포스트가 삭제된 경우, 해당 포스트를 목록에서 제거하는 메서드
@@ -445,7 +454,15 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
         userId: currentUser.id,
         categoryId: _currentCategory.id,
       );
-      _syncCategoryPostsCache(cacheKey);
+      _syncCategoryPostsCache(
+        cacheKey,
+        mutationRevision:
+            postController?.getCategoryMutationRevision(
+              userId: currentUser.id,
+              categoryId: _currentCategory.id,
+            ) ??
+            0,
+      );
     }
   }
 
@@ -514,7 +531,15 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
           setState(() {
             _posts = List<Post>.unmodifiable([..._posts, ...pageResult.posts]);
           });
-          _syncCategoryPostsCache(cacheKey);
+          _syncCategoryPostsCache(
+            cacheKey,
+            mutationRevision:
+                postController?.getCategoryMutationRevision(
+                  userId: userId,
+                  categoryId: categoryId,
+                ) ??
+                0,
+          );
           _prefetchVideoThumbnails(pageResult.posts);
         }
       }
@@ -576,10 +601,20 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
   ///
   /// Parameters:
   /// - [cacheKey]: 업데이트할 캐시 항목의 키로, 일반적으로 'userId:categoryId' 형식입니다.
-  void _syncCategoryPostsCache(String cacheKey) {
+  void _syncCategoryPostsCache(
+    String cacheKey, {
+
+    // 현재 카테고리의 포스트 변경 이력을 추적하는 번호로, 변경이 발생할 때마다 증가합니다.
+    // 캐시의 유효성을 판단할 때 사용됩니다.
+    required int mutationRevision,
+  }) {
     _categoryPostsCache[cacheKey] = _CategoryPostsCacheEntry(
       posts: List<Post>.unmodifiable(_posts),
       cachedAt: DateTime.now(),
+
+      // 캐시된 시점의 변경 이력 번호를 저장하여,
+      // 이후에 이 번호와 현재 변경 이력 번호를 비교하여 캐시의 유효성을 판단할 수 있도록 합니다.
+      mutationRevision: mutationRevision,
     );
   }
 
@@ -617,27 +652,6 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
       // 백그라운드에서 3-tier 조회 (Memory → Disk → Generate)
       VideoThumbnailCache.getThumbnail(videoUrl: url, cacheKey: cacheKey);
     }
-  }
-
-  /// 자동 새로고침 타이머 시작
-  void _startAutoRefreshTimer() {
-    // 기존 타이머 취소
-    _autoRefreshTimer?.cancel();
-
-    // 새 타이머 시작
-    _autoRefreshTimer = Timer.periodic(_autoRefreshInterval, (_) async {
-      if (!mounted) {
-        // 화면이 더 이상 존재하지 않으면 타이머 취소
-        _autoRefreshTimer?.cancel();
-        return;
-      }
-
-      // 화면이 보이지 않을 때는 API 호출 생략
-      if (!_isRouteVisible) return;
-
-      // 데이터 새로고침
-      await _loadPosts(forceRefresh: true);
-    });
   }
 
   /// 포스트 변경 리스너를 등록
@@ -688,9 +702,16 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
   _CategoryPostsCacheEntry? _getValidCache(
     String key, {
     bool allowExpired = false,
+    required int currentMutationRevision,
   }) {
     final cached = _categoryPostsCache[key];
     if (cached == null) return null;
+
+    // 캐시된 시점 이후에 카테고리에 변경이 발생했다면, 해당 캐시는 무효화된 것으로 간주합니다.
+    final cachedMutationRevision = cached.mutationRevision ?? 0;
+    if (cachedMutationRevision != currentMutationRevision) {
+      return null;
+    }
 
     final isExpired = DateTime.now().difference(cached.cachedAt) >= _cacheTtl;
 
@@ -921,8 +942,13 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
 class _CategoryPostsCacheEntry {
   final List<Post> posts;
   final DateTime cachedAt;
+  final int? mutationRevision;
 
-  const _CategoryPostsCacheEntry({required this.posts, required this.cachedAt});
+  const _CategoryPostsCacheEntry({
+    required this.posts,
+    required this.cachedAt,
+    this.mutationRevision = 0,
+  });
 }
 
 /// 페이지에 새로 추가된 포스트 중에서 차단된 유저의 포스트와 중복된 포스트를 제거한 결과를 담는 클래스
