@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// 댓글 입력을 위한 기본 바
 /// 카메라 버튼, 텍스트 입력 영역, 마이크 버튼으로 구성되어 있습니다.
@@ -23,33 +24,36 @@ class CommentBaseBarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 353,
-      height: 46,
+      width: 353.sp,
+      height: 46.sp,
       decoration: BoxDecoration(
-        color: const Color(0xff161616),
-        borderRadius: BorderRadius.circular(21.5),
-        border: Border.all(color: const Color(0x66D9D9D9), width: 1.2),
+        color: const Color(0xff1c1c1c),
+        borderRadius: BorderRadius.circular(52.sp),
       ),
       child: Row(
         children: [
           IconButton(
             onPressed: onCameraPressed,
-            icon: Image.asset('assets/camera.png', width: 22, height: 22),
+            icon: Image.asset(
+              'assets/camera_button_baseBar.png',
+              width: 32.sp,
+              height: 32.sp,
+            ),
           ),
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: onCenterTap,
-              child: const Align(
+              child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '댓글 추가...',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontFamily: 'Pretendard',
-                    fontWeight: FontWeight.w300,
-                    letterSpacing: -0.6,
+                    color: const Color(0xFFF8F8F8),
+                    fontSize: 16.sp,
+                    fontFamily: 'Pretendard Variable',
+                    fontWeight: FontWeight.w200,
+                    letterSpacing: -1.14,
                   ),
                 ),
               ),
@@ -57,7 +61,7 @@ class CommentBaseBarWidget extends StatelessWidget {
           ),
           IconButton(
             onPressed: onMicPressed,
-            icon: Image.asset('assets/mic_icon.png', width: 30, height: 30),
+            icon: Image.asset('assets/mic_icon.png'),
           ),
         ],
       ),

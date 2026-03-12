@@ -77,6 +77,7 @@ dependencies:
   app_links: ^6.4.0
   kakao_flutter_sdk_share: ^1.10.0
   cloud_functions: ^6.0.0
+  mixpanel_flutter: ^2.5.0
   flutter_material_design_icons: ^1.1.7447
   bitcoin_icons: ^0.0.4
   iconoir_flutter: ^7.11.0

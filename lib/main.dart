@@ -22,6 +22,7 @@ import 'app/app_constants.dart';
 import 'app/app_container_builder.dart';
 import 'app/app_providers.dart';
 import 'app/app_routes.dart';
+import 'utils/analytics_service.dart';
 import 'utils/app_route_observer.dart';
 
 void main() async {
@@ -46,6 +47,10 @@ void main() async {
   KakaoSdk.init(nativeAppKey: dotenv.env[AppConstant.kakaoNativeAppKey]!);
   _configureErrorHandling();
 
+  // AnalyticsService 인스턴스를 생성합니다.
+  // 이 과정에서 Mixpanel SDK가 초기화되고, 앱의 플랫폼과 빌드 모드에 대한 슈퍼 프로퍼티가 등록됩니다.
+  final analyticsService = await _createAnalyticsService();
+
   final userController = UserController();
   final didAutoLogin = await userController.tryAutoLogin();
   if (didAutoLogin) {
@@ -69,11 +74,22 @@ void main() async {
       child: MyApp(
         hasSeenLaunchVideo: hasSeenLaunchVideo,
         preloadedUserController: userController,
+        analyticsService: analyticsService,
       ),
     ),
   );
 }
 
+/// AnalyticsService 인스턴스를 생성합니다.
+Future<AnalyticsService> _createAnalyticsService() async {
+  final token = dotenv.env[AppConstant.mixpanelProjectToken]?.trim();
+  if (token == null || token.isEmpty) {
+    throw StateError('MIXPANEL_PROJECT_TOKEN is not configured.');
+  }
+  return AnalyticsService.create(token: token);
+}
+
+/// 앱 전체에서 사용되는 이미지 캐시 설정을 구성하는 함수입니다.
 void _configureImageCache() {
   final cache = PaintingBinding.instance.imageCache;
   const maxItems = kDebugMode
@@ -85,6 +101,7 @@ void _configureImageCache() {
   cache.maximumSizeBytes = maxBytes;
 }
 
+/// 앱의 에러 핸들링을 구성하는 함수입니다.
 void _configureErrorHandling() {
   FlutterError.onError = FlutterError.presentError;
   PlatformDispatcher.instance.onError = (error, stack) => true;
@@ -97,11 +114,14 @@ Future<void> _lockPortraitOrientation() {
 class MyApp extends StatefulWidget {
   final bool hasSeenLaunchVideo;
   final UserController preloadedUserController;
+  final AnalyticsService
+  analyticsService; // AnalyticsService 인스턴스를 MyApp의 생성자로 전달받아서 멤버 변수로 저장합니다.
 
   const MyApp({
     super.key,
     required this.hasSeenLaunchVideo,
     required this.preloadedUserController,
+    required this.analyticsService,
   });
 
   @override
@@ -115,21 +135,33 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Uri? _lastHandledUri;
   DateTime? _lastHandledTime;
 
+  // 마지막으로 AnalyticsService에 identify로 전달한 사용자 ID를 저장하는 변수입니다.
+  // 사용자가 로그인하거나 로그아웃할 때 이 값을 업데이트해서 중복된 identify 호출을 방지하는 데 사용됩니다.
+  int? _lastAnalyticsUserId;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // UserController의 상태가 변경될 때마다
+    // _syncAnalyticsIdentity를 호출해서 AnalyticsService의 사용자 식별 정보를 최신 상태로 유지합니다.
+    widget.preloadedUserController.addListener(_syncAnalyticsIdentity);
+
+    // 앱이 시작될 때 사진 라이브러리 권한을 미리 요청해서, 사용자가 사진 관련 기능을 사용할 때 원활하게 권한이 처리되도록 합니다.
     _primePhotoLibraryPermission();
     _linkSubscription = _appLinks.uriLinkStream.listen(
       _handleIncomingUri,
       onError: (error) => debugPrint('딥링크 수신 실패: $error'),
     );
     _handleInitialLink();
+    _syncAnalyticsIdentity();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.preloadedUserController.removeListener(_syncAnalyticsIdentity);
     _linkSubscription?.cancel();
     super.dispose();
   }
@@ -158,6 +190,32 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('초기 딥링크 확인 실패: $e');
     }
+  }
+
+  /// AnalyticsService의 사용자 식별 정보를 UserController의 상태에 맞게 동기화하는 함수입니다.
+  void _syncAnalyticsIdentity() {
+    final currentUserId = widget.preloadedUserController.currentUserId;
+    if (currentUserId == _lastAnalyticsUserId) {
+      return;
+    }
+
+    // 이전에 identify로 전달했던 사용자 ID를 저장해둡니다.
+    final previousUserId = _lastAnalyticsUserId;
+
+    // 현재 사용자 ID로 업데이트합니다.
+    _lastAnalyticsUserId = currentUserId;
+
+    if (currentUserId == null) {
+      if (previousUserId != null) {
+        // 사용자가 로그아웃한 경우에는 AnalyticsService의 사용자 식별 정보를 초기화합니다.
+        unawaited(widget.analyticsService.reset());
+      }
+      return;
+    }
+
+    // 사용자가 로그인한 경우에는 AnalyticsService에
+    // identify로 사용자 ID를 전달해서 사용자를 식별합니다.
+    unawaited(widget.analyticsService.identify(userId: currentUserId));
   }
 
   void _handleIncomingUri(Uri uri) {
@@ -224,7 +282,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: buildAppProviders(widget.preloadedUserController),
+      providers: buildAppProviders(
+        widget.preloadedUserController,
+        widget.analyticsService,
+      ),
       child: ScreenUtilInit(
         designSize: const Size(393, 852),
         child: MaterialApp(

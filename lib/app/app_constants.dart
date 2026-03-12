@@ -33,6 +33,7 @@ class AppRoute {
 class AppConstant {
   static const hasSeenLaunchVideoKey = 'hasSeenLaunchVideo';
   static const kakaoNativeAppKey = 'KAKAO_NATIVE_APP_KEY';
+  static const mixpanelProjectToken = 'MIXPANEL_PROJECT_TOKEN';
   static const spanishLanguageCode = 'es';
   static const inviteFriendFallbackName = '친구';
 

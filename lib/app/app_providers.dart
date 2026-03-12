@@ -14,14 +14,26 @@ import 'package:soi/api/controller/notification_controller.dart'
     as api_notification;
 import 'package:soi/api/controller/post_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
+import 'package:soi/utils/analytics_service.dart';
 import 'package:soi/views/about_feed/manager/feed_data_manager.dart';
 
-List<SingleChildWidget> buildAppProviders(UserController userController) {
+List<SingleChildWidget> buildAppProviders(
+  UserController userController,
+  AnalyticsService analyticsService,
+) {
   return [
+    // AnalyticsService는 앱 전체에서 공유되는 서비스이므로 Provider.value를 사용해서 인스턴스를 전달합니다.
+    Provider<AnalyticsService>.value(value: analyticsService),
+
+    // 사용자의 로그인 상태와 사용자 정보를 관리하는 UserController도 앱 전체에서 공유되는 상태이므로 Provider.value를 사용해서 인스턴스를 전달합니다.
     ChangeNotifierProvider<UserController>.value(value: userController),
+
+    // 카테고리 관련 컨트롤러와 서비스들을 Provider로 등록합니다.
     ChangeNotifierProvider<api_category.CategoryController>(
       create: (_) => api_category.CategoryController(),
     ),
+
+    // 카테고리 검색 컨트롤러는 CategorySearchService를 주입받아서 생성됩니다.
     ChangeNotifierProvider<api_category_search.CategorySearchController>(
       create: (_) => api_category_search.CategorySearchController(
         searchService: CategorySearchService(),
