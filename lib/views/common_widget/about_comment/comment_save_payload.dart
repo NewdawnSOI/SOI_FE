@@ -107,6 +107,7 @@ class CommentSavePayload {
     );
   }
 
+  /// API 응답이 없거나 불완전한 경우에도 댓글 정보를 최대한 복원하기 위한 폴백 메서드입니다.
   Comment toFallbackComment({String? nickname, String? userProfileUrl}) {
     final waveform = waveformData == null || waveformData!.isEmpty
         ? null

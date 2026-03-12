@@ -8,12 +8,15 @@ import 'package:provider/provider.dart';
 
 import '../../../api/controller/comment_controller.dart';
 import '../../../api/controller/media_controller.dart';
-import '../../../api/controller/user_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import '../api_photo/tag_pointer.dart';
 import 'comment_save_payload.dart';
 
+/// 댓글 프로필 태그 위젯
+/// - 댓글 작성자의 프로필 이미지를 원형으로 보여주는 태그입니다.
+/// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
+/// - 댓글 작성이 완료되면, 부모 위젯에 댓글 저장 진행 상황과 결과를 전달하는 역할도 수행합니다.
 class CommentProfileTagWidget extends StatefulWidget {
   final CommentSavePayload payload;
   final FutureOr<Offset?> Function() resolveDropRelativePosition;
@@ -43,8 +46,23 @@ class CommentProfileTagWidget extends StatefulWidget {
 
 class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
   static const int _kMaxWaveformSamples = 30;
+
+  // 댓글 저장 후, API에서 저장된 댓글 정보를 조회하여 id/userId를 확인하는 최대 시도 횟수입니다.
+  // (실제 저장된 댓글이 조회되지 않는 경우에 대비한 폴백 로직입니다.)
+  static const int _kSavedCommentLookupAttempts = 4;
+
+  // 댓글 저장 후, 저장된 댓글이 API에서 조회되기까지의 예상 지연 시간입니다.
+  static const Duration _kSavedCommentLookupDelay = Duration(milliseconds: 180);
+
+  // 댓글 저장 진행 상태를 나타내는 플래그입니다.
   bool _isSaving = false;
+
+  // 댓글 저장 진행 상황을 0.0 ~ 1.0 사이의 값으로 나타냅니다.
+  // 부모 위젯에 전달하여 프로그레스 표시 등에 활용할 수 있습니다.
   double _progress = 0.0;
+
+  // 프로필 이미지 URL을 비동기로 조회하여 저장하는 Future입니다.
+  // 댓글 작성자의 프로필 이미지를 표시하는 데 사용됩니다.
   late Future<String?> _profileImageFuture;
 
   @override
@@ -84,6 +102,16 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
     }
   }
 
+  /// 드래그 앵커 위치를 결정하는 메서드입니다.
+  /// 태그의 원형 부분의 중심에서 포인터의 끝까지의 오프셋을 반환하여, 드래그 시 태그가 포인터에 맞춰지도록 합니다.
+  ///
+  /// Parameters:
+  /// - [draggable]: 드래그 가능한 위젯입니다.
+  /// - [context]: 빌드 컨텍스트입니다.
+  /// - [position]: 드래그 시작 시의 글로벌 위치입니다.
+  ///
+  /// Returns:
+  /// - [Offset]: 드래그 앵커로 사용할 오프셋입니다.
   Offset _tagPointerDragAnchor(
     Draggable<Object> draggable,
     BuildContext context,
@@ -92,20 +120,135 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
     return TagBubble.pointerTipOffset(contentSize: widget.avatarSize);
   }
 
+  /// 댓글 저장 진행 상황 업데이트 메서드입니다.
+  /// 댓글 저장 진행 상황을 0.0 ~ 1.0 사이의 값으로 업데이트하고, 부모 위젯에 전달하는 역할을 합니다.
+  ///
+  /// Parameters:
+  /// - [value]: 업데이트할 진행 상황 값입니다. 0.0 ~ 1.0 사이의 값으로 전달되어야 합니다.
   void _updateProgress(double value) {
     _progress = value.clamp(0.0, 1.0).toDouble();
     widget.onSaveProgress?.call(_progress);
   }
 
+  Comment? _persistedCommentOrNull(Comment? comment) {
+    if (comment == null) {
+      return null;
+    }
+    if (comment.id == null || comment.userId == null) {
+      return null;
+    }
+    return comment;
+  }
+
+  Future<Comment> _resolvePersistedComment({
+    required CommentSavePayload payload,
+    required Comment? directComment,
+    required Comment? Function(List<Comment> comments) matcher,
+  }) async {
+    final persistedDirect = _persistedCommentOrNull(directComment);
+    if (persistedDirect != null) {
+      return persistedDirect;
+    }
+
+    final commentController = context.read<CommentController>();
+    for (var attempt = 0; attempt < _kSavedCommentLookupAttempts; attempt++) {
+      final comments = await commentController.getComments(
+        postId: payload.postId,
+      );
+      final matched = _persistedCommentOrNull(matcher(comments));
+      if (matched != null) {
+        return matched;
+      }
+      if (attempt < _kSavedCommentLookupAttempts - 1) {
+        await Future<void>.delayed(_kSavedCommentLookupDelay);
+      }
+    }
+
+    throw StateError('저장된 댓글의 id/userId를 확인하지 못했습니다.');
+  }
+
+  Comment? _findSavedTextComment(
+    List<Comment> comments,
+    CommentSavePayload payload,
+  ) {
+    final trimmedText = (payload.text ?? '').trim();
+    if (trimmedText.isEmpty) {
+      return null;
+    }
+
+    for (final comment in comments.reversed) {
+      if (!comment.isText || comment.userId != payload.userId) {
+        continue;
+      }
+
+      final matchesX = _isNearCoordinate(comment.locationX, payload.locationX);
+      final matchesY = _isNearCoordinate(comment.locationY, payload.locationY);
+      final sameText = (comment.text ?? '').trim() == trimmedText;
+      if (matchesX && matchesY && sameText) {
+        return comment;
+      }
+    }
+
+    return null;
+  }
+
+  Comment? _findSavedAudioComment(
+    List<Comment> comments,
+    CommentSavePayload payload,
+  ) {
+    final expectedDuration = payload.duration ?? 0;
+
+    for (final comment in comments.reversed) {
+      if (!comment.isAudio || comment.userId != payload.userId) {
+        continue;
+      }
+
+      final matchesX = _isNearCoordinate(comment.locationX, payload.locationX);
+      final matchesY = _isNearCoordinate(comment.locationY, payload.locationY);
+      final matchesDuration =
+          expectedDuration <= 0 ||
+          comment.duration == null ||
+          comment.duration == expectedDuration;
+      if (matchesX && matchesY && matchesDuration) {
+        return comment;
+      }
+    }
+
+    return null;
+  }
+
+  Comment? _findSavedMediaComment(
+    List<Comment> comments,
+    CommentSavePayload payload,
+    String fileKey,
+  ) {
+    for (final comment in comments.reversed) {
+      if (comment.userId != payload.userId) {
+        continue;
+      }
+
+      final sameFileKey = (comment.fileKey ?? '').trim() == fileKey;
+      if (sameFileKey) {
+        return comment;
+      }
+
+      final isMediaComment = comment.isPhoto || comment.isVideo;
+      if (!isMediaComment) {
+        continue;
+      }
+
+      final matchesX = _isNearCoordinate(comment.locationX, payload.locationX);
+      final matchesY = _isNearCoordinate(comment.locationY, payload.locationY);
+      if (matchesX && matchesY) {
+        return comment;
+      }
+    }
+
+    return null;
+  }
+
   Future<Comment> _saveTextComment(CommentSavePayload payload) async {
     final commentController = context.read<CommentController>();
-    final currentUser = context.read<UserController>().currentUser;
-    String? resolvedProfileUrl;
-    try {
-      resolvedProfileUrl = await _profileImageFuture;
-    } catch (_) {
-      resolvedProfileUrl = null;
-    }
 
     _updateProgress(0.45);
     final result = await commentController.createComment(
@@ -125,27 +268,16 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
       throw StateError('댓글 저장에 실패했습니다.');
     }
 
-    if (result.comment != null) {
-      return result.comment!;
-    }
-
-    return payload.toFallbackComment(
-      nickname: currentUser?.userId,
-      userProfileUrl: resolvedProfileUrl ?? currentUser?.profileImageUrlKey,
+    return _resolvePersistedComment(
+      payload: payload,
+      directComment: result.comment,
+      matcher: (comments) => _findSavedTextComment(comments, payload),
     );
   }
 
   Future<Comment> _saveAudioComment(CommentSavePayload payload) async {
     final commentController = context.read<CommentController>();
     final mediaController = context.read<MediaController>();
-    final currentUser = context.read<UserController>().currentUser;
-
-    String? resolvedProfileUrl;
-    try {
-      resolvedProfileUrl = await _profileImageFuture;
-    } catch (_) {
-      resolvedProfileUrl = null;
-    }
 
     final audioPath = (payload.audioPath ?? '').trim();
     if (audioPath.isEmpty) {
@@ -188,59 +320,16 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
       throw StateError('음성 댓글 저장에 실패했습니다.');
     }
 
-    if (result.comment != null) {
-      return result.comment!;
-    }
-
-    final refreshedComment = await _findSavedAudioComment(payload);
-    if (refreshedComment != null) {
-      return refreshedComment;
-    }
-
-    return payload.toFallbackComment(
-      nickname: currentUser?.userId,
-      userProfileUrl: resolvedProfileUrl ?? currentUser?.profileImageUrlKey,
+    return _resolvePersistedComment(
+      payload: payload,
+      directComment: result.comment,
+      matcher: (comments) => _findSavedAudioComment(comments, payload),
     );
-  }
-
-  Future<Comment?> _findSavedAudioComment(CommentSavePayload payload) async {
-    final commentController = context.read<CommentController>();
-    final comments = await commentController.getComments(
-      postId: payload.postId,
-    );
-
-    for (final comment in comments.reversed) {
-      if (!comment.isAudio || comment.userId != payload.userId) {
-        continue;
-      }
-
-      final matchesX = _isNearCoordinate(comment.locationX, payload.locationX);
-      final matchesY = _isNearCoordinate(comment.locationY, payload.locationY);
-      if (matchesX && matchesY) {
-        return comment;
-      }
-    }
-
-    for (final comment in comments.reversed) {
-      if (comment.isAudio && comment.userId == payload.userId) {
-        return comment;
-      }
-    }
-
-    return null;
   }
 
   Future<Comment> _saveMediaComment(CommentSavePayload payload) async {
     final commentController = context.read<CommentController>();
     final mediaController = context.read<MediaController>();
-    final currentUser = context.read<UserController>().currentUser;
-
-    String? resolvedProfileUrl;
-    try {
-      resolvedProfileUrl = await _profileImageFuture;
-    } catch (_) {
-      resolvedProfileUrl = null;
-    }
 
     final localFilePath = (payload.localFilePath ?? '').trim();
     if (localFilePath.isEmpty) {
@@ -290,67 +379,11 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
       throw StateError('미디어 댓글 저장에 실패했습니다.');
     }
 
-    if (result.comment != null) {
-      return result.comment!;
-    }
-
-    final refreshed = await _findSavedMediaComment(payload, fileKey);
-    if (refreshed != null) {
-      return refreshed;
-    }
-
-    final fallbackPayload = CommentSavePayload(
-      postId: payload.postId,
-      userId: payload.userId,
-      kind: payload.kind,
-      fileKey: fileKey,
-      localFilePath: localFilePath,
-      parentId: payload.parentId,
-      replyUserId: payload.replyUserId,
-      profileImageUrlKey: payload.profileImageUrlKey,
-      locationX: payload.locationX,
-      locationY: payload.locationY,
+    return _resolvePersistedComment(
+      payload: payload,
+      directComment: result.comment,
+      matcher: (comments) => _findSavedMediaComment(comments, payload, fileKey),
     );
-
-    return fallbackPayload.toFallbackComment(
-      nickname: currentUser?.userId,
-      userProfileUrl: resolvedProfileUrl ?? currentUser?.profileImageUrlKey,
-    );
-  }
-
-  Future<Comment?> _findSavedMediaComment(
-    CommentSavePayload payload,
-    String fileKey,
-  ) async {
-    final commentController = context.read<CommentController>();
-    final comments = await commentController.getComments(
-      postId: payload.postId,
-    );
-
-    for (final comment in comments.reversed) {
-      if (!comment.isPhoto || comment.userId != payload.userId) {
-        continue;
-      }
-
-      final sameFileKey = (comment.fileKey ?? '').trim() == fileKey;
-      if (sameFileKey) {
-        return comment;
-      }
-
-      final matchesX = _isNearCoordinate(comment.locationX, payload.locationX);
-      final matchesY = _isNearCoordinate(comment.locationY, payload.locationY);
-      if (matchesX && matchesY) {
-        return comment;
-      }
-    }
-
-    for (final comment in comments.reversed) {
-      if (comment.isPhoto && comment.userId == payload.userId) {
-        return comment;
-      }
-    }
-
-    return null;
   }
 
   bool _isNearCoordinate(double? a, double? b) {

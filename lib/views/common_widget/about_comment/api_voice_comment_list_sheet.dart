@@ -45,6 +45,14 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   static const double _commentDividerVerticalPadding = 20.0;
   static const Color _commentHighlightColor = Color(0x3B000000);
 
+  // 댓글 저장을 시도할 때, 저장된 댓글 정보를 찾기 위해 API에서 댓글 리스트를 조회하는 최대 시도 횟수입니다.
+  // API 응답이 지연되거나 불완전한 경우에도 저장된 댓글 정보를 최대한 복원하기 위한 전략의 일환으로 사용됩니다.
+  static const int _savedCommentLookupAttempts = 4;
+
+  // 저장된 댓글을 찾기 위해 각 시도 사이에 기다리는 지연 시간입니다.
+  // API 응답이 지연되거나 불완전한 경우에도 저장된 댓글 정보를 최대한 복원하기 위한 전략의 일환으로 사용됩니다.
+  static const Duration _savedCommentLookupDelay = Duration(milliseconds: 180);
+
   // 음성 댓글의 웨이브폼 데이터는 최대 30개 샘플로 줄여서 서버에 전송합니다.
   static const int _maxWaveformSamples = 30;
 
@@ -92,6 +100,131 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     final parts = selectedCommentId.split('_');
     if (parts.length < 2) return null;
     return int.tryParse(parts.last);
+  }
+
+  Comment? _persistedCommentOrNull(Comment? comment) {
+    if (comment == null) {
+      return null;
+    }
+    if (comment.id == null || comment.userId == null) {
+      return null;
+    }
+    return comment;
+  }
+
+  Future<Comment> _resolvePersistedComment({
+    required Comment? directComment,
+    required Comment? Function(List<Comment> comments) matcher,
+  }) async {
+    final persistedDirect = _persistedCommentOrNull(directComment);
+    if (persistedDirect != null) {
+      return persistedDirect;
+    }
+
+    final commentController = context.read<CommentController>();
+    for (var attempt = 0; attempt < _savedCommentLookupAttempts; attempt++) {
+      final comments = await commentController.getComments(
+        postId: widget.postId,
+      );
+      final matched = _persistedCommentOrNull(matcher(comments));
+      if (matched != null) {
+        return matched;
+      }
+      if (attempt < _savedCommentLookupAttempts - 1) {
+        await Future<void>.delayed(_savedCommentLookupDelay);
+      }
+    }
+
+    throw StateError('저장된 댓글의 id/userId를 확인하지 못했습니다.');
+  }
+
+  Comment? _findSavedTextComment({
+    required List<Comment> comments,
+    required int userId,
+    required String text,
+    required Comment? replyTarget,
+  }) {
+    final trimmedText = text.trim();
+    final targetReplyUserName = (replyTarget?.nickname ?? '').trim();
+
+    for (final comment in comments.reversed) {
+      if (comment.userId != userId) {
+        continue;
+      }
+
+      final isExpectedType = replyTarget != null
+          ? comment.isReply
+          : comment.isText;
+      if (!isExpectedType) {
+        continue;
+      }
+
+      if ((comment.text ?? '').trim() != trimmedText) {
+        continue;
+      }
+
+      if (replyTarget != null &&
+          targetReplyUserName.isNotEmpty &&
+          (comment.replyUserName ?? '').trim() != targetReplyUserName) {
+        continue;
+      }
+
+      return comment;
+    }
+
+    return null;
+  }
+
+  Comment? _findSavedAudioReplyComment({
+    required List<Comment> comments,
+    required int userId,
+    required Comment replyTarget,
+    required int durationMs,
+  }) {
+    final targetReplyUserName = (replyTarget.nickname ?? '').trim();
+
+    for (final comment in comments.reversed) {
+      if (!comment.isReply || comment.userId != userId) {
+        continue;
+      }
+
+      if (targetReplyUserName.isNotEmpty &&
+          (comment.replyUserName ?? '').trim() != targetReplyUserName) {
+        continue;
+      }
+
+      if ((comment.duration ?? 0) == durationMs) {
+        return comment;
+      }
+    }
+
+    return null;
+  }
+
+  Comment? _findSavedMediaReplyComment({
+    required List<Comment> comments,
+    required int userId,
+    required Comment replyTarget,
+    required String fileKey,
+  }) {
+    final targetReplyUserName = (replyTarget.nickname ?? '').trim();
+
+    for (final comment in comments.reversed) {
+      if (!comment.isReply || comment.userId != userId) {
+        continue;
+      }
+
+      if (targetReplyUserName.isNotEmpty &&
+          (comment.replyUserName ?? '').trim() != targetReplyUserName) {
+        continue;
+      }
+
+      if ((comment.fileKey ?? '').trim() == fileKey) {
+        return comment;
+      }
+    }
+
+    return null;
   }
 
   /// selectedHash를 기반으로 강조 표시할 스레드의 키를 계산하는 함수입니다.
@@ -387,22 +520,30 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       throw StateError('comment_save_failed');
     }
 
-    _insertSavedComment(
-      result.comment ??
-          Comment(
-            id: null,
-            userId: currentUser.id,
-            nickname: currentUser.userId,
-            replyUserName: replyTarget?.nickname,
-            userProfileUrl: currentUser.profileImageUrlKey,
-            userProfileKey: currentUser.profileImageUrlKey,
-            createdAt: DateTime.now(),
-            text: text,
-            type: replyTarget != null ? CommentType.reply : CommentType.text,
-          ),
-      replyTarget: replyTarget,
-      currentUserProfileKey: currentUser.profileImageUrlKey,
-    );
+    try {
+      final savedComment = await _resolvePersistedComment(
+        directComment: result.comment,
+        matcher: (comments) => _findSavedTextComment(
+          comments: comments,
+          userId: currentUser.id,
+          text: text,
+          replyTarget: replyTarget,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      _insertSavedComment(
+        savedComment,
+        replyTarget: replyTarget,
+        currentUserProfileKey: currentUser.profileImageUrlKey,
+      );
+    } catch (_) {
+      if (mounted) {
+        _showSnackBar(tr('comments.save_failed'));
+      }
+      throw StateError('comment_save_unresolved');
+    }
   }
 
   /// 카메라 아이콘을 탭했을 때 호출되는 함수입니다.
@@ -555,24 +696,29 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       return;
     }
 
-    _insertSavedComment(
-      result.comment ??
-          Comment(
-            id: null,
-            userId: currentUser.id,
-            nickname: currentUser.userId,
-            replyUserName: replyTarget.nickname,
-            userProfileUrl: currentUser.profileImageUrlKey,
-            userProfileKey: currentUser.profileImageUrlKey,
-            createdAt: DateTime.now(),
-            audioUrl: trimmedAudioPath,
-            waveformData: encodedWaveform,
-            duration: durationMs,
-            type: CommentType.reply,
-          ),
-      replyTarget: replyTarget,
-      currentUserProfileKey: currentUser.profileImageUrlKey,
-    );
+    try {
+      final savedComment = await _resolvePersistedComment(
+        directComment: result.comment,
+        matcher: (comments) => _findSavedAudioReplyComment(
+          comments: comments,
+          userId: currentUser.id,
+          replyTarget: replyTarget,
+          durationMs: durationMs,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      _insertSavedComment(
+        savedComment,
+        replyTarget: replyTarget,
+        currentUserProfileKey: currentUser.profileImageUrlKey,
+      );
+    } catch (_) {
+      if (mounted) {
+        _showSnackBar(tr('comments.save_failed'));
+      }
+    }
   }
 
   Future<void> _submitMediaComment({
@@ -634,23 +780,29 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       return;
     }
 
-    _insertSavedComment(
-      result.comment ??
-          Comment(
-            id: null,
-            userId: currentUser.id,
-            nickname: currentUser.userId,
-            replyUserName: replyTarget.nickname,
-            userProfileUrl: currentUser.profileImageUrlKey,
-            userProfileKey: currentUser.profileImageUrlKey,
-            createdAt: DateTime.now(),
-            fileKey: fileKey,
-            fileUrl: trimmedPath,
-            type: CommentType.reply,
-          ),
-      replyTarget: replyTarget,
-      currentUserProfileKey: currentUser.profileImageUrlKey,
-    );
+    try {
+      final savedComment = await _resolvePersistedComment(
+        directComment: result.comment,
+        matcher: (comments) => _findSavedMediaReplyComment(
+          comments: comments,
+          userId: currentUser.id,
+          replyTarget: replyTarget,
+          fileKey: fileKey,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      _insertSavedComment(
+        savedComment,
+        replyTarget: replyTarget,
+        currentUserProfileKey: currentUser.profileImageUrlKey,
+      );
+    } catch (_) {
+      if (mounted) {
+        _showSnackBar(tr('comments.save_failed'));
+      }
+    }
   }
 
   void _insertSavedComment(

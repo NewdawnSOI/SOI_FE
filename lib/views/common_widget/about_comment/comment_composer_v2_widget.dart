@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../api/models/comment.dart';
 import 'pending_api_voice_comment.dart';
@@ -225,9 +226,14 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
     });
   }
 
+  /// 댓글 배치 모드에서 보여줄 위젯을 빌드하는 메서드입니다.
   Widget _buildPlacingMode() {
+    // 현재 댓글 작성 중인 댓글의 정보를 기반으로 CommentSavePayload을 생성합니다.
+    // 댓글 작성 중인 댓글이 없거나, 지원되지 않는 종류의 댓글인 경우 null이 될 수 있습니다.
     final payload = _buildPayloadFromDraft();
 
+    // payload가 null인 경우는 댓글 작성 중인 댓글이 없거나, 지원되지 않는 종류의 댓글인 경우입니다.
+    // 이 경우에는 댓글 작성의 첫 단계인 기본 바 UI를 보여줍니다.
     if (payload == null) {
       return CommentBaseBarWidget(
         onCenterTap: _showTyping,
@@ -236,10 +242,14 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
       );
     }
 
+    // 댓글 배치 모드에서 보여줄 위젯은 CommentProfileTagWidget입니다.
+    // CommentProfileTagWidget은 댓글 작성자의 프로필 이미지와 함께,
+    // 댓글이 드래그되는 위치에 따라 실시간으로 댓글 작성 내용을 미리 보여주는 역할을 합니다.
     return Align(
       alignment: Alignment.center,
       child: CommentProfileTagWidget(
         payload: payload,
+        avatarSize: 53.sp,
         resolveDropRelativePosition: _resolveDropPosition,
         onSaveProgress: (progress) {
           widget.onCommentSaveProgress(widget.postId, progress);
