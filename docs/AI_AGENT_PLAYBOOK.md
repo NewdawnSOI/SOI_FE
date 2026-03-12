@@ -38,27 +38,24 @@
 ## 1. Project Snapshot (폴더 구조 기준)
 ### 규칙
 - SOI는 Flutter 클라이언트 + REST/OpenAPI 기반 구조다.
+- 앱 부트스트랩 책임은 `lib/main.dart`와 `lib/app/*`로 분리되어 있다.
 - API 생성 클라이언트(`api/generated`)와 앱 래퍼(`lib/api`)를 분리해 유지한다.
-- 앱 엔트리/부트스트랩은 `lib/main.dart`를 기준으로 해석한다.
-- 구조 스냅샷은 파일 개수 대신 "프로젝트 폴더 구조"로 관리한다.
+- 구조 스냅샷은 파일 개수 대신 "tracked 프로젝트 폴더 구조"로 관리하고, `build/`, `Pods/`, `.dart_tool/` 같은 산출물은 제외한다.
 
 ### 근거 파일
 - 엔트리/초기화: `lib/main.dart`
+- 앱 상수/로케일: `lib/app/app_constants.dart`
+- Provider 조립: `lib/app/app_providers.dart`
+- 라우트 등록: `lib/app/app_routes.dart`
+- 앱 컨테이너/레이아웃: `lib/app/app_container_builder.dart`
 - 의존성: `pubspec.yaml`
 - API 생성 패키지: `api/generated/pubspec.yaml`
 
 ### 구조(현재 프로젝트 폴더 트리)
 ```text
 SOI/
-├─ .claude/
-│  └─ skills/
 ├─ .codex/
 │  └─ skills/
-├─ .github/
-│  └─ appmod/
-├─ .serena/
-│  ├─ cache/
-│  └─ memories/
 ├─ .vscode/
 ├─ android/
 │  ├─ app/
@@ -90,19 +87,22 @@ SOI/
 │  ├─ RunnerTests/
 │  ├─ SOI/
 │  ├─ SOITests/
-│  └─ SOIUITests/
+│  ├─ SOIUITests/
+│  └─ fastlane/
 ├─ lib/
 │  ├─ api/
 │  │  ├─ controller/
 │  │  ├─ models/
 │  │  └─ services/
+│  ├─ app/
 │  ├─ theme/
 │  ├─ utils/
 │  └─ views/
 │     ├─ about_archiving/
-│     │  ├─ models/
 │     │  ├─ screens/
 │     │  │  ├─ archive_detail/
+│     │  │  │  └─ widgets/
+│     │  │  │     └─ category_photos_header+body/
 │     │  │  └─ category_edit/
 │     │  └─ widgets/
 │     │     ├─ archive_card_widget/
@@ -112,6 +112,8 @@ SOI/
 │     │  ├─ models/
 │     │  ├─ services/
 │     │  └─ widgets/
+│     │     ├─ about_camera/
+│     │     └─ about_photo_editor_screen/
 │     ├─ about_feed/
 │     │  ├─ manager/
 │     │  └─ widgets/
@@ -129,6 +131,8 @@ SOI/
 │     ├─ about_setting/
 │     └─ common_widget/
 │        ├─ about_comment/
+│        │  └─ widget/
+│        │     └─ about_comment_list_sheet/
 │        ├─ about_more_menu/
 │        ├─ api_photo/
 │        │  └─ extension/
@@ -148,8 +152,13 @@ SOI/
 ├─ test/
 │  ├─ api/
 │  │  ├─ controller/
+│  │  ├─ models/
 │  │  └─ services/
 │  └─ views/
+│     ├─ about_feed/
+│     │  └─ manager/
+│     └─ common_widget/
+│        └─ api_photo/
 ├─ web/
 │  ├─ icons/
 │  └─ splash/
@@ -160,12 +169,13 @@ SOI/
 
 ### 실패 시 리스크
 - generated/client와 wrapper 책임이 섞이면 재생성 시 대량 파손이 발생한다.
+- `lib/app` 분리 구조를 놓치면 locale/provider/route/layout 변경 지점을 잘못 수정할 수 있다.
 - 엔트리 초기화 순서 오해 시 로그인/딥링크/캐시 동작이 깨진다.
 
 ### 검증 방법
 - `git ls-tree -d --name-only HEAD | sort`
-- `find lib -type d | sort`
-- `find api -type d | sort`
+- `git ls-tree -d -r --name-only HEAD lib/api lib/views test | sort`
+- `git ls-tree -r --name-only HEAD lib/app assets/translations test | sort`
 
 ## 2. API 연동 운영 규칙 (api-lib-sync 내재화)
 ### 규칙
@@ -210,8 +220,8 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 ## 3. Provider/상태관리 규칙 (현재 버전 반영)
 ### 규칙
 - 기본 상태관리 스택은 `provider ^6.1.5 + ChangeNotifier`다.
-- 전역 Provider 소유 객체는 `lib/main.dart`의 `MultiProvider`가 lifecycle owner이며, 화면에서 dispose하지 않는다.
-- `UserController`는 preloaded 인스턴스를 `ChangeNotifierProvider.value`로 주입한다.
+- 전역 Provider 소유 객체는 앱 루트(`lib/main.dart` + `lib/app/app_providers.dart`)가 lifecycle owner이며, 화면에서 dispose하지 않는다.
+- `UserController`는 preloaded 인스턴스를 `buildAppProviders()` 내부에서 `ChangeNotifierProvider.value`로 주입한다.
 - 전역 등록 컨트롤러:
 - `UserController`
 - `CategoryController`, `CategorySearchController`
@@ -225,7 +235,7 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 - 사용자 전환 시 `FeedDataManager._lastUserId` 비교 후 `reset(notify: false)` + `forceRefresh`를 적용한다.
 
 ### 근거 파일
-- Provider 등록/앱 루트: `lib/main.dart`
+- 앱 루트/Provider 주입: `lib/main.dart`, `lib/app/app_providers.dart`
 - 전역 피드 캐시 소유권: `lib/views/about_feed/feed_home.dart`
 - 사용자 전환 리셋/지연 갱신: `lib/views/about_feed/manager/feed_data_manager.dart`
 - 프레임 충돌 완화 notify 패턴: `lib/api/controller/media_controller.dart`
@@ -237,7 +247,7 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 - 사용자 전환 시 이전 사용자 피드/카테고리 캐시가 노출될 수 있다.
 
 ### 검증 방법
-- `rg -n "ChangeNotifierProvider|FeedDataManager|ChangeNotifierProvider<UserController>\.value" lib/main.dart`
+- `rg -n "buildAppProviders|ChangeNotifierProvider<|FeedDataManager" lib/main.dart lib/app/app_providers.dart`
 - `rg -n "detachFromPostController|reset\(|_lastUserId|TickerMode|mounted" lib/views/about_feed/manager/feed_data_manager.dart lib/views/about_feed/feed_home.dart`
 - `rg -n "_scheduleNotify|addPostFrameCallback" lib/api/controller/media_controller.dart`
 
@@ -341,28 +351,28 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 flutter test test/api/services/user_service_test.dart test/api/controller/user_controller_test.dart
 ```
 
-## 7. 로컬라이제이션 정책 (en 활성 locale 포함)
+## 7. 로컬라이제이션 정책 (ko/es 활성 locale 기준)
 ### 규칙
-- 활성 locale 정책 기준은 `ko`, `es`, `en`이다.
-- locale 정책/부트스트랩 변경 시 `lib/main.dart`의 `supportedLocales`에 `Locale('en')`을 포함한다.
-- `fallbackLocale`은 `ko`를 유지하고, `startLocale`은 `es/en` 기기 언어를 우선 매핑한다.
-- 사용자 노출 문자열 변경 시 `ko/es/en` 3개 번역 키를 동시에 반영한다.
-- `ja/zh`는 보조 번역으로 유지하되, 활성 locale 정책과 분리 관리한다.
+- 활성 locale 정책 기준은 `ko`, `es`다.
+- `supportedLocales` 단일 진실 소스는 `lib/app/app_constants.dart`이며, `lib/main.dart`가 이를 `EasyLocalization`에 주입한다.
+- `fallbackLocale`은 `ko`를 유지하고, `startLocale`은 기기 언어가 `es`일 때만 `es`, 그 외는 `ko`로 시작한다.
+- 사용자 노출 문자열 변경 시 최소 `ko/es` 2개 번역 키를 동시에 반영한다.
+- `en/ja/zh`는 현재 브랜치에서 `supportedLocales`에 포함되지 않는 보조 번역 자산이다. 기존 공용 키를 건드리면 함께 동기화하거나 제외 이유를 결과에 남긴다.
 - 키 네임스페이스는 기존 패턴(`common.*`, `camera.editor.*`)을 유지한다.
 
 ### 근거 파일
-- 로케일 부트스트랩: `lib/main.dart`
+- 로케일 부트스트랩: `lib/main.dart`, `lib/app/app_constants.dart`
 - 번역 파일: `assets/translations/ko.json`, `assets/translations/es.json`, `assets/translations/en.json`, `assets/translations/ja.json`, `assets/translations/zh.json`
 
 ### 실패 시 리스크
-- `en.json`이 있어도 `supportedLocales`에 빠지면 영어 UI가 노출되지 않는다.
+- 현재 브랜치에서 `en.json`이 존재한다고 해서 영어 UI가 자동 활성화되는 것은 아니다.
 - 활성 locale 정책과 번역 파일 정책이 불일치하면 릴리즈 직전에 누락이 발견된다.
 - 하드코딩 문자열 증가로 다국어 회귀 비용이 커진다.
 
 ### 검증 방법
 - `ls -1 assets/translations`
-- `rg -n "supportedLocales|fallbackLocale|startLocale|Locale\('en'\)" lib/main.dart`
-- 수동 검증: 기기 언어 `en` 설정 후 앱 시작 시 영어 로케일 선택 여부 확인
+- `rg -n "supportedLocales|fallbackLocale|startLocale|spanishLanguageCode|koreanLocale|spanishLocale" lib/main.dart lib/app/app_constants.dart`
+- 수동 검증: 기기 언어 `es`에서 스페인어 시작, `en` 등 비-`es` 언어에서 한국어 fallback 시작 여부 확인
 
 ## 8. 고위험 파일 및 점검 시나리오 (현 프로젝트 상세 분석)
 ### 규칙
@@ -372,7 +382,7 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 ### 고위험 파일 매트릭스
 | 파일 | 위험 포인트 | 필수 체크포인트 |
 |---|---|---|
-| `lib/main.dart` | 앱 부트스트랩 순서, 전역 Provider 생명주기, 딥링크 처리 | `EasyLocalization` locale 목록, `_configureImageCache`, `SoiApiClient.initialize()`, URI 중복 방지(3초), route 등록 |
+| `lib/main.dart` + `lib/app/app_constants.dart` + `lib/app/app_providers.dart` + `lib/app/app_routes.dart` + `lib/app/app_container_builder.dart` | 앱 부트스트랩 순서, 활성 locale 정책, 전역 Provider 생명주기, route wiring, 와이드 레이아웃 컨테이너 | `supportedLocales=[ko, es]`, `buildAppProviders`, `buildAppRoutes`, `buildAppContainer`, `_configureImageCache`, URI 중복 방지(3초) |
 | `lib/views/about_feed/manager/feed_data_manager.dart` + `lib/views/about_feed/feed_home.dart` | 전역 피드 캐시 소유권/사용자 전환/탭 가시성 | `detachFromPostController`만 호출, `_lastUserId` 전환 리셋, `_pendingPostRefresh` 복귀 갱신 |
 | `lib/views/about_camera/photo_editor_screen.dart` + `photo_editor_screen_upload.dart` + `services/photo_editor_media_processing_service.dart` | 백그라운드 업로드 파이프라인, 압축 수치, 임시파일/캐시 정리 | 1MB/50MB 가드, 업로드 후 `VideoCompress.deleteAllCache()`, `_evictCurrentImageFromCache`, 실패 시 원본 fallback |
 | `lib/views/common_widget/api_photo/api_photo_display_widget.dart` + `extension/api_photo_display_widget_media.dart` + `extension/api_photo_display_widget_video.dart` | 비디오 lifecycle/가시성 기반 재생, 이미지 깜빡임 회귀 | `visibleFraction >= 0.6`, lifecycle pause, `cacheKey + useOldImageOnUrlChange` |
@@ -383,6 +393,7 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 
 ### 점검 시나리오
 - 딥링크가 같은 URI로 연속 유입될 때 3초 내 중복 처리 방지 동작 확인.
+- 태블릿/웹 폭에서 `buildAppContainer`가 `wideLayoutBreakpoint=600`, `maxWidth=480` 제약을 유지하는지 확인.
 - 로그인 사용자를 전환했을 때 피드/카테고리 캐시가 섞이지 않고 강제 재조회되는지 확인.
 - 숨김 탭에서 posts-changed가 발생한 뒤 탭 복귀 시 1회만 새로고침되는지 확인.
 - 50MB 초과 비디오 업로드 시 단계 압축 후 업로드/카테고리 커버 업데이트까지 완료되는지 확인.
@@ -392,6 +403,7 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - 댓글 타입(`PHOTO/REPLY`) 및 알림 타입(`COMMENT_REPLY_ADDED`)이 UI 분기에서 정상 처리되는지 확인.
 
 ### 검증 방법
+- `rg -n "supportedLocales|buildAppProviders|buildAppRoutes|buildAppContainer|deepLinkDuplicationWindowSeconds" lib/main.dart lib/app`
 - `rg -n "_cacheTtl|allowExpired|generation|visibleFraction >= 0.6|cacheKey: widget.post.postFileKey|_lastUserId|_pendingPostRefresh" lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart lib/views/about_feed/manager/feed_data_manager.dart`
 
 ## 9. 테스트/검증 섹션 (현행 테스트셋 반영)
@@ -405,16 +417,24 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - `test/api/services/user_service_test.dart`
 - `test/api/services/post_service_test.dart`
 - `test/api/services/comment_service_test.dart`
+- `test/api/services/notification_service_test.dart`
 - 컨트롤러 테스트:
 - `test/api/controller/user_controller_test.dart`
 - `test/api/controller/post_controller_test.dart`
 - `test/api/controller/comment_controller_test.dart`
+- 모델 테스트:
+- `test/api/models/comment_post_model_test.dart`
+- 화면/위젯 테스트:
+- `test/views/about_feed/manager/feed_data_manager_test.dart`
+- `test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart`
 - 핵심 변경 파일:
 - `lib/main.dart`
+- `lib/app/**`
 - `lib/api/models/*.dart`
 - `lib/api/services/*.dart`
 - `lib/views/about_camera/**`
 - `lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart`
+- `lib/views/common_widget/**`
 
 ### 실패 시 리스크
 - enum/필드 확장 누락을 배포 후 발견할 수 있다.
@@ -428,23 +448,32 @@ flutter test \
   test/api/services/user_service_test.dart \
   test/api/services/post_service_test.dart \
   test/api/services/comment_service_test.dart \
+  test/api/services/notification_service_test.dart \
   test/api/controller/user_controller_test.dart \
   test/api/controller/post_controller_test.dart \
   test/api/controller/comment_controller_test.dart
 ```
+- 추가 모델/화면 테스트:
+```bash
+flutter test \
+  test/api/models/comment_post_model_test.dart \
+  test/views/about_feed/manager/feed_data_manager_test.dart \
+  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart
+```
 - 정적 분석:
 ```bash
-dart analyze lib/main.dart lib/api lib/views/about_feed lib/views/about_camera lib/views/about_archiving
+dart analyze lib/main.dart lib/app lib/api lib/views/about_feed lib/views/about_camera lib/views/about_archiving lib/views/common_widget
 ```
 - 변경 포인트 grep:
 ```bash
 rg -n "TEXT_ONLY|MULTIMEDIA|PHOTO|REPLY|COMMENT_REPLY_ADDED|savedAspectRatio|isFromGallery" lib/api
-rg -n "supportedLocales|Locale\('en'\)|visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/main.dart lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
+rg -n "supportedLocales|koreanLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
+rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
 ```
 - 수동 회귀:
 - 사용자 전환 후 피드/카테고리 분리 확인
 - 대용량 비디오 업로드 및 썸네일 생성/캐시 확인
-- 영어(`en`) 기기 언어에서 로케일 선택/문구 노출 확인
+- `es` 기기 언어에서 스페인어 시작, `en` 등 비-`es` 기기 언어에서 한국어 fallback 확인
 
 ## 10. 공용 API/인터페이스/타입 변경 대응 규칙 (현행 계약 반영)
 ### 규칙

@@ -31,9 +31,11 @@
 ## 3. 아키텍처 경계 (항상 준수)
 - `api/generated/**`는 생성 코드이므로 수동 수정 금지.
 - 책임 분리:
+  - `lib/app`: 앱 부트스트랩, 전역 Provider 조립, 라우트/로케일/레이아웃 상수
   - `lib/api/models`: 도메인 모델/매핑
   - `lib/api/services`: API 호출/DTO/예외 변환
   - `lib/api/controller`: UI 상태/흐름 오케스트레이션
+  - `lib/utils`: 공용 유틸/캐시 인프라
   - `lib/views`: 화면/UI
 - API 계약 변경 처리 순서:
   1. 영향 탐지: `./.codex/skills/api-lib-sync/scripts/api_change_impact.sh <repo-root>`
@@ -43,7 +45,7 @@
   5. 테스트/분석
 
 ## 4. Provider/상태관리 강제 규칙
-- 전역 Provider 소유 객체는 `lib/main.dart`가 lifecycle owner다.
+- 전역 Provider 소유 객체는 앱 루트(`lib/main.dart` + `lib/app/app_providers.dart`)가 lifecycle owner다.
 - 화면에서 전역 컨트롤러 dispose 금지.
 - `FeedDataManager`는 전역 캐시 owner:
   - 화면(`feed_home`)에서는 `detachFromPostController()`만 호출.
@@ -76,15 +78,21 @@
 - 사용자 전환 이벤트와 TTL 만료 이벤트를 분리 처리한다.
 
 ## 7. 로컬라이제이션 정책 (Always-Known)
-- 활성 locale 정책 기준: `ko`, `es`, `en`.
-- 사용자 노출 문자열 변경 시 `ko/es/en` 동시 반영.
-- locale 관련 변경 시 `lib/main.dart`의 `supportedLocales`에 `Locale('en')` 포함 여부 확인.
+- 활성 locale 정책 기준: `ko`, `es`.
+- locale 부트스트랩 소스는 `lib/app/app_constants.dart`의 `supportedLocales`이며, `lib/main.dart`에서 소비한다.
+- `fallbackLocale`은 `ko`를 유지하고, `startLocale`은 기기 언어가 `es`일 때만 `es`, 그 외는 `ko`다.
+- 사용자 노출 문자열 변경 시 `ko/es` 동시 반영.
+- `en/ja/zh` 번역 파일은 현재 비활성 보조 자산이다. 관련 키를 건드리면 함께 동기화하거나, 제외 이유를 결과에 명시한다.
 - 키 네임스페이스 유지: `common.*`, `camera.editor.*` 등 기존 패턴.
 - `Text`/`RichText` 등 사용자 노출 문자열을 새로 만들거나 변경할 때 하드코딩 금지, 반드시 로컬라이제이션 키(`tr()`)를 사용한다.
-- 로컬라이즈 키를 추가/수정한 경우 `ko/es/en` 리소스를 같은 턴에서 함께 갱신한다.
+- 로컬라이즈 키를 추가/수정한 경우 `ko/es` 리소스를 같은 턴에서 함께 갱신한다.
 
 ## 8. 고위험 파일 (수정 시 강화 점검)
 - `lib/main.dart`
+- `lib/app/app_constants.dart`
+- `lib/app/app_container_builder.dart`
+- `lib/app/app_providers.dart`
+- `lib/app/app_routes.dart`
 - `lib/views/about_feed/manager/feed_data_manager.dart`
 - `lib/views/about_feed/feed_home.dart`
 - `lib/views/about_camera/photo_editor_screen.dart`
@@ -114,17 +122,24 @@ flutter test \
   test/api/services/user_service_test.dart \
   test/api/services/post_service_test.dart \
   test/api/services/comment_service_test.dart \
+  test/api/services/notification_service_test.dart \
   test/api/controller/user_controller_test.dart \
   test/api/controller/post_controller_test.dart \
   test/api/controller/comment_controller_test.dart
 
-dart analyze lib/main.dart lib/api lib/views/about_feed lib/views/about_camera lib/views/about_archiving
+dart analyze lib/main.dart lib/app lib/api lib/views/about_feed lib/views/about_camera lib/views/about_archiving lib/views/common_widget
 ```
 
 필요 시 추가 점검:
 ```bash
+flutter test \
+  test/api/models/comment_post_model_test.dart \
+  test/views/about_feed/manager/feed_data_manager_test.dart \
+  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart
+
 rg -n "TEXT_ONLY|MULTIMEDIA|PHOTO|REPLY|COMMENT_REPLY_ADDED|savedAspectRatio|isFromGallery" lib/api
-rg -n "supportedLocales|Locale\('en'\)|visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/main.dart lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
+rg -n "supportedLocales|koreanLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
+rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
 ```
 
 ## 11. 상세 문서 참조 위치

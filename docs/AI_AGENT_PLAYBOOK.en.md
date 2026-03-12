@@ -38,27 +38,24 @@ The core principle is simple: code is the source of truth, and all changes must 
 ## 1. Project Snapshot (Folder Structure Based)
 ### Rules
 - SOI is a Flutter client with REST/OpenAPI backend integration.
+- App bootstrap responsibilities are split across `lib/main.dart` and `lib/app/*`.
 - Keep generated API client (`api/generated`) and app wrapper (`lib/api`) responsibilities separated.
-- Interpret app bootstrap and lifecycle from `lib/main.dart`.
-- Maintain the snapshot as project folder structure (not file counts).
+- Maintain the snapshot as tracked project folder structure, excluding generated runtime outputs such as `build/`, `Pods/`, and `.dart_tool/`.
 
 ### Evidence Files
 - Entry/bootstrap: `lib/main.dart`
+- App constants/locales: `lib/app/app_constants.dart`
+- Provider assembly: `lib/app/app_providers.dart`
+- Route map: `lib/app/app_routes.dart`
+- App container/layout shell: `lib/app/app_container_builder.dart`
 - Dependencies: `pubspec.yaml`
 - Generated client package: `api/generated/pubspec.yaml`
 
 ### Structure (Current Project Folder Tree)
 ```text
 SOI/
-├─ .claude/
-│  └─ skills/
 ├─ .codex/
 │  └─ skills/
-├─ .github/
-│  └─ appmod/
-├─ .serena/
-│  ├─ cache/
-│  └─ memories/
 ├─ .vscode/
 ├─ android/
 │  ├─ app/
@@ -90,19 +87,22 @@ SOI/
 │  ├─ RunnerTests/
 │  ├─ SOI/
 │  ├─ SOITests/
-│  └─ SOIUITests/
+│  ├─ SOIUITests/
+│  └─ fastlane/
 ├─ lib/
 │  ├─ api/
 │  │  ├─ controller/
 │  │  ├─ models/
 │  │  └─ services/
+│  ├─ app/
 │  ├─ theme/
 │  ├─ utils/
 │  └─ views/
 │     ├─ about_archiving/
-│     │  ├─ models/
 │     │  ├─ screens/
 │     │  │  ├─ archive_detail/
+│     │  │  │  └─ widgets/
+│     │  │  │     └─ category_photos_header+body/
 │     │  │  └─ category_edit/
 │     │  └─ widgets/
 │     │     ├─ archive_card_widget/
@@ -112,6 +112,8 @@ SOI/
 │     │  ├─ models/
 │     │  ├─ services/
 │     │  └─ widgets/
+│     │     ├─ about_camera/
+│     │     └─ about_photo_editor_screen/
 │     ├─ about_feed/
 │     │  ├─ manager/
 │     │  └─ widgets/
@@ -129,6 +131,8 @@ SOI/
 │     ├─ about_setting/
 │     └─ common_widget/
 │        ├─ about_comment/
+│        │  └─ widget/
+│        │     └─ about_comment_list_sheet/
 │        ├─ about_more_menu/
 │        ├─ api_photo/
 │        │  └─ extension/
@@ -148,8 +152,13 @@ SOI/
 ├─ test/
 │  ├─ api/
 │  │  ├─ controller/
+│  │  ├─ models/
 │  │  └─ services/
 │  └─ views/
+│     ├─ about_feed/
+│     │  └─ manager/
+│     └─ common_widget/
+│        └─ api_photo/
 ├─ web/
 │  ├─ icons/
 │  └─ splash/
@@ -160,12 +169,13 @@ SOI/
 
 ### Risks If Ignored
 - Mixing generated/client and wrapper responsibilities causes large breakage on regeneration.
+- Missing the `lib/app` split can send edits to the wrong bootstrap/locale/provider/route layer.
 - Misunderstanding bootstrap order can break login/deep-link/cache behavior.
 
 ### Verification
 - `git ls-tree -d --name-only HEAD | sort`
-- `find lib -type d | sort`
-- `find api -type d | sort`
+- `git ls-tree -d -r --name-only HEAD lib/api lib/views test | sort`
+- `git ls-tree -r --name-only HEAD lib/app assets/translations test | sort`
 
 ## 2. API Integration Rules (api-lib-sync Embedded)
 ### Rules
@@ -210,8 +220,8 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 ## 3. Provider/State Management Rules (Current Version)
 ### Rules
 - The baseline state stack is `provider ^6.1.5 + ChangeNotifier`.
-- Global Provider-owned objects are lifecycle-owned by `MultiProvider` in `lib/main.dart`; never dispose them in screens.
-- `UserController` is injected via `ChangeNotifierProvider.value` with a preloaded instance.
+- Global Provider-owned objects are lifecycle-owned by the app root (`lib/main.dart` + `lib/app/app_providers.dart`); never dispose them in screens.
+- `UserController` is injected inside `buildAppProviders()` via `ChangeNotifierProvider.value` with a preloaded instance.
 - Global registered controllers:
 - `UserController`
 - `CategoryController`, `CategorySearchController`
@@ -225,7 +235,7 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 - On user switch, compare `FeedDataManager._lastUserId`, then apply `reset(notify: false)` + `forceRefresh`.
 
 ### Evidence Files
-- Provider registration/app root: `lib/main.dart`
+- App root/provider wiring: `lib/main.dart`, `lib/app/app_providers.dart`
 - Global feed cache ownership: `lib/views/about_feed/feed_home.dart`
 - User-switch reset/deferred refresh: `lib/views/about_feed/manager/feed_data_manager.dart`
 - Frame-safe notify pattern: `lib/api/controller/media_controller.dart`
@@ -237,7 +247,7 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 - Missing user-switch invalidation can leak previous-user data.
 
 ### Verification
-- `rg -n "ChangeNotifierProvider|FeedDataManager|ChangeNotifierProvider<UserController>\.value" lib/main.dart`
+- `rg -n "buildAppProviders|ChangeNotifierProvider<|FeedDataManager" lib/main.dart lib/app/app_providers.dart`
 - `rg -n "detachFromPostController|reset\(|_lastUserId|TickerMode|mounted" lib/views/about_feed/manager/feed_data_manager.dart lib/views/about_feed/feed_home.dart`
 - `rg -n "_scheduleNotify|addPostFrameCallback" lib/api/controller/media_controller.dart`
 
@@ -341,28 +351,28 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 flutter test test/api/services/user_service_test.dart test/api/controller/user_controller_test.dart
 ```
 
-## 7. Localization Policy (Including `en` as Active Locale)
+## 7. Localization Policy (`ko/es` Active Locale Baseline)
 ### Rules
-- Active locale policy baseline is `ko`, `es`, `en`.
-- For locale/bootstrap changes, include `Locale('en')` in `supportedLocales` in `lib/main.dart`.
-- Keep `fallbackLocale` as `ko`, and map `startLocale` to device `es/en` first.
-- For user-facing text changes, update `ko/es/en` keys together.
-- Keep `ja/zh` as auxiliary translations, managed separately from active-locale policy.
+- Active locale policy baseline is `ko`, `es`.
+- The single source of truth for `supportedLocales` is `lib/app/app_constants.dart`, and `lib/main.dart` passes it into `EasyLocalization`.
+- Keep `fallbackLocale` as `ko`, and map `startLocale` to Spanish only when device language is `es`; otherwise default to Korean.
+- For user-facing text changes, update at least `ko/es` keys together.
+- `en/ja/zh` exist as auxiliary translation assets and are not part of `supportedLocales` on the current branch. If you touch shared keys, sync them too or explicitly document why they were skipped.
 - Preserve key namespaces (`common.*`, `camera.editor.*`).
 
 ### Evidence Files
-- Locale bootstrap: `lib/main.dart`
+- Locale bootstrap: `lib/main.dart`, `lib/app/app_constants.dart`
 - Translation files: `assets/translations/ko.json`, `assets/translations/es.json`, `assets/translations/en.json`, `assets/translations/ja.json`, `assets/translations/zh.json`
 
 ### Risks If Ignored
-- `en.json` can exist but remain unavailable if `supportedLocales` omits `en`.
+- `en.json` existing does not mean English UI is active on the current branch.
 - Mismatched policy vs translation files causes late-stage release localization bugs.
 - Hardcoded strings increase i18n regression cost.
 
 ### Verification
 - `ls -1 assets/translations`
-- `rg -n "supportedLocales|fallbackLocale|startLocale|Locale\('en'\)" lib/main.dart`
-- Manual check: set device language to `en` and verify app starts in English locale
+- `rg -n "supportedLocales|fallbackLocale|startLocale|spanishLanguageCode|koreanLocale|spanishLocale" lib/main.dart lib/app/app_constants.dart`
+- Manual check: verify Spanish startup for device language `es`, and Korean fallback startup for `en` or any non-`es` device language
 
 ## 8. High-Risk Files & Review Scenarios (Detailed Current Analysis)
 ### Rules
@@ -372,7 +382,7 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 ### High-Risk File Matrix
 | File | Risk Focus | Mandatory Checkpoints |
 |---|---|---|
-| `lib/main.dart` | bootstrap order, global Provider lifecycle, deep-link handling | `EasyLocalization` locale list, `_configureImageCache`, `SoiApiClient.initialize()`, URI dedupe (3s), route map |
+| `lib/main.dart` + `lib/app/app_constants.dart` + `lib/app/app_providers.dart` + `lib/app/app_routes.dart` + `lib/app/app_container_builder.dart` | bootstrap order, active locale policy, global Provider lifecycle, route wiring, wide-layout container | `supportedLocales=[ko, es]`, `buildAppProviders`, `buildAppRoutes`, `buildAppContainer`, `_configureImageCache`, URI dedupe (3s) |
 | `lib/views/about_feed/manager/feed_data_manager.dart` + `lib/views/about_feed/feed_home.dart` | global feed cache ownership/user switching/tab visibility | only `detachFromPostController`, `_lastUserId` switch reset, `_pendingPostRefresh` resume refresh |
 | `lib/views/about_camera/photo_editor_screen.dart` + `photo_editor_screen_upload.dart` + `services/photo_editor_media_processing_service.dart` | background upload pipeline, compression thresholds, temp-file/cache cleanup | 1MB/50MB guards, `VideoCompress.deleteAllCache()` after upload, `_evictCurrentImageFromCache`, fallback-to-original on compression failures |
 | `lib/views/common_widget/api_photo/api_photo_display_widget.dart` + `extension/api_photo_display_widget_media.dart` + `extension/api_photo_display_widget_video.dart` | video lifecycle/visibility playback, image-flicker regressions | `visibleFraction >= 0.6`, lifecycle pause, `cacheKey + useOldImageOnUrlChange` |
@@ -383,6 +393,7 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 
 ### Review Scenarios
 - Verify deep-link duplicate suppression within 3 seconds for identical URI input.
+- Verify `buildAppContainer` still enforces `wideLayoutBreakpoint=600` and `maxWidth=480` on tablet/web widths.
 - Verify feed/category caches are fully separated after account switching.
 - Verify one-time refresh on tab resume when posts-changed happened while hidden.
 - Verify staged compression + upload + category-cover update for videos over 50MB.
@@ -392,6 +403,7 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - Verify UI branching for `PHOTO/REPLY` comments and `COMMENT_REPLY_ADDED` notifications.
 
 ### Verification
+- `rg -n "supportedLocales|buildAppProviders|buildAppRoutes|buildAppContainer|deepLinkDuplicationWindowSeconds" lib/main.dart lib/app`
 - `rg -n "_cacheTtl|allowExpired|generation|visibleFraction >= 0.6|cacheKey: widget.post.postFileKey|_lastUserId|_pendingPostRefresh" lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart lib/views/about_feed/manager/feed_data_manager.dart`
 
 ## 9. Test/Validation Section (Current Test Set)
@@ -405,16 +417,24 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - `test/api/services/user_service_test.dart`
 - `test/api/services/post_service_test.dart`
 - `test/api/services/comment_service_test.dart`
+- `test/api/services/notification_service_test.dart`
 - Controller tests:
 - `test/api/controller/user_controller_test.dart`
 - `test/api/controller/post_controller_test.dart`
 - `test/api/controller/comment_controller_test.dart`
+- Model tests:
+- `test/api/models/comment_post_model_test.dart`
+- View/widget tests:
+- `test/views/about_feed/manager/feed_data_manager_test.dart`
+- `test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart`
 - Critical change files:
 - `lib/main.dart`
+- `lib/app/**`
 - `lib/api/models/*.dart`
 - `lib/api/services/*.dart`
 - `lib/views/about_camera/**`
 - `lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart`
+- `lib/views/common_widget/**`
 
 ### Risks If Ignored
 - Enum/field expansion misses may ship to production unnoticed.
@@ -428,23 +448,32 @@ flutter test \
   test/api/services/user_service_test.dart \
   test/api/services/post_service_test.dart \
   test/api/services/comment_service_test.dart \
+  test/api/services/notification_service_test.dart \
   test/api/controller/user_controller_test.dart \
   test/api/controller/post_controller_test.dart \
   test/api/controller/comment_controller_test.dart
 ```
+- Focused model/view tests:
+```bash
+flutter test \
+  test/api/models/comment_post_model_test.dart \
+  test/views/about_feed/manager/feed_data_manager_test.dart \
+  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart
+```
 - Static analysis:
 ```bash
-dart analyze lib/main.dart lib/api lib/views/about_feed lib/views/about_camera lib/views/about_archiving
+dart analyze lib/main.dart lib/app lib/api lib/views/about_feed lib/views/about_camera lib/views/about_archiving lib/views/common_widget
 ```
 - Change-point grep:
 ```bash
 rg -n "TEXT_ONLY|MULTIMEDIA|PHOTO|REPLY|COMMENT_REPLY_ADDED|savedAspectRatio|isFromGallery" lib/api
-rg -n "supportedLocales|Locale\('en'\)|visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/main.dart lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
+rg -n "supportedLocales|koreanLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
+rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
 ```
 - Manual regression:
 - switch user and verify feed/category isolation
 - upload large video and verify thumbnail generation/cache behavior
-- verify locale selection/strings on `en` device language
+- verify Spanish startup for device language `es`, and Korean fallback for `en` or any non-`es` device language
 
 ## 10. Shared API/Interface/Type Change Response Rules (Current Contract)
 ### Rules
