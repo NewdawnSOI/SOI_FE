@@ -59,12 +59,14 @@ class _CommentAudioRecordingBottomSheetWidgetState
       ..androidOutputFormat = AndroidOutputFormat.mpeg4
       ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
       ..sampleRate = 44100;
+    _recorderController.checkPermission();
     _playerController = PlayerController();
   }
 
   @override
   void dispose() {
     unawaited(_stopRecordingIfNeeded(force: true));
+    unawaited(_stopWaveformRecordingIfNeeded());
     unawaited(_stopPlaybackIfNeeded());
     _recorderController.dispose();
     super.dispose();
@@ -80,9 +82,11 @@ class _CommentAudioRecordingBottomSheetWidgetState
       // 이전 사이클의 잔여 상태를 먼저 정리
       await _stopPlaybackIfNeeded();
       await _stopRecordingIfNeeded(force: true);
+      await _stopWaveformRecordingIfNeeded();
       _audioController.clearCurrentRecording();
 
-      // native recorder 단일 경로로 녹음을 시작한다.
+      // waveform UI와 실제 녹음을 함께 시작한다.
+      await _recorderController.record();
       await _audioController.startRecording();
 
       _recordingStartedAt = DateTime.now();
@@ -98,6 +102,7 @@ class _CommentAudioRecordingBottomSheetWidgetState
     } catch (_) {
       // 부분 시작 실패 시 즉시 롤백
       await _stopRecordingIfNeeded(force: true);
+      await _stopWaveformRecordingIfNeeded();
       _audioController.clearCurrentRecording();
       if (mounted) {
         setState(() {
@@ -121,10 +126,22 @@ class _CommentAudioRecordingBottomSheetWidgetState
 
     _isTransitioning = true;
     try {
-      var waveform = <double>[];
+      var waveform = List<double>.from(
+        _recorderController.waveData,
+      ); // 녹음 중에 수집된 웨이브폼 데이터입니다. 음성의 양에 따라 100개 이상의 샘플이 있을 수 있습니다.
 
+      if (waveform.isNotEmpty) {
+        // 음성의 양에 따라 음성의 절대값이 매우 작게 나오는 경우가 있어서, 웨이브폼 데이터의 절대값을 취해서 보정해줍니다.
+        waveform = waveform.map((value) => value.abs()).toList();
+      }
+
+      await _stopWaveformRecordingIfNeeded(); // 먼저 웨이브폼 녹음을 중지해서 더 이상 웨이브폼 데이터가 수집되지 않도록 합니다.
+
+      // 네이티브 녹음도 중지합니다. force: true로 해서 녹음이 진행 중이지 않은 경우에도 내부 상태를 초기화하도록 합니다.
       await _audioController.stopRecordingSimple(force: true);
 
+      // 녹음이 중지된 후에 실제 녹음된 파일 경로를 가져옵니다.
+      // stopRecordingSimple이 정상적으로 녹음을 중지했다면 currentRecordingPath에 녹음된 파일의 경로가 설정되어 있을 것입니다.
       final path = _audioController.currentRecordingPath;
       if (path == null || path.isEmpty) {
         throw StateError('recording path is empty');
@@ -206,6 +223,16 @@ class _CommentAudioRecordingBottomSheetWidgetState
     }
   }
 
+  Future<void> _stopWaveformRecordingIfNeeded() async {
+    if (!_recorderController.isRecording) {
+      return;
+    }
+
+    try {
+      await _recorderController.stop();
+    } catch (_) {}
+  }
+
   Future<void> _stopPlaybackIfNeeded() async {
     final player = _playerController;
     if (player == null) {
@@ -228,6 +255,7 @@ class _CommentAudioRecordingBottomSheetWidgetState
   Future<void> _discardRecordingAndReset() async {
     await _stopPlaybackIfNeeded();
     await _stopRecordingIfNeeded(force: true);
+    await _stopWaveformRecordingIfNeeded();
 
     final oldPath = _audioPath ?? _audioController.currentRecordingPath;
     _audioController.clearCurrentRecording();
