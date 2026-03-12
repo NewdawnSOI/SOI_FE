@@ -14,7 +14,7 @@ import 'comment_text_input_widget.dart';
 enum _CommentComposerMode { base, typing, placing }
 
 /// 댓글 작성 UI 컴포저 위젯
-/// 댓글 입력을 위한 기본 바, 텍스트 입력 UI, 댓글 배치 모드(댓글을 드래그하여 위치를 지정하는 모드)를 포함합니다.
+/// 댓글 입력을 위한 기본 바(base_bar_widget), 텍스트 입력 UI(text_input_widget), 댓글 배치 모드(댓글을 드래그하여 위치를 지정하는 모드)를 포함합니다.
 /// 댓글 작성과 관련된 다양한 상호작용과 상태를 관리하며, 댓글 작성 완료 시 필요한 데이터를 부모 위젯에 전달하는 역할을 합니다.
 class CommentComposerV2Widget extends StatefulWidget {
   final int postId;

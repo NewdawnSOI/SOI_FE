@@ -785,7 +785,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   }) {
     // 다음 항목이 대댓글이면 같은 reply 묶음으로 간주해 선을 숨깁니다.
     if (next.isReply) {
-      return SizedBox(height: (_commentDividerVerticalPadding * 2).sp);
+      return SizedBox(height: 15.sp);
     }
     return _buildCommentDivider();
   }

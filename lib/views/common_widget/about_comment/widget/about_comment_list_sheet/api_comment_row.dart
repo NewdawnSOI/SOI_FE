@@ -24,9 +24,19 @@ import 'api_waveform_playback_bar.dart';
 /// 댓글 작성자의 프로필 이미지와 닉네임도 함께 보여줍니다.
 /// 댓글이 작성자 본인의 것이 아닌 경우, 신고 및 차단 메뉴도 표시됩니다.
 class ApiCommentRow extends StatelessWidget {
-  static const double _baseHorizontalPadding = 27.0;
-  static const double _profileImageSize = 38.0;
-  static const double _profileToContentGap = 12.0;
+  static const double _baseHorizontalPadding =
+      27.0; // 댓글 행의 기본 좌우 패딩 (프로필 이미지와 댓글 내용 사이의 간격 포함)
+  static const double _profileImageSize = 38.0; // 프로필 이미지 크기 (답글이 아닌 경우)
+  static const double _replyProfileImageSize = 32.13; // 답글인 경우 프로필 이미지 크기를 줄임
+  static const double _profileToContentGap = 12.0; // 프로필 이미지와 댓글 내용 사이의 간격
+
+  // 이미지/동영상 미리보기의 프레임 크기
+  //(답글인 경우, 이 프레임 안에 맞게 미리보기 크기가 조정됨)
+  static const double _mediaPreviewFrameSize = 137.0;
+
+  // 답글인 경우, 이미지/동영상 미리보기의 최대 크기
+  // (프레임 크기보다 작게 설정하여 답글에서는 미리보기가 더 작게 보이도록 함)
+  static const double _replyMediaPreviewSize = 85.0;
 
   final Comment comment;
   final bool isHighlighted;
@@ -47,12 +57,14 @@ class ApiCommentRow extends StatelessWidget {
     this.onHideRepliesTap,
   });
 
+  /// 댓글 작성자와 현재 사용자가 다른 경우에만 액션 메뉴(신고/차단)를 보여줄 수 있도록 하는 헬퍼 메서드
   bool _canShowActions(String? currentUserId) {
     if (currentUserId == null || currentUserId.isEmpty) return false;
     if (comment.nickname == null || comment.nickname!.isEmpty) return false;
     return comment.nickname != currentUserId;
   }
 
+  /// 사용자 신고 처리 메서드
   Future<void> _reportUser(BuildContext context) async {
     final result = await ReportBottomSheet.show(context);
     if (result == null) return;
@@ -65,6 +77,7 @@ class ApiCommentRow extends StatelessWidget {
     );
   }
 
+  /// 사용자 차단 처리 메서드
   Future<void> _blockUser(BuildContext context) async {
     final userController = context.read<UserController>();
     final friendController = context.read<FriendController>();
@@ -133,6 +146,7 @@ class ApiCommentRow extends StatelessWidget {
     }
   }
 
+  /// 차단 여부 확인을 위한 모달 시트 표시 메서드
   Future<bool?> _showBlockConfirmation(BuildContext context) {
     return showModalBottomSheet<bool>(
       context: context,
@@ -213,6 +227,7 @@ class ApiCommentRow extends StatelessWidget {
     );
   }
 
+  /// 댓글 작성자와 현재 사용자가 다른 경우에만 액션 메뉴(신고/차단)를 보여줄 수 있도록 하는 헬퍼 메서드
   Widget _buildActionMenu(BuildContext context) {
     return PopupMenuButton<String>(
       icon: Icon(Icons.more_vert, color: Colors.white, size: 20.sp),
@@ -288,17 +303,28 @@ class ApiCommentRow extends StatelessWidget {
     return '$nickname --- $replyUserName';
   }
 
+  double get _effectiveProfileImageSize =>
+      comment.isReply ? _replyProfileImageSize : _profileImageSize;
+
   bool _shouldShowActions(BuildContext context) {
     final currentUserId = context.read<UserController>().currentUser?.userId;
     return _canShowActions(currentUserId);
   }
 
-  TextStyle _userNameStyle() => TextStyle(
-    color: Colors.white,
-    fontSize: 14.sp,
-    fontFamily: 'Pretendard',
-    fontWeight: FontWeight.w600,
-  );
+  TextStyle _userNameStyle() => comment.isReply
+      ? TextStyle(
+          color: Colors.white,
+          fontSize: 10.99.sp,
+          fontFamily: 'Pretendard Variable',
+          fontWeight: FontWeight.w500,
+          letterSpacing: -0.34,
+        )
+      : TextStyle(
+          color: Colors.white,
+          fontSize: 14.sp,
+          fontFamily: 'Pretendard',
+          fontWeight: FontWeight.w600,
+        );
 
   /// 댓글 작성 시각 텍스트의 스타일
   TextStyle _relativeTimeStyle() => TextStyle(
@@ -331,7 +357,7 @@ class ApiCommentRow extends StatelessWidget {
   Widget _buildReplyAndTimeRow() {
     return Row(
       children: [
-        SizedBox(width: (_profileImageSize + _profileToContentGap).sp),
+        SizedBox(width: (_effectiveProfileImageSize + _profileToContentGap).sp),
 
         // "답장 달기" 버튼
         TextButton(
@@ -407,10 +433,14 @@ class ApiCommentRow extends StatelessWidget {
     );
   }
 
+  /// 댓글 행의 전체 레이아웃을 빌드하는 메서드
+  /// 댓글 내용과 프로필 이미지, 닉네임, 액션 메뉴 등을 포함하는 레이아웃을 구성
   Widget _wrapRowContent(Widget content) {
     final horizontalPadding = EdgeInsets.only(
       left: comment.isReply
-          ? (_baseHorizontalPadding + _profileImageSize + _profileToContentGap)
+          ? (_baseHorizontalPadding +
+                    _effectiveProfileImageSize +
+                    _profileToContentGap)
                 .sp
           : _baseHorizontalPadding.sp,
       right: _baseHorizontalPadding.sp,
@@ -427,6 +457,8 @@ class ApiCommentRow extends StatelessWidget {
     return Padding(padding: horizontalPadding, child: content);
   }
 
+  /// 댓글 행의 전체 레이아웃을 빌드하는 메서드
+  /// 댓글 내용과 프로필 이미지, 닉네임, 액션 메뉴 등을 포함하는 레이아웃을 구성
   Widget _buildCommentRowLayout({
     required BuildContext context,
     required Widget body,
@@ -558,6 +590,28 @@ class ApiCommentRow extends StatelessWidget {
         ? mediaSource
         : comment.fileKey!;
     final trimmedText = (comment.text ?? '').trim();
+    final mediaPreview = comment.isReply
+        ? SizedBox(
+            width: _replyMediaPreviewSize.sp,
+            height: _replyMediaPreviewSize.sp,
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: SizedBox(
+                width: _mediaPreviewFrameSize.sp,
+                height: _mediaPreviewFrameSize.sp,
+                child: ApiCommentMediaPreview(
+                  source: mediaSource,
+                  isVideo: isVideo,
+                  cacheKey: cacheKey,
+                ),
+              ),
+            ),
+          )
+        : ApiCommentMediaPreview(
+            source: mediaSource,
+            isVideo: isVideo,
+            cacheKey: cacheKey,
+          );
 
     return _buildCommentRowLayout(
       context: context,
@@ -566,14 +620,7 @@ class ApiCommentRow extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Align(
-            alignment: Alignment.center,
-            child: ApiCommentMediaPreview(
-              source: mediaSource,
-              isVideo: isVideo,
-              cacheKey: cacheKey,
-            ),
-          ),
+          Align(alignment: Alignment.center, child: mediaPreview),
           if (trimmedText.isNotEmpty) ...[
             SizedBox(height: 8.sp),
             Text(
@@ -593,30 +640,31 @@ class ApiCommentRow extends StatelessWidget {
   }
 
   Widget _buildProfileImage(String? profileUrl) {
+    final profileImageSize = _effectiveProfileImageSize;
     return ClipOval(
       child: profileUrl != null && profileUrl.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: profileUrl,
-              width: _profileImageSize.sp, // 38.sp
-              height: _profileImageSize.sp, // 38.sp
-              memCacheHeight: (_profileImageSize * 2).toInt(),
-              memCacheWidth: (_profileImageSize * 2).toInt(),
+              width: profileImageSize.sp,
+              height: profileImageSize.sp,
+              memCacheHeight: (profileImageSize * 2).toInt(),
+              memCacheWidth: (profileImageSize * 2).toInt(),
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(
-                width: _profileImageSize.sp, // 38.sp
-                height: _profileImageSize.sp, // 38.sp
+                width: profileImageSize.sp,
+                height: profileImageSize.sp,
                 color: const Color(0xFF4E4E4E),
               ),
               errorWidget: (context, url, error) => Container(
-                width: _profileImageSize.sp, // 38.sp
-                height: _profileImageSize.sp, // 38.sp
+                width: profileImageSize.sp,
+                height: profileImageSize.sp,
                 color: const Color(0xFF4E4E4E),
                 child: const Icon(Icons.person, color: Colors.white),
               ),
             )
           : Container(
-              width: _profileImageSize.sp,
-              height: _profileImageSize.sp,
+              width: profileImageSize.sp,
+              height: profileImageSize.sp,
               color: const Color(0xFF4E4E4E),
               child: const Icon(Icons.person, color: Colors.white),
             ),
