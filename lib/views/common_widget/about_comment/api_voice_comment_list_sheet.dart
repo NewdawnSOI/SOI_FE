@@ -43,6 +43,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
 
   // 댓글 리스트에서 각 댓글 사이에 들어가는 구분선 위젯의 수직 패딩입니다. (댓글과 댓글 사이의 간격을 조절하는 용도)
   static const double _commentDividerVerticalPadding = 20.0;
+  static const Color _commentHighlightColor = Color(0x3B000000);
 
   // 음성 댓글의 웨이브폼 데이터는 최대 30개 샘플로 줄여서 서버에 전송합니다.
   static const int _maxWaveformSamples = 30;
@@ -56,7 +57,17 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   );
   final Map<String, GlobalKey> _commentKeys = <String, GlobalKey>{};
   final Set<String> _expandedReplyParentKeys = <String>{};
+
+  // 특정 댓글 스레드를 수동으로 강조 표시하기 위한 키입니다.
+  // null이면 선택된 댓글 기준으로 자동 강조 표시합니다.
+  String? _manuallyHighlightedThreadKey;
+
+  // 현재 대댓글 입력 모드로 진입한 상태에서, 답글 대상 댓글을 나타내는 변수입니다.
+  // null이면 대댓글 입력 모드가 아닌 상태입니다.
   Comment? _replyTargetComment;
+
+  // 카메라/미디어 첨부 시트에서 답글 대상 댓글을 참조하기 위한 변수입니다.
+  // 대댓글 입력 모드로 진입했을 때의 답글 대상을 참조합니다.
   Comment? _attachmentReplyTarget;
 
   // 대댓글 입력 모드로 진입했는지 여부를 나타내는 플래그입니다.
@@ -75,12 +86,67 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   // 댓글 리스트에서 각 댓글 사이에 들어가는 구분선 위젯의 수직 패딩입니다.
   int _textInputSession = 0;
 
-  /// 선택된 댓글 ID에서 해시코드를 추출하는 함수
+  /// 선택된 댓글 ID에서 해시코드를 추출하는 함수입니다.
   int? _selectedHashCode(String? selectedCommentId) {
     if (selectedCommentId == null) return null;
     final parts = selectedCommentId.split('_');
     if (parts.length < 2) return null;
     return int.tryParse(parts.last);
+  }
+
+  /// selectedHash를 기반으로 강조 표시할 스레드의 키를 계산하는 함수입니다.
+  Comment? _selectedCommentByHash(int? selectedHash) {
+    if (selectedHash == null) return null;
+    return _comments.cast<Comment?>().firstWhere(
+      (comment) => comment?.hashCode == selectedHash,
+      orElse: () => null,
+    );
+  }
+
+  /// selectedHash를 기반으로 강조 표시할 스레드의 키를 계산하는 함수입니다.
+  /// selectedHash를 가진 댓글이 대댓글인 경우, 그 부모 댓글을 기준으로 스레드를 강조 표시하기 위한 키를 반환합니다.
+  ///
+  /// Parameters:
+  /// - [selectedHash]: 선택된 댓글의 해시코드입니다. 이 해시코드를 가진 댓글이 강조 표시될 스레드의 기준이 됩니다.
+  String? _highlightThreadKey(int? selectedHash) {
+    if (_manuallyHighlightedThreadKey != null) {
+      return _manuallyHighlightedThreadKey;
+    }
+
+    // selectedHash를 가진 댓글을 찾아옵니다.
+    final selectedComment = _selectedCommentByHash(selectedHash);
+    if (selectedComment == null) return null;
+
+    // 선택된 댓글이 속한 스레드를 강조 표시하기 위한 키를 계산합니다.
+    // 대댓글인 경우 부모 댓글을 찾아서 그 댓글을 기준으로 스레드를 펼칠지 말지를 결정합니다.
+    final anchorComment = selectedComment.isReply
+        ? _findParentComment(selectedComment) ?? selectedComment
+        : selectedComment;
+    return _commentKeyId(anchorComment);
+  }
+
+  /// 특정 댓글이 강조 표시된 스레드에 속하는지 여부를 판단하는 함수입니다.
+  /// 댓글이 선택된 댓글과 같은 스레드에 속해있다면 true를 반환합니다.
+  ///
+  /// Parameters:
+  /// - [comment]: 검사할 댓글 객체입니다.
+  /// - [anchorKey]: 선택된 댓글이 속한 스레드의 키입니다. 이 키를 기준으로 댓글이 같은 스레드에 속하는지 판단합니다.
+  bool _belongsToHighlightedThread(Comment comment, String? anchorKey) {
+    if (anchorKey == null) return false;
+    if (_commentKeyId(comment) == anchorKey) {
+      return true;
+    }
+    if (!comment.isReply) {
+      return false;
+    }
+
+    final parentComment = _findParentComment(comment); // 댓글의 부모 댓글을 찾습니다.
+    if (parentComment == null) {
+      return false;
+    }
+    // 부모 댓글의 키가 anchorKey와 일치하는지 확인합니다.
+    // 이렇게 하면, 선택된 댓글이 대댓글인 경우에도 그 부모 댓글을 기준으로 스레드를 강조 표시할 수 있습니다.
+    return _commentKeyId(parentComment) == anchorKey;
   }
 
   @override
@@ -745,13 +811,18 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   }
 
   void _showRepliesForComment(Comment comment) {
+    // 대댓글인 경우 부모 댓글을 찾아서 그 댓글을 기준으로 스레드를 펼칠지 말지를 결정합니다.
     final parentComment = comment.isReply
         ? _findParentComment(comment)
         : comment;
     if (parentComment == null || !mounted) return;
 
+    // parentKey를 기준으로 대댓글이 펼쳐질지 말지가 결정됩니다.
+    final parentKey = _commentKeyId(parentComment);
     setState(() {
-      _expandedReplyParentKeys.add(_commentKeyId(parentComment));
+      _expandedReplyParentKeys.add(parentKey); // 해당 스레드의 대댓글을 펼칩니다.
+      _manuallyHighlightedThreadKey =
+          parentKey; // 대댓글이 펼쳐질 때 해당 스레드를 수동으로 강조 표시하도록 설정합니다.
     });
   }
 
@@ -761,8 +832,12 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
         : comment;
     if (parentComment == null || !mounted) return;
 
+    final parentKey = _commentKeyId(parentComment);
     setState(() {
-      _expandedReplyParentKeys.remove(_commentKeyId(parentComment));
+      _expandedReplyParentKeys.remove(parentKey);
+      if (_manuallyHighlightedThreadKey == parentKey) {
+        _manuallyHighlightedThreadKey = null;
+      }
     });
   }
 
@@ -782,12 +857,38 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   Widget _buildCommentSeparator({
     required Comment current,
     required Comment next,
+    required bool currentHighlighted,
+    required bool nextHighlighted,
   }) {
     // 다음 항목이 대댓글이면 같은 reply 묶음으로 간주해 선을 숨깁니다.
     if (next.isReply) {
-      return SizedBox(height: 15.sp);
+      return Container(
+        width: double.infinity,
+        height: 15.sp,
+        color: currentHighlighted || nextHighlighted
+            ? _commentHighlightColor
+            : Colors.transparent,
+      );
     }
-    return _buildCommentDivider();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: double.infinity,
+          height: _commentDividerVerticalPadding.sp,
+          color: currentHighlighted
+              ? _commentHighlightColor
+              : Colors.transparent,
+        ),
+        const Divider(color: Color(0xFF323232), thickness: 1, height: 1),
+        Container(
+          width: double.infinity,
+          height: _commentDividerVerticalPadding.sp,
+          color: nextHighlighted ? _commentHighlightColor : Colors.transparent,
+        ),
+      ],
+    );
   }
 
   @override
@@ -834,7 +935,14 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   }
 
   Widget _buildCommentList() {
-    final selectedHash = _selectedHashCode(widget.selectedCommentId);
+    final selectedHash = _selectedHashCode(
+      widget.selectedCommentId,
+    ); // widget.selectedCommentId에서 해시코드를 추출합니다.
+
+    // 선택된 댓글이 속한 스레드를 강조 표시하기 위한 키를 계산합니다.
+    final highlightedThreadKey = _highlightThreadKey(
+      selectedHash,
+    ); // selectedHash를 기반으로 강조 표시할 스레드의 키를 계산합니다.
     final visibleComments = _visibleComments();
     return Expanded(
       child: Container(
@@ -873,14 +981,28 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                 ),
                 primary: false,
                 itemCount: visibleComments.length,
-                separatorBuilder: (_, index) => _buildCommentSeparator(
-                  current: visibleComments[index],
-                  next: visibleComments[index + 1],
-                ),
+                separatorBuilder: (_, index) {
+                  final current = visibleComments[index];
+                  final next = visibleComments[index + 1];
+                  return _buildCommentSeparator(
+                    current: current,
+                    next: next,
+                    currentHighlighted: _belongsToHighlightedThread(
+                      current,
+                      highlightedThreadKey,
+                    ),
+                    nextHighlighted: _belongsToHighlightedThread(
+                      next,
+                      highlightedThreadKey,
+                    ),
+                  );
+                },
                 itemBuilder: (context, index) {
                   final comment = visibleComments[index];
-                  final isHighlighted =
-                      selectedHash != null && comment.hashCode == selectedHash;
+                  final isHighlighted = _belongsToHighlightedThread(
+                    comment,
+                    highlightedThreadKey,
+                  );
                   return KeyedSubtree(
                     key: _keyForComment(comment),
                     child: ApiCommentRow(
@@ -907,16 +1029,6 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                 },
               ),
       ),
-    );
-  }
-
-  /// 댓글 리스트에서 각 댓글 사이에 들어가는 구분선 위젯
-  Widget _buildCommentDivider() {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        vertical: _commentDividerVerticalPadding.sp,
-      ),
-      child: const Divider(color: Color(0xFF323232), thickness: 1, height: 1),
     );
   }
 

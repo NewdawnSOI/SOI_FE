@@ -37,6 +37,7 @@ class ApiCommentRow extends StatelessWidget {
   // 답글인 경우, 이미지/동영상 미리보기의 최대 크기
   // (프레임 크기보다 작게 설정하여 답글에서는 미리보기가 더 작게 보이도록 함)
   static const double _replyMediaPreviewSize = 85.0;
+  static const Color _highlightColor = Color(0x3B000000);
 
   final Comment comment;
   final bool isHighlighted;
@@ -448,13 +449,23 @@ class ApiCommentRow extends StatelessWidget {
 
     if (isHighlighted) {
       return Container(
-        color: const Color(0xff000000).withValues(alpha: 0.23),
-        padding: horizontalPadding.add(EdgeInsets.symmetric(vertical: 10.sp)),
-        child: content,
+        width: double.infinity,
+        color: _highlightColor,
+        child: Padding(
+          padding: horizontalPadding.add(
+            EdgeInsets.only(top: 10.sp, bottom: 10.sp),
+          ),
+          child: content,
+        ),
       );
     }
 
-    return Padding(padding: horizontalPadding, child: content);
+    return Padding(
+      padding: horizontalPadding.add(
+        EdgeInsets.only(top: 10.sp, bottom: 10.sp),
+      ),
+      child: content,
+    );
   }
 
   /// 댓글 행의 전체 레이아웃을 빌드하는 메서드
