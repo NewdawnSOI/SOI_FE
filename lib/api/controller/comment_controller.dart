@@ -211,6 +211,28 @@ class CommentController extends ChangeNotifier {
     }
   }
 
+  /// 사용자가 작성한 댓글 조회
+  Future<({List<Comment> comments, bool hasMore})> getCommentsByUserId({
+    required int userId,
+    int page = 0,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final result = await _commentService.getCommentsByUserId(
+        userId: userId,
+        page: page,
+      );
+      _setLoading(false);
+      return result;
+    } catch (e) {
+      _setError('사용자 댓글 조회 실패: $e');
+      _setLoading(false);
+      return (comments: <Comment>[], hasMore: false);
+    }
+  }
+
   // ============================================
   // 댓글 삭제
   // ============================================

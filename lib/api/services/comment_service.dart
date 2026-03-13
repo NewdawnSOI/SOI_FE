@@ -286,6 +286,44 @@ class CommentService {
     return comments.length;
   }
 
+  /// 사용자가 작성한 댓글 조회 (Slice 페이지네이션)
+  ///
+  /// [userId]가 작성한 댓글을 페이지 단위로 조회합니다.
+  ///
+  /// Returns: `({List<Comment> comments, bool hasMore})`
+  Future<({List<Comment> comments, bool hasMore})> getCommentsByUserId({
+    required int userId,
+    int page = _defaultPage,
+  }) async {
+    try {
+      final response = await _commentApi.getAllCommentByUserId(userId, page);
+
+      if (response == null) {
+        return (comments: <Comment>[], hasMore: false);
+      }
+
+      if (response.success != true) {
+        throw SoiApiException(message: response.message ?? '댓글 조회 실패');
+      }
+
+      final slice = response.data;
+      if (slice == null) {
+        return (comments: <Comment>[], hasMore: false);
+      }
+
+      final comments = slice.content.map(Comment.fromDto).toList();
+      final hasMore = slice.last == false;
+      return (comments: comments, hasMore: hasMore);
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '댓글 조회 실패: $e', originalException: e);
+    }
+  }
+
   Future<List<CommentRespDto>> _fetchAllSliceComments({
     required Future<ApiResponseDtoSliceCommentRespDto?> Function(int page)
     fetchPage,

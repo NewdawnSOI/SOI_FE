@@ -8,6 +8,7 @@ class _FakeCommentApi extends CommentAPIApi {
   _FakeCommentApi({
     required this.onGetParentComment,
     required this.onGetChildComment,
+    this.onGetAllCommentByUserId,
   });
 
   final Future<ApiResponseDtoSliceCommentRespDto?> Function(
@@ -20,6 +21,11 @@ class _FakeCommentApi extends CommentAPIApi {
     int page,
   )
   onGetChildComment;
+  final Future<ApiResponseDtoSliceCommentRespDto?> Function(
+    int userId,
+    int page,
+  )?
+  onGetAllCommentByUserId;
 
   @override
   Future<ApiResponseDtoSliceCommentRespDto?> getParentComment(
@@ -35,6 +41,18 @@ class _FakeCommentApi extends CommentAPIApi {
     int page,
   ) {
     return onGetChildComment(parentCommentId, page);
+  }
+
+  @override
+  Future<ApiResponseDtoSliceCommentRespDto?> getAllCommentByUserId(
+    int userId,
+    int page,
+  ) {
+    final handler = onGetAllCommentByUserId;
+    if (handler == null) {
+      throw UnimplementedError('onGetAllCommentByUserId is not configured');
+    }
+    return handler(userId, page);
   }
 }
 
@@ -248,5 +266,30 @@ void main() {
         );
       },
     );
+  });
+
+  group('CommentService getCommentsByUserId', () {
+    test('maps slice response and exposes hasMore', () async {
+      final service = CommentService(
+        commentApi: _FakeCommentApi(
+          onGetParentComment: (postId, page) async => null,
+          onGetChildComment: (parentCommentId, page) async => null,
+          onGetAllCommentByUserId: (userId, page) async {
+            expect(userId, 42);
+            expect(page, 1);
+            return _sliceResponse(
+              content: [_commentDto(100), _commentDto(101)],
+              last: false,
+              empty: false,
+            );
+          },
+        ),
+      );
+
+      final result = await service.getCommentsByUserId(userId: 42, page: 1);
+
+      expect(result.comments.map((comment) => comment.id), [100, 101]);
+      expect(result.hasMore, isTrue);
+    });
   });
 }

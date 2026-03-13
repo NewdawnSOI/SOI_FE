@@ -25,10 +25,15 @@ typedef _CreateCommentHandler =
     });
 
 class _FakeCommentService extends CommentService {
-  _FakeCommentService({required this.onCreate})
+  _FakeCommentService({required this.onCreate, this.onGetByUserId})
     : super(commentApi: _NoopCommentApi());
 
   final _CreateCommentHandler onCreate;
+  final Future<({List<Comment> comments, bool hasMore})> Function({
+    required int userId,
+    required int page,
+  })?
+  onGetByUserId;
 
   @override
   Future<CommentCreationResult> createComment({
@@ -85,6 +90,18 @@ class _FakeCommentService extends CommentService {
     required double locationY,
   }) async {
     throw UnsupportedError('Should route through createComment');
+  }
+
+  @override
+  Future<({List<Comment> comments, bool hasMore})> getCommentsByUserId({
+    required int userId,
+    int page = 0,
+  }) {
+    final handler = onGetByUserId;
+    if (handler == null) {
+      throw UnsupportedError('Should not call getCommentsByUserId');
+    }
+    return handler(userId: userId, page: page);
   }
 }
 
@@ -372,6 +389,49 @@ void main() {
       expect(capturedWaveform, '[0.1,0.2]');
       expect(capturedDuration, 5);
       expect(capturedType, CommentType.reply);
+    });
+
+    test('getCommentsByUserId forwards paging params to service', () async {
+      int? capturedUserId;
+      int? capturedPage;
+
+      final controller = CommentController(
+        commentService: _FakeCommentService(
+          onCreate:
+              ({
+                required int postId,
+                required int userId,
+                int? emojiId,
+                int? parentId,
+                int? replyUserId,
+                String? text,
+                String? audioFileKey,
+                String? fileKey,
+                String? waveformData,
+                int? duration,
+                double? locationX,
+                double? locationY,
+                CommentType? type,
+              }) async => const CommentCreationResult(success: true),
+          onGetByUserId: ({required int userId, required int page}) async {
+            capturedUserId = userId;
+            capturedPage = page;
+            return (
+              comments: const [
+                Comment(id: 1, nickname: 'a', type: CommentType.text),
+              ],
+              hasMore: true,
+            );
+          },
+        ),
+      );
+
+      final result = await controller.getCommentsByUserId(userId: 7, page: 2);
+
+      expect(capturedUserId, 7);
+      expect(capturedPage, 2);
+      expect(result.comments, hasLength(1));
+      expect(result.hasMore, isTrue);
     });
   });
 }

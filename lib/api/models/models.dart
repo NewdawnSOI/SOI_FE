@@ -12,3 +12,4 @@ export 'friend_check.dart';
 export 'comment.dart';
 export 'comment_creation_result.dart';
 export 'notification.dart';
+export 'report.dart';

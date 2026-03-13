@@ -54,6 +54,7 @@ class SoiApiClient {
   CommentAPIApi? _commentApi;
   NotificationAPIApi? _notificationApi;
   APIApi? _mediaApi;
+  ReportControllerApi? _reportApi;
 
   // ============================================
   // 초기화 메서드
@@ -83,6 +84,7 @@ class SoiApiClient {
     _commentApi = null;
     _notificationApi = null;
     _mediaApi = null;
+    _reportApi = null;
   }
 
   /// 초기화 확인
@@ -165,6 +167,12 @@ class SoiApiClient {
   APIApi get mediaApi {
     _checkInitialized();
     return _mediaApi ??= APIApi(_apiClient);
+  }
+
+  /// 신고 API
+  ReportControllerApi get reportApi {
+    _checkInitialized();
+    return _reportApi ??= ReportControllerApi(_apiClient);
   }
 
   /// 기본 ApiClient 접근 (고급 사용자용)
