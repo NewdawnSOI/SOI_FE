@@ -262,7 +262,11 @@
         "media": "미디어",
         "text": "텍스트",
         "comments": "댓글"
-      }
+      },
+      "load_failed": "콘텐츠를 불러오지 못했습니다.",
+      "empty_media": "아직 미디어 게시물이 없습니다.",
+      "empty_text": "아직 텍스트 게시물이 없습니다.",
+      "empty_comments": "아직 댓글이 없습니다."
     },
     "section": {
       "account": "계정",

@@ -36,6 +36,7 @@ class ApiPhotoDetailScreen extends StatefulWidget {
   final int initialIndex;
   final String categoryName;
   final int categoryId;
+  final bool singlePostMode;
 
   const ApiPhotoDetailScreen({
     super.key,
@@ -43,6 +44,7 @@ class ApiPhotoDetailScreen extends StatefulWidget {
     required this.initialIndex,
     required this.categoryName,
     required this.categoryId,
+    this.singlePostMode = false,
   });
 
   @override
@@ -128,11 +130,13 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     _audioController = AudioController();
     _userController = Provider.of<UserController>(context, listen: false);
     _friendController = Provider.of<FriendController>(context, listen: false);
-    _friendListener = () {
-      if (!mounted) return;
-      unawaited(_refreshPostsForBlockStatus());
-    };
-    _friendController?.addListener(_friendListener!);
+    if (!widget.singlePostMode) {
+      _friendListener = () {
+        if (!mounted) return;
+        unawaited(_refreshPostsForBlockStatus());
+      };
+      _friendController?.addListener(_friendListener!);
+    }
     _loadUserProfileImage();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -157,6 +161,9 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   }
 
   Future<void> _refreshPostsForBlockStatus() async {
+    if (widget.singlePostMode) {
+      return;
+    }
     if (!mounted) return;
     final userController = _userController ?? context.read<UserController>();
     final currentUser = userController.currentUser;

@@ -48,6 +48,7 @@ class ApiPhotoGridItem extends StatefulWidget {
   final String categoryName; // 카테고리 이름 -> 상세 화면으로 전달하기 위해 받아옵니다.
   final int categoryId; // 카테고리 ID -> 상세 화면으로 전달하기 위해 받아옵니다.
   final int initialCommentCount; // 상위에서 프리패치된 댓글 개수
+  final bool singlePostMode;
   final ValueChanged<List<int>>?
   onPostsDeleted; // 사진 삭제 후 콜백 --> 삭제된 게시물 ID 리스트를 전달하는 이유는 상위 위젯에서 해당 게시물을 제거하기 위함입니다.
 
@@ -60,6 +61,7 @@ class ApiPhotoGridItem extends StatefulWidget {
     required this.categoryName,
     required this.categoryId,
     required this.initialCommentCount,
+    this.singlePostMode = false,
     this.onPostsDeleted,
   });
 
@@ -203,10 +205,13 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     if (useGestureBackRoute) {
       return MaterialPageRoute<List<int>>(
         builder: (_) => ApiPhotoDetailScreen(
-          allPosts: widget.allPosts,
-          initialIndex: widget.currentIndex,
+          allPosts: widget.singlePostMode
+              ? <Post>[widget.post]
+              : widget.allPosts,
+          initialIndex: widget.singlePostMode ? 0 : widget.currentIndex,
           categoryName: widget.categoryName,
           categoryId: widget.categoryId,
+          singlePostMode: widget.singlePostMode,
         ),
       );
     }
@@ -216,10 +221,11 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       transitionDuration: _kForwardTransitionDuration,
       reverseTransitionDuration: _kReverseTransitionDuration,
       pageBuilder: (_, animation, __) => ApiPhotoDetailScreen(
-        allPosts: widget.allPosts,
-        initialIndex: widget.currentIndex,
+        allPosts: widget.singlePostMode ? <Post>[widget.post] : widget.allPosts,
+        initialIndex: widget.singlePostMode ? 0 : widget.currentIndex,
         categoryName: widget.categoryName,
         categoryId: widget.categoryId,
+        singlePostMode: widget.singlePostMode,
       ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) =>
           child,

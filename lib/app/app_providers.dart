@@ -13,6 +13,7 @@ import 'package:soi/api/controller/media_controller.dart' as api_media;
 import 'package:soi/api/controller/notification_controller.dart'
     as api_notification;
 import 'package:soi/api/controller/post_controller.dart';
+import 'package:soi/api/controller/report_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/utils/analytics_service.dart';
 import 'package:soi/views/about_feed/manager/feed_data_manager.dart';
@@ -52,6 +53,9 @@ List<SingleChildWidget> buildAppProviders(
     ),
     ChangeNotifierProvider<api_notification.NotificationController>(
       create: (_) => api_notification.NotificationController(),
+    ),
+    ChangeNotifierProvider<ReportController>(
+      create: (_) => ReportController(),
     ),
     ChangeNotifierProvider<ContactController>(
       create: (_) => ContactController(),

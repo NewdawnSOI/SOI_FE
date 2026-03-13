@@ -1,4 +1,18 @@
 {
+  "profile": {
+    "main": {
+      "friends_count": "好友 {count}",
+      "tabs": {
+        "media": "媒体",
+        "text": "文本",
+        "comments": "评论"
+      },
+      "load_failed": "无法加载内容。",
+      "empty_media": "暂无媒体帖子。",
+      "empty_text": "暂无文本帖子。",
+      "empty_comments": "暂无评论。"
+    }
+  },
   "register": {
     "id_not_allowed": "This username is not allowed. Please choose another."
   }

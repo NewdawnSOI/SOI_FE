@@ -8,12 +8,14 @@ class ProfileMainHeader extends StatelessWidget {
     super.key,
     required this.nickname,
     required this.profileImageUrl,
+    required this.profileImageKey,
     required this.friendCount,
     required this.onMenuTap,
   });
 
   final String? nickname;
   final String? profileImageUrl;
+  final String? profileImageKey;
   final int friendCount;
   final VoidCallback onMenuTap;
 
@@ -82,7 +84,10 @@ class ProfileMainHeader extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _ProfileHeaderAvatar(profileImageUrl: profileImageUrl),
+                  _ProfileHeaderAvatar(
+                    profileImageUrl: profileImageUrl,
+                    profileImageKey: profileImageKey,
+                  ),
                   SizedBox(width: 12.w),
                   Expanded(
                     child: Text(
@@ -120,23 +125,33 @@ class ProfileMainHeader extends StatelessWidget {
 }
 
 class _ProfileHeaderAvatar extends StatelessWidget {
-  const _ProfileHeaderAvatar({required this.profileImageUrl});
+  const _ProfileHeaderAvatar({
+    required this.profileImageUrl,
+    required this.profileImageKey,
+  });
 
   final String? profileImageUrl;
+  final String? profileImageKey;
 
   @override
   Widget build(BuildContext context) {
-    final hasProfileImage =
-        profileImageUrl != null && profileImageUrl!.trim().isNotEmpty;
+    final resolvedProfileImageUrl = profileImageUrl?.trim() ?? '';
+    final resolvedProfileImageKey = profileImageKey?.trim() ?? '';
+    final hasResolvedProfileImage = resolvedProfileImageUrl.isNotEmpty;
+    final hasProfileImage = resolvedProfileImageKey.isNotEmpty;
 
     return ClipOval(
       child: Container(
         width: 45.9.sp,
         height: 45.9.sp,
         color: const Color(0xFF1C1C1C),
-        child: hasProfileImage
+        child: hasResolvedProfileImage
             ? CachedNetworkImage(
-                imageUrl: profileImageUrl!,
+                imageUrl: resolvedProfileImageUrl,
+                cacheKey: hasProfileImage ? resolvedProfileImageKey : null,
+                useOldImageOnUrlChange: hasProfileImage,
+                fadeInDuration: Duration.zero,
+                fadeOutDuration: Duration.zero,
                 fit: BoxFit.cover,
                 memCacheWidth: (45.9.sp * 4).round(),
                 maxWidthDiskCache: (45.9.sp * 4).round(),
@@ -145,6 +160,8 @@ class _ProfileHeaderAvatar extends StatelessWidget {
                 errorWidget: (_, __, ___) =>
                     const _ProfileHeaderAvatarFallback(),
               )
+            : hasProfileImage
+            ? const ColoredBox(color: Color(0xFF1C1C1C))
             : const _ProfileHeaderAvatarFallback(),
       ),
     );

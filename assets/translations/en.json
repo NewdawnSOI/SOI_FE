@@ -293,6 +293,18 @@
   },
   "profile": {
     "title": "Profile",
+    "main": {
+      "friends_count": "Friends {count}",
+      "tabs": {
+        "media": "Media",
+        "text": "Text",
+        "comments": "Comments"
+      },
+      "load_failed": "Couldn't load the content.",
+      "empty_media": "No media posts yet.",
+      "empty_text": "No text posts yet.",
+      "empty_comments": "No comments yet."
+    },
     "section": {
       "account": "account",
       "app_settings": "App settings",

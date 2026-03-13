@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -39,20 +41,103 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
   void initState() {
     super.initState();
     _primeInitialHeaderState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadUserData();
-    });
+    _loadUserData();
   }
 
   void _primeInitialHeaderState() {
     final currentUser = context.read<UserController>().currentUser;
     final friendController = context.read<FriendController>();
+    final mediaController = context.read<MediaController>();
     if (currentUser == null) return;
 
     _userInfo = currentUser;
+    _profileImageUrl = _peekProfileImageUrl(
+      user: currentUser,
+      mediaController: mediaController,
+    );
+    unawaited(
+      _prefetchProfileImageUrl(
+        user: currentUser,
+        mediaController: mediaController,
+      ),
+    );
     if (friendController.cachedFriendsUserId == currentUser.id) {
       _friendCount = friendController.cachedFriends.length;
     }
+  }
+
+  String? _peekProfileImageUrl({
+    required User? user,
+    required MediaController mediaController,
+  }) {
+    final profileImageKey = user?.profileImageUrlKey?.trim() ?? '';
+    if (profileImageKey.isEmpty) return null;
+
+    final cachedUrl = mediaController.peekPresignedUrl(profileImageKey)?.trim();
+    if (cachedUrl == null || cachedUrl.isEmpty) {
+      return null;
+    }
+    return cachedUrl;
+  }
+
+  Future<void> _prefetchProfileImageUrl({
+    required User? user,
+    required MediaController mediaController,
+  }) async {
+    if (!mounted) return;
+
+    final profileImageKey = user?.profileImageUrlKey?.trim() ?? '';
+    if (profileImageKey.isEmpty ||
+        (_profileImageUrl?.trim().isNotEmpty ?? false)) {
+      return;
+    }
+
+    final resolvedUrl = await mediaController.getPresignedUrl(profileImageKey);
+    if (!mounted) return;
+
+    final trimmedUrl = resolvedUrl?.trim() ?? '';
+    if (trimmedUrl.isEmpty) return;
+
+    final activeProfileImageKey =
+        (_userInfo ?? user)?.profileImageUrlKey?.trim() ?? '';
+    if (activeProfileImageKey != profileImageKey) return;
+
+    setState(() {
+      _profileImageUrl = trimmedUrl;
+    });
+  }
+
+  String? _resolveLoadedProfileImageUrl({
+    required User? previousUser,
+    required String? previousUrl,
+    required User? nextUser,
+    required String? nextUrl,
+    required MediaController mediaController,
+  }) {
+    final nextProfileImageKey = nextUser?.profileImageUrlKey?.trim() ?? '';
+    if (nextProfileImageKey.isEmpty) return null;
+
+    final resolvedNextUrl = nextUrl?.trim() ?? '';
+    if (resolvedNextUrl.isNotEmpty) {
+      return resolvedNextUrl;
+    }
+
+    final cachedUrl = mediaController
+        .peekPresignedUrl(nextProfileImageKey)
+        ?.trim();
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      return cachedUrl;
+    }
+
+    final previousProfileImageKey =
+        previousUser?.profileImageUrlKey?.trim() ?? '';
+    final resolvedPreviousUrl = previousUrl?.trim() ?? '';
+    if (previousProfileImageKey == nextProfileImageKey &&
+        resolvedPreviousUrl.isNotEmpty) {
+      return resolvedPreviousUrl;
+    }
+
+    return null;
   }
 
   /// 사용자 데이터를 로드하는 함수입니다.
@@ -73,12 +158,27 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     }
 
     ProfileScreenData? profileData;
+    final previousUser = _userInfo ?? currentUser;
+    var resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
+      previousUser: previousUser,
+      previousUrl: _profileImageUrl,
+      nextUser: previousUser,
+      nextUrl: null,
+      mediaController: mediaController,
+    );
     var resolvedFriendCount = _friendCount;
 
     try {
       profileData = await _profileDataService.loadUserData(
         userId: currentUser.id,
         userController: userController,
+        mediaController: mediaController,
+      );
+      resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
+        previousUser: previousUser,
+        previousUrl: _profileImageUrl,
+        nextUser: profileData.userInfo ?? previousUser,
+        nextUrl: profileData.profileImageUrl,
         mediaController: mediaController,
       );
     } catch (error) {
@@ -97,11 +197,16 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     if (!mounted) return;
 
     if (profileData != null) {
-      _applyLoadedProfileData(profileData, friendCount: resolvedFriendCount);
+      _applyLoadedProfileData(
+        profileData,
+        friendCount: resolvedFriendCount,
+        profileImageUrl: resolvedProfileImageUrl,
+      );
       return;
     }
 
     setState(() {
+      _profileImageUrl = resolvedProfileImageUrl;
       _friendCount = resolvedFriendCount;
       _isLoading = false;
     });
@@ -215,10 +320,11 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
   void _applyLoadedProfileData(
     ProfileScreenData profileData, {
     required int friendCount,
+    required String? profileImageUrl,
   }) {
     setState(() {
       _userInfo = profileData.userInfo ?? _userInfo;
-      _profileImageUrl = profileData.profileImageUrl;
+      _profileImageUrl = profileImageUrl;
       _friendCount = friendCount;
       _isLoading = false;
     });
@@ -343,13 +449,30 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = context.watch<UserController>().currentUser;
+    final mediaController = context.read<MediaController>();
+    final displayUser = _userInfo ?? currentUser;
+    final displayProfileImageUrl =
+        _resolveLoadedProfileImageUrl(
+          previousUser: _userInfo,
+          previousUrl: _profileImageUrl,
+          nextUser: displayUser,
+          nextUrl: _profileImageUrl,
+          mediaController: mediaController,
+        ) ??
+        _peekProfileImageUrl(
+          user: displayUser,
+          mediaController: mediaController,
+        );
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Column(
         children: [
           ProfileMainHeader(
-            nickname: _userInfo?.userId,
-            profileImageUrl: _profileImageUrl,
+            nickname: displayUser?.userId,
+            profileImageUrl: displayProfileImageUrl,
+            profileImageKey: displayUser?.profileImageUrlKey,
             friendCount: _friendCount,
             onMenuTap: _closeSettings,
           ),

@@ -29,7 +29,7 @@ class PostController extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // ✨ Controller 레벨 캐시
+  // Controller 레벨 캐시
   final Map<String, _CachedCategoryPosts> _categoryCache = {};
   static const Duration _controllerCacheTtl = Duration(hours: 1);
   final Map<String, int> _categoryMutationRevisions = {};

@@ -1,4 +1,18 @@
 {
+  "profile": {
+    "main": {
+      "friends_count": "友達 {count}",
+      "tabs": {
+        "media": "メディア",
+        "text": "テキスト",
+        "comments": "コメント"
+      },
+      "load_failed": "コンテンツを読み込めませんでした。",
+      "empty_media": "メディア投稿がありません。",
+      "empty_text": "テキスト投稿がありません。",
+      "empty_comments": "コメントがありません。"
+    }
+  },
   "register": {
     "id_not_allowed": "This username is not allowed. Please choose another."
   }

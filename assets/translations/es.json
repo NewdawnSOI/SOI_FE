@@ -309,7 +309,11 @@
         "media": "Media",
         "text": "Texto",
         "comments": "Comentarios"
-      }
+      },
+      "load_failed": "No se pudo cargar el contenido.",
+      "empty_media": "Aún no hay publicaciones de media.",
+      "empty_text": "Aún no hay publicaciones de texto.",
+      "empty_comments": "Aún no hay comentarios."
     },
     "section": {
       "account": "Cuenta",

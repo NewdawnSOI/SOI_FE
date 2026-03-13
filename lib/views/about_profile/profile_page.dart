@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -6,10 +8,12 @@ import 'package:provider/provider.dart';
 import '../../api/controller/friend_controller.dart';
 import '../../api/controller/media_controller.dart';
 import '../../api/controller/user_controller.dart';
+import '../../api/models/post.dart';
 import '../../api/models/user.dart';
 import '../../app/app_constants.dart';
 import 'services/profile_data_service.dart';
 import 'widgets/profile_main_header.dart';
+import 'widgets/profile_main_tab_views.dart';
 
 /// 프로필 페이지의 탭바의 타입을 정의하는 열거형입니다.
 enum _ProfileTab { media, text, comments }
@@ -35,20 +39,103 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _primeInitialHeaderState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadProfilePageData();
-    });
+    _loadProfilePageData();
   }
 
   void _primeInitialHeaderState() {
     final currentUser = context.read<UserController>().currentUser;
     final friendController = context.read<FriendController>();
+    final mediaController = context.read<MediaController>();
     if (currentUser == null) return;
 
     _userInfo = currentUser;
+    _profileImageUrl = _peekProfileImageUrl(
+      user: currentUser,
+      mediaController: mediaController,
+    );
+    unawaited(
+      _prefetchProfileImageUrl(
+        user: currentUser,
+        mediaController: mediaController,
+      ),
+    );
     if (friendController.cachedFriendsUserId == currentUser.id) {
       _friendCount = friendController.cachedFriends.length;
     }
+  }
+
+  String? _peekProfileImageUrl({
+    required User? user,
+    required MediaController mediaController,
+  }) {
+    final profileImageKey = user?.profileImageUrlKey?.trim() ?? '';
+    if (profileImageKey.isEmpty) return null;
+
+    final cachedUrl = mediaController.peekPresignedUrl(profileImageKey)?.trim();
+    if (cachedUrl == null || cachedUrl.isEmpty) {
+      return null;
+    }
+    return cachedUrl;
+  }
+
+  Future<void> _prefetchProfileImageUrl({
+    required User? user,
+    required MediaController mediaController,
+  }) async {
+    if (!mounted) return;
+
+    final profileImageKey = user?.profileImageUrlKey?.trim() ?? '';
+    if (profileImageKey.isEmpty ||
+        (_profileImageUrl?.trim().isNotEmpty ?? false)) {
+      return;
+    }
+
+    final resolvedUrl = await mediaController.getPresignedUrl(profileImageKey);
+    if (!mounted) return;
+
+    final trimmedUrl = resolvedUrl?.trim() ?? '';
+    if (trimmedUrl.isEmpty) return;
+
+    final activeProfileImageKey =
+        (_userInfo ?? user)?.profileImageUrlKey?.trim() ?? '';
+    if (activeProfileImageKey != profileImageKey) return;
+
+    setState(() {
+      _profileImageUrl = trimmedUrl;
+    });
+  }
+
+  String? _resolveLoadedProfileImageUrl({
+    required User? previousUser,
+    required String? previousUrl,
+    required User? nextUser,
+    required String? nextUrl,
+    required MediaController mediaController,
+  }) {
+    final nextProfileImageKey = nextUser?.profileImageUrlKey?.trim() ?? '';
+    if (nextProfileImageKey.isEmpty) return null;
+
+    final resolvedNextUrl = nextUrl?.trim() ?? '';
+    if (resolvedNextUrl.isNotEmpty) {
+      return resolvedNextUrl;
+    }
+
+    final cachedUrl = mediaController
+        .peekPresignedUrl(nextProfileImageKey)
+        ?.trim();
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      return cachedUrl;
+    }
+
+    final previousProfileImageKey =
+        previousUser?.profileImageUrlKey?.trim() ?? '';
+    final resolvedPreviousUrl = previousUrl?.trim() ?? '';
+    if (previousProfileImageKey == nextProfileImageKey &&
+        resolvedPreviousUrl.isNotEmpty) {
+      return resolvedPreviousUrl;
+    }
+
+    return null;
   }
 
   Future<void> _loadProfilePageData() async {
@@ -63,9 +150,16 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
-    User? resolvedUser = currentUser;
-    String? resolvedProfileImageUrl;
-    var resolvedFriendCount = 0;
+    final previousUser = _userInfo ?? currentUser;
+    User? resolvedUser = previousUser;
+    var resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
+      previousUser: previousUser,
+      previousUrl: _profileImageUrl,
+      nextUser: previousUser,
+      nextUrl: null,
+      mediaController: mediaController,
+    );
+    var resolvedFriendCount = _friendCount;
 
     try {
       final profileData = await _profileDataService.loadUserData(
@@ -73,10 +167,16 @@ class _ProfilePageState extends State<ProfilePage> {
         userController: userController,
         mediaController: mediaController,
       );
-      resolvedUser = profileData.userInfo ?? currentUser;
-      resolvedProfileImageUrl = profileData.profileImageUrl;
+      resolvedUser = profileData.userInfo ?? previousUser;
+      resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
+        previousUser: previousUser,
+        previousUrl: _profileImageUrl,
+        nextUser: resolvedUser,
+        nextUrl: profileData.profileImageUrl,
+        mediaController: mediaController,
+      );
     } catch (_) {
-      resolvedUser = currentUser;
+      resolvedUser = previousUser;
     }
 
     try {
@@ -85,7 +185,7 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       resolvedFriendCount = friends.length;
     } catch (_) {
-      resolvedFriendCount = 0;
+      resolvedFriendCount = _friendCount;
     }
 
     if (!mounted) return;
@@ -110,14 +210,31 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = context.watch<UserController>().currentUser;
+    final mediaController = context.read<MediaController>();
+    final displayUser = _userInfo ?? currentUser;
+    final displayProfileImageUrl =
+        _resolveLoadedProfileImageUrl(
+          previousUser: _userInfo,
+          previousUrl: _profileImageUrl,
+          nextUser: displayUser,
+          nextUrl: _profileImageUrl,
+          mediaController: mediaController,
+        ) ??
+        _peekProfileImageUrl(
+          user: displayUser,
+          mediaController: mediaController,
+        );
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Column(
         children: [
           // 프로필 페이지의 헤더를 구성하는 ProfileMainHeader 위젯입니다.
           ProfileMainHeader(
-            nickname: _userInfo?.userId,
-            profileImageUrl: _profileImageUrl,
+            nickname: displayUser?.userId,
+            profileImageUrl: displayProfileImageUrl,
+            profileImageKey: displayUser?.profileImageUrlKey,
             friendCount: _friendCount,
             onMenuTap: _openProfileSettings,
           ),
@@ -125,14 +242,51 @@ class _ProfilePageState extends State<ProfilePage> {
           // 탭 바는 미디어, 텍스트, 댓글 탭을 표시하고, 선택된 탭을 강조합니다.
           _ProfileTabBar(selectedTab: _selectedTab, onTabSelected: _selectTab),
           Expanded(
-            child: IndexedStack(
-              index: _selectedTab.index,
-              children: const [
-                ColoredBox(color: Colors.black),
-                ColoredBox(color: Colors.black),
-                ColoredBox(color: Colors.black),
-              ],
-            ),
+            child: displayUser?.id == null
+                ? Center(
+                    child: Text(
+                      tr('common.login_required', context: context),
+                      style: TextStyle(
+                        color: const Color(0xFFB5B5B5),
+                        fontSize: 15.sp,
+                        fontFamily: 'Pretendard Variable',
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                : IndexedStack(
+                    index: _selectedTab.index,
+                    children: [
+                      ProfilePostTabView(
+                        key: ValueKey('profile_media_tab_${displayUser!.id}'),
+                        userId: displayUser.id,
+                        postType: PostType.multiMedia,
+                        isActive: _selectedTab == _ProfileTab.media,
+                        detailTitle: tr(
+                          'profile.main.tabs.media',
+                          context: context,
+                        ),
+                        emptyMessageKey: 'profile.main.empty_media',
+                      ),
+                      ProfilePostTabView(
+                        key: ValueKey('profile_text_tab_${displayUser.id}'),
+                        userId: displayUser.id,
+                        postType: PostType.textOnly,
+                        isActive: _selectedTab == _ProfileTab.text,
+                        detailTitle: tr(
+                          'profile.main.tabs.text',
+                          context: context,
+                        ),
+                        emptyMessageKey: 'profile.main.empty_text',
+                      ),
+                      ProfileCommentTabView(
+                        key: ValueKey('profile_comment_tab_${displayUser.id}'),
+                        userId: displayUser.id,
+                        isActive: _selectedTab == _ProfileTab.comments,
+                        emptyMessageKey: 'profile.main.empty_comments',
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
