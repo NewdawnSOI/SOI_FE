@@ -194,7 +194,7 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
           _buildPage(1, const APIArchiveMainScreen()),
           _buildPage(2, CameraScreen(isActive: _currentPageIndex == 2)),
           _buildPage(3, const FriendManagementScreen()),
-          _buildPage(4, const ProfileScreen()),
+          _buildPage(4, const ProfileSettingScreen()),
         ],
       ),
     );

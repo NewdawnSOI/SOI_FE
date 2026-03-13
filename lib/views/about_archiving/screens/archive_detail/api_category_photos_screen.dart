@@ -138,7 +138,12 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
   void dispose() {
     _deferredVisibleRefreshTimer?.cancel();
     if (_isRouteObserverSubscribed) {
+      // 라우트 옵저버 구독 해제
+      // 현재 구독 중인 라우트가 있다면 옵저버에서 구독 해제하고 상태 업데이트
       appRouteObserver.unsubscribe(this);
+
+      // 구독 상태 초기화
+      // 구독 해제 후에는 구독 상태를 초기화하여, 다음에 라우트가 변경될 때 올바르게 구독이 재설정될 수 있도록 합니다.
       _isRouteObserverSubscribed = false;
     }
 

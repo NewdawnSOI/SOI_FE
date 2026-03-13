@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +9,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../../../api/models/post.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/controller/audio_controller.dart';
+import '../../../utils/analytics_service.dart';
 import 'api_photo_display_widget.dart';
 import 'api_user_info_widget.dart';
 import '../about_comment/comment_composer_v2_widget.dart';
@@ -15,10 +19,36 @@ import '../about_comment/pending_api_voice_comment.dart';
 import '../report/report_bottom_sheet.dart';
 import 'tag_pointer.dart';
 
-/// API 기반 사진 카드 위젯
+/// 사진 카드 위젯
+/// 사진과 관련된 정보(작성자, 작성 날짜 등)를 표시하고, 댓글 작성과 댓글 태그 기능을 포함하는 위젯입니다.
+/// 댓글 태그가 확장될 때, 해당 태그의 내용을 보여주는 오버레이를 관리하는 기능도 포함합니다.
+/// 사진 카드 위젯은 피드 페이지, 아카이브 상세 페이지, 카테고리 페이지 등에서 사용될 수 있다.
 ///
-/// Firebase 버전의 PhotoCardWidgetCommon과 동일한 디자인을 유지하면서
-/// Post 모델을 사용합니다.
+/// Parameters:
+/// - [post]: 표시할 게시물 데이터
+/// - [categoryName]: 게시물이 속한 카테고리 이름 (댓글 태그에 표시하기 위함)
+/// - [categoryId]: 게시물이 속한 카테고리 ID (댓글 태그 저장 시 필요)
+/// - [index]: 피드 내에서의 게시물 순서 (댓글 태그 저장 시 필요)
+/// - [isOwner]: 현재 사용자가 게시물 작성자인지 여부 (삭제 버튼 표시 여부 결정)
+/// - [isArchive]: 아카이브 상세 페이지에서 사용되는지 여부 (댓글 태그 저장 시 surface 구분)
+/// - [isCategory]: 카테고리 페이지에서 사용되는지 여부 (댓글 태그 저장 시 surface 구분)
+/// - [isFromCamera]: 카메라에서 바로 게시된 사진인지 여부 (댓글 태그 저장 시 surface 구분)
+/// - [selectedEmoji]: 현재 게시물에 선택된 이모지 (댓글 태그에 표시하기 위함)
+/// - [onEmojiSelected]: 이모지 선택이 변경될 때 호출되는 콜백 (부모 위젯에서 선택된 이모지를 관리하기 위함)
+/// - [onReportSubmitted]: 신고 제출이 완료되었을 때 호출되는 콜백 (신고 결과를 부모 위젯에서 처리하기 위함)
+/// - [postComments]: 게시물 ID별 댓글 리스트 (댓글 태그와 댓글 리스트 표시를 위해 필요)
+/// - [pendingCommentDrafts]: 게시물 ID별 댓글 작성 중인 드래프트 (댓글 태그의 콘텐츠 유형 판단과 댓글 작성 UI에 필요)
+/// - [pendingVoiceComments]: 게시물 ID별 음성 댓글 작성 중인 드래프트 (댓글 태그의 콘텐츠 유형 판단과 음성 댓글 작성 UI에 필요)
+/// - [onToggleAudio]: 게시물의 음성 댓글 재생/일시정지 토글 시 호출되는 콜백 (음성 댓글 UI와 상호작용하기 위함)
+/// - [onTextCommentCompleted]: 텍스트 댓글 작성이 완료되었을 때 호출되는 콜백 (댓글 작성 UI와 상호작용하기 위함)
+/// - [onAudioCommentCompleted]: 음성 댓글 작성이 완료되었을 때 호출되는 콜백 (댓글 작성 UI와 상호작용하기 위함)
+/// - [onMediaCommentCompleted]: 미디어 댓글 작성이 완료되었을 때 호출되는 콜백 (댓글 작성 UI와 상호작용하기 위함)
+/// - [onProfileImageDragged]: 프로필 이미지를 드래그하여 댓글 태그 위치를 지정할 때 호출되는 콜백 (댓글 태그 위치 지정과 상호작용하기 위함)
+/// - [onCommentSaveProgress]: 댓글 저장 진행 상황이 업데이트될 때 호출되는 콜백 (댓글 작성 UI에서 저장 진행 상황 표시하기 위함)
+/// - [onCommentSaveSuccess]: 댓글이 성공적으로 저장되었을 때 호출되는 콜백 (댓글 작성 UI에서 저장 성공 처리하기 위함)
+/// - [onCommentSaveFailure]: 댓글 저장이 실패했을 때 호출되는 콜백 (댓글 작성 UI에서 저장 실패 처리하기 위함)
+/// - [onDeletePressed]: 게시물 삭제 버튼이 눌렸을 때 호출되는 콜백 (게시물 삭제 처리하기 위함)
+/// - [onCommentsReloadRequested]: 댓글 리스트를 새로고침해야 할 때 호출되는 콜백 (댓글 리스트 새로고침 처리하기 위함)
 class ApiPhotoCardWidget extends StatefulWidget {
   final Post post;
   final String categoryName;
@@ -103,10 +133,56 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   late final Animation<double> _overlayExpandAnimation;
 
   Future<void> _handleTextCommentCreated(String text) async {
-    debugPrint(
-      '[ApiPhotoCard] 텍스트 댓글 생성: postId=${widget.post.id}, text=$text',
-    );
     await widget.onTextCommentCompleted(widget.post.id, text);
+  }
+
+  String _currentTagContentType() {
+    final draft = widget.pendingCommentDrafts[widget.post.id];
+    if (draft == null) {
+      return 'unknown';
+    }
+
+    if (draft.isTextComment) {
+      return 'text';
+    }
+
+    if ((draft.audioPath ?? '').isNotEmpty) {
+      return 'audio';
+    }
+
+    if ((draft.mediaPath ?? '').isNotEmpty) {
+      return draft.isVideo == true ? 'video' : 'image';
+    }
+
+    return 'unknown';
+  }
+
+  Future<void> _trackCommentTagSaved({
+    required Comment comment,
+    required int existingTagCountBefore,
+  }) async {
+    try {
+      final analytics = context.read<AnalyticsService>();
+      final properties = <String, dynamic>{
+        'post_id': widget.post.id,
+        'category_id': widget.categoryId,
+        'surface': widget.isArchive ? 'archive_detail' : 'feed_home',
+        'tag_content_type': _currentTagContentType(),
+        'existing_tag_count_before': existingTagCountBefore,
+        'existing_tag_count_after': existingTagCountBefore + 1,
+      };
+
+      if (comment.id != null) {
+        properties['comment_id'] = comment.id;
+      }
+
+      await analytics.track('comment_tag_saved', properties: properties);
+      if (kDebugMode) {
+        analytics.flush();
+      }
+    } catch (error) {
+      debugPrint('Mixpanel comment_tag_saved tracking failed: $error');
+    }
   }
 
   Offset? _resolveDropRelativePosition(int postId) {
@@ -368,7 +444,23 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   ),
               resolveDropRelativePosition: _resolveDropRelativePosition,
               onCommentSaveProgress: widget.onCommentSaveProgress,
-              onCommentSaveSuccess: widget.onCommentSaveSuccess,
+              onCommentSaveSuccess: (postId, comment) {
+                final existingTagCountBefore =
+                    (widget.postComments[widget.post.id] ?? const <Comment>[])
+                        .where((existingComment) => existingComment.hasLocation)
+                        .length;
+
+                if (comment.hasLocation) {
+                  unawaited(
+                    _trackCommentTagSaved(
+                      comment: comment,
+                      existingTagCountBefore: existingTagCountBefore,
+                    ),
+                  );
+                }
+
+                widget.onCommentSaveSuccess(postId, comment);
+              },
               onCommentSaveFailure: widget.onCommentSaveFailure,
               onTextFieldFocusChanged: (isFocused) {
                 setState(() {

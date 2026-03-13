@@ -1,32 +1,26 @@
-import 'dart:convert';
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:video_player/video_player.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../../api/controller/audio_controller.dart';
 import '../../../api/controller/category_controller.dart' as api_category;
 import '../../../api/controller/comment_controller.dart';
-import '../../../api/controller/audio_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/models/post.dart';
-import '../../../utils/position_converter.dart';
 import '../../about_archiving/screens/archive_detail/api_category_photos_screen.dart';
-import 'first_line_ellipsis_text.dart';
-import 'api_audio_control_widget.dart';
 import '../about_comment/api_voice_comment_list_sheet.dart';
 import '../about_comment/pending_api_voice_comment.dart';
+import 'api_audio_control_widget.dart';
+import 'services/api_photo_tag_geometry_service.dart';
+import 'services/api_photo_waveform_parser_service.dart';
 import 'tag_pointer.dart';
-
-part 'extension/api_photo_display_widget_video.dart';
-part 'extension/api_photo_display_widget_media.dart';
-part 'extension/api_photo_display_widget_comment_tags.dart';
-part 'extension/api_photo_display_widget_comment_actions.dart';
+import 'widgets/api_photo_caption_overlay.dart';
+import 'widgets/api_photo_comment_overlay.dart';
+import 'widgets/api_photo_delete_action_popup.dart';
+import 'widgets/api_photo_media_content.dart';
 
 Widget _heroFlightShuttleBuilder(
   BuildContext flightContext,
@@ -66,22 +60,6 @@ class ExpandedMediaTagOverlayData {
   });
 }
 
-/// API 사진/비디오 표시 위젯
-/// 게시물의 사진 또는 비디오를 표시하고, 댓글 아바타 및 캡션 오버레이를 관리합니다.
-///
-/// Parameters:
-///   - [post]: 표시할 게시물 데이터
-///   - [categoryId]: 게시물이 속한 카테고리 ID
-///   - [categoryName]: 게시물이 속한 카테고리 이름
-///   - [isArchive]: 아카이브 모드 여부
-///   - [postComments]: 게시물 ID별 댓글 맵
-///   - [onProfileImageDragged]: 프로필 이미지 드래그 콜백
-///   - [onToggleAudio]: 오디오 토글 콜백
-///   - [pendingVoiceComments]: 업로드 중인 음성 댓글 맵
-///   - [onCommentsReloadRequested]: 댓글 재로딩 요청 콜백
-///
-/// Returns:
-///   - [ApiPhotoDisplayWidget]: API 사진/비디오 표시 위젯 인스턴스
 class ApiPhotoDisplayWidget extends StatefulWidget {
   final Post post;
   final int categoryId;
@@ -122,14 +100,10 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   static const double _imageWidth = 354.0;
   static const double _imageHeight = 500.0;
 
-  // 실제 이미지/비디오 표시 크기 (프레임 고정)
-  // savedAspectRatio는 메타데이터로 유지하되, 피드 프레임 높이 계산에는 사용하지 않습니다.
   Size get _imageSize => Size(_imageWidth.w, _imageHeight.h);
 
-  // Hero 태그 생성 (카테고리 ID와 게시물 ID를 조합하여 고유한 태그 생성)
   String get _heroTag => 'archive_photo_${widget.categoryId}_${widget.post.id}';
 
-  // 안전한 setState 호출 메서드
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
     final phase = SchedulerBinding.instance.schedulerPhase;
@@ -156,79 +130,50 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   bool _isProfileLoading = false;
   final GlobalKey _displayStackKey = GlobalKey();
 
-  /// 댓글 목록을 해당 게시물 ID로부터 가져오는 getter
   List<Comment> get _postComments =>
       widget.postComments[widget.post.id] ?? const <Comment>[];
 
-  /// 대기 중인 음성 댓글의 마커 존재 여부를 체크해서 return하는 getter
-  /// 대기 중인 음성 댓글이 있으면 true, 없으면 false 반환
-  bool get _hasPendingMarker {
-    final pending = widget.pendingVoiceComments[widget.post.id];
-    return pending != null;
-  }
+  bool get _hasPendingMarker =>
+      widget.pendingVoiceComments[widget.post.id] != null;
 
-  /// 댓글 존재 여부를 체크해서 return하는 getter
   bool get _hasComments => _postComments.isNotEmpty;
 
-  /// 게시글 존재 여부를 체크해서 return하는 getter
   bool get _hasCaption => widget.post.content?.isNotEmpty ?? false;
 
-  /// text-only 게시물 여부
   bool get _isTextOnlyPost {
     final hasText = widget.post.content?.trim().isNotEmpty ?? false;
     return widget.post.postType == PostType.textOnly ||
         (!widget.post.hasMedia && hasText);
   }
 
-  /// 게시물 이미지 또는 비디오의 URL을 저장하는 변수
   String? postImageUrl;
-
-  /// 비디오 컨트롤러
-  /// 비디오 재생 및 제어를 담당하는 VideoPlayerController 인스턴스 입니다.
   VideoPlayerController? _videoController;
-
-  /// 비디오가 초기화되었는 지를 나타내는 Future로 선언된 변수
-  /// 비디오 컨트롤러의 초기화 상태를 나타냅니다.
-  /// initialize()가 끝날 때까지 기다리는 “초기화 작업 핸들러” 역할을 합니다.
-  ///   --> initialize() 메서드는 비디오의 메타데이터를 로드하고 재생 준비를 완료하는 "비동기 작업"이기 때문에,
-  ///       이 Future를 사용하여 초기화가 완료될 때까지 기다릴 수 있습니다.
   Future<void>? _videoInitialization;
-
-  /// 비디오가 BoxFit.cover 모드인지 여부 (false = 원본 비율, true = 화면 채우기)
   bool _isVideoCoverMode = false;
-
-  /// 이미지가 BoxFit.cover 모드인지 여부 (false = 원본 비율, true = 화면 채우기)
   bool _isImageCoverMode = false;
-
-  /// 비디오가 화면에 보이는지 여부
   bool _isVideoVisible = true;
 
-  /// 초기화 메서드
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this); // 앱의 라이프사이클의 변화를 감지하기 위해 옵저버 등록
+    WidgetsBinding.instance.addObserver(this);
     _isImageCoverMode = widget.isFromCamera;
     _isVideoCoverMode = widget.isFromCamera;
-    _isShowingComments =
-        _hasComments || _hasPendingMarker; // 댓글/대기 마커가 있으면 댓글 표시
-    _scheduleProfileLoad(widget.post.userProfileImageKey); // 프로필 이미지 로드 예약
+    _isShowingComments = _hasComments || _hasPendingMarker;
+    _scheduleProfileLoad(widget.post.userProfileImageKey);
 
-    // 서버에서 제공하는 postFileUrl을 직접 사용
     final url = widget.post.postFileUrl;
     postImageUrl = (url != null && url.isNotEmpty) ? url : null;
-    _ensureVideoController(); // 비디오 컨트롤러 초기화
+    _ensureVideoController();
   }
 
-  /// 앱 라이프사이클 상태 변경 처리
-  /// 비디오 게시물의 경우, 앱이 백그라운드로 전환될 때 비디오를 일시정지합니다.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!widget.post.isVideo) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
-      _pauseVideo(); // 앱이 백그라운드로 전환될 때 비디오 일시정지
+      _pauseVideo();
     }
   }
 
@@ -243,12 +188,14 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   @override
   void didUpdateWidget(covariant ApiPhotoDisplayWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     if (oldWidget.isFromCamera != widget.isFromCamera) {
       setState(() {
         _isImageCoverMode = widget.isFromCamera;
         _isVideoCoverMode = widget.isFromCamera;
       });
     }
+
     if (_hasComments && !_autoOpenedOnce) {
       setState(() {
         _isShowingComments = true;
@@ -256,33 +203,25 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
       });
     }
 
-    // 대기 중인 프로필 태그가 생기면(첫 댓글 포함) 즉시 표시하도록 한다.
     if (_hasPendingMarker && !_isShowingComments) {
       setState(() {
         _isShowingComments = true;
       });
     }
-    // 프로필 이미지 URL이 변경되었는지 확인
+
     if (oldWidget.post.userProfileImageUrl != widget.post.userProfileImageUrl ||
         oldWidget.post.userProfileImageKey != widget.post.userProfileImageKey) {
-      // 프로필 이미지가 변경되었으므로 프레임 콜백으로 로드 예약
       _scheduleProfileLoad(widget.post.userProfileImageKey);
     }
 
-    // 게시물 이미지 URL이 변경되었는지 확인
     if (oldWidget.post.postFileUrl != widget.post.postFileUrl ||
         oldWidget.post.postFileKey != widget.post.postFileKey) {
       _safeSetState(() {
         final url = widget.post.postFileUrl;
         postImageUrl = (url != null && url.isNotEmpty) ? url : null;
       });
-
-      // 비디오 컨트롤러 갱신
       _ensureVideoController(forceRecreate: true);
-    }
-    // 게시물 이미지가 동일한 경우
-    else {
-      // 비디오 컨트롤러 갱신
+    } else {
       _ensureVideoController();
     }
   }
@@ -295,11 +234,335 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     super.dispose();
   }
 
-  // Responsibilities split into part files:
-  // - video lifecycle/controller: api_photo_display_widget_video.dart
-  // - media/profile rendering: api_photo_display_widget_media.dart
-  // - comment tag overlay geometry: api_photo_display_widget_comment_tags.dart
-  // - comment actions/sheet/navigation: api_photo_display_widget_comment_actions.dart
+  void _ensureVideoController({bool forceRecreate = false}) {
+    if (!widget.post.isVideo) {
+      _disposeVideoController();
+      return;
+    }
+
+    final url = postImageUrl;
+    if (url == null || url.isEmpty) return;
+
+    final currentUrl = _videoController?.dataSource;
+    if (!forceRecreate && _videoController != null && currentUrl == url) {
+      return;
+    }
+
+    _disposeVideoController();
+
+    final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+    _videoController = controller;
+    _videoInitialization = controller.initialize().then((_) async {
+      await controller.setLooping(true);
+      if (_isVideoVisible) {
+        await controller.play();
+      }
+      _safeSetState(() {});
+    });
+  }
+
+  void _disposeVideoController() {
+    _videoController?.dispose();
+    _videoController = null;
+    _videoInitialization = null;
+  }
+
+  void _pauseVideo() {
+    final controller = _videoController;
+    if (controller == null) return;
+    if (!controller.value.isInitialized) return;
+    if (controller.value.isPlaying) {
+      controller.pause();
+    }
+  }
+
+  void _playVideoIfReady() {
+    final controller = _videoController;
+    if (controller == null) return;
+    if (!controller.value.isInitialized) return;
+    if (!controller.value.isPlaying) {
+      controller.play();
+    }
+  }
+
+  void _loadProfileImage(String? key) {
+    final url = widget.post.userProfileImageUrl;
+    _safeSetState(() {
+      _uploaderProfileImageUrl = (url != null && url.isNotEmpty) ? url : null;
+      _isProfileLoading = false;
+    });
+  }
+
+  void _scheduleProfileLoad(String? key) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadProfileImage(key);
+      }
+    });
+  }
+
+  void _handleVideoVisibilityChanged(bool visible) {
+    if (_isVideoVisible == visible) return;
+    _isVideoVisible = visible;
+    if (visible) {
+      _playVideoIfReady();
+    } else {
+      _pauseVideo();
+    }
+  }
+
+  void _notifyExpandedMediaOverlay(ExpandedMediaTagOverlayData? data) {
+    widget.onExpandedMediaOverlayChanged?.call(data);
+  }
+
+  void _clearExpandedMediaOverlay() {
+    _notifyExpandedMediaOverlay(null);
+  }
+
+  void _emitExpandedMediaOverlay({
+    required String tagKey,
+    required Comment comment,
+    required Offset localCircleCenter,
+    required double collapsedContentSize,
+    required double expandedContentSize,
+    VoidCallback? onLongPress,
+  }) {
+    final callback = widget.onExpandedMediaOverlayChanged;
+    if (callback == null) return;
+
+    final renderBox = _displayStackKey.currentContext?.findRenderObject();
+    if (renderBox is! RenderBox) return;
+
+    final globalCircleCenter = renderBox.localToGlobal(localCircleCenter);
+    callback(
+      ExpandedMediaTagOverlayData(
+        tagKey: tagKey,
+        comment: comment,
+        globalCircleCenter: globalCircleCenter,
+        collapsedContentSize: collapsedContentSize,
+        expandedContentSize: expandedContentSize,
+        onDismiss: _collapseExpandedMediaTag,
+        onLongPress: onLongPress,
+      ),
+    );
+  }
+
+  void _collapseExpandedMediaTag() {
+    if (!mounted) return;
+    if (_expandedMediaTagKey == null) {
+      _clearExpandedMediaOverlay();
+      return;
+    }
+    setState(() {
+      _expandedMediaTagKey = null;
+    });
+    _clearExpandedMediaOverlay();
+  }
+
+  void _showExpandedMediaOverlay({
+    required String tagKey,
+    required Comment comment,
+    required Offset tipAnchor,
+    VoidCallback? onLongPress,
+  }) {
+    final localCircleCenter =
+        ApiPhotoTagGeometryService.tagCircleCenterFromTipAnchor(
+          tipAnchor,
+          _avatarSize,
+        );
+
+    _emitExpandedMediaOverlay(
+      tagKey: tagKey,
+      comment: comment,
+      localCircleCenter: localCircleCenter,
+      collapsedContentSize: _avatarSize,
+      expandedContentSize: _expandedAvatarSize,
+      onLongPress: onLongPress,
+    );
+  }
+
+  void _handleCommentTap({
+    required Comment comment,
+    required String key,
+    required Offset tipAnchor,
+  }) {
+    if (comment.type == CommentType.photo) {
+      if (!ApiPhotoTagGeometryService.canExpandMediaComment(comment)) {
+        _openCommentSheet(key);
+        return;
+      }
+
+      if (widget.onExpandedMediaOverlayChanged == null) {
+        _openCommentSheet(key);
+        return;
+      }
+
+      if (_expandedMediaTagKey == key) {
+        _collapseExpandedMediaTag();
+        return;
+      }
+
+      setState(() {
+        _expandedMediaTagKey = key;
+      });
+      _showExpandedMediaOverlay(
+        tagKey: key,
+        comment: comment,
+        tipAnchor: tipAnchor,
+        onLongPress: () => _handleCommentLongPress(
+          key: key,
+          commentId: comment.id,
+          position: tipAnchor,
+        ),
+      );
+      return;
+    }
+
+    if (_expandedMediaTagKey != null) {
+      _collapseExpandedMediaTag();
+    }
+    _openCommentSheet(key);
+  }
+
+  void _handleBaseTap() {
+    if (_showActionOverlay) {
+      _dismissOverlay();
+      return;
+    }
+    if (_expandedMediaTagKey != null) {
+      _collapseExpandedMediaTag();
+      return;
+    }
+    if (_hasComments || _hasPendingMarker) {
+      setState(() {
+        _isShowingComments = !_isShowingComments;
+        if (!_isShowingComments) {
+          _expandedMediaTagKey = null;
+        }
+      });
+      if (!_isShowingComments) {
+        _clearExpandedMediaOverlay();
+      }
+    }
+  }
+
+  void _dismissOverlay() {
+    setState(() {
+      _showActionOverlay = false;
+      _selectedCommentKey = null;
+      _expandedMediaTagKey = null;
+      _selectedCommentId = null;
+      _selectedCommentPosition = null;
+    });
+    _clearExpandedMediaOverlay();
+  }
+
+  void _openCommentSheet(String selectedKey) {
+    final comments = _postComments;
+    if (_expandedMediaTagKey != null) {
+      setState(() {
+        _expandedMediaTagKey = null;
+      });
+      _clearExpandedMediaOverlay();
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return ChangeNotifierProvider(
+          create: (_) => AudioController(),
+          child: ApiVoiceCommentListSheet(
+            postId: widget.post.id,
+            comments: comments,
+            selectedCommentId: selectedKey,
+            onCommentsUpdated: (updatedComments) {
+              if (!mounted) return;
+              setState(() {
+                widget.postComments[widget.post.id] = updatedComments;
+              });
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleCommentLongPress({
+    required String key,
+    required int? commentId,
+    required Offset position,
+  }) {
+    if (commentId == null) {
+      _showSnackBar(tr('comments.delete_unavailable', context: context));
+      return;
+    }
+    setState(() {
+      _selectedCommentKey = key;
+      _expandedMediaTagKey = null;
+      _selectedCommentId = commentId;
+      _selectedCommentPosition = position;
+      _showActionOverlay = true;
+    });
+    _clearExpandedMediaOverlay();
+  }
+
+  Future<void> _deleteSelectedComment() async {
+    final targetId = _selectedCommentId;
+    if (targetId == null) return;
+    try {
+      final commentController = Provider.of<CommentController>(
+        context,
+        listen: false,
+      );
+      final success = await commentController.deleteComment(targetId);
+      if (!mounted) return;
+      if (success) {
+        _removeCommentFromCache(targetId);
+        await widget.onCommentsReloadRequested?.call(widget.post.id);
+        if (!mounted) return;
+        _showSnackBar(tr('comments.delete_success', context: context));
+        _dismissOverlay();
+      } else {
+        _showSnackBar(tr('comments.delete_failed', context: context));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar(tr('comments.delete_error', context: context));
+    }
+  }
+
+  void _removeCommentFromCache(int commentId) {
+    final updated = List<Comment>.from(
+      widget.postComments[widget.post.id] ?? const <Comment>[],
+    )..removeWhere((comment) => comment.id == commentId);
+    widget.postComments[widget.post.id] = updated;
+    setState(() {});
+  }
+
+  void _navigateToCategory() {
+    final controller = context.read<api_category.CategoryController?>();
+    final category = controller?.getCategoryById(widget.categoryId);
+    if (category == null) {
+      _showSnackBar('카테고리 정보를 불러오지 못했습니다.');
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ApiCategoryPhotosScreen(category: category),
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -307,9 +570,19 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     final isEnglishCategory =
         categoryTrimmed.isNotEmpty &&
         RegExp(r'^[A-Za-z\s]+$').hasMatch(categoryTrimmed);
-    final waveformData = _parseWaveformData(widget.post.waveformData);
-    final pendingMarker = _buildPendingMarker();
-    final deletePopup = _showActionOverlay ? _buildDeleteActionPopup() : null;
+    final waveformData = ApiPhotoWaveformParserService.parse(
+      widget.post.waveformData,
+    );
+    final deletePopup =
+        _showActionOverlay &&
+            _selectedCommentPosition != null &&
+            _selectedCommentId != null
+        ? ApiPhotoDeleteActionPopup(
+            position: _selectedCommentPosition!,
+            imageWidth: _imageSize.width,
+            onDeleteTap: _deleteSelectedComment,
+          )
+        : null;
     final showCaptionOverlay = _hasCaption && !_isTextOnlyPost;
 
     return Center(
@@ -318,21 +591,46 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
         height: _imageSize.height,
         child: Builder(
           builder: (builderContext) {
-            final mediaBase = _buildMediaContent();
+            final mediaBase = ApiPhotoMediaContent(
+              isTextOnlyPost: _isTextOnlyPost,
+              isVideoPost: widget.post.isVideo,
+              hasImage: widget.post.hasImage,
+              mediaUrl: postImageUrl,
+              postFileKey: widget.post.postFileKey,
+              textContent: widget.post.content ?? '',
+              imageSize: _imageSize,
+              videoController: _videoController,
+              videoInitialization: _videoInitialization,
+              isVideoCoverMode: _isVideoCoverMode,
+              isImageCoverMode: _isImageCoverMode,
+              onVideoToggleFit: () {
+                if (!mounted) return;
+                setState(() {
+                  _isVideoCoverMode = !_isVideoCoverMode;
+                });
+              },
+              onImageToggleFit: () {
+                if (!mounted) return;
+                setState(() {
+                  _isImageCoverMode = !_isImageCoverMode;
+                });
+              },
+              onVideoVisibilityChanged: _handleVideoVisibilityChanged,
+            );
+
             final mediaFrame = _isTextOnlyPost
                 ? mediaBase
                 : ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: mediaBase,
                   );
+
             final mediaWithHero = widget.isArchive
                 ? Hero(
                     tag: _heroTag,
-                    createRectTween: (begin, end) => MaterialRectArcTween(
-                      begin: begin,
-                      end: end,
-                    ), // 아카이브에서는 둥근 모서리 유지하며 애니메이션
-                    transitionOnUserGestures: true, // 사용자 제스처 중에도 애니메이션 허용
+                    createRectTween: (begin, end) =>
+                        MaterialRectArcTween(begin: begin, end: end),
+                    transitionOnUserGestures: true,
                     flightShuttleBuilder: _heroFlightShuttleBuilder,
                     child: mediaFrame,
                   )
@@ -362,8 +660,6 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                     alignment: Alignment.topCenter,
                     children: [
                       mediaWithHero,
-
-                      // 댓글 액션 오버레이
                       if (_showActionOverlay)
                         Positioned.fill(
                           child: GestureDetector(
@@ -373,8 +669,6 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                             ),
                           ),
                         ),
-
-                      // 카테고리 라벨
                       if (!widget.isArchive)
                         Positioned(
                           top: 11.h,
@@ -410,8 +704,6 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                             ),
                           ),
                         ),
-
-                      // 오디오 컨트롤 위젯
                       if (widget.post.hasAudio)
                         Positioned(
                           left: 18.w,
@@ -431,13 +723,40 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                             crossAxisAlignment: CrossAxisAlignment.center,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              if (showCaptionOverlay)
-                                Expanded(child: _buildCaptionOverlay(true)),
+                              Expanded(
+                                child: ApiPhotoCaptionOverlay(
+                                  content: widget.post.content!,
+                                  isExpanded: _isCaptionExpanded,
+                                  isProfileLoading: _isProfileLoading,
+                                  profileImageUrl: _uploaderProfileImageUrl,
+                                  profileImageCacheKey:
+                                      widget.post.userProfileImageKey,
+                                  onTap: () {
+                                    if (!mounted) return;
+                                    setState(() {
+                                      _isCaptionExpanded = !_isCaptionExpanded;
+                                    });
+                                  },
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                      ..._buildCommentAvatars(),
-                      if (pendingMarker != null) pendingMarker,
+                      Positioned.fill(
+                        child: ApiPhotoCommentOverlay(
+                          comments: _postComments,
+                          pendingMarker:
+                              widget.pendingVoiceComments[widget.post.id],
+                          isShowingComments: _isShowingComments,
+                          showActionOverlay: _showActionOverlay,
+                          selectedCommentKey: _selectedCommentKey,
+                          expandedMediaTagKey: _expandedMediaTagKey,
+                          imageSize: _imageSize,
+                          avatarSize: _avatarSize,
+                          onCommentTap: _handleCommentTap,
+                          onCommentLongPress: _handleCommentLongPress,
+                        ),
+                      ),
                       if (deletePopup != null) deletePopup,
                     ],
                   ),

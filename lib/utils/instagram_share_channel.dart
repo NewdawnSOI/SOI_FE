@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// Instagram Direct 공유를 위한 네이티브 채널
@@ -16,7 +17,7 @@ class InstagramShareChannel {
       );
       return result ?? false;
     } on PlatformException catch (e) {
-      print('Instagram 공유 실패: ${e.message}');
+      debugPrint('Instagram 공유 실패: ${e.message}');
       return false;
     }
   }
@@ -26,7 +27,8 @@ class InstagramShareChannel {
     try {
       final result = await _channel.invokeMethod<bool>('isInstagramInstalled');
       return result ?? false;
-    } on PlatformException {
+    } on PlatformException catch (e) {
+      debugPrint('Instagram 설치 여부 확인 실패: ${e.message}');
       return false;
     }
   }

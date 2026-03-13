@@ -11,6 +11,9 @@ import '../../../api/models/category.dart' as api_model;
 import '../../../api/models/friend.dart';
 import '../../../api/models/post.dart';
 
+/// 피드 화면에서 게시물 데이터를 관리하는 클래스입니다.
+/// 사용자 카테고리별로 게시물을 로드하고, 캐싱하며, 게시물 변경을 감지하여 피드를 새로고침하는 역할을 합니다.
+/// 또한, 페이징을 위한 추가 로드 기능과 게시물 접근/삭제 기능도 제공합니다.
 class FeedPostItem {
   final Post post;
   final int categoryId;
@@ -41,8 +44,9 @@ class FeedDataManager extends ChangeNotifier {
   BuildContext? _context;
   VoidCallback? _postsChangedListener; // 게시물 변경 감지 리스너
   int? _lastUserId; // 마지막으로 로드한 사용자의 ID
-  bool _pendingPostRefresh =
-      false; // 게시물 변경 감지 후 탭이 보이지 않는 상태라면 새로고침을 지연시키는 플래그
+
+  // 게시물 변경 감지 후 탭이 보이지 않는 상태라면 새로고침을 지연시키는 플래그
+  bool _pendingPostRefresh = false;
 
   // ======== 조회(Getter) ===========
   // 포함된 메소드들
@@ -60,18 +64,9 @@ class FeedDataManager extends ChangeNotifier {
       .take(_visibleCount)
       .toList(growable: false); // 현재 노출된 게시물 목록을 반환하는 getter
 
-  // ======== 콜백/상태 알림 ===========
-  // 포함된 메소드들
-  // - setOnStateChanged
-  // - setOnPostsLoaded
-  // - _notifyStateChanged
-  //
-  // 메소드의 흐름
-  // (외부 설정) setOnStateChanged -> (내부) _notifyStateChanged -> notifyListeners
-  // (외부 설정) setOnPostsLoaded -> (내부) loadUserCategoriesAndPhotos -> _onPostsLoaded?.call(...)
-
-  /// 콜백 설정 메소드
-  /// 상태 변경 시 호출할 콜백 함수를 설정합니다.
+  /// 상태 변경 콜백 설정 메소드
+  /// 상태가 변경될 때 호출할 콜백 함수를 설정합니다.
+  /// 예를 들어, 피드 데이터가 로드되거나 게시물이 변경될 때 UI를 업데이트하기 위해 사용할 수 있습니다.
   ///
   /// Parameters:
   /// - [callback]: 상태 변경 시 호출할 콜백 함수
@@ -88,20 +83,13 @@ class FeedDataManager extends ChangeNotifier {
     _onPostsLoaded = callback;
   }
 
+  /// 상태 변경 알림 메소드
+  /// 피드 데이터가 변경될 때마다 이 메소드를 호출해서 등록된 상태 변경 콜백을 호출하고,
+  /// ChangeNotifier의 notifyListeners()를 호출해서 UI가 업데이트되도록 합니다.
   void _notifyStateChanged() {
     _onStateChanged?.call();
-    notifyListeners(); // 추가: Provider 구독 UI가 자동으로 rebuild 되도록
+    notifyListeners();
   }
-
-  // ======== PostController 구독/해제 ===========
-  // 포함된 메소드들
-  // - listenToPostController
-  // - detachFromPostController
-  // - dispose
-  //
-  // 메소드의 흐름
-  // listenToPostController -> (게시물 변경 감지) -> loadUserCategoriesAndPhotos(forceRefresh: true)
-  // dispose -> detachFromPostController
 
   /// PostController의 게시물 변경을 구독
   void listenToPostController(
@@ -121,20 +109,16 @@ class FeedDataManager extends ChangeNotifier {
 
     _postsChangedListener = () {
       if (_context != null && _context!.mounted) {
-        final isVisible = TickerMode.of(_context!);
-        if (!isVisible) {
-          _pendingPostRefresh = true; // 탭이 보이지 않는 상태라면 새로고침을 지연시킵니다.
-          debugPrint('[FeedDataManager] posts-changed 지연(탭 비가시)');
-          return;
-        }
-
+        // _pendingPostRefresh 플래그가 false라는 것은 탭이 보이는 상태에서 게시물 변경이 감지된 경우,
+        // 바로 새로고침을 수행하지 않습니다.
         _pendingPostRefresh = false;
-        debugPrint('[FeedDataManager] 게시물 변경 감지, 피드 새로고침');
+
         // 게시물이 변경된 경우에는 서버에서 다시 받아오도록 강제 새로고침합니다.
         unawaited(loadUserCategoriesAndPhotos(_context!, forceRefresh: true));
       }
     };
 
+    // PostController에 게시물 변경 리스너를 등록합니다.
     _postController?.addPostsChangedListener(_postsChangedListener!);
   }
 
