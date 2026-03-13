@@ -49,7 +49,7 @@ Map<String, WidgetBuilder> buildAppRoutes() {
     AppRoute.friendList: (context) => const FriendListScreen(),
     AppRoute.friendRequest: (context) => const FriendRequestScreen(),
     AppRoute.feedHome: (context) => const FeedHomeScreen(),
-    AppRoute.profileScreen: (context) => const ProfileScreen(),
+    AppRoute.profileScreen: (context) => const ProfileSettingScreen(),
     AppRoute.privacyProtect: (context) => const PrivacyProtectScreen(),
     AppRoute.termsOfService: (context) => const TermsOfService(),
     AppRoute.blockedFriends: (context) => const BlockedFriendListScreen(),
