@@ -8,7 +8,7 @@ import 'about_archiving/screens/api_archive_main_screen.dart';
 import 'about_camera/camera_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'about_friends/friend_management_screen.dart';
-import 'about_profile/profile_screen.dart';
+import 'about_profile/profile_page.dart';
 import '../api/services/camera_service.dart';
 
 class HomePageNavigationBar extends StatefulWidget {
@@ -194,7 +194,7 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
           _buildPage(1, const APIArchiveMainScreen()),
           _buildPage(2, CameraScreen(isActive: _currentPageIndex == 2)),
           _buildPage(3, const FriendManagementScreen()),
-          _buildPage(4, const ProfileSettingScreen()),
+          _buildPage(4, const ProfilePage()),
         ],
       ),
     );

@@ -312,6 +312,37 @@ class PostController extends ChangeNotifier {
     }
   }
 
+  /// 유저 ID로 게시물 조회 (Slice 페이지네이션)
+  ///
+  /// Parameters:
+  ///   - [userId]: 사용자 ID
+  ///   - [postType]: 게시물 타입
+  ///   - [page]: 페이지 번호 (기본값: 0)
+  ///
+  /// Returns: `({List<Post> posts, bool hasMore})`
+  Future<({List<Post> posts, bool hasMore})> getMediaByUserId({
+    required int userId,
+    required PostType postType,
+    int page = 0,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final result = await _postService.getMediaByUserId(
+        userId: userId,
+        postType: postType,
+        page: page,
+      );
+      _setLoading(false);
+      return result;
+    } catch (e) {
+      _setError('게시물 조회 실패: $e');
+      _setLoading(false);
+      return (posts: <Post>[], hasMore: false);
+    }
+  }
+
   // ============================================
   // 게시물 수정
   // ============================================

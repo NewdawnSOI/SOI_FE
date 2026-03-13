@@ -245,6 +245,51 @@ class PostService {
     }
   }
 
+  /// 유저 ID로 게시물 조회 (Slice 페이지네이션)
+  ///
+  /// [userId]와 [postType]으로 게시물을 조회합니다.
+  ///
+  /// Parameters:
+  /// - [userId]: 사용자 ID
+  /// - [postType]: 게시물 타입 (PostType)
+  /// - [page]: 페이지 번호 (0부터 시작)
+  ///
+  /// Returns: `({List<Post> posts, bool hasMore})`
+  Future<({List<Post> posts, bool hasMore})> getMediaByUserId({
+    required int userId,
+    required PostType postType,
+    int page = 0,
+  }) async {
+    try {
+      final postTypeStr = postType == PostType.multiMedia ? 'MULTIMEDIA' : 'TEXT_ONLY';
+      final response = await _postApi.findMediaByUserId(userId, postTypeStr, page);
+
+      if (response == null) {
+        return (posts: <Post>[], hasMore: false);
+      }
+
+      if (response.success != true) {
+        throw SoiApiException(message: response.message ?? '게시물 조회 실패');
+      }
+
+      final slice = response.data;
+      if (slice == null) {
+        return (posts: <Post>[], hasMore: false);
+      }
+
+      final posts = slice.content.map((dto) => Post.fromDto(dto)).toList();
+      final hasMore = slice.last == false;
+      return (posts: posts, hasMore: hasMore);
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '게시물 조회 실패: $e', originalException: e);
+    }
+  }
+
   // ============================================
   // 게시물 수정
   // ============================================

@@ -18,7 +18,7 @@ import 'package:soi/views/about_profile/blocked_friend_list_screen.dart';
 import 'package:soi/views/about_profile/deleted_post_list_screen.dart';
 import 'package:soi/views/about_profile/post_management_screen.dart';
 import 'package:soi/views/about_profile/privacy_protect_screen.dart';
-import 'package:soi/views/about_profile/profile_screen.dart';
+import 'package:soi/views/about_profile/profile_setting_screen.dart';
 import 'package:soi/views/about_setting/privacy.dart';
 import 'package:soi/views/about_setting/terms_of_service.dart';
 import 'package:soi/views/home_navigator_screen.dart';

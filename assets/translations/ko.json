@@ -256,6 +256,14 @@
   },
   "profile": {
     "title": "프로필",
+    "main": {
+      "friends_count": "친구 {count}",
+      "tabs": {
+        "media": "미디어",
+        "text": "텍스트",
+        "comments": "댓글"
+      }
+    },
     "section": {
       "account": "계정",
       "app_settings": "앱 설정",

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
-import '../../api/controller/category_controller.dart';
+import '../../api/controller/friend_controller.dart';
 import '../../api/controller/media_controller.dart';
 import '../../api/controller/user_controller.dart';
 import '../../api/models/user.dart';
@@ -12,6 +12,7 @@ import '../about_feed/manager/feed_data_manager.dart';
 import 'services/profile_data_service.dart';
 import 'services/profile_session_service.dart';
 import 'widgets/profile_action_confirmation_sheet.dart';
+import 'widgets/profile_main_header.dart';
 import 'widgets/profile_screen_sections.dart';
 
 /// 사용자 프로필 화면을 구성하는 위젯입니다.
@@ -30,18 +31,28 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
 
   User? _userInfo;
   String? _profileImageUrl;
+  int _friendCount = 0;
 
   bool _isLoading = true;
-  bool _isUploadingProfile = false;
-  int _profileImageRetryCount = 0;
-  bool _profileImageLoadFailed = false;
 
   @override
   void initState() {
     super.initState();
+    _primeInitialHeaderState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadUserData();
     });
+  }
+
+  void _primeInitialHeaderState() {
+    final currentUser = context.read<UserController>().currentUser;
+    final friendController = context.read<FriendController>();
+    if (currentUser == null) return;
+
+    _userInfo = currentUser;
+    if (friendController.cachedFriendsUserId == currentUser.id) {
+      _friendCount = friendController.cachedFriends.length;
+    }
   }
 
   /// 사용자 데이터를 로드하는 함수입니다.
@@ -50,6 +61,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
 
     final userController = context.read<UserController>();
     final mediaController = context.read<MediaController>();
+    final friendController = context.read<FriendController>();
     final currentUser = userController.currentUser;
 
     if (currentUser == null) {
@@ -60,105 +72,45 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
       return;
     }
 
+    ProfileScreenData? profileData;
+    var resolvedFriendCount = _friendCount;
+
     try {
-      // 사용자 정보와 프로필 사진 URL을 가져와서 profileData에 저장합니다.
-      final profileData = await _profileDataService.loadUserData(
+      profileData = await _profileDataService.loadUserData(
         userId: currentUser.id,
         userController: userController,
         mediaController: mediaController,
       );
-
-      if (!mounted) return;
-      _applyLoadedProfileData(profileData); // 로드된 데이터를 화면에 적용합니다.
     } catch (error) {
       debugPrint('사용자 데이터 로드 오류: $error');
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
     }
-  }
 
-  Future<void> _updateProfileImage() async {
-    final userController = context.read<UserController>();
-    final mediaController = context.read<MediaController>();
-    final categoryController = context.read<CategoryController>();
-    final currentUser = userController.currentUser;
-
-    if (currentUser == null) {
-      _showProfileSnackBar(
-        tr('profile.snackbar.login_required', context: context),
+    try {
+      final friends = await friendController.getAllFriends(
+        userId: currentUser.id,
       );
+      resolvedFriendCount = friends.length;
+    } catch (error) {
+      debugPrint('친구 수 로드 오류: $error');
+    }
+
+    if (!mounted) return;
+
+    if (profileData != null) {
+      _applyLoadedProfileData(profileData, friendCount: resolvedFriendCount);
       return;
     }
 
-    try {
-      final pickedFile = await _profileDataService.pickProfileImage();
-      if (!mounted || pickedFile == null) return;
+    setState(() {
+      _friendCount = resolvedFriendCount;
+      _isLoading = false;
+    });
+  }
 
-      final fileExists = await pickedFile.exists();
-      if (!fileExists) {
-        if (!mounted) return;
-        _showProfileSnackBar(
-          tr('profile.snackbar.image_not_found', context: context),
-        );
-        return;
-      }
-
-      final compressedFile = await _profileDataService.compressProfileImage(
-        pickedFile,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _isUploadingProfile = true;
-      });
-
-      final uploadResult = await _profileDataService.uploadProfileImage(
-        file: compressedFile,
-        userId: currentUser.id,
-        userController: userController,
-        mediaController: mediaController,
-        categoryController: categoryController,
-      );
-
-      if (!mounted) return;
-
-      switch (uploadResult.status) {
-        case ProfileImageUploadStatus.success:
-          setState(() {
-            _profileImageUrl = uploadResult.profileImageUrl;
-            _profileImageRetryCount = 0;
-            _profileImageLoadFailed = false;
-            _userInfo = uploadResult.userInfo ?? _userInfo;
-          });
-          _showProfileSnackBar(
-            tr('profile.snackbar.profile_updated', context: context),
-          );
-          break;
-        case ProfileImageUploadStatus.uploadFailed:
-          _showProfileSnackBar(
-            tr('profile.snackbar.upload_failed', context: context),
-          );
-          break;
-        case ProfileImageUploadStatus.failed:
-          _showProfileSnackBar(
-            tr('profile.snackbar.profile_update_failed', context: context),
-          );
-          break;
-      }
-    } catch (error) {
-      debugPrint('프로필 이미지 업데이트 오류: $error');
-      if (!mounted) return;
-      _showProfileSnackBar(
-        tr('profile.snackbar.profile_update_failed', context: context),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploadingProfile = false;
-        });
-      }
+  void _closeSettings() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
     }
   }
 
@@ -260,31 +212,15 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
   ///
   /// Parameters:
   /// - [profileData]: 사용자 정보와 프로필 사진 URL이 담긴 객체입니다. 이 데이터를 화면 상태에 적용합니다.
-  void _applyLoadedProfileData(ProfileScreenData profileData) {
+  void _applyLoadedProfileData(
+    ProfileScreenData profileData, {
+    required int friendCount,
+  }) {
     setState(() {
-      _userInfo = profileData.userInfo;
+      _userInfo = profileData.userInfo ?? _userInfo;
       _profileImageUrl = profileData.profileImageUrl;
-      _profileImageRetryCount = 0;
-      _profileImageLoadFailed = false;
+      _friendCount = friendCount;
       _isLoading = false;
-    });
-  }
-
-  /// 프로필 이미지 로드 실패 시 재시도 횟수를 증가시키는 함수입니다.
-  void _incrementProfileImageRetry() {
-    if (!mounted) return;
-    setState(() {
-      _profileImageRetryCount++; // 프로필 이미지 재시도 횟수를 증가시킵니다.
-    });
-  }
-
-  /// 프로필 이미지 로드 실패 상태를 표시하는 함수입니다.
-  void _markProfileImageLoadFailed() {
-    // 이미 실패 상태인 경우 중복으로 설정하지 않도록 합니다.
-    if (!mounted || _profileImageLoadFailed) return;
-    setState(() {
-      // 프로필 이미지 로드 실패 상태를 true로 설정합니다.
-      _profileImageLoadFailed = true;
     });
   }
 
@@ -405,68 +341,40 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     );
   }
 
-  /// 프로필 관련 작업의 결과를 사용자에게 알려주는 스낵바를 표시하는 함수입니다.
-  void _showProfileSnackBar(String message) {
-    if (!mounted) return;
-    SnackBarUtils.showSnackBar(context, message);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Color(0xFFD9D9D9)),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            // '프로필' 타이틀을 빌드하는 Text 위젯입니다.
-            Text(
-              tr('profile.title', context: context),
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w700,
-                fontSize: 20.sp,
-                color: const Color(0xFFD9D9D9),
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFFD9D9D9)),
-              )
-            : SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 17.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 프로필 아바타 헤더를 빌드하는 위젯입니다.
-                      ProfileAvatarHeader(
-                        profileImageUrl: _profileImageUrl,
-                        isUploadingProfile: _isUploadingProfile,
-                        profileImageLoadFailed: _profileImageLoadFailed,
-                        profileImageRetryCount: _profileImageRetryCount,
-                        onEditTap: _updateProfileImage,
-                        onImageRetryRequested: _incrementProfileImageRetry,
-                        onImageLoadFailed: _markProfileImageLoadFailed,
-                      ),
-                      ProfileAccountSection(userInfo: _userInfo),
-                      SizedBox(height: 36.h),
-                      _buildAppSettingsSection(), // 앱 설정 섹션을 빌드하는 위젯입니다.
-                      SizedBox(height: 36.h),
-                      _buildUsageGuideSection(), // 이용 안내 섹션을 빌드하는 위젯입니다.
-                      SizedBox(height: 36.h),
-                      _buildOtherSection(), // 기타 섹션을 빌드하는 위젯입니다.
-                      SizedBox(height: 49.h),
-                    ],
+      body: Column(
+        children: [
+          ProfileMainHeader(
+            nickname: _userInfo?.userId,
+            profileImageUrl: _profileImageUrl,
+            friendCount: _friendCount,
+            onMenuTap: _closeSettings,
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFFD9D9D9)),
+                  )
+                : SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(17.w, 28.h, 17.w, 49.h),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ProfileAccountSection(userInfo: _userInfo),
+                        SizedBox(height: 36.h),
+                        _buildAppSettingsSection(),
+                        SizedBox(height: 36.h),
+                        _buildUsageGuideSection(),
+                        SizedBox(height: 36.h),
+                        _buildOtherSection(),
+                      ],
+                    ),
                   ),
-                ),
-              ),
+          ),
+        ],
       ),
     );
   }

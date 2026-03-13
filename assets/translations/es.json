@@ -303,6 +303,14 @@
   },
   "profile": {
     "title": "Perfil",
+    "main": {
+      "friends_count": "Amigos {count}",
+      "tabs": {
+        "media": "Media",
+        "text": "Texto",
+        "comments": "Comentarios"
+      }
+    },
     "section": {
       "account": "Cuenta",
       "app_settings": "Ajustes",
