@@ -14,7 +14,7 @@ Method | HTTP request | Description
 
 
 # **getAll**
-> ApiResponseDtoNotificationGetAllRespDto getAll(userId, page)
+> ApiResponseDtoNotificationGetAllRespDto getAll(page)
 
 알림 조회
 
@@ -25,11 +25,10 @@ Method | HTTP request | Description
 import 'package:soi_api_client/api.dart';
 
 final api_instance = NotificationAPIApi();
-final userId = 789; // int | 
 final page = 56; // int | 
 
 try {
-    final result = api_instance.getAll(userId, page);
+    final result = api_instance.getAll(page);
     print(result);
 } catch (e) {
     print('Exception when calling NotificationAPIApi->getAll: $e\n');
@@ -40,7 +39,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **int**|  | 
  **page** | **int**|  | 
 
 ### Return type
@@ -59,7 +57,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **getFriend**
-> ApiResponseDtoListNotificationRespDto getFriend(userId, page)
+> ApiResponseDtoListNotificationRespDto getFriend(page)
 
 친구관련 알림 조회
 
@@ -70,11 +68,10 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = NotificationAPIApi();
-final userId = 789; // int | 
 final page = 56; // int | 
 
 try {
-    final result = api_instance.getFriend(userId, page);
+    final result = api_instance.getFriend(page);
     print(result);
 } catch (e) {
     print('Exception when calling NotificationAPIApi->getFriend: $e\n');
@@ -85,7 +82,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **int**|  | 
  **page** | **int**|  | 
 
 ### Return type

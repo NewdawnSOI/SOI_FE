@@ -248,10 +248,8 @@ class FriendAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] id (required):
-  ///
   /// * [String] friendStatus (required):
-  Future<Response> getAllFriendWithHttpInfo(int id, String friendStatus,) async {
+  Future<Response> getAllFriendWithHttpInfo(String friendStatus,) async {
     // ignore: prefer_const_declarations
     final path = r'/friend/get-all';
 
@@ -262,7 +260,6 @@ class FriendAPIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'id', id));
       queryParams.addAll(_queryParams('', 'friendStatus', friendStatus));
 
     const contentTypes = <String>[];
@@ -285,11 +282,9 @@ class FriendAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] id (required):
-  ///
   /// * [String] friendStatus (required):
-  Future<ApiResponseDtoListUserFindRespDto?> getAllFriend(int id, String friendStatus,) async {
-    final response = await getAllFriendWithHttpInfo(id, friendStatus,);
+  Future<ApiResponseDtoListUserFindRespDto?> getAllFriend(String friendStatus,) async {
+    final response = await getAllFriendWithHttpInfo(friendStatus,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -311,10 +306,8 @@ class FriendAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] id (required):
-  ///
   /// * [List<String>] friendPhoneNums (required):
-  Future<Response> getAllFriend1WithHttpInfo(int id, List<String> friendPhoneNums,) async {
+  Future<Response> getAllFriend1WithHttpInfo(List<String> friendPhoneNums,) async {
     // ignore: prefer_const_declarations
     final path = r'/friend/check-friend-relation';
 
@@ -325,7 +318,6 @@ class FriendAPIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'id', id));
       queryParams.addAll(_queryParams('multi', 'friendPhoneNums', friendPhoneNums));
 
     const contentTypes = <String>[];
@@ -348,11 +340,9 @@ class FriendAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] id (required):
-  ///
   /// * [List<String>] friendPhoneNums (required):
-  Future<ApiResponseDtoListFriendCheckRespDto?> getAllFriend1(int id, List<String> friendPhoneNums,) async {
-    final response = await getAllFriend1WithHttpInfo(id, friendPhoneNums,);
+  Future<ApiResponseDtoListFriendCheckRespDto?> getAllFriend1(List<String> friendPhoneNums,) async {
+    final response = await getAllFriend1WithHttpInfo(friendPhoneNums,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

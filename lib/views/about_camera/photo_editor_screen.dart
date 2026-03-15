@@ -528,7 +528,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         if (profileImageKey != null) {
           final profileUpdated = await _categoryController.updateCustomProfile(
             categoryId: createdCategoryId,
-            userId: draft.requesterId,
+
             profileImageKey: profileImageKey,
           );
           if (!profileUpdated) {

@@ -40,19 +40,21 @@ class SoiApiClient {
   /// 초기화 여부
   bool _isInitialized = false;
 
-  /// 현재 인증 토큰 (향후 JWT 사용시)
+  /// 현재 인증 토큰
   String? _authToken;
 
   // ============================================
   // API 인스턴스들 (Lazy initialization)
   // ============================================
 
+  AuthControllerApi? _authApi;
   UserAPIApi? _userApi;
   CategoryAPIApi? _categoryApi;
   PostAPIApi? _postApi;
   FriendAPIApi? _friendApi;
   CommentAPIApi? _commentApi;
   NotificationAPIApi? _notificationApi;
+  NotificationDeviceAPIApi? _notificationDeviceApi;
   APIApi? _mediaApi;
   ReportControllerApi? _reportApi;
 
@@ -77,12 +79,14 @@ class SoiApiClient {
     _isInitialized = true;
 
     // API 인스턴스들 초기화
+    _authApi = null;
     _userApi = null;
     _categoryApi = null;
     _postApi = null;
     _friendApi = null;
     _commentApi = null;
     _notificationApi = null;
+    _notificationDeviceApi = null;
     _mediaApi = null;
     _reportApi = null;
   }
@@ -97,7 +101,7 @@ class SoiApiClient {
   }
 
   // ============================================
-  // 인증 토큰 관리 (향후 JWT 사용시)
+  // 인증 토큰 관리
   // ============================================
 
   /// 인증 토큰 설정
@@ -126,6 +130,12 @@ class SoiApiClient {
   // ============================================
   // API 인스턴스 Getter들
   // ============================================
+
+  /// 인증 API
+  AuthControllerApi get authApi {
+    _checkInitialized();
+    return _authApi ??= AuthControllerApi(_apiClient);
+  }
 
   /// 사용자 API
   UserAPIApi get userApi {
@@ -161,6 +171,12 @@ class SoiApiClient {
   NotificationAPIApi get notificationApi {
     _checkInitialized();
     return _notificationApi ??= NotificationAPIApi(_apiClient);
+  }
+
+  /// 디바이스 토큰 API
+  NotificationDeviceAPIApi get notificationDeviceApi {
+    _checkInitialized();
+    return _notificationDeviceApi ??= NotificationDeviceAPIApi(_apiClient);
   }
 
   /// 미디어 API

@@ -296,7 +296,7 @@ class CommentService {
     int page = _defaultPage,
   }) async {
     try {
-      final response = await _commentApi.getAllCommentByUserId(userId, page);
+      final response = await _commentApi.getAllCommentByUserId(page);
 
       if (response == null) {
         return (comments: <Comment>[], hasMore: false);

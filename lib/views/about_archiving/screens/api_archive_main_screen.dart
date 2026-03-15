@@ -411,7 +411,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       // 커스텀 이름 업데이트
       await _categoryController?.updateCustomName(
         categoryId: categoryId,
-        userId: userId,
+
         name: trimmedText,
       );
 

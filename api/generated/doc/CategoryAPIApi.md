@@ -14,7 +14,7 @@ Method | HTTP request | Description
 [**create4**](CategoryAPIApi.md#create4) | **POST** /category/create | 카테고리 추가
 [**customName**](CategoryAPIApi.md#customname) | **POST** /category/set/name | 카테고리 이름수정
 [**customProfile**](CategoryAPIApi.md#customprofile) | **POST** /category/set/profile | 카테고리 프로필 수정
-[**delete**](CategoryAPIApi.md#delete) | **POST** /category/delete | 카테고리 나가기 (삭제)
+[**delete1**](CategoryAPIApi.md#delete1) | **POST** /category/delete | 카테고리 나가기 (삭제)
 [**getCategories**](CategoryAPIApi.md#getcategories) | **POST** /category/find | 유저가 속한 카테고리 리스트를 가져오는 API
 [**getCategories1**](CategoryAPIApi.md#getcategories1) | **POST** /category/find-by-keyword | 유저가 속한 카테고를 검색하는 API
 [**inviteResponse**](CategoryAPIApi.md#inviteresponse) | **POST** /category/invite/response | 카테고리에 초대된 유저가 초대 승낙여부를 결정하는 API
@@ -22,7 +22,7 @@ Method | HTTP request | Description
 
 
 # **categoryAlert**
-> ApiResponseDtoBoolean categoryAlert(categoryId, userId)
+> ApiResponseDtoBoolean categoryAlert(categoryId)
 
 카테고리 알림설정
 
@@ -34,10 +34,9 @@ import 'package:soi_api_client/api.dart';
 
 final api_instance = CategoryAPIApi();
 final categoryId = 789; // int | 
-final userId = 789; // int | 
 
 try {
-    final result = api_instance.categoryAlert(categoryId, userId);
+    final result = api_instance.categoryAlert(categoryId);
     print(result);
 } catch (e) {
     print('Exception when calling CategoryAPIApi->categoryAlert: $e\n');
@@ -49,7 +48,6 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **categoryId** | **int**|  | 
- **userId** | **int**|  | 
 
 ### Return type
 
@@ -67,7 +65,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **categoryPinned**
-> ApiResponseDtoBoolean categoryPinned(categoryId, userId)
+> ApiResponseDtoBoolean categoryPinned(categoryId)
 
 카테고리 고정
 
@@ -79,10 +77,9 @@ import 'package:soi_api_client/api.dart';
 
 final api_instance = CategoryAPIApi();
 final categoryId = 789; // int | 
-final userId = 789; // int | 
 
 try {
-    final result = api_instance.categoryPinned(categoryId, userId);
+    final result = api_instance.categoryPinned(categoryId);
     print(result);
 } catch (e) {
     print('Exception when calling CategoryAPIApi->categoryPinned: $e\n');
@@ -94,7 +91,6 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **categoryId** | **int**|  | 
- **userId** | **int**|  | 
 
 ### Return type
 
@@ -155,7 +151,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **customName**
-> ApiResponseDtoBoolean customName(categoryId, userId, name)
+> ApiResponseDtoBoolean customName(categoryId, name)
 
 카테고리 이름수정
 
@@ -167,11 +163,10 @@ import 'package:soi_api_client/api.dart';
 
 final api_instance = CategoryAPIApi();
 final categoryId = 789; // int | 
-final userId = 789; // int | 
 final name = name_example; // String | 
 
 try {
-    final result = api_instance.customName(categoryId, userId, name);
+    final result = api_instance.customName(categoryId, name);
     print(result);
 } catch (e) {
     print('Exception when calling CategoryAPIApi->customName: $e\n');
@@ -183,7 +178,6 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **categoryId** | **int**|  | 
- **userId** | **int**|  | 
  **name** | **String**|  | [optional] 
 
 ### Return type
@@ -202,7 +196,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **customProfile**
-> ApiResponseDtoBoolean customProfile(categoryId, userId, profileImageKey)
+> ApiResponseDtoBoolean customProfile(categoryId, profileImageKey)
 
 카테고리 프로필 수정
 
@@ -214,11 +208,10 @@ import 'package:soi_api_client/api.dart';
 
 final api_instance = CategoryAPIApi();
 final categoryId = 789; // int | 
-final userId = 789; // int | 
 final profileImageKey = profileImageKey_example; // String | 
 
 try {
-    final result = api_instance.customProfile(categoryId, userId, profileImageKey);
+    final result = api_instance.customProfile(categoryId, profileImageKey);
     print(result);
 } catch (e) {
     print('Exception when calling CategoryAPIApi->customProfile: $e\n');
@@ -230,7 +223,6 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **categoryId** | **int**|  | 
- **userId** | **int**|  | 
  **profileImageKey** | **String**|  | [optional] 
 
 ### Return type
@@ -248,8 +240,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **delete**
-> ApiResponseDtoObject delete(userId, categoryId)
+# **delete1**
+> ApiResponseDtoObject delete1(categoryId)
 
 카테고리 나가기 (삭제)
 
@@ -260,14 +252,13 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = CategoryAPIApi();
-final userId = 789; // int | 
 final categoryId = 789; // int | 
 
 try {
-    final result = api_instance.delete(userId, categoryId);
+    final result = api_instance.delete1(categoryId);
     print(result);
 } catch (e) {
-    print('Exception when calling CategoryAPIApi->delete: $e\n');
+    print('Exception when calling CategoryAPIApi->delete1: $e\n');
 }
 ```
 
@@ -275,7 +266,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **int**|  | 
  **categoryId** | **int**|  | 
 
 ### Return type
@@ -294,7 +284,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **getCategories**
-> ApiResponseDtoListCategoryRespDto getCategories(categoryFilter, userId, page)
+> ApiResponseDtoListCategoryRespDto getCategories(categoryFilter, page)
 
 유저가 속한 카테고리 리스트를 가져오는 API
 
@@ -306,11 +296,10 @@ import 'package:soi_api_client/api.dart';
 
 final api_instance = CategoryAPIApi();
 final categoryFilter = categoryFilter_example; // String | 
-final userId = 789; // int | 
 final page = 56; // int | 
 
 try {
-    final result = api_instance.getCategories(categoryFilter, userId, page);
+    final result = api_instance.getCategories(categoryFilter, page);
     print(result);
 } catch (e) {
     print('Exception when calling CategoryAPIApi->getCategories: $e\n');
@@ -322,7 +311,6 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **categoryFilter** | **String**|  | 
- **userId** | **int**|  | 
  **page** | **int**|  | [optional] [default to 0]
 
 ### Return type
@@ -341,7 +329,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **getCategories1**
-> ApiResponseDtoListCategoryRespDto getCategories1(categoryFilter, userId, keyword, page)
+> ApiResponseDtoListCategoryRespDto getCategories1(categoryFilter, keyword, page)
 
 유저가 속한 카테고를 검색하는 API
 
@@ -353,12 +341,11 @@ import 'package:soi_api_client/api.dart';
 
 final api_instance = CategoryAPIApi();
 final categoryFilter = categoryFilter_example; // String | 
-final userId = 789; // int | 
 final keyword = keyword_example; // String | 
 final page = 56; // int | 
 
 try {
-    final result = api_instance.getCategories1(categoryFilter, userId, keyword, page);
+    final result = api_instance.getCategories1(categoryFilter, keyword, page);
     print(result);
 } catch (e) {
     print('Exception when calling CategoryAPIApi->getCategories1: $e\n');
@@ -370,7 +357,6 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **categoryFilter** | **String**|  | 
- **userId** | **int**|  | 
  **keyword** | **String**|  | [optional] 
  **page** | **int**|  | [optional] [default to 0]
 

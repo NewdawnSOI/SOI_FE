@@ -139,7 +139,6 @@ class PostService {
   }) async {
     try {
       final response = await _postApi.findAllByUserId(
-        userId,
         postStatus.value,
         page: page,
       );
@@ -183,7 +182,7 @@ class PostService {
     try {
       final response = await _postApi.findByCategoryId(
         categoryId,
-        userId,
+
         notificationId: notificationId,
         page: page,
       );
@@ -261,8 +260,10 @@ class PostService {
     int page = 0,
   }) async {
     try {
-      final postTypeStr = postType == PostType.multiMedia ? 'MULTIMEDIA' : 'TEXT_ONLY';
-      final response = await _postApi.findMediaByUserId(userId, postTypeStr, page);
+      final postTypeStr = postType == PostType.multiMedia
+          ? 'MULTIMEDIA'
+          : 'TEXT_ONLY';
+      final response = await _postApi.findMediaByUserId(postTypeStr, page);
 
       if (response == null) {
         return (posts: <Post>[], hasMore: false);
@@ -413,7 +414,7 @@ class PostService {
   /// - [ForbiddenException]: 삭제 권한 없음
   Future<bool> deletePost(int postId) async {
     try {
-      final response = await _postApi.delete2(postId);
+      final response = await _postApi.delete3(postId);
 
       if (response == null) {
         throw const DataValidationException(message: '게시물 삭제 응답이 없습니다.');

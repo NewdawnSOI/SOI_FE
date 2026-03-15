@@ -86,10 +86,7 @@ class _NotificationSettingSectionState
 
     try {
       // API 호출 (서버에서 토글됨)
-      await categoryController.setCategoryAlert(
-        categoryId: widget.categoryId,
-        userId: currentUser.id,
-      );
+      await categoryController.setCategoryAlert(categoryId: widget.categoryId);
 
       // 새 상태를 로컬에 저장
       await _saveState(newState);

@@ -510,7 +510,7 @@ extension _PhotoEditorScreenUploadExtension on _PhotoEditorScreenState {
         for (var i = 0; i < usageCount; i++)
           _categoryController.updateCustomProfile(
             categoryId: categoriesToUpdate[i],
-            userId: payload.userId,
+
             profileImageKey: keys[i],
           ),
       ]);

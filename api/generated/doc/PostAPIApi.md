@@ -10,7 +10,7 @@ All URIs are relative to *https://newdawnsoi.site*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**create1**](PostAPIApi.md#create1) | **POST** /post/create | 게시물 추가
-[**delete2**](PostAPIApi.md#delete2) | **DELETE** /post/delete | 게시물 삭제
+[**delete3**](PostAPIApi.md#delete3) | **DELETE** /post/delete | 게시물 삭제
 [**findAllByUserId**](PostAPIApi.md#findallbyuserid) | **GET** /post/find-all | 전체 게시물 조회
 [**findByCategoryId**](PostAPIApi.md#findbycategoryid) | **GET** /post/find-by/category | 카테고리에 해당하는 게시물 조회
 [**findMediaByUserId**](PostAPIApi.md#findmediabyuserid) | **GET** /post/find/by-user-id | 유저 id로 게시물 조회
@@ -62,8 +62,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **delete2**
-> ApiResponseDtoObject delete2(postId)
+# **delete3**
+> ApiResponseDtoObject delete3(postId)
 
 게시물 삭제
 
@@ -77,10 +77,10 @@ final api_instance = PostAPIApi();
 final postId = 789; // int | 
 
 try {
-    final result = api_instance.delete2(postId);
+    final result = api_instance.delete3(postId);
     print(result);
 } catch (e) {
-    print('Exception when calling PostAPIApi->delete2: $e\n');
+    print('Exception when calling PostAPIApi->delete3: $e\n');
 }
 ```
 
@@ -106,7 +106,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **findAllByUserId**
-> ApiResponseDtoListPostRespDto findAllByUserId(userId, postStatus, page)
+> ApiResponseDtoListPostRespDto findAllByUserId(postStatus, page)
 
 전체 게시물 조회
 
@@ -117,12 +117,11 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = PostAPIApi();
-final userId = 789; // int | 
 final postStatus = postStatus_example; // String | 
 final page = 56; // int | 
 
 try {
-    final result = api_instance.findAllByUserId(userId, postStatus, page);
+    final result = api_instance.findAllByUserId(postStatus, page);
     print(result);
 } catch (e) {
     print('Exception when calling PostAPIApi->findAllByUserId: $e\n');
@@ -133,7 +132,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **int**|  | 
  **postStatus** | **String**|  | 
  **page** | **int**|  | [optional] [default to 0]
 
@@ -153,7 +151,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **findByCategoryId**
-> ApiResponseDtoListPostRespDto findByCategoryId(categoryId, userId, notificationId, page)
+> ApiResponseDtoListPostRespDto findByCategoryId(categoryId, notificationId, page)
 
 카테고리에 해당하는 게시물 조회
 
@@ -165,12 +163,11 @@ import 'package:soi_api_client/api.dart';
 
 final api_instance = PostAPIApi();
 final categoryId = 789; // int | 
-final userId = 789; // int | 
 final notificationId = 789; // int | 
 final page = 56; // int | 
 
 try {
-    final result = api_instance.findByCategoryId(categoryId, userId, notificationId, page);
+    final result = api_instance.findByCategoryId(categoryId, notificationId, page);
     print(result);
 } catch (e) {
     print('Exception when calling PostAPIApi->findByCategoryId: $e\n');
@@ -182,7 +179,6 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **categoryId** | **int**|  | 
- **userId** | **int**|  | 
  **notificationId** | **int**|  | [optional] 
  **page** | **int**|  | [optional] [default to 0]
 
@@ -202,7 +198,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **findMediaByUserId**
-> ApiResponseDtoSlicePostRespDto findMediaByUserId(userId, postType, page)
+> ApiResponseDtoSlicePostRespDto findMediaByUserId(postType, page)
 
 유저 id로 게시물 조회
 
@@ -213,12 +209,11 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = PostAPIApi();
-final userId = 789; // int | 
 final postType = postType_example; // String | 
 final page = 56; // int | 
 
 try {
-    final result = api_instance.findMediaByUserId(userId, postType, page);
+    final result = api_instance.findMediaByUserId(postType, page);
     print(result);
 } catch (e) {
     print('Exception when calling PostAPIApi->findMediaByUserId: $e\n');
@@ -229,7 +224,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **int**|  | 
  **postType** | **String**|  | 
  **page** | **int**|  | 
 

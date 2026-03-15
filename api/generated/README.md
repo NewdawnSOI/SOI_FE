@@ -62,12 +62,13 @@ Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *APIApi* | [**getPresignedUrl**](doc//APIApi.md#getpresignedurl) | **GET** /media/get-url | Presigned URL 요청
 *APIApi* | [**uploadMedia**](doc//APIApi.md#uploadmedia) | **POST** /media/upload | 미디어 업로드
+*AuthControllerApi* | [**login**](doc//AuthControllerApi.md#login) | **POST** /auth/login | 
 *CategoryAPIApi* | [**categoryAlert**](doc//CategoryAPIApi.md#categoryalert) | **POST** /category/set/alert | 카테고리 알림설정
 *CategoryAPIApi* | [**categoryPinned**](doc//CategoryAPIApi.md#categorypinned) | **POST** /category/set/pinned | 카테고리 고정
 *CategoryAPIApi* | [**create4**](doc//CategoryAPIApi.md#create4) | **POST** /category/create | 카테고리 추가
 *CategoryAPIApi* | [**customName**](doc//CategoryAPIApi.md#customname) | **POST** /category/set/name | 카테고리 이름수정
 *CategoryAPIApi* | [**customProfile**](doc//CategoryAPIApi.md#customprofile) | **POST** /category/set/profile | 카테고리 프로필 수정
-*CategoryAPIApi* | [**delete**](doc//CategoryAPIApi.md#delete) | **POST** /category/delete | 카테고리 나가기 (삭제)
+*CategoryAPIApi* | [**delete1**](doc//CategoryAPIApi.md#delete1) | **POST** /category/delete | 카테고리 나가기 (삭제)
 *CategoryAPIApi* | [**getCategories**](doc//CategoryAPIApi.md#getcategories) | **POST** /category/find | 유저가 속한 카테고리 리스트를 가져오는 API
 *CategoryAPIApi* | [**getCategories1**](doc//CategoryAPIApi.md#getcategories1) | **POST** /category/find-by-keyword | 유저가 속한 카테고를 검색하는 API
 *CategoryAPIApi* | [**inviteResponse**](doc//CategoryAPIApi.md#inviteresponse) | **POST** /category/invite/response | 카테고리에 초대된 유저가 초대 승낙여부를 결정하는 API
@@ -87,8 +88,10 @@ Class | Method | HTTP request | Description
 *FriendAPIApi* | [**update**](doc//FriendAPIApi.md#update) | **POST** /friend/update | 친구 상태 업데이트
 *NotificationAPIApi* | [**getAll**](doc//NotificationAPIApi.md#getall) | **POST** /notification/get-all | 알림 조회
 *NotificationAPIApi* | [**getFriend**](doc//NotificationAPIApi.md#getfriend) | **POST** /notification/get-friend | 친구관련 알림 조회
+*NotificationDeviceAPIApi* | [**delete**](doc//NotificationDeviceAPIApi.md#delete) | **POST** /notification/device-token/delete | FCM 토큰 삭제
+*NotificationDeviceAPIApi* | [**register**](doc//NotificationDeviceAPIApi.md#register) | **POST** /notification/device-token/register | FCM 토큰 등록
 *PostAPIApi* | [**create1**](doc//PostAPIApi.md#create1) | **POST** /post/create | 게시물 추가
-*PostAPIApi* | [**delete2**](doc//PostAPIApi.md#delete2) | **DELETE** /post/delete | 게시물 삭제
+*PostAPIApi* | [**delete3**](doc//PostAPIApi.md#delete3) | **DELETE** /post/delete | 게시물 삭제
 *PostAPIApi* | [**findAllByUserId**](doc//PostAPIApi.md#findallbyuserid) | **GET** /post/find-all | 전체 게시물 조회
 *PostAPIApi* | [**findByCategoryId**](doc//PostAPIApi.md#findbycategoryid) | **GET** /post/find-by/category | 카테고리에 해당하는 게시물 조회
 *PostAPIApi* | [**findMediaByUserId**](doc//PostAPIApi.md#findmediabyuserid) | **GET** /post/find/by-user-id | 유저 id로 게시물 조회
@@ -96,7 +99,7 @@ Class | Method | HTTP request | Description
 *PostAPIApi* | [**showDetail**](doc//PostAPIApi.md#showdetail) | **GET** /post/detail | 단일 게시물 조회
 *PostAPIApi* | [**update3**](doc//PostAPIApi.md#update3) | **PATCH** /post/update | 게시물 수정
 *ReportControllerApi* | [**create**](doc//ReportControllerApi.md#create) | **POST** /report/create | 신고 추가
-*ReportControllerApi* | [**delete1**](doc//ReportControllerApi.md#delete1) | **DELETE** /report/delete | 신고 삭제
+*ReportControllerApi* | [**delete2**](doc//ReportControllerApi.md#delete2) | **DELETE** /report/delete | 신고 삭제
 *ReportControllerApi* | [**find**](doc//ReportControllerApi.md#find) | **POST** /report/find | 신고 내용 조회
 *ReportControllerApi* | [**update2**](doc//ReportControllerApi.md#update2) | **PATCH** /report/update | 신고 상태 업데이트
 *UserAPIApi* | [**authSMS**](doc//UserAPIApi.md#authsms) | **POST** /user/auth | 전화번호 인증
@@ -147,7 +150,11 @@ Class | Method | HTTP request | Description
  - [FriendReqDto](doc//FriendReqDto.md)
  - [FriendRespDto](doc//FriendRespDto.md)
  - [FriendUpdateRespDto](doc//FriendUpdateRespDto.md)
+ - [LoginReqDto](doc//LoginReqDto.md)
+ - [LoginRespDto](doc//LoginRespDto.md)
+ - [NotificationDeleteTokenReqDto](doc//NotificationDeleteTokenReqDto.md)
  - [NotificationGetAllRespDto](doc//NotificationGetAllRespDto.md)
+ - [NotificationRegisterTokenReqDto](doc//NotificationRegisterTokenReqDto.md)
  - [NotificationRespDto](doc//NotificationRespDto.md)
  - [NotificationUserRespDto](doc//NotificationUserRespDto.md)
  - [PageableObject](doc//PageableObject.md)

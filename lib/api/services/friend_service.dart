@@ -152,7 +152,6 @@ class FriendService {
   }) async {
     try {
       final response = await _friendApi.getAllFriend(
-        userId,
         _mapStatusToQueryParam(status),
       );
 
@@ -190,7 +189,7 @@ class FriendService {
     required List<String> phoneNumbers,
   }) async {
     try {
-      final response = await _friendApi.getAllFriend1(userId, phoneNumbers);
+      final response = await _friendApi.getAllFriend1(phoneNumbers);
 
       if (response == null) {
         return [];

@@ -156,7 +156,6 @@ class MediaService {
       final response = await _mediaApi.uploadMedia(
         typeStrings,
         usageTypeStrings,
-        userId,
         refId,
         usageCount,
         files,

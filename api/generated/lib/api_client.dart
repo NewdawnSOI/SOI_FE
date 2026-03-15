@@ -246,8 +246,16 @@ class ApiClient {
           return FriendRespDto.fromJson(value);
         case 'FriendUpdateRespDto':
           return FriendUpdateRespDto.fromJson(value);
+        case 'LoginReqDto':
+          return LoginReqDto.fromJson(value);
+        case 'LoginRespDto':
+          return LoginRespDto.fromJson(value);
+        case 'NotificationDeleteTokenReqDto':
+          return NotificationDeleteTokenReqDto.fromJson(value);
         case 'NotificationGetAllRespDto':
           return NotificationGetAllRespDto.fromJson(value);
+        case 'NotificationRegisterTokenReqDto':
+          return NotificationRegisterTokenReqDto.fromJson(value);
         case 'NotificationRespDto':
           return NotificationRespDto.fromJson(value);
         case 'NotificationUserRespDto':

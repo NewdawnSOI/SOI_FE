@@ -138,10 +138,8 @@ class CommentAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] page (required):
-  Future<Response> getAllCommentByUserIdWithHttpInfo(int userId, int page,) async {
+  Future<Response> getAllCommentByUserIdWithHttpInfo(int page,) async {
     // ignore: prefer_const_declarations
     final path = r'/comment/get/by-user-id';
 
@@ -152,7 +150,6 @@ class CommentAPIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'userId', userId));
       queryParams.addAll(_queryParams('', 'page', page));
 
     const contentTypes = <String>[];
@@ -175,11 +172,9 @@ class CommentAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] page (required):
-  Future<ApiResponseDtoSliceCommentRespDto?> getAllCommentByUserId(int userId, int page,) async {
-    final response = await getAllCommentByUserIdWithHttpInfo(userId, page,);
+  Future<ApiResponseDtoSliceCommentRespDto?> getAllCommentByUserId(int page,) async {
+    final response = await getAllCommentByUserIdWithHttpInfo(page,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

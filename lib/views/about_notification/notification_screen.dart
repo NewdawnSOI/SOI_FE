@@ -510,7 +510,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
               try {
                 final ok = await categoryController.acceptInvite(
                   categoryId: categoryId,
-                  userId: currentUser.id,
                 );
                 if (ok) {
                   await _onRefresh();
@@ -536,7 +535,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
               try {
                 final ok = await categoryController.declineInvite(
                   categoryId: categoryId,
-                  userId: currentUser.id,
                 );
                 if (ok) {
                   await _onRefresh();

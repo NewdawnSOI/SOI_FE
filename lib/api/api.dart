@@ -27,6 +27,7 @@ export 'services/friend_service.dart';
 export 'services/comment_service.dart';
 export 'services/media_service.dart';
 export 'services/notification_service.dart';
+export 'services/notification_device_service.dart';
 export 'services/report_service.dart';
 
 // ============================================

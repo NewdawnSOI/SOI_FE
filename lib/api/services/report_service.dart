@@ -123,7 +123,7 @@ class ReportService {
 
   Future<bool> deleteReport(int id) async {
     try {
-      final response = await _reportApi.delete1(id);
+      final response = await _reportApi.delete2(id);
 
       if (response == null) {
         throw const DataValidationException(message: '신고 삭제 응답이 없습니다.');

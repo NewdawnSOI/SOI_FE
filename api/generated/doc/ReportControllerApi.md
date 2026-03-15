@@ -10,7 +10,7 @@ All URIs are relative to *https://newdawnsoi.site*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**create**](ReportControllerApi.md#create) | **POST** /report/create | 신고 추가
-[**delete1**](ReportControllerApi.md#delete1) | **DELETE** /report/delete | 신고 삭제
+[**delete2**](ReportControllerApi.md#delete2) | **DELETE** /report/delete | 신고 삭제
 [**find**](ReportControllerApi.md#find) | **POST** /report/find | 신고 내용 조회
 [**update2**](ReportControllerApi.md#update2) | **PATCH** /report/update | 신고 상태 업데이트
 
@@ -58,8 +58,8 @@ No authorization required
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
-# **delete1**
-> ApiResponseDtoBoolean delete1(id)
+# **delete2**
+> ApiResponseDtoBoolean delete2(id)
 
 신고 삭제
 
@@ -73,10 +73,10 @@ final api_instance = ReportControllerApi();
 final id = 789; // int | 
 
 try {
-    final result = api_instance.delete1(id);
+    final result = api_instance.delete2(id);
     print(result);
 } catch (e) {
-    print('Exception when calling ReportControllerApi->delete1: $e\n');
+    print('Exception when calling ReportControllerApi->delete2: $e\n');
 }
 ```
 

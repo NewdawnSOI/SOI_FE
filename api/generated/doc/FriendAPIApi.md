@@ -192,7 +192,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **getAllFriend**
-> ApiResponseDtoListUserFindRespDto getAllFriend(id, friendStatus)
+> ApiResponseDtoListUserFindRespDto getAllFriend(friendStatus)
 
 모든 친구 조회
 
@@ -203,11 +203,10 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = FriendAPIApi();
-final id = 789; // int | 
 final friendStatus = friendStatus_example; // String | 
 
 try {
-    final result = api_instance.getAllFriend(id, friendStatus);
+    final result = api_instance.getAllFriend(friendStatus);
     print(result);
 } catch (e) {
     print('Exception when calling FriendAPIApi->getAllFriend: $e\n');
@@ -218,7 +217,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **id** | **int**|  | 
  **friendStatus** | **String**|  | 
 
 ### Return type
@@ -237,7 +235,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **getAllFriend1**
-> ApiResponseDtoListFriendCheckRespDto getAllFriend1(id, friendPhoneNums)
+> ApiResponseDtoListFriendCheckRespDto getAllFriend1(friendPhoneNums)
 
 연락처에 있는 친구들 관계확인
 
@@ -248,11 +246,10 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = FriendAPIApi();
-final id = 789; // int | 
 final friendPhoneNums = []; // List<String> | 
 
 try {
-    final result = api_instance.getAllFriend1(id, friendPhoneNums);
+    final result = api_instance.getAllFriend1(friendPhoneNums);
     print(result);
 } catch (e) {
     print('Exception when calling FriendAPIApi->getAllFriend1: $e\n');
@@ -263,7 +260,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **id** | **int**|  | 
  **friendPhoneNums** | [**List<String>**](String.md)|  | [default to const []]
 
 ### Return type

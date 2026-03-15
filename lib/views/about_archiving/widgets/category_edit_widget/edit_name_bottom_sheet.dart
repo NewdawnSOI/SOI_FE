@@ -86,7 +86,7 @@ class _EditNameBottomSheetState extends State<EditNameBottomSheet> {
 
       final success = await categoryController.updateCustomName(
         categoryId: widget.category.id,
-        userId: userId,
+
         name: trimmedText,
       );
 

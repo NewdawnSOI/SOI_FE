@@ -86,14 +86,12 @@ class APIApi {
   ///
   /// * [List<String>] usageTypes (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] refId (required):
   ///
   /// * [int] usageCount (required):
   ///
   /// * [List<MultipartFile>] files (required):
-  Future<Response> uploadMediaWithHttpInfo(List<String> types, List<String> usageTypes, int userId, int refId, int usageCount, List<MultipartFile> files,) async {
+  Future<Response> uploadMediaWithHttpInfo(List<String> types, List<String> usageTypes, int refId, int usageCount, List<MultipartFile> files,) async {
     // ignore: prefer_const_declarations
     final path = r'/media/upload';
 
@@ -106,7 +104,6 @@ class APIApi {
 
       queryParams.addAll(_queryParams('multi', 'types', types));
       queryParams.addAll(_queryParams('multi', 'usageTypes', usageTypes));
-      queryParams.addAll(_queryParams('', 'userId', userId));
       queryParams.addAll(_queryParams('', 'refId', refId));
       queryParams.addAll(_queryParams('', 'usageCount', usageCount));
 
@@ -143,15 +140,13 @@ class APIApi {
   ///
   /// * [List<String>] usageTypes (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] refId (required):
   ///
   /// * [int] usageCount (required):
   ///
   /// * [List<MultipartFile>] files (required):
-  Future<ApiResponseDtoListString?> uploadMedia(List<String> types, List<String> usageTypes, int userId, int refId, int usageCount, List<MultipartFile> files,) async {
-    final response = await uploadMediaWithHttpInfo(types, usageTypes, userId, refId, usageCount, files,);
+  Future<ApiResponseDtoListString?> uploadMedia(List<String> types, List<String> usageTypes, int refId, int usageCount, List<MultipartFile> files,) async {
+    final response = await uploadMediaWithHttpInfo(types, usageTypes, refId, usageCount, files,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

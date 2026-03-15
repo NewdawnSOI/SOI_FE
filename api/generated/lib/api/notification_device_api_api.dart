@@ -11,34 +11,32 @@
 part of openapi.api;
 
 
-class NotificationAPIApi {
-  NotificationAPIApi([ApiClient? apiClient]) : apiClient = apiClient ?? defaultApiClient;
+class NotificationDeviceAPIApi {
+  NotificationDeviceAPIApi([ApiClient? apiClient]) : apiClient = apiClient ?? defaultApiClient;
 
   final ApiClient apiClient;
 
-  /// 알림 조회
+  /// FCM 토큰 삭제
   ///
-  /// 알림들을 조회합니다.
+  /// 로그아웃 또는 토큰 만료 시 FCM 토큰을 비활성화합니다.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
   ///
-  /// * [int] page (required):
-  Future<Response> getAllWithHttpInfo(int page,) async {
+  /// * [NotificationDeleteTokenReqDto] notificationDeleteTokenReqDto (required):
+  Future<Response> deleteWithHttpInfo(NotificationDeleteTokenReqDto notificationDeleteTokenReqDto,) async {
     // ignore: prefer_const_declarations
-    final path = r'/notification/get-all';
+    final path = r'/notification/device-token/delete';
 
     // ignore: prefer_final_locals
-    Object? postBody;
+    Object? postBody = notificationDeleteTokenReqDto;
 
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'page', page));
-
-    const contentTypes = <String>[];
+    const contentTypes = <String>['application/json'];
 
 
     return apiClient.invokeAPI(
@@ -52,15 +50,15 @@ class NotificationAPIApi {
     );
   }
 
-  /// 알림 조회
+  /// FCM 토큰 삭제
   ///
-  /// 알림들을 조회합니다.
+  /// 로그아웃 또는 토큰 만료 시 FCM 토큰을 비활성화합니다.
   ///
   /// Parameters:
   ///
-  /// * [int] page (required):
-  Future<ApiResponseDtoNotificationGetAllRespDto?> getAll(int page,) async {
-    final response = await getAllWithHttpInfo(page,);
+  /// * [NotificationDeleteTokenReqDto] notificationDeleteTokenReqDto (required):
+  Future<ApiResponseDtoBoolean?> delete(NotificationDeleteTokenReqDto notificationDeleteTokenReqDto,) async {
+    final response = await deleteWithHttpInfo(notificationDeleteTokenReqDto,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -68,35 +66,33 @@ class NotificationAPIApi {
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoNotificationGetAllRespDto',) as ApiResponseDtoNotificationGetAllRespDto;
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoBoolean',) as ApiResponseDtoBoolean;
     
     }
     return null;
   }
 
-  /// 친구관련 알림 조회
+  /// FCM 토큰 등록
   ///
-  /// 친구 요청 알림들을 조회합니다.
+  /// 로그인 또는 앱 시작 시 발급된 FCM 토큰을 등록합니다.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
   ///
-  /// * [int] page (required):
-  Future<Response> getFriendWithHttpInfo(int page,) async {
+  /// * [NotificationRegisterTokenReqDto] notificationRegisterTokenReqDto (required):
+  Future<Response> registerWithHttpInfo(NotificationRegisterTokenReqDto notificationRegisterTokenReqDto,) async {
     // ignore: prefer_const_declarations
-    final path = r'/notification/get-friend';
+    final path = r'/notification/device-token/register';
 
     // ignore: prefer_final_locals
-    Object? postBody;
+    Object? postBody = notificationRegisterTokenReqDto;
 
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'page', page));
-
-    const contentTypes = <String>[];
+    const contentTypes = <String>['application/json'];
 
 
     return apiClient.invokeAPI(
@@ -110,15 +106,15 @@ class NotificationAPIApi {
     );
   }
 
-  /// 친구관련 알림 조회
+  /// FCM 토큰 등록
   ///
-  /// 친구 요청 알림들을 조회합니다.
+  /// 로그인 또는 앱 시작 시 발급된 FCM 토큰을 등록합니다.
   ///
   /// Parameters:
   ///
-  /// * [int] page (required):
-  Future<ApiResponseDtoListNotificationRespDto?> getFriend(int page,) async {
-    final response = await getFriendWithHttpInfo(page,);
+  /// * [NotificationRegisterTokenReqDto] notificationRegisterTokenReqDto (required):
+  Future<ApiResponseDtoBoolean?> register(NotificationRegisterTokenReqDto notificationRegisterTokenReqDto,) async {
+    final response = await registerWithHttpInfo(notificationRegisterTokenReqDto,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -126,7 +122,7 @@ class NotificationAPIApi {
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoListNotificationRespDto',) as ApiResponseDtoListNotificationRespDto;
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoBoolean',) as ApiResponseDtoBoolean;
     
     }
     return null;

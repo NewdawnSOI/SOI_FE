@@ -103,7 +103,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **getAllCommentByUserId**
-> ApiResponseDtoSliceCommentRespDto getAllCommentByUserId(userId, page)
+> ApiResponseDtoSliceCommentRespDto getAllCommentByUserId(page)
 
 사용자가 작성한 댓글 조회
 
@@ -114,11 +114,10 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = CommentAPIApi();
-final userId = 789; // int | 
 final page = 56; // int | 
 
 try {
-    final result = api_instance.getAllCommentByUserId(userId, page);
+    final result = api_instance.getAllCommentByUserId(page);
     print(result);
 } catch (e) {
     print('Exception when calling CommentAPIApi->getAllCommentByUserId: $e\n');
@@ -129,7 +128,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **int**|  | 
  **page** | **int**|  | 
 
 ### Return type

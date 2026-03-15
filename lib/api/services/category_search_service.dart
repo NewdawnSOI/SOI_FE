@@ -20,7 +20,6 @@ class CategorySearchService {
   /// 키워드로 카테고리 검색
   ///
   /// Parameters:
-  /// - [userId]: 사용자 ID
   /// - [filter]: 카테고리 필터 (ALL, PUBLIC, PRIVATE)
   /// - [keyword]: 검색어 (null이거나 빈 문자열이면 전체 카테고리 반환)
   /// - [page]: 시작 페이지 (기본값: 0)
@@ -29,7 +28,6 @@ class CategorySearchService {
   ///
   /// Returns: 검색 결과 카테고리 목록
   Future<List<Category>> searchCategories({
-    required int userId,
     CategoryFilter filter = CategoryFilter.all,
     String? keyword,
     int page = 0,
@@ -38,14 +36,15 @@ class CategorySearchService {
   }) async {
     final normalizedPage = page < 0 ? 0 : page;
     final normalizedMaxPages = maxPages < 1 ? 1 : maxPages;
-    final trimmedKeyword =
-        keyword?.trim().isEmpty == true ? null : keyword?.trim();
+    final trimmedKeyword = keyword?.trim().isEmpty == true
+        ? null
+        : keyword?.trim();
 
     try {
       if (!fetchAllPages) {
         final dtos = await _fetchSearchPage(
           filterValue: filter.value,
-          userId: userId,
+
           keyword: trimmedKeyword,
           page: normalizedPage,
         );
@@ -61,7 +60,7 @@ class CategorySearchService {
       for (var i = 0; i < normalizedMaxPages; i++) {
         final dtos = await _fetchSearchPage(
           filterValue: filter.value,
-          userId: userId,
+
           keyword: trimmedKeyword,
           page: currentPage,
         );
@@ -99,13 +98,11 @@ class CategorySearchService {
   /// 단일 페이지 검색 API 호출 (내부 헬퍼)
   Future<List<CategoryRespDto>> _fetchSearchPage({
     required String filterValue,
-    required int userId,
     String? keyword,
     required int page,
   }) async {
     final response = await _categoryApi.getCategories1(
       filterValue,
-      userId,
       keyword: keyword,
       page: page,
     );
@@ -120,7 +117,7 @@ class CategorySearchService {
   }
 
   SoiApiException _handleApiException(ApiException e) {
-    debugPrint('🔴 CategorySearchService API Error [${e.code}]: ${e.message}');
+    debugPrint('CategorySearchService API Error [${e.code}]: ${e.message}');
 
     switch (e.code) {
       case 400:

@@ -268,7 +268,6 @@ class _ApiArchivePopupMenuWidgetState extends State<ApiArchivePopupMenuWidget>
         try {
           await categoryController!.toggleCategoryPin(
             categoryId: widget.category.id,
-            userId: userId,
           );
 
           categoryController!.invalidateCache();
@@ -320,7 +319,6 @@ class _ApiArchivePopupMenuWidgetState extends State<ApiArchivePopupMenuWidget>
 
       // API 호출 - 카테고리 나가기
       final success = await categoryController!.leaveCategory(
-        userId: userId,
         categoryId: widget.category.id,
       );
 

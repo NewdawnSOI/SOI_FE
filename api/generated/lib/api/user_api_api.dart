@@ -355,11 +355,7 @@ class UserAPIApi {
   /// 유저의 id값(Long)으로 유저를 조회합니다.
   ///
   /// Note: This method returns the HTTP [Response].
-  ///
-  /// Parameters:
-  ///
-  /// * [int] id (required):
-  Future<Response> getUserWithHttpInfo(int id,) async {
+  Future<Response> getUserWithHttpInfo() async {
     // ignore: prefer_const_declarations
     final path = r'/user/get';
 
@@ -369,8 +365,6 @@ class UserAPIApi {
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
-
-      queryParams.addAll(_queryParams('', 'id', id));
 
     const contentTypes = <String>[];
 
@@ -389,12 +383,8 @@ class UserAPIApi {
   /// 특정유저 조회
   ///
   /// 유저의 id값(Long)으로 유저를 조회합니다.
-  ///
-  /// Parameters:
-  ///
-  /// * [int] id (required):
-  Future<ApiResponseDtoUserRespDto?> getUser(int id,) async {
-    final response = await getUserWithHttpInfo(id,);
+  Future<ApiResponseDtoUserRespDto?> getUser() async {
+    final response = await getUserWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -646,10 +636,8 @@ class UserAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] profileImageKey:
-  Future<Response> updateProfileWithHttpInfo(int userId, { String? profileImageKey, }) async {
+  Future<Response> updateProfileWithHttpInfo({ String? profileImageKey, }) async {
     // ignore: prefer_const_declarations
     final path = r'/user/update-profile';
 
@@ -660,7 +648,6 @@ class UserAPIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'userId', userId));
     if (profileImageKey != null) {
       queryParams.addAll(_queryParams('', 'profileImageKey', profileImageKey));
     }
@@ -685,11 +672,9 @@ class UserAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] profileImageKey:
-  Future<ApiResponseDtoUserRespDto?> updateProfile(int userId, { String? profileImageKey, }) async {
-    final response = await updateProfileWithHttpInfo(userId,  profileImageKey: profileImageKey, );
+  Future<ApiResponseDtoUserRespDto?> updateProfile({ String? profileImageKey, }) async {
+    final response = await updateProfileWithHttpInfo( profileImageKey: profileImageKey, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

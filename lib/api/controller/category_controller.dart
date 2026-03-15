@@ -122,7 +122,6 @@ class CategoryController extends ChangeNotifier {
         final results = await Future.wait([
           // 전체 카테고리를 먼저 로드
           _categoryService.getCategories(
-            userId: userId,
             filter: model.CategoryFilter.all,
             page: page,
             fetchAllPages: fetchAllPages,
@@ -130,7 +129,6 @@ class CategoryController extends ChangeNotifier {
           ),
           // PUBLIC 카테고리를 병렬로 로드
           _categoryService.getCategories(
-            userId: userId,
             filter: model.CategoryFilter.public_,
             page: page,
             fetchAllPages: fetchAllPages,
@@ -138,7 +136,6 @@ class CategoryController extends ChangeNotifier {
           ),
           // PRIVATE 카테고리를 병렬로 로드
           _categoryService.getCategories(
-            userId: userId,
             filter: model.CategoryFilter.private_,
             page: page,
             fetchAllPages: fetchAllPages,
@@ -160,7 +157,6 @@ class CategoryController extends ChangeNotifier {
       } else {
         // PUBLIC 또는 PRIVATE 필터: 해당 필터만 로드
         final categories = await _categoryService.getCategories(
-          userId: userId,
           filter: filter,
           page: page,
           fetchAllPages: fetchAllPages,
@@ -326,10 +322,8 @@ class CategoryController extends ChangeNotifier {
 
   /// 카테고리 조회
   /// Parameters:
-  /// - [userId]: 사용자 ID
   /// - [filter]: 카테고리 필터 (기본값: all)
   Future<List<model.Category>> getCategories({
-    required int userId,
     model.CategoryFilter filter = model.CategoryFilter.all,
     int page = 0,
     bool fetchAllPages = false,
@@ -339,7 +333,6 @@ class CategoryController extends ChangeNotifier {
     _clearError();
     try {
       final categories = await _categoryService.getCategories(
-        userId: userId,
         filter: filter,
         page: page,
         fetchAllPages: fetchAllPages,
@@ -361,35 +354,30 @@ class CategoryController extends ChangeNotifier {
   /// Returns:
   /// - [List<model.Category>]: 모든 카테고리 목록
   Future<List<model.Category>> getAllCategories(int userId) =>
-      getCategories(userId: userId, filter: model.CategoryFilter.all);
+      getCategories(filter: model.CategoryFilter.all);
 
   // 공개 카테고리 조회
   Future<List<model.Category>> getPublicCategories(int userId) =>
-      getCategories(userId: userId, filter: model.CategoryFilter.public_);
+      getCategories(filter: model.CategoryFilter.public_);
 
   // 비공개 카테고리 조회
   Future<List<model.Category>> getPrivateCategories(int userId) =>
-      getCategories(userId: userId, filter: model.CategoryFilter.private_);
+      getCategories(filter: model.CategoryFilter.private_);
 
   /// 카테고리 고정
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 사용자 ID
   ///
   /// Returns:
   /// - [bool]: 고정 성공 여부
   ///   - true: 고정됨
   ///   - false: 고정 해제됨
-  Future<bool> toggleCategoryPin({
-    required int categoryId,
-    required int userId,
-  }) async {
+  Future<bool> toggleCategoryPin({required int categoryId}) async {
     _setLoading(true);
     _clearError();
     try {
       final result = await _categoryService.toggleCategoryPin(
         categoryId: categoryId,
-        userId: userId,
       );
       _setLoading(false);
       return result;
@@ -404,20 +392,15 @@ class CategoryController extends ChangeNotifier {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 사용자 ID
   ///
   /// Returns:
   /// - [bool]: 알림 설정 여부
-  Future<bool> setCategoryAlert({
-    required int categoryId,
-    required int userId,
-  }) async {
+  Future<bool> setCategoryAlert({required int categoryId}) async {
     _setLoading(true);
     _clearError();
     try {
       final result = await _categoryService.setCategoryAlert(
         categoryId: categoryId,
-        userId: userId,
       );
       _setLoading(false);
       return result;
@@ -464,22 +447,17 @@ class CategoryController extends ChangeNotifier {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 사용자 ID
   ///
   /// Returns:
   /// - [bool]: 수락 성공 여부
   ///   - true: 수락 성공
   ///   - false: 수락 실패
-  Future<bool> acceptInvite({
-    required int categoryId,
-    required int userId,
-  }) async {
+  Future<bool> acceptInvite({required int categoryId}) async {
     _setLoading(true);
     _clearError();
     try {
       final result = await _categoryService.acceptInvite(
         categoryId: categoryId,
-        userId: userId,
       );
       _setLoading(false);
       return result;
@@ -494,22 +472,17 @@ class CategoryController extends ChangeNotifier {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 사용자 ID
   ///
   /// Returns:
   /// - [bool]: 거절 성공 여부
   ///   - true: 거절 성공
   ///   - false: 거절 실패
-  Future<bool> declineInvite({
-    required int categoryId,
-    required int userId,
-  }) async {
+  Future<bool> declineInvite({required int categoryId}) async {
     _setLoading(true);
     _clearError();
     try {
       final result = await _categoryService.declineInvite(
         categoryId: categoryId,
-        userId: userId,
       );
       _setLoading(false);
       return result;
@@ -528,25 +501,19 @@ class CategoryController extends ChangeNotifier {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 사용자 ID
   /// - [name]: 새 이름
   ///
   /// Returns:
   /// - [bool]: 수정 성공 여부
   ///   - true: 수정 성공
   ///   - false: 수정 실패
-  Future<bool> updateCustomName({
-    required int categoryId,
-    required int userId,
-    String? name,
-  }) async {
+  Future<bool> updateCustomName({required int categoryId, String? name}) async {
     _setLoading(true);
     _clearError();
     try {
       // 카테고리 이름을 수정
       final result = await _categoryService.updateCustomName(
         categoryId: categoryId,
-        userId: userId,
         name: name,
       );
       // 수정이 성공하면 캐시를 갱신하고 변경사항을 바로 UI에 반영
@@ -567,7 +534,6 @@ class CategoryController extends ChangeNotifier {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 사용자 ID
   /// - [profileImageKey]: 새 프로필 이미지 키 (null이면 기본 이미지로 설정)
   ///
   /// Returns:
@@ -576,7 +542,6 @@ class CategoryController extends ChangeNotifier {
   ///   - false: 수정 실패
   Future<bool> updateCustomProfile({
     required int categoryId,
-    required int userId,
     String? profileImageKey,
   }) async {
     _setLoading(true);
@@ -584,7 +549,6 @@ class CategoryController extends ChangeNotifier {
     try {
       final result = await _categoryService.updateCustomProfile(
         categoryId: categoryId,
-        userId: userId,
         profileImageKey: profileImageKey,
       );
 
@@ -620,23 +584,18 @@ class CategoryController extends ChangeNotifier {
   /// 카테고리 나가기 (삭제)
   ///
   /// Parameters:
-  ///   - [userId]: 사용자 ID
   ///   - [categoryId]: 카테고리 ID
   ///
   /// Returns:
   ///   - [bool]: 나가기 성공 여부
   ///     - true: 나가기 성공
   ///     - false: 나가기 실패
-  Future<bool> leaveCategory({
-    required int userId,
-    required int categoryId,
-  }) async {
+  Future<bool> leaveCategory({required int categoryId}) async {
     _setLoading(true);
     _clearError();
     try {
       // API 호출 - 카테고리 나가기
       final result = await _categoryService.leaveCategory(
-        userId: userId,
         categoryId: categoryId,
       );
 
@@ -657,18 +616,14 @@ class CategoryController extends ChangeNotifier {
   /// 카테고리 삭제 (leaveCategory의 별칭)
   ///
   /// Parameters:
-  ///   - [userId]: 사용자 ID
   ///   - [categoryId]: 카테고리 ID
   ///
   /// Returns:
   ///   - [bool]: 삭제 성공 여부
   ///     - true: 삭제 성공
   ///     - false: 삭제 실패
-  Future<bool> deleteCategory({
-    required int userId,
-    required int categoryId,
-  }) async {
-    return leaveCategory(userId: userId, categoryId: categoryId);
+  Future<bool> deleteCategory({required int categoryId}) async {
+    return leaveCategory(categoryId: categoryId);
   }
 
   void clearError() {

@@ -40,10 +40,21 @@ import '../models/models.dart';
 /// final isAvailable = await userService.checknickNameAvailable('hong123');
 /// ```
 class UserService {
+  final AuthControllerApi _authApi;
   final UserAPIApi _userApi;
+  final void Function(String token) _setAuthToken;
+  final void Function() _clearAuthToken;
 
-  UserService({UserAPIApi? userApi})
-    : _userApi = userApi ?? SoiApiClient.instance.userApi;
+  UserService({
+    AuthControllerApi? authApi,
+    UserAPIApi? userApi,
+    void Function(String token)? onAuthTokenIssued,
+    void Function()? onAuthTokenCleared,
+  }) : _authApi = authApi ?? SoiApiClient.instance.authApi,
+       _userApi = userApi ?? SoiApiClient.instance.userApi,
+       _setAuthToken = onAuthTokenIssued ?? SoiApiClient.instance.setAuthToken,
+       _clearAuthToken =
+           onAuthTokenCleared ?? SoiApiClient.instance.clearAuthToken;
 
   // ============================================
   // SMS 인증
@@ -113,22 +124,7 @@ class UserService {
   /// - [SoiApiException]: 기타 API 에러
   Future<User?> loginWithNickname(String nickName) async {
     try {
-      final response = await _userApi.loginByNickname(nickName);
-
-      if (response == null) {
-        return null;
-      }
-
-      // ApiResponseDto 언래핑
-      if (response.success != true) {
-        throw SoiApiException(message: response.message ?? '로그인 실패');
-      }
-
-      if (response.data == null) {
-        return null;
-      }
-
-      return User.fromDto(response.data!);
+      return await _login(LoginReqDto(nickname: nickName));
     } on ApiException catch (e) {
       // 404는 신규 회원을 의미할 수 있음
       if (e.code == 404) {
@@ -158,22 +154,7 @@ class UserService {
   /// - [SoiApiException]: 기타 API 에러
   Future<User?> loginWithPhone(String phoneNum) async {
     try {
-      final response = await _userApi.loginByPhone(phoneNum);
-
-      if (response == null) {
-        return null;
-      }
-
-      // ApiResponseDto 언래핑
-      if (response.success != true) {
-        throw SoiApiException(message: response.message ?? '로그인 실패');
-      }
-
-      if (response.data == null) {
-        return null;
-      }
-
-      return User.fromDto(response.data!);
+      return await _login(LoginReqDto(phoneNum: phoneNum));
     } on ApiException catch (e) {
       // 404는 신규 회원을 의미할 수 있음
       if (e.code == 404) {
@@ -262,17 +243,10 @@ class UserService {
   // 사용자 조회
   // ============================================
 
-  /// ID로 사용자 조회
-  ///
-  /// [id]에 해당하는 사용자 정보를 조회합니다.
-  ///
-  /// Returns: 사용자 정보 (User)
-  ///
-  /// Throws:
-  /// - [NotFoundException]: 해당 ID의 사용자가 없음
-  Future<User> getUser(int id) async {
+  /// JWT 토큰 기준 현재 사용자 조회
+  Future<User> getCurrentUser() async {
     try {
-      final response = await _userApi.getUser(id);
+      final response = await _userApi.getUser();
 
       if (response == null) {
         throw const NotFoundException(message: '사용자를 찾을 수 없습니다.');
@@ -295,6 +269,32 @@ class UserService {
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '사용자 조회 실패: $e', originalException: e);
     }
+  }
+
+  /// ID로 사용자 조회
+  ///
+  /// [id]에 해당하는 사용자 정보를 조회합니다.
+  ///
+  /// Returns: 사용자 정보 (User)
+  ///
+  /// Throws:
+  /// - [NotFoundException]: 해당 ID의 사용자가 없음
+  Future<User> getUser(int id) async {
+    if (SoiApiClient.instance.isAuthenticated) {
+      final currentUser = await getCurrentUser();
+      if (currentUser.id == id) {
+        return currentUser;
+      }
+    }
+
+    final users = await getAllUsers();
+    for (final user in users) {
+      if (user.id == id) {
+        return user;
+      }
+    }
+
+    throw const NotFoundException(message: '사용자를 찾을 수 없습니다.');
   }
 
   /// 모든 사용자 조회
@@ -414,8 +414,8 @@ class UserService {
     String? profileImageKey,
   }) async {
     try {
+      await _ensureCurrentUserMatches(id);
       final dto = UserUpdateReqDto(
-        id: id,
         name: name,
         nickname: nickName,
         phoneNum: phoneNum,
@@ -458,8 +458,8 @@ class UserService {
     required String profileImageKey,
   }) async {
     try {
+      await _ensureCurrentUserMatches(userId);
       final response = await _userApi.updateProfile(
-        userId,
         profileImageKey: profileImageKey,
       );
 
@@ -582,5 +582,41 @@ class UserService {
         normalized.contains('tls/ssl communication failed') ||
         normalized.contains('http connection failed') ||
         normalized.contains('i/o operation failed');
+  }
+
+  Future<User?> _login(LoginReqDto dto) async {
+    final loginResponse = await _authApi.login(dto);
+    if (loginResponse == null) {
+      return null;
+    }
+
+    final accessToken = loginResponse.accessToken?.trim();
+    if (accessToken == null || accessToken.isEmpty) {
+      throw const DataValidationException(message: '인증 토큰이 없습니다.');
+    }
+
+    _setAuthToken(accessToken);
+
+    try {
+      return await getCurrentUser();
+    } catch (_) {
+      _clearAuthToken();
+      rethrow;
+    }
+  }
+
+  Future<void> _ensureCurrentUserMatches(int expectedUserId) async {
+    if (!SoiApiClient.instance.isAuthenticated) {
+      return;
+    }
+
+    final currentUser = await getCurrentUser();
+    if (currentUser.id == expectedUserId) {
+      return;
+    }
+
+    throw const ForbiddenException(
+      message: 'JWT 인증 사용자와 요청 대상 사용자가 일치하지 않습니다.',
+    );
   }
 }

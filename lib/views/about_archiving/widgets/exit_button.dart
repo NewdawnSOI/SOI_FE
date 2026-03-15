@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
-import 'package:soi/api/controller/category_controller.dart'
-    as api_category;
+import 'package:soi/api/controller/category_controller.dart' as api_category;
 import 'package:soi/api/controller/user_controller.dart';
 import '../../../api/models/category.dart';
 
@@ -97,8 +96,7 @@ class ExitButton extends StatelessWidget {
 
                         final categoryController = context
                             .read<api_category.CategoryController>();
-                        final userController =
-                            context.read<UserController>();
+                        final userController = context.read<UserController>();
                         final currentUser = userController.currentUser;
 
                         if (currentUser == null) {
@@ -117,7 +115,6 @@ class ExitButton extends StatelessWidget {
                         }
 
                         final success = await categoryController.leaveCategory(
-                          userId: currentUser.id,
                           categoryId: category.id,
                         );
 

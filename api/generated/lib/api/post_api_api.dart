@@ -81,7 +81,7 @@ class PostAPIApi {
   /// Parameters:
   ///
   /// * [int] postId (required):
-  Future<Response> delete2WithHttpInfo(int postId,) async {
+  Future<Response> delete3WithHttpInfo(int postId,) async {
     // ignore: prefer_const_declarations
     final path = r'/post/delete';
 
@@ -115,8 +115,8 @@ class PostAPIApi {
   /// Parameters:
   ///
   /// * [int] postId (required):
-  Future<ApiResponseDtoObject?> delete2(int postId,) async {
-    final response = await delete2WithHttpInfo(postId,);
+  Future<ApiResponseDtoObject?> delete3(int postId,) async {
+    final response = await delete3WithHttpInfo(postId,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -138,12 +138,10 @@ class PostAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] postStatus (required):
   ///
   /// * [int] page:
-  Future<Response> findAllByUserIdWithHttpInfo(int userId, String postStatus, { int? page, }) async {
+  Future<Response> findAllByUserIdWithHttpInfo(String postStatus, { int? page, }) async {
     // ignore: prefer_const_declarations
     final path = r'/post/find-all';
 
@@ -154,7 +152,6 @@ class PostAPIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'userId', userId));
       queryParams.addAll(_queryParams('', 'postStatus', postStatus));
     if (page != null) {
       queryParams.addAll(_queryParams('', 'page', page));
@@ -180,13 +177,11 @@ class PostAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] postStatus (required):
   ///
   /// * [int] page:
-  Future<ApiResponseDtoListPostRespDto?> findAllByUserId(int userId, String postStatus, { int? page, }) async {
-    final response = await findAllByUserIdWithHttpInfo(userId, postStatus,  page: page, );
+  Future<ApiResponseDtoListPostRespDto?> findAllByUserId(String postStatus, { int? page, }) async {
+    final response = await findAllByUserIdWithHttpInfo(postStatus,  page: page, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -210,12 +205,10 @@ class PostAPIApi {
   ///
   /// * [int] categoryId (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] notificationId:
   ///
   /// * [int] page:
-  Future<Response> findByCategoryIdWithHttpInfo(int categoryId, int userId, { int? notificationId, int? page, }) async {
+  Future<Response> findByCategoryIdWithHttpInfo(int categoryId, { int? notificationId, int? page, }) async {
     // ignore: prefer_const_declarations
     final path = r'/post/find-by/category';
 
@@ -227,7 +220,6 @@ class PostAPIApi {
     final formParams = <String, String>{};
 
       queryParams.addAll(_queryParams('', 'categoryId', categoryId));
-      queryParams.addAll(_queryParams('', 'userId', userId));
     if (notificationId != null) {
       queryParams.addAll(_queryParams('', 'notificationId', notificationId));
     }
@@ -257,13 +249,11 @@ class PostAPIApi {
   ///
   /// * [int] categoryId (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] notificationId:
   ///
   /// * [int] page:
-  Future<ApiResponseDtoListPostRespDto?> findByCategoryId(int categoryId, int userId, { int? notificationId, int? page, }) async {
-    final response = await findByCategoryIdWithHttpInfo(categoryId, userId,  notificationId: notificationId, page: page, );
+  Future<ApiResponseDtoListPostRespDto?> findByCategoryId(int categoryId, { int? notificationId, int? page, }) async {
+    final response = await findByCategoryIdWithHttpInfo(categoryId,  notificationId: notificationId, page: page, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -285,12 +275,10 @@ class PostAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] postType (required):
   ///
   /// * [int] page (required):
-  Future<Response> findMediaByUserIdWithHttpInfo(int userId, String postType, int page,) async {
+  Future<Response> findMediaByUserIdWithHttpInfo(String postType, int page,) async {
     // ignore: prefer_const_declarations
     final path = r'/post/find/by-user-id';
 
@@ -301,7 +289,6 @@ class PostAPIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'userId', userId));
       queryParams.addAll(_queryParams('', 'postType', postType));
       queryParams.addAll(_queryParams('', 'page', page));
 
@@ -325,13 +312,11 @@ class PostAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] postType (required):
   ///
   /// * [int] page (required):
-  Future<ApiResponseDtoSlicePostRespDto?> findMediaByUserId(int userId, String postType, int page,) async {
-    final response = await findMediaByUserIdWithHttpInfo(userId, postType, page,);
+  Future<ApiResponseDtoSlicePostRespDto?> findMediaByUserId(String postType, int page,) async {
+    final response = await findMediaByUserIdWithHttpInfo(postType, page,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

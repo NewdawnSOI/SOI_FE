@@ -278,7 +278,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **getUser**
-> ApiResponseDtoUserRespDto getUser(id)
+> ApiResponseDtoUserRespDto getUser()
 
 특정유저 조회
 
@@ -289,10 +289,9 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = UserAPIApi();
-final id = 789; // int | 
 
 try {
-    final result = api_instance.getUser(id);
+    final result = api_instance.getUser();
     print(result);
 } catch (e) {
     print('Exception when calling UserAPIApi->getUser: $e\n');
@@ -300,10 +299,7 @@ try {
 ```
 
 ### Parameters
-
-Name | Type | Description  | Notes
-------------- | ------------- | ------------- | -------------
- **id** | **int**|  | 
+This endpoint does not need any parameter.
 
 ### Return type
 
@@ -493,7 +489,7 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **updateProfile**
-> ApiResponseDtoUserRespDto updateProfile(userId, profileImageKey)
+> ApiResponseDtoUserRespDto updateProfile(profileImageKey)
 
 유저 프로필 업데이트
 
@@ -504,11 +500,10 @@ No authorization required
 import 'package:soi_api_client/api.dart';
 
 final api_instance = UserAPIApi();
-final userId = 789; // int | 
 final profileImageKey = profileImageKey_example; // String | 
 
 try {
-    final result = api_instance.updateProfile(userId, profileImageKey);
+    final result = api_instance.updateProfile(profileImageKey);
     print(result);
 } catch (e) {
     print('Exception when calling UserAPIApi->updateProfile: $e\n');
@@ -519,7 +514,6 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **int**|  | 
  **profileImageKey** | **String**|  | [optional] 
 
 ### Return type

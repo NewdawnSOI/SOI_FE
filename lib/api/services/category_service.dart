@@ -126,14 +126,9 @@ class CategoryService {
   /// Returns: DTO 리스트 (빈 리스트 = 데이터 없음 또는 마지막 페이지)
   Future<List<CategoryRespDto>> _fetchCategoryPage({
     required String filterValue,
-    required int userId,
     required int page,
   }) async {
-    final response = await _categoryApi.getCategories(
-      filterValue,
-      userId,
-      page: page,
-    );
+    final response = await _categoryApi.getCategories(filterValue, page: page);
 
     if (response == null) return const [];
 
@@ -146,10 +141,7 @@ class CategoryService {
 
   /// 사용자의 카테고리 목록 조회
   ///
-  /// [userId]가 속한 카테고리 목록을 조회합니다.
-  ///
   /// Parameters:
-  /// - [userId]: 사용자 ID
   /// - [filter]: 카테고리 필터 (ALL, PUBLIC, PRIVATE)
   /// - [page]: 시작 페이지 (기본값: 0)
   /// - [fetchAllPages]: 모든 페이지를 조회할지 여부 (기본값: true)
@@ -157,7 +149,6 @@ class CategoryService {
   ///
   /// Returns: 카테고리 목록 (`List<Category>`)
   Future<List<Category>> getCategories({
-    required int userId,
     CategoryFilter filter = CategoryFilter.all,
     int page = 0,
     bool fetchAllPages = true, // 페이지네이션이 필요한 경우 true로 설정 (기본값: true)
@@ -168,7 +159,6 @@ class CategoryService {
 
     // 요청 파라미터를 조합하여 고유 키 생성 (중복 API 호출 방지용)
     final requestKey = [
-      userId,
       filter.value,
       normalizedPage,
       fetchAllPages,
@@ -184,7 +174,6 @@ class CategoryService {
     // 새로운 요청이므로 API 호출 시작
     // API 호출을 Future로 저장하여 다른 동일 요청이 들어올 때 재사용할 수 있도록 함
     final task = _getCategoriesInternal(
-      userId: userId,
       filter: filter,
       page: normalizedPage,
       fetchAllPages: fetchAllPages,
@@ -216,7 +205,6 @@ class CategoryService {
   /// API 호출과 페이지네이션 로직을 처리합니다.
   /// 중복 API 호출 방지 로직은 getCategories()에서 처리하므로 이 메서드는 단일 요청에 집중할 수 있습니다.
   Future<List<Category>> _getCategoriesInternal({
-    required int userId,
     required CategoryFilter filter,
     required int page,
     required bool fetchAllPages,
@@ -226,7 +214,6 @@ class CategoryService {
     if (!fetchAllPages) {
       final dtos = await _fetchCategoryPage(
         filterValue: filter.value,
-        userId: userId,
         page: page,
       );
       return dtos.map((dto) => Category.fromDto(dto)).toList();
@@ -241,7 +228,7 @@ class CategoryService {
     for (var i = 0; i < maxPages; i++) {
       final dtos = await _fetchCategoryPage(
         filterValue: filter.value,
-        userId: userId,
+
         page: currentPage,
       );
 
@@ -283,12 +270,9 @@ class CategoryService {
   /// Returns:
   /// - true: 고정됨
   /// - false: 고정 해제됨
-  Future<bool> toggleCategoryPin({
-    required int categoryId,
-    required int userId,
-  }) async {
+  Future<bool> toggleCategoryPin({required int categoryId}) async {
     try {
-      final response = await _categoryApi.categoryPinned(categoryId, userId);
+      final response = await _categoryApi.categoryPinned(categoryId);
 
       if (response == null) {
         throw const DataValidationException(message: '카테고리 고정 응답이 없습니다.');
@@ -320,12 +304,9 @@ class CategoryService {
   /// Returns:
   /// - true: 알림 설정됨
   /// - false: 알림 해제됨
-  Future<bool> setCategoryAlert({
-    required int categoryId,
-    required int userId,
-  }) async {
+  Future<bool> setCategoryAlert({required int categoryId}) async {
     try {
-      final response = await _categoryApi.categoryAlert(categoryId, userId);
+      final response = await _categoryApi.categoryAlert(categoryId);
 
       if (response == null) {
         throw const DataValidationException(message: '카테고리 알림 응답이 없습니다.');
@@ -399,19 +380,19 @@ class CategoryService {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 초대받은 사용자 ID
+
   /// - [status]: 응답 상태 (ACCEPTED, DECLINED 등)
   ///
   /// Returns: 응답 처리 성공 여부
   Future<bool> respondToInvite({
     required int categoryId,
-    required int userId,
+
     required CategoryInviteStatus status,
   }) async {
     try {
       final dto = CategoryInviteResponseReqDto(
         categoryId: categoryId,
-        responserId: userId,
+
         status: _toCategoryInviteStatusEnum(status),
       );
 
@@ -437,25 +418,19 @@ class CategoryService {
   }
 
   /// 카테고리 초대 수락 (편의 메서드)
-  Future<bool> acceptInvite({
-    required int categoryId,
-    required int userId,
-  }) async {
+  Future<bool> acceptInvite({required int categoryId}) async {
     return respondToInvite(
       categoryId: categoryId,
-      userId: userId,
+
       status: CategoryInviteStatus.accepted,
     );
   }
 
   /// 카테고리 초대 거절 (편의 메서드)
-  Future<bool> declineInvite({
-    required int categoryId,
-    required int userId,
-  }) async {
+  Future<bool> declineInvite({required int categoryId}) async {
     return respondToInvite(
       categoryId: categoryId,
-      userId: userId,
+
       status: CategoryInviteStatus.declined,
     );
   }
@@ -471,21 +446,12 @@ class CategoryService {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 사용자 ID
   /// - [name]: 새로운 커스텀 이름 (빈 문자열이면 커스텀 이름 삭제)
   ///
   /// Returns: 수정 성공 여부
-  Future<bool> updateCustomName({
-    required int categoryId,
-    required int userId,
-    String? name,
-  }) async {
+  Future<bool> updateCustomName({required int categoryId, String? name}) async {
     try {
-      final response = await _categoryApi.customName(
-        categoryId,
-        userId,
-        name: name,
-      );
+      final response = await _categoryApi.customName(categoryId, name: name);
 
       if (response == null) {
         throw const DataValidationException(message: '카테고리 이름 수정 응답이 없습니다.');
@@ -513,19 +479,17 @@ class CategoryService {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-  /// - [userId]: 사용자 ID
+
   /// - [profileImageKey]: 새로운 프로필 이미지 키 (빈 문자열이면 기본 프로필)
   ///
   /// Returns: 수정 성공 여부
   Future<bool> updateCustomProfile({
     required int categoryId,
-    required int userId,
     String? profileImageKey,
   }) async {
     try {
       final response = await _categoryApi.customProfile(
         categoryId,
-        userId,
         profileImageKey: profileImageKey,
       );
 
@@ -561,17 +525,13 @@ class CategoryService {
   /// 만약 카테고리에 속한 유저가 본인밖에 없으면 관련 데이터가 모두 삭제됩니다.
   ///
   /// Parameters:
-  /// - [userId]: 사용자 ID
   /// - [categoryId]: 카테고리 ID
   ///
   /// Returns: 삭제/나가기 성공 여부
-  Future<bool> leaveCategory({
-    required int userId,
-    required int categoryId,
-  }) async {
+  Future<bool> leaveCategory({required int categoryId}) async {
     try {
       // API 호출 - 카테고리 나가기
-      final response = await _categoryApi.delete(userId, categoryId);
+      final response = await _categoryApi.delete1(categoryId);
 
       if (response == null) {
         throw const DataValidationException(message: '카테고리 나가기 응답이 없습니다.');
@@ -593,11 +553,8 @@ class CategoryService {
   }
 
   /// 카테고리 삭제 (leaveCategory의 별칭)
-  Future<bool> deleteCategory({
-    required int userId,
-    required int categoryId,
-  }) async {
-    return leaveCategory(userId: userId, categoryId: categoryId);
+  Future<bool> deleteCategory({required int categoryId}) async {
+    return leaveCategory(categoryId: categoryId);
   }
 
   // ============================================
@@ -605,7 +562,7 @@ class CategoryService {
   // ============================================
 
   SoiApiException _handleApiException(ApiException e) {
-    debugPrint('🔴 API Error [${e.code}]: ${e.message}');
+    debugPrint('API Error [${e.code}]: ${e.message}');
 
     switch (e.code) {
       case 400:

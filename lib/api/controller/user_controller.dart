@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:soi/api/models/user.dart';
 import 'package:soi/api/api_exception.dart';
+import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi/utils/username_validator.dart';
+
+import '../api_client.dart';
 
 /// 사용자 및 인증 컨트롤러
 ///
@@ -27,6 +29,7 @@ class UserController extends ChangeNotifier {
   static const String _keyIsLoggedIn = 'api_is_logged_in';
   static const String _keynickName = 'api_user_id';
   static const String _keyPhoneNumber = 'api_phone_number';
+  static const String _keyAccessToken = 'api_access_token';
   static const String _keyOnboardingCompleted = 'api_onboarding_completed';
 
   User? _currentUser;
@@ -218,11 +221,11 @@ class UserController extends ChangeNotifier {
   /// 현재 사용자 정보 갱신
 
   Future<void> refreshCurrentUser() async {
-    if (_currentUser == null) return;
+    if (!SoiApiClient.instance.isAuthenticated) return;
 
     _setLoading(true);
     try {
-      final user = await _userService.getUser(_currentUser!.id);
+      final user = await _userService.getCurrentUser();
       _currentUser = user;
       _setLoading(false);
       notifyListeners();
@@ -282,8 +285,24 @@ class UserController extends ChangeNotifier {
         privacyPolicyAgreed: privacyPolicyAgreed,
         marketingAgreed: marketingAgreed,
       );
+
+      _currentUser = user;
+      notifyListeners();
+
+      try {
+        final authenticatedUser =
+            await _userService.loginWithPhone(phoneNum) ??
+            await _userService.loginWithNickname(nickName);
+        if (authenticatedUser != null) {
+          _currentUser = authenticatedUser;
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint('[UserController] 회원가입 후 JWT 로그인 실패: $e');
+      }
+
       _setLoading(false);
-      return user;
+      return _currentUser;
     } catch (e) {
       _setError('사용자 생성 실패: $e');
       _setLoading(false);
@@ -540,12 +559,23 @@ class UserController extends ChangeNotifier {
   Future<void> saveLoginState({
     required int userId,
     required String phoneNumber,
+    String? accessToken,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyIsLoggedIn, true);
+      final effectiveAccessToken =
+          accessToken ?? SoiApiClient.instance.authToken;
+      final hasAccessToken =
+          effectiveAccessToken != null && effectiveAccessToken.isNotEmpty;
+
+      await prefs.setBool(_keyIsLoggedIn, hasAccessToken);
       await prefs.setInt(_keynickName, userId);
       await prefs.setString(_keyPhoneNumber, phoneNumber);
+      if (hasAccessToken) {
+        await prefs.setString(_keyAccessToken, effectiveAccessToken);
+      } else {
+        await prefs.remove(_keyAccessToken);
+      }
       debugPrint('[UserController] 로그인 상태 저장 완료: userId=$userId');
     } catch (e) {
       debugPrint('[UserController] 로그인 상태 저장 실패: $e');
@@ -610,6 +640,7 @@ class UserController extends ChangeNotifier {
 
       final nickName = prefs.getInt(_keynickName);
       final phoneNumber = prefs.getString(_keyPhoneNumber);
+      final accessToken = prefs.getString(_keyAccessToken);
 
       if (nickName == null) {
         return null;
@@ -618,6 +649,7 @@ class UserController extends ChangeNotifier {
       return {
         'nickName': nickName,
         'phoneNumber': phoneNumber,
+        'accessToken': accessToken,
         'onboardingCompleted': prefs.getBool(_keyOnboardingCompleted) ?? false,
       };
     } catch (e) {
@@ -642,20 +674,23 @@ class UserController extends ChangeNotifier {
       }
 
       final nickName = savedInfo['nickName'] as int;
+      final accessToken = savedInfo['accessToken'] as String?;
       debugPrint('[UserController] 저장된 nickName: $nickName');
 
-      // 서버에서 사용자 정보 조회
-      final user = await getUser(nickName);
-      if (user != null) {
-        _currentUser = user;
-        notifyListeners();
-        debugPrint('UserController] 자동 로그인 성공: ${user.name}');
-        return true;
-      } else {
-        debugPrint('[UserController] 사용자 정보 조회 실패, 로그인 상태 초기화');
+      if (accessToken == null || accessToken.isEmpty) {
+        debugPrint('[UserController] 저장된 JWT 토큰 없음');
         await clearLoginState();
         return false;
       }
+
+      SoiApiClient.instance.setAuthToken(accessToken);
+
+      // 서버에서 현재 사용자 정보 조회
+      final user = await _userService.getCurrentUser();
+      _currentUser = user;
+      notifyListeners();
+      debugPrint('[UserController] 자동 로그인 성공: ${user.name}');
+      return true;
     } catch (e) {
       debugPrint('[UserController] 자동 로그인 실패: $e');
       await clearLoginState();
@@ -667,10 +702,12 @@ class UserController extends ChangeNotifier {
   /// Returns: 없음
   Future<void> clearLoginState() async {
     try {
+      SoiApiClient.instance.clearAuthToken();
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyIsLoggedIn);
       await prefs.remove(_keynickName);
       await prefs.remove(_keyPhoneNumber);
+      await prefs.remove(_keyAccessToken);
       await prefs.remove(_keyOnboardingCompleted);
       debugPrint('[UserController] 로그인 상태 삭제 완료');
     } catch (e) {

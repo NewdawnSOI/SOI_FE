@@ -63,7 +63,6 @@ class CategorySearchController extends ChangeNotifier {
     try {
       // Service 레이어에서 API 호출 및 결과 매핑을 담당한다.
       final results = await _searchService.searchCategories(
-        userId: userId,
         filter: filter,
         keyword: trimmedQuery,
       );

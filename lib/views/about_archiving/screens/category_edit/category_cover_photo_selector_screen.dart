@@ -312,7 +312,6 @@ class _CategoryCoverPhotoSelectorScreenState
     final categoryController = context.read<api_category.CategoryController>();
     final success = await categoryController.updateCustomProfile(
       categoryId: widget.category.id,
-      userId: currentUser.id,
       profileImageKey: key,
     );
 

@@ -64,7 +64,7 @@ class NotificationService {
     try {
       // 파라미터 검증
       _validatePagingParams(userId: userId, page: page);
-      final response = await _notificationApi.getAll(userId, page);
+      final response = await _notificationApi.getAll(page);
 
       if (response == null) {
         return const NotificationGetAllResult();
@@ -108,7 +108,7 @@ class NotificationService {
     try {
       // 파라미터 검증
       _validatePagingParams(userId: userId, page: page);
-      final response = await _notificationApi.getFriend(userId, page);
+      final response = await _notificationApi.getFriend(page);
 
       if (response == null) {
         return [];

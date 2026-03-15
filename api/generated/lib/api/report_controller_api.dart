@@ -81,7 +81,7 @@ class ReportControllerApi {
   /// Parameters:
   ///
   /// * [int] id (required):
-  Future<Response> delete1WithHttpInfo(int id,) async {
+  Future<Response> delete2WithHttpInfo(int id,) async {
     // ignore: prefer_const_declarations
     final path = r'/report/delete';
 
@@ -115,8 +115,8 @@ class ReportControllerApi {
   /// Parameters:
   ///
   /// * [int] id (required):
-  Future<ApiResponseDtoBoolean?> delete1(int id,) async {
-    final response = await delete1WithHttpInfo(id,);
+  Future<ApiResponseDtoBoolean?> delete2(int id,) async {
+    final response = await delete2WithHttpInfo(id,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

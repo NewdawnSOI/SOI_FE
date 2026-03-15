@@ -25,9 +25,7 @@ class CategoryAPIApi {
   /// Parameters:
   ///
   /// * [int] categoryId (required):
-  ///
-  /// * [int] userId (required):
-  Future<Response> categoryAlertWithHttpInfo(int categoryId, int userId,) async {
+  Future<Response> categoryAlertWithHttpInfo(int categoryId,) async {
     // ignore: prefer_const_declarations
     final path = r'/category/set/alert';
 
@@ -39,7 +37,6 @@ class CategoryAPIApi {
     final formParams = <String, String>{};
 
       queryParams.addAll(_queryParams('', 'categoryId', categoryId));
-      queryParams.addAll(_queryParams('', 'userId', userId));
 
     const contentTypes = <String>[];
 
@@ -62,10 +59,8 @@ class CategoryAPIApi {
   /// Parameters:
   ///
   /// * [int] categoryId (required):
-  ///
-  /// * [int] userId (required):
-  Future<ApiResponseDtoBoolean?> categoryAlert(int categoryId, int userId,) async {
-    final response = await categoryAlertWithHttpInfo(categoryId, userId,);
+  Future<ApiResponseDtoBoolean?> categoryAlert(int categoryId,) async {
+    final response = await categoryAlertWithHttpInfo(categoryId,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -88,9 +83,7 @@ class CategoryAPIApi {
   /// Parameters:
   ///
   /// * [int] categoryId (required):
-  ///
-  /// * [int] userId (required):
-  Future<Response> categoryPinnedWithHttpInfo(int categoryId, int userId,) async {
+  Future<Response> categoryPinnedWithHttpInfo(int categoryId,) async {
     // ignore: prefer_const_declarations
     final path = r'/category/set/pinned';
 
@@ -102,7 +95,6 @@ class CategoryAPIApi {
     final formParams = <String, String>{};
 
       queryParams.addAll(_queryParams('', 'categoryId', categoryId));
-      queryParams.addAll(_queryParams('', 'userId', userId));
 
     const contentTypes = <String>[];
 
@@ -125,10 +117,8 @@ class CategoryAPIApi {
   /// Parameters:
   ///
   /// * [int] categoryId (required):
-  ///
-  /// * [int] userId (required):
-  Future<ApiResponseDtoBoolean?> categoryPinned(int categoryId, int userId,) async {
-    final response = await categoryPinnedWithHttpInfo(categoryId, userId,);
+  Future<ApiResponseDtoBoolean?> categoryPinned(int categoryId,) async {
+    final response = await categoryPinnedWithHttpInfo(categoryId,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -208,10 +198,8 @@ class CategoryAPIApi {
   ///
   /// * [int] categoryId (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] name:
-  Future<Response> customNameWithHttpInfo(int categoryId, int userId, { String? name, }) async {
+  Future<Response> customNameWithHttpInfo(int categoryId, { String? name, }) async {
     // ignore: prefer_const_declarations
     final path = r'/category/set/name';
 
@@ -223,7 +211,6 @@ class CategoryAPIApi {
     final formParams = <String, String>{};
 
       queryParams.addAll(_queryParams('', 'categoryId', categoryId));
-      queryParams.addAll(_queryParams('', 'userId', userId));
     if (name != null) {
       queryParams.addAll(_queryParams('', 'name', name));
     }
@@ -250,11 +237,9 @@ class CategoryAPIApi {
   ///
   /// * [int] categoryId (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] name:
-  Future<ApiResponseDtoBoolean?> customName(int categoryId, int userId, { String? name, }) async {
-    final response = await customNameWithHttpInfo(categoryId, userId,  name: name, );
+  Future<ApiResponseDtoBoolean?> customName(int categoryId, { String? name, }) async {
+    final response = await customNameWithHttpInfo(categoryId,  name: name, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -278,10 +263,8 @@ class CategoryAPIApi {
   ///
   /// * [int] categoryId (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] profileImageKey:
-  Future<Response> customProfileWithHttpInfo(int categoryId, int userId, { String? profileImageKey, }) async {
+  Future<Response> customProfileWithHttpInfo(int categoryId, { String? profileImageKey, }) async {
     // ignore: prefer_const_declarations
     final path = r'/category/set/profile';
 
@@ -293,7 +276,6 @@ class CategoryAPIApi {
     final formParams = <String, String>{};
 
       queryParams.addAll(_queryParams('', 'categoryId', categoryId));
-      queryParams.addAll(_queryParams('', 'userId', userId));
     if (profileImageKey != null) {
       queryParams.addAll(_queryParams('', 'profileImageKey', profileImageKey));
     }
@@ -320,11 +302,9 @@ class CategoryAPIApi {
   ///
   /// * [int] categoryId (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] profileImageKey:
-  Future<ApiResponseDtoBoolean?> customProfile(int categoryId, int userId, { String? profileImageKey, }) async {
-    final response = await customProfileWithHttpInfo(categoryId, userId,  profileImageKey: profileImageKey, );
+  Future<ApiResponseDtoBoolean?> customProfile(int categoryId, { String? profileImageKey, }) async {
+    final response = await customProfileWithHttpInfo(categoryId,  profileImageKey: profileImageKey, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -346,10 +326,8 @@ class CategoryAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] categoryId (required):
-  Future<Response> deleteWithHttpInfo(int userId, int categoryId,) async {
+  Future<Response> delete1WithHttpInfo(int categoryId,) async {
     // ignore: prefer_const_declarations
     final path = r'/category/delete';
 
@@ -360,7 +338,6 @@ class CategoryAPIApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'userId', userId));
       queryParams.addAll(_queryParams('', 'categoryId', categoryId));
 
     const contentTypes = <String>[];
@@ -383,11 +360,9 @@ class CategoryAPIApi {
   ///
   /// Parameters:
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] categoryId (required):
-  Future<ApiResponseDtoObject?> delete(int userId, int categoryId,) async {
-    final response = await deleteWithHttpInfo(userId, categoryId,);
+  Future<ApiResponseDtoObject?> delete1(int categoryId,) async {
+    final response = await delete1WithHttpInfo(categoryId,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -411,10 +386,8 @@ class CategoryAPIApi {
   ///
   /// * [String] categoryFilter (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] page:
-  Future<Response> getCategoriesWithHttpInfo(String categoryFilter, int userId, { int? page, }) async {
+  Future<Response> getCategoriesWithHttpInfo(String categoryFilter, { int? page, }) async {
     // ignore: prefer_const_declarations
     final path = r'/category/find';
 
@@ -426,7 +399,6 @@ class CategoryAPIApi {
     final formParams = <String, String>{};
 
       queryParams.addAll(_queryParams('', 'categoryFilter', categoryFilter));
-      queryParams.addAll(_queryParams('', 'userId', userId));
     if (page != null) {
       queryParams.addAll(_queryParams('', 'page', page));
     }
@@ -453,11 +425,9 @@ class CategoryAPIApi {
   ///
   /// * [String] categoryFilter (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [int] page:
-  Future<ApiResponseDtoListCategoryRespDto?> getCategories(String categoryFilter, int userId, { int? page, }) async {
-    final response = await getCategoriesWithHttpInfo(categoryFilter, userId,  page: page, );
+  Future<ApiResponseDtoListCategoryRespDto?> getCategories(String categoryFilter, { int? page, }) async {
+    final response = await getCategoriesWithHttpInfo(categoryFilter,  page: page, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -481,12 +451,10 @@ class CategoryAPIApi {
   ///
   /// * [String] categoryFilter (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] keyword:
   ///
   /// * [int] page:
-  Future<Response> getCategories1WithHttpInfo(String categoryFilter, int userId, { String? keyword, int? page, }) async {
+  Future<Response> getCategories1WithHttpInfo(String categoryFilter, { String? keyword, int? page, }) async {
     // ignore: prefer_const_declarations
     final path = r'/category/find-by-keyword';
 
@@ -498,7 +466,6 @@ class CategoryAPIApi {
     final formParams = <String, String>{};
 
       queryParams.addAll(_queryParams('', 'categoryFilter', categoryFilter));
-      queryParams.addAll(_queryParams('', 'userId', userId));
     if (keyword != null) {
       queryParams.addAll(_queryParams('', 'keyword', keyword));
     }
@@ -528,13 +495,11 @@ class CategoryAPIApi {
   ///
   /// * [String] categoryFilter (required):
   ///
-  /// * [int] userId (required):
-  ///
   /// * [String] keyword:
   ///
   /// * [int] page:
-  Future<ApiResponseDtoListCategoryRespDto?> getCategories1(String categoryFilter, int userId, { String? keyword, int? page, }) async {
-    final response = await getCategories1WithHttpInfo(categoryFilter, userId,  keyword: keyword, page: page, );
+  Future<ApiResponseDtoListCategoryRespDto?> getCategories1(String categoryFilter, { String? keyword, int? page, }) async {
+    final response = await getCategories1WithHttpInfo(categoryFilter,  keyword: keyword, page: page, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

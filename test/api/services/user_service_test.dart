@@ -3,28 +3,33 @@ import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi_api_client/api.dart';
 
-class _FakeUserApi extends UserAPIApi {
-  _FakeUserApi({this.onLoginByNickname, this.onLoginByPhone});
+class _FakeAuthApi extends AuthControllerApi {
+  _FakeAuthApi({this.onLogin});
 
-  final Future<ApiResponseDtoUserRespDto?> Function(String)? onLoginByNickname;
-  final Future<ApiResponseDtoUserRespDto?> Function(String)? onLoginByPhone;
+  final Future<LoginRespDto?> Function(LoginReqDto)? onLogin;
 
   @override
-  Future<ApiResponseDtoUserRespDto?> loginByNickname(String nickName) async {
-    final handler = onLoginByNickname;
+  Future<LoginRespDto?> login(LoginReqDto loginReqDto) async {
+    final handler = onLogin;
     if (handler == null) {
-      throw UnimplementedError('onLoginByNickname is not configured');
+      throw UnimplementedError('onLogin is not configured');
     }
-    return handler(nickName);
+    return handler(loginReqDto);
   }
+}
+
+class _FakeUserApi extends UserAPIApi {
+  _FakeUserApi({this.onGetUser});
+
+  final Future<ApiResponseDtoUserRespDto?> Function()? onGetUser;
 
   @override
-  Future<ApiResponseDtoUserRespDto?> loginByPhone(String phoneNum) async {
-    final handler = onLoginByPhone;
+  Future<ApiResponseDtoUserRespDto?> getUser() async {
+    final handler = onGetUser;
     if (handler == null) {
-      throw UnimplementedError('onLoginByPhone is not configured');
+      throw UnimplementedError('onGetUser is not configured');
     }
-    return handler(phoneNum);
+    return handler();
   }
 }
 
@@ -34,12 +39,15 @@ void main() {
       'maps socket transport ApiException(400) to NetworkException',
       () async {
         final service = UserService(
-          userApi: _FakeUserApi(
-            onLoginByNickname: (_) async => throw ApiException(
+          authApi: _FakeAuthApi(
+            onLogin: (_) async => throw ApiException(
               400,
-              'Socket operation failed: POST /user/login/by-nickname',
+              'Socket operation failed: POST /auth/login',
             ),
           ),
+          userApi: _FakeUserApi(onGetUser: () async => null),
+          onAuthTokenIssued: (_) {},
+          onAuthTokenCleared: () {},
         );
 
         expect(
@@ -51,9 +59,12 @@ void main() {
 
     test('returns null for nickname login when API responds 404', () async {
       final service = UserService(
-        userApi: _FakeUserApi(
-          onLoginByNickname: (_) async => throw ApiException(404, 'not found'),
+        authApi: _FakeAuthApi(
+          onLogin: (_) async => throw ApiException(404, 'not found'),
         ),
+        userApi: _FakeUserApi(onGetUser: () async => null),
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
       );
 
       final result = await service.loginWithNickname('unknown');
@@ -62,13 +73,44 @@ void main() {
 
     test('returns null for phone login when API responds 404', () async {
       final service = UserService(
-        userApi: _FakeUserApi(
-          onLoginByPhone: (_) async => throw ApiException(404, 'not found'),
+        authApi: _FakeAuthApi(
+          onLogin: (_) async => throw ApiException(404, 'not found'),
         ),
+        userApi: _FakeUserApi(onGetUser: () async => null),
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
       );
 
       final result = await service.loginWithPhone('01000000000');
       expect(result, isNull);
+    });
+
+    test('stores JWT token and fetches current user after login', () async {
+      String? issuedToken;
+      final service = UserService(
+        authApi: _FakeAuthApi(
+          onLogin: (_) async => LoginRespDto(accessToken: 'jwt-token'),
+        ),
+        userApi: _FakeUserApi(
+          onGetUser: () async => ApiResponseDtoUserRespDto(
+            success: true,
+            data: UserRespDto(
+              id: 1,
+              nickname: 'minchan',
+              name: '민찬',
+              phoneNum: '01012345678',
+            ),
+          ),
+        ),
+        onAuthTokenIssued: (token) => issuedToken = token,
+        onAuthTokenCleared: () {},
+      );
+
+      final result = await service.loginWithNickname('minchan');
+
+      expect(issuedToken, 'jwt-token');
+      expect(result?.id, 1);
+      expect(result?.userId, 'minchan');
     });
   });
 }
