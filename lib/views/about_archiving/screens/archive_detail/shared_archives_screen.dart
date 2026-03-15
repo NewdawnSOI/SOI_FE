@@ -18,6 +18,7 @@ class SharedArchivesScreen extends StatefulWidget {
   final String? editingCategoryId;
   final TextEditingController? editingController;
   final Function(String categoryId, String currentName)? onStartEdit;
+  final ScrollController? scrollController;
 
   const SharedArchivesScreen({
     super.key,
@@ -26,6 +27,7 @@ class SharedArchivesScreen extends StatefulWidget {
     this.editingCategoryId,
     this.editingController,
     this.onStartEdit,
+    this.scrollController,
   });
 
   @override
@@ -220,6 +222,7 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
   Widget _buildGridView(List<Category> categories, String searchQuery) {
     return GridView.builder(
       key: ValueKey('shared_grid_${categories.length}_$searchQuery'),
+      controller: widget.scrollController,
       padding: EdgeInsets.only(left: 20.w, right: 22.w, bottom: 20.h),
       physics: const AlwaysScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -258,6 +261,7 @@ class _SharedArchivesScreenState extends State<SharedArchivesScreen>
   Widget _buildListView(List<Category> categories, String searchQuery) {
     return ListView.separated(
       key: ValueKey('shared_list_${categories.length}_$searchQuery'),
+      controller: widget.scrollController,
       padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: categories.length,

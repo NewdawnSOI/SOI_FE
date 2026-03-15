@@ -123,11 +123,6 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
   test: ^1.26.3
 
-flutter_launcher_icons:
-  #android: "launcher_icon"
-  ios: true
-  image_path: "assets/icon/icon.png"
-
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/dependencies
 

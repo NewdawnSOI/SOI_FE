@@ -10,6 +10,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'about_friends/friend_management_screen.dart';
 import 'about_profile/profile_page.dart';
 import '../api/services/camera_service.dart';
+import '../utils/tab_reselect_registry.dart';
 
 class HomePageNavigationBar extends StatefulWidget {
   final int currentPageIndex;
@@ -66,6 +67,13 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
   /// 페이지 이동 함수
   void _moveToPage(int index, {bool animate = true}) {
     if (!mounted) return;
+
+    // 이미 선택된 탭을 다시 선택한 경우, 페이지 이동 없이 리셀이벤트만 발생하도록 처리
+    // 이렇게 하면 사용자가 현재 탭을 다시 눌렀을 때, 페이지가 리셋되거나 스크롤이 최상단으로 이동하는 등의 행동을 구현할 수 있습니다.
+    if (_currentPageIndex == index) {
+      TabReselectRegistry.notifyReselect(index);
+      return;
+    }
     if (_currentPageIndex != index) {
       setState(() {
         _currentPageIndex = index;

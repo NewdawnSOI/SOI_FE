@@ -20,6 +20,7 @@ class AllArchivesScreen extends StatefulWidget {
   final String? editingCategoryId; // 편집 중인 카테고리 ID (편집 모드에서만 사용)
   final TextEditingController? editingController;
   final Function(String categoryId, String currentName)? onStartEdit;
+  final ScrollController? scrollController; // 외부에서 스크롤 컨트롤러를 주입받도록 변경
 
   const AllArchivesScreen({
     super.key,
@@ -28,6 +29,7 @@ class AllArchivesScreen extends StatefulWidget {
     this.editingCategoryId,
     this.editingController,
     this.onStartEdit,
+    this.scrollController,
   });
 
   @override
@@ -268,6 +270,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
   Widget _buildGridView(List<int> categoryIds, String searchQuery) {
     return GridView.builder(
       key: ValueKey('grid_${categoryIds.length}_$searchQuery'),
+      controller: widget.scrollController, // 외부에서 주입받은 스크롤 컨트롤러 사용
       padding: EdgeInsets.only(left: 20.w, right: 22.w, bottom: 20.h),
       physics: const AlwaysScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -312,6 +315,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
   Widget _buildListView(List<int> categoryIds, String searchQuery) {
     return ListView.separated(
       key: ValueKey('list_${categoryIds.length}_$searchQuery'),
+      controller: widget.scrollController, // 외부에서 주입받은 스크롤 컨트롤러 사용
       padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: categoryIds.length,

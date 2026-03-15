@@ -35,6 +35,10 @@ class FeedPageBuilder extends StatelessWidget {
   final void Function(int postId, String? emoji)
   onEmojiSelected; // 이모지 선택 시 캐시 갱신
 
+  // 페이지 컨트롤러를 외부에서 주입받도록 변경
+  // 이렇게 하면 FeedPageBuilder를 사용하는 부모 위젯(FeedHomeScreen)에서 페이지 컨트롤러를 생성하고 관리할 수 있어서, 페이지 이동을 더 유연하게 제어할 수 있습니다.
+  final PageController? pageController;
+
   const FeedPageBuilder({
     super.key,
     required this.posts,
@@ -58,12 +62,14 @@ class FeedPageBuilder extends StatelessWidget {
     this.currentUserNickname,
     required this.onReloadComments,
     required this.onEmojiSelected,
+    this.pageController,
   });
 
   @override
   Widget build(BuildContext context) {
     final itemCount = posts.length + (hasMoreData ? 1 : 0);
     return PageView.builder(
+      controller: pageController,
       scrollDirection: Axis.vertical,
       clipBehavior: Clip.none,
       itemCount: itemCount,

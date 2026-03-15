@@ -7,6 +7,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import 'package:soi/api/controller/category_controller.dart';
 import 'package:soi/api/controller/friend_controller.dart';
+import 'package:soi/utils/tab_reselect_registry.dart';
 import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/controller/notification_controller.dart';
 import 'package:soi/api/controller/post_controller.dart';
@@ -32,6 +33,12 @@ class APIArchiveMainScreen extends StatefulWidget {
 class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   int _selectedIndex = 0;
   bool _isListView = false;
+
+  // 아카이브 서브탭별 스크롤 컨트롤러 (탭 재선택 시 맨 위로 이동용)
+  final List<ScrollController> _archiveScrollControllers = List.generate(
+    3,
+    (_) => ScrollController(),
+  );
 
   // 컨트롤러들
   final _categoryNameController = TextEditingController();
@@ -80,14 +87,15 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   // 탭 화면 목록을 동적으로 생성하는 메서드
   List<Widget> get _screens => [
     AllArchivesScreen(
+      scrollController: _archiveScrollControllers[0],
       isListView: _isListView,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
       onStartEdit: startEditMode,
     ),
-
     SharedArchivesScreen(
+      scrollController: _archiveScrollControllers[1],
       isListView: _isListView,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
@@ -95,6 +103,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       onStartEdit: startEditMode,
     ),
     MyArchivesScreen(
+      scrollController: _archiveScrollControllers[2],
       isListView: _isListView,
       isEditMode: _isEditMode,
       editingCategoryId: _editingCategoryId,
@@ -103,12 +112,35 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
     ),
   ];
 
+  /// 아카이브 탭 재선택 시: 현재 서브탭 맨 위로 이동 + 강제 새로고침
+  void _onArchiveTabReselected() {
+    final sc = _archiveScrollControllers[_selectedIndex];
+    if (sc.hasClients) {
+      sc.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    final userId = _userController?.currentUser?.id;
+    if (userId != null && _categoryController != null) {
+      unawaited(
+        _categoryController!.loadCategories(
+          userId,
+          forceReload: true,
+          fetchAllPages: true,
+        ),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
 
     // 검색 기능 설정
     _searchController.addListener(_onSearchChanged);
+    TabReselectRegistry.register(1, _onArchiveTabReselected);
 
     // 최적화: 초기화 작업을 지연시켜 UI 블로킹 방지
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1099,6 +1131,11 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
 
   @override
   void dispose() {
+    TabReselectRegistry.unregister(1);
+    for (final sc in _archiveScrollControllers) {
+      sc.dispose();
+    }
+
     // 검색 debounce 타이머 정리
     _searchDebounceTimer?.cancel();
 

@@ -14,6 +14,7 @@ import 'manager/feed_audio_manager.dart';
 import 'manager/feed_data_manager.dart';
 import 'manager/voice_comment_state_manager.dart';
 import 'widgets/feed_page_builder.dart';
+import '../../utils/tab_reselect_registry.dart';
 
 class FeedHomeScreen extends StatefulWidget {
   const FeedHomeScreen({super.key});
@@ -33,6 +34,9 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   // 오디오 매니저
   FeedAudioManager? _feedAudioManager;
 
+  // 탭 재선택 시 첫 게시물로 이동용 페이지 컨트롤러
+  final PageController _feedPageController = PageController();
+
   // 사용자 컨트롤러 및 프로필 이미지 키 추적
   UserController? _userController;
   VoidCallback? _userControllerListener;
@@ -42,6 +46,9 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   @override
   void initState() {
     super.initState();
+
+    // 홈 탭(인덱스 0) 재선택 시, 호출될 콜백 등록
+    TabReselectRegistry.register(0, _onFeedTabReselected);
 
     _voiceCommentStateManager = VoiceCommentStateManager();
 
@@ -108,6 +115,11 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
 
   @override
   void dispose() {
+    // 홈 탭 콜백 등록 해제
+    TabReselectRegistry.unregister(0);
+
+    // 탭 재선택 시 첫 게시물로 이동용 페이지 컨트롤러 해제
+    _feedPageController.dispose();
     if (_userControllerListener != null) {
       _userController?.removeListener(_userControllerListener!);
     }
@@ -118,6 +130,26 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     _voiceCommentStateManager?.dispose();
 
     super.dispose();
+  }
+
+  /// 피드 탭 재선택 시: 첫 게시물로 이동 + 강제 새로고침
+  void _onFeedTabReselected() {
+    if (!mounted) return;
+    if (_feedPageController.hasClients) {
+      _feedPageController.animateToPage(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    if (_feedDataManager != null) {
+      unawaited(
+        _feedDataManager!.loadUserCategoriesAndPhotos(
+          context,
+          forceRefresh: true,
+        ),
+      );
+    }
   }
 
   /// 사진 게시물 삭제 처리
@@ -397,6 +429,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       color: Colors.white,
       backgroundColor: Colors.black,
       child: FeedPageBuilder(
+        pageController: _feedPageController,
         posts: feedDataManager.visiblePosts,
         hasMoreData: feedDataManager.hasMoreData,
         isLoadingMore: feedDataManager.isLoadingMore,
