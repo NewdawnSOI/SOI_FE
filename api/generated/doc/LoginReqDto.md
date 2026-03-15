@@ -8,8 +8,8 @@ import 'package:soi_api_client/api.dart';
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**nickname** | **String** |  | [optional] 
-**phoneNum** | **String** |  | [optional] 
+**nickname** | **String** |  | 
+**phoneNum** | **String** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

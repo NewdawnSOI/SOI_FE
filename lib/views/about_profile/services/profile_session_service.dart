@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../api/controller/user_controller.dart';
+import '../../../app/push/app_push_coordinator.dart';
 import '../../about_feed/manager/feed_data_manager.dart';
 
 /// 이 도우미는 로그아웃과 회원탈퇴처럼 큰 정리를 맡아요.
@@ -16,7 +17,9 @@ class ProfileSessionService {
     required UserController userController,
     required FeedDataManager feedDataManager,
   }) async {
+    await AppPushCoordinator.instance.deleteCurrentDeviceToken();
     await userController.logout();
+    AppPushCoordinator.instance.clearLocalState();
     feedDataManager.reset();
   }
 
@@ -31,7 +34,9 @@ class ProfileSessionService {
       throw StateError('No authenticated user for account deletion.');
     }
 
+    await AppPushCoordinator.instance.deleteCurrentDeviceToken();
     final deletion = userController.deleteUser(currentUser.id);
+    AppPushCoordinator.instance.clearLocalState();
     feedDataManager.reset();
 
     unawaited(

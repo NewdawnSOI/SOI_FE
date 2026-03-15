@@ -13,25 +13,13 @@ part of openapi.api;
 class LoginReqDto {
   /// Returns a new [LoginReqDto] instance.
   LoginReqDto({
-    this.nickname,
-    this.phoneNum,
+    required this.nickname,
+    required this.phoneNum,
   });
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? nickname;
+  String nickname;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? phoneNum;
+  String phoneNum;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is LoginReqDto &&
@@ -41,24 +29,16 @@ class LoginReqDto {
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
-    (nickname == null ? 0 : nickname!.hashCode) +
-    (phoneNum == null ? 0 : phoneNum!.hashCode);
+    (nickname.hashCode) +
+    (phoneNum.hashCode);
 
   @override
   String toString() => 'LoginReqDto[nickname=$nickname, phoneNum=$phoneNum]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.nickname != null) {
       json[r'nickname'] = this.nickname;
-    } else {
-      json[r'nickname'] = null;
-    }
-    if (this.phoneNum != null) {
       json[r'phoneNum'] = this.phoneNum;
-    } else {
-      json[r'phoneNum'] = null;
-    }
     return json;
   }
 
@@ -81,8 +61,8 @@ class LoginReqDto {
       }());
 
       return LoginReqDto(
-        nickname: mapValueOfType<String>(json, r'nickname'),
-        phoneNum: mapValueOfType<String>(json, r'phoneNum'),
+        nickname: mapValueOfType<String>(json, r'nickname')!,
+        phoneNum: mapValueOfType<String>(json, r'phoneNum')!,
       );
     }
     return null;
@@ -130,6 +110,8 @@ class LoginReqDto {
 
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
+    'nickname',
+    'phoneNum',
   };
 }
 

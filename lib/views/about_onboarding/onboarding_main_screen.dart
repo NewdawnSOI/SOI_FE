@@ -179,9 +179,6 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
 
       debugPrint('[OnboardingMainScreen] 사용자 생성 성공: userId=${createdUser.id}');
 
-      // 생성된 사용자를 현재 사용자로 설정 (Provider 상태 업데이트)
-      _apiUserController.setCurrentUser(createdUser);
-
       // 2. 프로필 이미지가 있으면 업로드 후 사용자 업데이트
       if (profileImagePath != null && profileImagePath.isNotEmpty) {
         final imageFile = File(profileImagePath);
@@ -203,10 +200,13 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
 
           // 3. 프로필 이미지 키로 사용자 정보 업데이트
           if (profileImageKey != null) {
-            await _apiUserController.updateprofileImageUrl(
+            final updatedUser = await _apiUserController.updateprofileImageUrl(
               userId: createdUser.id,
               profileImageKey: profileImageKey!,
             );
+            if (updatedUser != null) {
+              _apiUserController.setCurrentUser(updatedUser);
+            }
             debugPrint(
               '[OnboardingMainScreen] 프로필 이미지 업데이트 완료: $profileImageKey',
             );
@@ -215,12 +215,6 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
           debugPrint('[OnboardingMainScreen] 프로필 이미지 파일 없음: $profileImagePath');
         }
       }
-
-      // 4. 로그인 상태 저장
-      await _apiUserController.saveLoginState(
-        userId: createdUser.id,
-        phoneNumber: phone,
-      );
 
       debugPrint('[OnboardingMainScreen] 회원가입 완료, 홈 화면으로 이동');
     } catch (e) {

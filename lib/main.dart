@@ -3,6 +3,8 @@ import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +24,8 @@ import 'app/app_constants.dart';
 import 'app/app_container_builder.dart';
 import 'app/app_providers.dart';
 import 'app/app_routes.dart';
+import 'app/push/app_push_coordinator.dart';
+import 'firebase_options.dart';
 import 'utils/analytics_service.dart';
 import 'utils/app_route_observer.dart';
 
@@ -44,6 +48,12 @@ void main() async {
   await initializeDateFormatting('ko_KR', null);
   _configureImageCache();
   api.SoiApiClient.instance.initialize();
+  if (supportsFirebaseMessaging) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
   KakaoSdk.init(nativeAppKey: dotenv.env[AppConstant.kakaoNativeAppKey]!);
   _configureErrorHandling();
 
@@ -131,6 +141,12 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final _navigatorKey = GlobalKey<NavigatorState>();
   final _appLinks = AppLinks();
+
+  /// 앱 푸시 코디네이터 인스턴스를 멤버 변수로 저장합니다.
+  /// 이렇게 하면 앱 전체에서 푸시 코디네이터의 상태를 유지할 수 있고, 필요할 때마다 접근할 수 있습니다.
+  /// 앱 푸시 코디네이터: 푸시 알림과 관련된 모든 로직을 담당하는 클래스입니다. 사용자 인증 상태에 따른 토큰 등록/삭제, 푸시 알림 수신 시 처리 로직 등을 포함합니다.
+  final _pushCoordinator = AppPushCoordinator.instance;
+
   StreamSubscription<Uri>? _linkSubscription;
   Uri? _lastHandledUri;
   DateTime? _lastHandledTime;
@@ -148,6 +164,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // _syncAnalyticsIdentity를 호출해서 AnalyticsService의 사용자 식별 정보를 최신 상태로 유지합니다.
     widget.preloadedUserController.addListener(_syncAnalyticsIdentity);
 
+    // UserController의 상태가 변경될 때마다 _syncPushIdentity를 호출해서 AppPushCoordinator의 사용자 인증 상태를 최신 상태로 유지합니다.
+    widget.preloadedUserController.addListener(_syncPushIdentity);
+
     // 앱이 시작될 때 사진 라이브러리 권한을 미리 요청해서, 사용자가 사진 관련 기능을 사용할 때 원활하게 권한이 처리되도록 합니다.
     _primePhotoLibraryPermission();
     _linkSubscription = _appLinks.uriLinkStream.listen(
@@ -156,13 +175,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
     _handleInitialLink();
     _syncAnalyticsIdentity();
+    unawaited(_bindPushCoordinator()); // 앱 푸시 코디네이터를 초기화하고 사용자 인증 상태를 동기화합니다.
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.preloadedUserController.removeListener(_syncAnalyticsIdentity);
+    widget.preloadedUserController.removeListener(_syncPushIdentity);
     _linkSubscription?.cancel();
+    unawaited(_pushCoordinator.dispose());
     super.dispose();
   }
 
@@ -180,6 +202,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       } catch (e) {
         debugPrint('Photo permission prefetch failed: $e');
       }
+    });
+  }
+
+  /// 앱 푸시 코디네이터에서 사용자 인증 상태에 따른 토큰 등록/삭제 로직을 처리하는 함수입니다.
+  Future<void> _bindPushCoordinator() async {
+    // 푸시 코디네이터를 초기화할 때 navigatorKey를 전달해서, 푸시 알림 수신 시 네비게이션 처리를 할 수 있도록 합니다.
+    await _pushCoordinator.initialize(navigatorKey: _navigatorKey);
+
+    // 앱이 시작될 때 UserController의 현재 사용자 ID를 푸시 코디네이터에 동기화해서, 푸시 알림과 관련된 초기 설정이 올바르게 처리되도록 합니다.
+    await _pushCoordinator.syncAuthenticatedUser(
+      widget.preloadedUserController.currentUserId,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        _pushCoordinator.processPendingNavigation(),
+      ); // 앱이 활성화된 후에 푸시 알림으로 인한 대기 중인 네비게이션이 있으면 처리합니다.
     });
   }
 
@@ -216,6 +255,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // 사용자가 로그인한 경우에는 AnalyticsService에
     // identify로 사용자 ID를 전달해서 사용자를 식별합니다.
     unawaited(widget.analyticsService.identify(userId: currentUserId));
+  }
+
+  void _syncPushIdentity() {
+    unawaited(
+      _pushCoordinator.syncAuthenticatedUser(
+        widget.preloadedUserController.currentUserId,
+      ),
+    );
   }
 
   void _handleIncomingUri(Uri uri) {

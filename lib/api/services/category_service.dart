@@ -386,13 +386,13 @@ class CategoryService {
   /// Returns: 응답 처리 성공 여부
   Future<bool> respondToInvite({
     required int categoryId,
-
+    required int responserId,
     required CategoryInviteStatus status,
   }) async {
     try {
       final dto = CategoryInviteResponseReqDto(
         categoryId: categoryId,
-
+        responserId: responserId,
         status: _toCategoryInviteStatusEnum(status),
       );
 
@@ -418,19 +418,25 @@ class CategoryService {
   }
 
   /// 카테고리 초대 수락 (편의 메서드)
-  Future<bool> acceptInvite({required int categoryId}) async {
+  Future<bool> acceptInvite({
+    required int categoryId,
+    required int responserId,
+  }) async {
     return respondToInvite(
       categoryId: categoryId,
-
+      responserId: responserId,
       status: CategoryInviteStatus.accepted,
     );
   }
 
   /// 카테고리 초대 거절 (편의 메서드)
-  Future<bool> declineInvite({required int categoryId}) async {
+  Future<bool> declineInvite({
+    required int categoryId,
+    required int responserId,
+  }) async {
     return respondToInvite(
       categoryId: categoryId,
-
+      responserId: responserId,
       status: CategoryInviteStatus.declined,
     );
   }

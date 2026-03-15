@@ -98,9 +98,6 @@ class _AuthFinalScreenState extends State<AuthFinalScreen> {
         return;
       }
 
-      // 생성된 사용자를 현재 사용자로 설정 (Provider 상태 업데이트)
-      apiUserController.setCurrentUser(createdUser);
-
       // 2. 프로필 이미지가 있으면 업로드 후 사용자 업데이트
       if (profileImagePath != null && profileImagePath.isNotEmpty) {
         final imageFile = File(profileImagePath);
@@ -118,25 +115,22 @@ class _AuthFinalScreenState extends State<AuthFinalScreen> {
 
           // 3. 프로필 이미지 키로 사용자 정보 업데이트
           if (profileImageKey != null) {
-            await apiUserController.updateprofileImageUrl(
+            final updatedUser = await apiUserController.updateprofileImageUrl(
               userId: createdUser.id,
               profileImageKey: profileImageKey,
             );
+            if (updatedUser != null) {
+              apiUserController.setCurrentUser(updatedUser);
+            }
           }
         } else {
           debugPrint('[AuthFinalScreen] 프로필 이미지 파일 없음: $profileImagePath');
         }
       }
 
-      // 4. 로그인 상태 저장
-      await apiUserController.saveLoginState(
-        userId: createdUser.id,
-        phoneNumber: phone,
-      );
-
       if (!mounted) return;
 
-      // 5. 온보딩 화면으로 이동 (데이터 없이 - 이미 회원가입 완료됨)
+      // 4. 홈 화면으로 이동 (JWT 로그인까지 완료된 상태)
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(

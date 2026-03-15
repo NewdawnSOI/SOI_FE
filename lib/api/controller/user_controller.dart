@@ -20,7 +20,10 @@ import '../api_client.dart';
 /// await controller.requestSmsVerification('01012345678');
 ///
 /// // 로그인
-/// final user = await controller.login('01012345678');
+/// final user = await controller.login(
+///   nickName: 'hong123',
+///   phoneNumber: '01012345678',
+/// );
 /// ```
 class UserController extends ChangeNotifier {
   final UserService _userService;
@@ -116,86 +119,57 @@ class UserController extends ChangeNotifier {
   // 로그인/로그아웃
   // ============================================
 
-  /// 닉네임(ID)으로 로그인
-  /// [nickName]으로 로그인합니다.
+  /// 로그인
+  /// [nickName]과 [phoneNumber]를 함께 사용해 로그인합니다.
   ///
   /// Parameters:
-  ///   - [nickName]: 로그인할 닉네임/ID (String)
+  ///   - [nickName]: 로그인할 닉네임/ID
+  ///   - [phoneNumber]: 로그인할 전화번호
   ///
   /// Returns: 로그인된 사용자 정보 (User)
   ///   - null: 로그인 실패
 
-  Future<User?> loginWithNickname(String nickName) async {
+  Future<User?> login({String? nickName, String? phoneNumber}) async {
+    final normalizedNickname = nickName?.trim();
+    final normalizedPhoneNumber = phoneNumber?.trim();
+
     _setLoading(true);
     _clearError();
 
     try {
-      final user = await _userService.loginWithNickname(nickName);
+      final user = await _userService.login(
+        nickName: normalizedNickname,
+        phoneNum: normalizedPhoneNumber,
+      );
       _currentUser = user;
 
       // 로그인 성공 시 상태 저장
       if (user != null) {
         await saveLoginState(userId: user.id, phoneNumber: user.phoneNumber);
+      } else {
+        debugPrint('[UserController.login] 로그인 실패 code=404');
       }
 
       _setLoading(false);
       notifyListeners();
       return user;
-    } on NotFoundException {
-      _currentUser = null;
-      _setLoading(false);
-      notifyListeners();
-      return null;
-    } on SoiApiException catch (e) {
-      _setError('로그인 실패: $e');
-      _setLoading(false);
-      rethrow;
-    } catch (e) {
-      final wrapped = SoiApiException(
-        message: '로그인 실패: $e',
-        originalException: e,
+    } on NotFoundException catch (e) {
+      debugPrint(
+        '[UserController.login] 로그인 실패 code=${e.statusCode ?? 404}, message=${e.message}',
       );
-      _setError(wrapped.message);
-      _setLoading(false);
-      throw wrapped;
-    }
-  }
-
-  /// 로그인
-  /// [phoneNumber]로 로그인합니다.
-  ///
-  /// Parameters:
-  ///   - [phoneNumber]: 로그인할 전화번호 (String)
-  ///
-  /// Returns: 로그인된 사용자 정보 (User)
-  ///   - null: 로그인 실패
-
-  Future<User?> login(String phoneNumber) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      final user = await _userService.loginWithPhone(phoneNumber);
-      _currentUser = user;
-
-      // 로그인 성공 시 상태 저장
-      if (user != null) {
-        await saveLoginState(userId: user.id, phoneNumber: phoneNumber);
-      }
-
-      _setLoading(false);
-      notifyListeners();
-      return user;
-    } on NotFoundException {
       _currentUser = null;
       _setLoading(false);
       notifyListeners();
       return null;
     } on SoiApiException catch (e) {
+      debugPrint(
+        '[UserController.login] 로그인 실패 code=${e.statusCode ?? 'unknown'}, message=${e.message}',
+      );
       _setError('로그인 실패: $e');
       _setLoading(false);
       rethrow;
     } catch (e) {
+      debugPrint('[UserController.login] 로그인 실패 code=unknown, error=$e');
       final wrapped = SoiApiException(
         message: '로그인 실패: $e',
         originalException: e,
@@ -275,7 +249,7 @@ class UserController extends ChangeNotifier {
     _clearError();
 
     try {
-      final user = await _userService.createUser(
+      await _userService.createUser(
         name: name,
         nickName: nickName,
         phoneNum: phoneNum,
@@ -286,28 +260,33 @@ class UserController extends ChangeNotifier {
         marketingAgreed: marketingAgreed,
       );
 
-      _currentUser = user;
-      notifyListeners();
-
-      try {
-        final authenticatedUser =
-            await _userService.loginWithPhone(phoneNum) ??
-            await _userService.loginWithNickname(nickName);
-        if (authenticatedUser != null) {
-          _currentUser = authenticatedUser;
-          notifyListeners();
-        }
-      } catch (e) {
-        debugPrint('[UserController] 회원가입 후 JWT 로그인 실패: $e');
+      final authenticatedUser = await _authenticateAfterSignup(
+        phoneNum: phoneNum,
+        nickName: nickName,
+      );
+      if (authenticatedUser == null) {
+        throw const AuthException(message: '회원가입 후 로그인에 실패했습니다.');
       }
 
+      _currentUser = authenticatedUser;
+      await saveLoginState(userId: authenticatedUser.id, phoneNumber: phoneNum);
+      notifyListeners();
       _setLoading(false);
-      return _currentUser;
+      return authenticatedUser;
     } catch (e) {
+      _currentUser = null;
+      await clearLoginState();
       _setError('사용자 생성 실패: $e');
       _setLoading(false);
       return null;
     }
+  }
+
+  Future<User?> _authenticateAfterSignup({
+    required String phoneNum,
+    required String nickName,
+  }) async {
+    return _userService.login(nickName: nickName, phoneNum: phoneNum);
   }
 
   // ============================================
@@ -359,7 +338,7 @@ class UserController extends ChangeNotifier {
   }
 
   /// 모든 사용자 정보를 가지고 오는 메서드
-  /// Returns: 사용자 목록 (List<User>)
+  /// Returns: 사용자 목록 (`List<User>`)
   Future<List<User>> getAllUsers() async {
     _setLoading(true);
     _clearError();
@@ -381,7 +360,7 @@ class UserController extends ChangeNotifier {
   /// Parameters:
   ///   - [keyword]: 검색 키워드 (String)
   ///
-  /// Returns: 검색된 사용자 목록 (List<User>)
+  /// Returns: 검색된 사용자 목록 (`List<User>`)
   Future<List<User>> findUsersByKeyword(String keyword) async {
     _setLoading(true);
     _clearError();
@@ -627,7 +606,7 @@ class UserController extends ChangeNotifier {
   }
 
   /// 저장된 사용자 정보를 가져옵니다.
-  /// Returns: 사용자 정보 맵 (Map<String, dynamic>)
+  /// Returns: 사용자 정보 맵 (`Map<String, dynamic>`)
   ///   - null: 저장된 정보 없음
   Future<Map<String, dynamic>?> getSavedUserInfo() async {
     try {

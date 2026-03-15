@@ -27,6 +27,10 @@
     "block_success": "Bloqueado",
     "block_failed": "No se pudo"
   },
+  "push": {
+    "channel_name": "Alertas de SOI",
+    "channel_description": "Avisos de novedades y actividad"
+  },
   "archive": {
     "tabs": {
       "all": "Todo",
@@ -253,6 +257,25 @@
       "status_blocked": "Bloqueado",
       "status_add": "Agregar"
     }
+  },
+  "login": {
+    "title": "Ingresa tu apodo y telefono.",
+    "nickname_hint": "Apodo",
+    "phone_hint": "Telefono",
+    "nickname_required": "Ingresa tu apodo.",
+    "phone_required": "Ingresa tu telefono.",
+    "not_found": "Revisa el apodo o telefono ingresado.",
+    "loading": "Entrando...",
+    "failed": "No se pudo iniciar sesion. Reintenta.",
+    "network_error": "La red es inestable. Reintenta.",
+    "invalid_input": "Revisa la informacion e intentalo otra vez.",
+    "test_push_token_action": "Emitir token FCM de prueba",
+    "test_push_token_loading": "Emitiendo token FCM de prueba...",
+    "test_push_token_copied": "El token FCM se copio al portapapeles.",
+    "test_push_token_unavailable": "No se pudo emitir el token FCM. Intentalo de nuevo.",
+    "test_push_token_failed_with_reason": "No se pudo emitir el token FCM: {error}",
+    "test_push_token_dialog_title": "Token FCM de prueba",
+    "test_push_token_dialog_hint": "El token de abajo tambien se copio al portapapeles."
   },
   "register": {
     "name_title": "Tu nombre",

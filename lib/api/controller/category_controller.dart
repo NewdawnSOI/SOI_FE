@@ -452,12 +452,16 @@ class CategoryController extends ChangeNotifier {
   /// - [bool]: 수락 성공 여부
   ///   - true: 수락 성공
   ///   - false: 수락 실패
-  Future<bool> acceptInvite({required int categoryId}) async {
+  Future<bool> acceptInvite({
+    required int categoryId,
+    required int responserId,
+  }) async {
     _setLoading(true);
     _clearError();
     try {
       final result = await _categoryService.acceptInvite(
         categoryId: categoryId,
+        responserId: responserId,
       );
       _setLoading(false);
       return result;
@@ -477,12 +481,16 @@ class CategoryController extends ChangeNotifier {
   /// - [bool]: 거절 성공 여부
   ///   - true: 거절 성공
   ///   - false: 거절 실패
-  Future<bool> declineInvite({required int categoryId}) async {
+  Future<bool> declineInvite({
+    required int categoryId,
+    required int responserId,
+  }) async {
     _setLoading(true);
     _clearError();
     try {
       final result = await _categoryService.declineInvite(
         categoryId: categoryId,
+        responserId: responserId,
       );
       _setLoading(false);
       return result;

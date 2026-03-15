@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 71;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -88,39 +88,9 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		7948B2792E534A92000BF9E0 /* SOI */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = SOI;
-			sourceTree = "<group>";
-		};
-		7948B2892E534A94000BF9E0 /* SOITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = SOITests;
-			sourceTree = "<group>";
-		};
-		7948B2932E534A94000BF9E0 /* SOIUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = SOIUITests;
-			sourceTree = "<group>";
-		};
+		7948B2792E534A92000BF9E0 /* SOI */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = SOI; sourceTree = "<group>"; };
+		7948B2892E534A94000BF9E0 /* SOITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = SOITests; sourceTree = "<group>"; };
+		7948B2932E534A94000BF9E0 /* SOIUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = SOIUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -346,9 +316,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -401,9 +375,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -565,7 +543,7 @@
 				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = ZNNY3727TQ;
 				ENABLE_BITCODE = NO;
-				INFOPLIST_FILE = Runner/Info-Profile.plist;
+				INFOPLIST_FILE = "Runner/Info-Profile.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = SOI;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -576,7 +554,7 @@
 				MARKETING_VERSION = 1.0.2;
 				PODS_CONFIGURATION_BUILD_DIR = "$(inherited)";
 				PODS_XCFRAMEWORKS_BUILD_DIR = "$(inherited)";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.newdawn.soi-project";
+				PRODUCT_BUNDLE_IDENTIFIER = com.newdawn.soiapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -764,7 +742,7 @@
 				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = ZNNY3727TQ;
 				ENABLE_BITCODE = NO;
-				INFOPLIST_FILE = Runner/Info-Debug.plist;
+				INFOPLIST_FILE = "Runner/Info-Debug.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = SOI;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -775,7 +753,7 @@
 				MARKETING_VERSION = 1.0.2;
 				PODS_CONFIGURATION_BUILD_DIR = "$(inherited)";
 				PODS_XCFRAMEWORKS_BUILD_DIR = "$(inherited)";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.newdawn.soi-project";
+				PRODUCT_BUNDLE_IDENTIFIER = com.newdawn.soiapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -814,7 +792,7 @@
 				MARKETING_VERSION = 1.0.2;
 				PODS_CONFIGURATION_BUILD_DIR = "$(inherited)";
 				PODS_XCFRAMEWORKS_BUILD_DIR = "$(inherited)";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.newdawn.soi-project";
+				PRODUCT_BUNDLE_IDENTIFIER = com.newdawn.soiapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

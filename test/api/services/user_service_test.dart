@@ -51,13 +51,13 @@ void main() {
         );
 
         expect(
-          service.loginWithNickname('minchan'),
+          service.login(nickName: 'minchan', phoneNum: '01012345678'),
           throwsA(isA<NetworkException>()),
         );
       },
     );
 
-    test('returns null for nickname login when API responds 404', () async {
+    test('returns null when combined login API responds 404', () async {
       final service = UserService(
         authApi: _FakeAuthApi(
           onLogin: (_) async => throw ApiException(404, 'not found'),
@@ -67,29 +67,43 @@ void main() {
         onAuthTokenCleared: () {},
       );
 
-      final result = await service.loginWithNickname('unknown');
-      expect(result, isNull);
-    });
-
-    test('returns null for phone login when API responds 404', () async {
-      final service = UserService(
-        authApi: _FakeAuthApi(
-          onLogin: (_) async => throw ApiException(404, 'not found'),
-        ),
-        userApi: _FakeUserApi(onGetUser: () async => null),
-        onAuthTokenIssued: (_) {},
-        onAuthTokenCleared: () {},
+      final result = await service.login(
+        nickName: 'unknown',
+        phoneNum: '01000000000',
       );
-
-      final result = await service.loginWithPhone('01000000000');
       expect(result, isNull);
     });
+
+    test(
+      'throws BadRequestException when nickname or phone is missing',
+      () async {
+        final service = UserService(
+          authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+          userApi: _FakeUserApi(onGetUser: () async => null),
+          onAuthTokenIssued: (_) {},
+          onAuthTokenCleared: () {},
+        );
+
+        expect(
+          service.login(nickName: 'minchan'),
+          throwsA(isA<BadRequestException>()),
+        );
+        expect(
+          service.login(phoneNum: '01012345678'),
+          throwsA(isA<BadRequestException>()),
+        );
+      },
+    );
 
     test('stores JWT token and fetches current user after login', () async {
       String? issuedToken;
       final service = UserService(
         authApi: _FakeAuthApi(
-          onLogin: (_) async => LoginRespDto(accessToken: 'jwt-token'),
+          onLogin: (dto) async {
+            expect(dto.nickname, 'minchan');
+            expect(dto.phoneNum, '01012345678');
+            return LoginRespDto(accessToken: 'jwt-token');
+          },
         ),
         userApi: _FakeUserApi(
           onGetUser: () async => ApiResponseDtoUserRespDto(
@@ -106,7 +120,10 @@ void main() {
         onAuthTokenCleared: () {},
       );
 
-      final result = await service.loginWithNickname('minchan');
+      final result = await service.login(
+        nickName: 'minchan',
+        phoneNum: '01012345678',
+      );
 
       expect(issuedToken, 'jwt-token');
       expect(result?.id, 1);

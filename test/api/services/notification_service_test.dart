@@ -6,39 +6,27 @@ import 'package:soi_api_client/api.dart';
 class _FakeNotificationApi extends NotificationAPIApi {
   _FakeNotificationApi({this.onGetAll, this.onGetFriend});
 
-  final Future<ApiResponseDtoNotificationGetAllRespDto?> Function(
-    int userId,
-    int page,
-  )?
+  final Future<ApiResponseDtoNotificationGetAllRespDto?> Function(int page)?
   onGetAll;
-  final Future<ApiResponseDtoListNotificationRespDto?> Function(
-    int userId,
-    int page,
-  )?
+  final Future<ApiResponseDtoListNotificationRespDto?> Function(int page)?
   onGetFriend;
 
   @override
-  Future<ApiResponseDtoNotificationGetAllRespDto?> getAll(
-    int userId,
-    int page,
-  ) async {
+  Future<ApiResponseDtoNotificationGetAllRespDto?> getAll(int page) async {
     final handler = onGetAll;
     if (handler == null) {
       throw UnimplementedError('onGetAll is not configured');
     }
-    return handler(userId, page);
+    return handler(page);
   }
 
   @override
-  Future<ApiResponseDtoListNotificationRespDto?> getFriend(
-    int userId,
-    int page,
-  ) async {
+  Future<ApiResponseDtoListNotificationRespDto?> getFriend(int page) async {
     final handler = onGetFriend;
     if (handler == null) {
       throw UnimplementedError('onGetFriend is not configured');
     }
-    return handler(userId, page);
+    return handler(page);
   }
 }
 
@@ -61,8 +49,7 @@ void main() {
     test('getAllNotifications preserves reply comment ids', () async {
       final service = NotificationService(
         notificationApi: _FakeNotificationApi(
-          onGetAll: (userId, page) async {
-            expect(userId, 7);
+          onGetAll: (page) async {
             expect(page, 0);
             return ApiResponseDtoNotificationGetAllRespDto(
               success: true,
@@ -91,8 +78,7 @@ void main() {
     test('getFriendNotifications preserves reply comment ids', () async {
       final service = NotificationService(
         notificationApi: _FakeNotificationApi(
-          onGetFriend: (userId, page) async {
-            expect(userId, 7);
+          onGetFriend: (page) async {
             expect(page, 0);
             return ApiResponseDtoListNotificationRespDto(
               success: true,

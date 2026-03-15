@@ -23,7 +23,10 @@ import '../models/models.dart';
 /// final verified = await userService.verifySmsCode('01012345678', '123456');
 ///
 /// // 로그인
-/// final user = await userService.loginWithPhone('01012345678');
+/// final user = await userService.login(
+///   nickName: 'hong123',
+///   phoneNum: '01012345678',
+/// );
 ///
 /// // 사용자 생성
 /// final user = await userService.createUser(
@@ -109,9 +112,9 @@ class UserService {
   // 로그인
   // ============================================
 
-  /// 닉네임(ID)으로 로그인
+  /// 닉네임과 전화번호로 로그인
   ///
-  /// [nickName]으로 로그인합니다.
+  /// [nickName]과 [phoneNum]을 함께 사용해 로그인합니다.
   /// 성공 시 사용자 정보(User) 반환, 실패 시 예외를 throw합니다.
   ///
   /// 반환값:
@@ -120,50 +123,47 @@ class UserService {
   ///
   /// Throws:
   /// - [NetworkException]: 네트워크 연결 실패
-  /// - [NotFoundException]: 등록되지 않은 닉네임
+  /// - [NotFoundException]: 등록되지 않은 사용자
   /// - [SoiApiException]: 기타 API 에러
-  Future<User?> loginWithNickname(String nickName) async {
-    try {
-      return await _login(LoginReqDto(nickname: nickName));
-    } on ApiException catch (e) {
-      // 404는 신규 회원을 의미할 수 있음
-      if (e.code == 404) {
-        return null;
-      }
-      throw _handleApiException(e);
-    } on SocketException catch (e) {
-      throw NetworkException(originalException: e);
-    } catch (e) {
-      if (e is SoiApiException) rethrow;
-      throw SoiApiException(message: '로그인 실패: $e', originalException: e);
-    }
-  }
+  Future<User?> login({String? nickName, String? phoneNum}) async {
+    final normalizedNickName = nickName?.trim();
+    final normalizedPhoneNum = phoneNum?.trim();
+    final hasNickName =
+        normalizedNickName != null && normalizedNickName.isNotEmpty;
+    final hasPhoneNum =
+        normalizedPhoneNum != null && normalizedPhoneNum.isNotEmpty;
 
-  /// 전화번호로 로그인
-  ///
-  /// SMS 인증이 완료된 [phoneNum]으로 로그인합니다.
-  /// 성공 시 사용자 정보(User) 반환, 실패 시 예외를 throw합니다.
-  ///
-  /// 반환값:
-  /// - 기존 회원: User (사용자 정보)
-  /// - 신규 회원: null (회원가입 필요)
-  ///
-  /// Throws:
-  /// - [NetworkException]: 네트워크 연결 실패
-  /// - [NotFoundException]: 등록되지 않은 전화번호
-  /// - [SoiApiException]: 기타 API 에러
-  Future<User?> loginWithPhone(String phoneNum) async {
+    if (!hasNickName || !hasPhoneNum) {
+      throw const BadRequestException(message: '닉네임과 전화번호를 모두 전달해야 합니다.');
+    }
+
+    final dto = LoginReqDto(
+      nickname: normalizedNickName,
+      phoneNum: normalizedPhoneNum,
+    );
+
     try {
-      return await _login(LoginReqDto(phoneNum: phoneNum));
+      return await _login(dto);
     } on ApiException catch (e) {
+      debugPrint(
+        '[UserService.login] API 예외 code=${e.code}, message=${e.message}',
+      );
       // 404는 신규 회원을 의미할 수 있음
       if (e.code == 404) {
+        debugPrint('[UserService.login] 로그인 실패 code=404');
         return null;
       }
       throw _handleApiException(e);
     } on SocketException catch (e) {
+      debugPrint('[UserService.login] 로그인 실패 code=network, error=$e');
       throw NetworkException(originalException: e);
+    } on SoiApiException catch (e) {
+      debugPrint(
+        '[UserService.login] 로그인 실패 code=${e.statusCode ?? 'unknown'}, message=${e.message}',
+      );
+      rethrow;
     } catch (e) {
+      debugPrint('[UserService.login] 로그인 실패 code=unknown, error=$e');
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '로그인 실패: $e', originalException: e);
     }
@@ -302,7 +302,7 @@ class UserService {
   /// 등록된 모든 사용자 목록을 조회합니다.
   /// (주의: 대량 데이터 조회 시 성능 이슈 가능)
   ///
-  /// Returns: 사용자 목록 (List<User>)
+  /// Returns: 사용자 목록 (`List<User>`)
   Future<List<User>> getAllUsers() async {
     try {
       final response = await _userApi.getAllUsers();
@@ -330,7 +330,7 @@ class UserService {
   ///
   /// [keyword]가 포함된 nickName를 가진 사용자를 검색합니다.
   ///
-  /// Returns: 검색된 사용자 목록 (List<User>)
+  /// Returns: 검색된 사용자 목록 (`List<User>`)
   Future<List<User>> findUsersByKeyword(String keyword) async {
     try {
       final response = await _userApi.findUser(keyword);

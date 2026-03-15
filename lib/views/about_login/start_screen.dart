@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -34,7 +36,7 @@ class _StartScreenState extends State<StartScreen>
   void initState() {
     super.initState();
     _initializeAnimations();
-    _checkAutoLogin();
+    _checkInitialAuthState();
   }
 
   /// 애니메이션 초기화
@@ -105,58 +107,20 @@ class _StartScreenState extends State<StartScreen>
     super.dispose();
   }
 
-  /// 자동 로그인 체크
-  Future<void> _checkAutoLogin() async {
-    try {
-      final userController = Provider.of<UserController>(
-        context,
-        listen: false,
-      );
-      final canAutoLogin = await userController.tryAutoLogin();
-
-      if (mounted) {
-        if (canAutoLogin) {
-          await _navigateToHome();
-        } else {
-          setState(() {
-            _isCheckingAutoLogin = false;
-          });
-          // 애니메이션 시작
-          _startAnimations();
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isCheckingAutoLogin = false;
-        });
-        // 애니메이션 시작
-        _startAnimations();
-      }
+  /// 앱 루트에서 이미 복원한 인증 상태만 보고 시작 화면을 결정합니다.
+  void _checkInitialAuthState() {
+    final userController = Provider.of<UserController>(context, listen: false);
+    if (userController.isLoggedIn) {
+      unawaited(_navigateToHome());
+      return;
     }
+
+    _isCheckingAutoLogin = false;
+    _startAnimations();
   }
 
   /// 로그인 버튼 처리
   Future<void> _handleLoginTap() async {
-    try {
-      final userController = Provider.of<UserController>(
-        context,
-        listen: false,
-      );
-      final canAutoLogin = await userController.tryAutoLogin();
-
-      if (!mounted) {
-        return;
-      }
-
-      if (canAutoLogin) {
-        await _navigateToHome();
-        return;
-      }
-    } catch (e) {
-      debugPrint('[StartScreen] 자동 로그인 확인 실패: $e');
-    }
-
     if (!mounted) {
       return;
     }

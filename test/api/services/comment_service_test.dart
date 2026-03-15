@@ -21,10 +21,7 @@ class _FakeCommentApi extends CommentAPIApi {
     int page,
   )
   onGetChildComment;
-  final Future<ApiResponseDtoSliceCommentRespDto?> Function(
-    int userId,
-    int page,
-  )?
+  final Future<ApiResponseDtoSliceCommentRespDto?> Function(int page)?
   onGetAllCommentByUserId;
 
   @override
@@ -44,15 +41,12 @@ class _FakeCommentApi extends CommentAPIApi {
   }
 
   @override
-  Future<ApiResponseDtoSliceCommentRespDto?> getAllCommentByUserId(
-    int userId,
-    int page,
-  ) {
+  Future<ApiResponseDtoSliceCommentRespDto?> getAllCommentByUserId(int page) {
     final handler = onGetAllCommentByUserId;
     if (handler == null) {
       throw UnimplementedError('onGetAllCommentByUserId is not configured');
     }
-    return handler(userId, page);
+    return handler(page);
   }
 }
 
@@ -274,8 +268,7 @@ void main() {
         commentApi: _FakeCommentApi(
           onGetParentComment: (postId, page) async => null,
           onGetChildComment: (parentCommentId, page) async => null,
-          onGetAllCommentByUserId: (userId, page) async {
-            expect(userId, 42);
+          onGetAllCommentByUserId: (page) async {
             expect(page, 1);
             return _sliceResponse(
               content: [_commentDto(100), _commentDto(101)],

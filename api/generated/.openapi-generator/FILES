@@ -143,9 +143,3 @@ lib/model/user_find_resp_dto.dart
 lib/model/user_resp_dto.dart
 lib/model/user_update_req_dto.dart
 pubspec.yaml
-test/auth_controller_api_test.dart
-test/login_req_dto_test.dart
-test/login_resp_dto_test.dart
-test/notification_delete_token_req_dto_test.dart
-test/notification_device_api_api_test.dart
-test/notification_register_token_req_dto_test.dart
