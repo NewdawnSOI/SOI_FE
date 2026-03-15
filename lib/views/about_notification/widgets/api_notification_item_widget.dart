@@ -63,6 +63,7 @@ class ApiNotificationItemWidget extends StatelessWidget {
                 imageUrl: profileUrl!,
                 width: 44,
                 height: 44,
+                memCacheWidth: (44 * 4).round(),
                 memCacheHeight: (44 * 4).round(),
                 maxWidthDiskCache: (44 * 4).round(),
                 fit: BoxFit.cover,

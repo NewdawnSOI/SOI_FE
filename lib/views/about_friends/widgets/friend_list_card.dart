@@ -151,6 +151,8 @@ class _FriendListCardState extends State<FriendListCard> {
                                         ? _buildInitialOrIcon(friend)
                                         : Image.network(
                                             friend.profileImageUrlKey!,
+                                            cacheWidth: (44 * 4).round(),
+                                            cacheHeight: (44 * 4).round(),
                                             fit: BoxFit.cover,
                                             loadingBuilder: (
                                               context,

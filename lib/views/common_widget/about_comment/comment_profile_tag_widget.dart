@@ -498,6 +498,7 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
                     height: widget.avatarSize,
                     fit: BoxFit.cover,
                     memCacheWidth: (widget.avatarSize * 2).round(),
+                    memCacheHeight: (widget.avatarSize * 2).round(),
                     maxWidthDiskCache: (widget.avatarSize * 2).round(),
                     placeholder: (_, __) =>
                         Container(color: Colors.grey.shade700),

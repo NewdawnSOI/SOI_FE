@@ -233,6 +233,7 @@ class _ApiCategoryMembersBottomSheetState
                     imageUrl: profileUrl,
                     fit: BoxFit.cover,
                     memCacheWidth: (60 * 4).round(),
+                    memCacheHeight: (60 * 4).round(),
                     maxWidthDiskCache: (60 * 4).round(),
                     placeholder: (context, url) => _buildMemberShimmer(),
                     errorWidget: (context, url, error) {

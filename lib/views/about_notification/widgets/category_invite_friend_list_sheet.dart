@@ -120,6 +120,7 @@ class _FriendAvatar extends StatelessWidget {
             ? CachedNetworkImage(
                 imageUrl: imageUrl,
                 memCacheWidth: (44 * 4).round(),
+                memCacheHeight: (44 * 4).round(),
                 maxWidthDiskCache: (44 * 4).round(),
                 fit: BoxFit.cover,
                 placeholder: (context, url) => _shimmerPlaceholder(),

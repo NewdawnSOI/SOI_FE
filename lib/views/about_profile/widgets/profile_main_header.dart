@@ -154,6 +154,7 @@ class _ProfileHeaderAvatar extends StatelessWidget {
                 fadeOutDuration: Duration.zero,
                 fit: BoxFit.cover,
                 memCacheWidth: (45.9.sp * 4).round(),
+                memCacheHeight: (45.9.sp * 4).round(),
                 maxWidthDiskCache: (45.9.sp * 4).round(),
                 placeholder: (_, __) =>
                     const ColoredBox(color: Color(0xFF1C1C1C)),

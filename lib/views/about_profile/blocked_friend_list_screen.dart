@@ -410,6 +410,7 @@ class _BlockedUserItem extends StatelessWidget {
                   child: CachedNetworkImage(
                     imageUrl: profileUrl,
                     fit: BoxFit.cover,
+                    memCacheWidth: (44 * 4).round(),
                     memCacheHeight: (44 * 4).round(),
                     maxWidthDiskCache: (44 * 4).round(),
                     placeholder: (context, url) => Shimmer.fromColors(

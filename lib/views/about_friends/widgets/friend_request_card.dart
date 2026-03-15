@@ -277,6 +277,7 @@ class _FriendRequestCardState extends State<FriendRequestCard> {
                 fit: BoxFit.cover,
                 width: (44).w,
                 height: (44).w,
+                memCacheWidth: (44 * 4).round(),
                 memCacheHeight: (44 * 4).round(),
                 maxWidthDiskCache: (44 * 4).round(),
                 errorWidget: (_, __, ___) =>

@@ -38,6 +38,9 @@ class ApiPhotoCircleAvatar extends StatelessWidget {
           fadeOutDuration: Duration.zero,
           width: size,
           height: size,
+          memCacheWidth: (size * 4).round(),
+          memCacheHeight: (size * 4).round(),
+          maxWidthDiskCache: (size * 4).round(),
           fit: BoxFit.cover,
           placeholder: (context, url) => Shimmer.fromColors(
             baseColor: const Color(0xFF2A2A2A),

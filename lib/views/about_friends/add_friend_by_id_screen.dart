@@ -456,6 +456,7 @@ class _UserResultTile extends StatelessWidget {
         width: 44.w,
         height: 44.w,
         memCacheWidth: (44 * 2).round(),
+        memCacheHeight: (44 * 2).round(),
         maxWidthDiskCache: (44 * 2).round(),
         fit: BoxFit.cover,
         placeholder: (_, __) => placeholder,

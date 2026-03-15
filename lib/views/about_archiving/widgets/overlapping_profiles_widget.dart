@@ -134,6 +134,7 @@ class _ProfileAvatar extends StatelessWidget {
           imageUrl: url,
           fit: BoxFit.cover,
           memCacheWidth: (size * 5).round(),
+          memCacheHeight: (size * 5).round(),
           maxWidthDiskCache: (size * 5).round(),
           placeholder: (context, url) => _buildShimmer(),
           errorWidget: (context, url, error) => _buildDefault(),

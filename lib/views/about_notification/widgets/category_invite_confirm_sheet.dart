@@ -272,6 +272,7 @@ class CategoryInviteConfirmSheet extends StatelessWidget {
             ? CachedNetworkImage(
                 imageUrl: invitee.profileImageUrl,
                 memCacheWidth: (19.31 * 4).round(),
+                memCacheHeight: (19.31 * 4).round(),
                 maxWidthDiskCache: (19.31 * 4).round(),
                 fit: BoxFit.cover,
                 placeholder: (context, url) => _shimmerAvatarPlaceholder(),

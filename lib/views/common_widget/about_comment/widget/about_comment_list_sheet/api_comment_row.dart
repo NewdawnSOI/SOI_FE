@@ -295,13 +295,46 @@ class ApiCommentRow extends StatelessWidget {
     return (comment.userProfileKey ?? '').trim();
   }
 
-  String get _userName {
+  /// 대댓글 닉네임 행: "작성자 ─── 수신자" 형태로 한 줄에 표시
+  Widget _buildUserNameWidget() {
     final nickname = comment.nickname ?? '알 수 없는 사용자';
     final replyUserName = comment.replyUserName?.trim() ?? '';
+    final style = _userNameStyle();
+
     if (!comment.isReply || replyUserName.isEmpty) {
-      return nickname;
+      return Text(nickname, style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
     }
-    return '$nickname --- $replyUserName';
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Flexible(
+          child: Text(
+            nickname,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 6.sp),
+          child: Container(
+            width: 18.sp,
+            height: 1.0,
+            color: Colors.white,
+          ),
+        ),
+        Flexible(
+          child: Text(
+            replyUserName,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
   }
 
   double get _effectiveProfileImageSize =>
@@ -488,7 +521,7 @@ class ApiCommentRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_userName, style: _userNameStyle()),
+                    _buildUserNameWidget(),
                     if (bodySpacing > 0) SizedBox(height: bodySpacing.sp),
                     body,
                   ],

@@ -103,6 +103,7 @@ class ProfileAvatarHeader extends StatelessWidget {
       child: CachedNetworkImage(
         imageUrl: profileImageUrl!,
         memCacheWidth: (96 * 4).round(),
+        memCacheHeight: (96 * 4).round(),
         maxWidthDiskCache: (96 * 4).round(),
         fit: BoxFit.cover,
         width: 96,
