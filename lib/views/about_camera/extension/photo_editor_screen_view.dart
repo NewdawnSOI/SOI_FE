@@ -1,4 +1,4 @@
-part of 'photo_editor_screen.dart';
+part of '../photo_editor_screen.dart';
 
 /// UI 빌드 및 사용자 인터랙션 처리 관련 로직을 모아둔 extension
 /// 캡션 입력, 카테고리 선택, 텍스트 전용 미리보기, 에디터 스캐폴드 빌드 등

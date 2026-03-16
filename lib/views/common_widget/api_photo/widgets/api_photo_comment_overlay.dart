@@ -59,11 +59,14 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
   }
 
   List<Widget> _buildCommentAvatars() {
-    final filteredComments = comments.where((comment) => comment.hasLocation);
+    // 위치가 있는 댓글만 필터링하여 표시합니다.
+    final filteredComments = comments
+        .where((comment) => comment.hasLocation)
+        .toList(growable: false);
 
     return List<Widget>.generate(filteredComments.length, (index) {
-      final comment = filteredComments.elementAt(index);
-      final key = '${index}_${comment.hashCode}';
+      final comment = filteredComments[index];
+      final key = _buildStableCommentKey(comment, index);
       final canExpandMedia = ApiPhotoTagGeometryService.canExpandMediaComment(
         comment,
       );
@@ -113,11 +116,12 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
           child: TagBubble(
             contentSize: avatarSize,
             child: ApiPhotoCircleAvatar(
-              key: ValueKey('avatar_$key'),
-              imageUrl: comment.userProfileUrl,
+              key: ValueKey<String>('avatar_$key'),
+              imageUrl: _resolveProfileImageSource(comment),
               size: avatarSize,
               showBorder: isSelected,
               borderColor: Colors.white,
+              cacheKey: _resolveProfileCacheKey(comment),
             ),
           ),
         ),
@@ -143,11 +147,71 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
       child: IgnorePointer(
         child: ApiPhotoPendingProgressAvatar(
           imageUrl: marker.profileImageUrlKey,
+          cacheKey: _normalizeKey(marker.profileImageUrlKey),
           size: avatarSize,
           progress: marker.progress,
           opacity: 0.85,
         ),
       ),
     );
+  }
+
+  String _buildStableCommentKey(Comment comment, int index) {
+    final commentId = comment.id;
+    if (commentId != null) {
+      return 'comment_$commentId';
+    }
+
+    final userId = comment.userId ?? 0;
+    final x = comment.locationX?.toStringAsFixed(4) ?? 'x';
+    final y = comment.locationY?.toStringAsFixed(4) ?? 'y';
+    return 'comment_${userId}_${x}_${y}_$index';
+  }
+
+  String? _resolveProfileImageSource(Comment comment) {
+    final profileUrl = (comment.userProfileUrl ?? '').trim();
+    if (profileUrl.isNotEmpty) {
+      return profileUrl;
+    }
+
+    final profileKey = (comment.userProfileKey ?? '').trim();
+    if (profileKey.isNotEmpty) {
+      return profileKey;
+    }
+
+    return null;
+  }
+
+  String? _resolveProfileCacheKey(Comment comment) {
+    final profileKey = _normalizeKey(comment.userProfileKey);
+    if (profileKey != null) {
+      return profileKey;
+    }
+
+    final profileUrl = (comment.userProfileUrl ?? '').trim();
+    final uri = Uri.tryParse(profileUrl);
+    if (uri == null || !uri.hasScheme) {
+      return null;
+    }
+
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) {
+      return null;
+    }
+
+    final normalizedHost = uri.host.trim();
+    if (normalizedHost.isEmpty) {
+      return normalizedPath;
+    }
+
+    return '$normalizedHost$normalizedPath';
+  }
+
+  String? _normalizeKey(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
   }
 }

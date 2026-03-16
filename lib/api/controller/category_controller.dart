@@ -226,10 +226,11 @@ class CategoryController extends ChangeNotifier {
   /// Parameters:
   ///   - [categoryId]: 카테고리 ID
   ///   - [update]: 카테고리 객체를 받아 수정된 객체를 반환하는 함수
+  ///   - [notify]: 캐시를 갱신한 후에 notifyListeners를 호출할지 여부 (기본값: true)
   void _updateCachedCategory(
     int categoryId,
     model.Category Function(model.Category category) update, {
-    bool notify = true,
+    bool notify = true, // 캐시를 갱신한 후에 notifyListeners를 호출할지 여부 (기본값: true)
   }) {
     bool updated = false;
 
@@ -590,6 +591,15 @@ class CategoryController extends ChangeNotifier {
     }
   }
 
+  /// 카테고리 커스텀 프로필 이미지 일괄 수정
+  ///
+  /// fields:
+  /// - [profileImageKeysByCategoryId]: 카테고리 ID별 새 프로필 이미지 키 맵 (null이면 기본 이미지로 설정)
+  ///
+  /// Returns:
+  /// - [bool]: 일괄 수정 성공 여부
+  ///   - true: 모든 수정 성공
+  ///   - false: 하나라도 수정 실패
   Future<bool> updateCustomProfilesBatch({
     required Map<int, String?> profileImageKeysByCategoryId,
   }) async {

@@ -68,15 +68,11 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       // 각 게시물에 대한 댓글을 로드하는 콜백 설정
       _feedDataManager?.setOnPostsLoaded((items) {
         if (!mounted) return;
-        for (final item in items) {
-          unawaited(
-            // 각 게시물에 대한 댓글 로드
-            _voiceCommentStateManager?.loadCommentsForPost(
-              item.post.id,
-              context,
-            ),
-          );
-        }
+        final initialItems = _feedDataManager?.visiblePosts;
+        final targetItems = (initialItems != null && initialItems.isNotEmpty)
+            ? initialItems
+            : items.take(5).toList(growable: false);
+        _loadCommentsForItems(targetItems);
       });
 
       _userController = Provider.of<UserController>(context, listen: false);
@@ -102,7 +98,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     super.didChangeDependencies();
     // IndexedStack 전환 시 TickerMode 변경을 의존성으로 추적해
     // 숨김 탭에서 누적된 posts-changed 갱신을 재개합니다.
-    TickerMode.of(context);
+    TickerMode.valuesOf(context);
     _feedDataManager ??= Provider.of<FeedDataManager>(context, listen: false);
     _feedDataManager?.refreshIfPendingVisible();
   }
@@ -219,6 +215,9 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     if (totalPosts == 0) {
       return;
     }
+
+    _loadCommentsAroundIndex(index);
+
     // 수정: 현재 5개를 보여줄 때 4번째(인덱스 3)에서 다음 5개를 미리 로드합니다.
     // (일반화: 끝에서 2번째에 도달하면 다음 청크를 요청)
     if (index >= totalPosts - 2 &&
@@ -334,21 +333,43 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       // 사용자 카테고리 및 사진 로드
       _feedDataManager?.loadUserCategoriesAndPhotos(context).then((_) {
         if (!mounted) return;
-        // 피드가 새로고침된 후, 각 게시물에 대한 댓글 재로딩
-        final refreshedPosts = _feedDataManager?.allPosts ?? [];
-        for (final item in refreshedPosts) {
-          // 각 게시물에 대한 댓글 로드
-          unawaited(
-            _voiceCommentStateManager?.loadCommentsForPost(
-              item.post.id,
-              context,
-            ),
-          );
-        }
+        final refreshedPosts = _feedDataManager?.visiblePosts ?? const [];
+        _loadCommentsForItems(refreshedPosts, forceReload: true);
         if (mounted) {
           setState(() {});
         }
       }),
+    );
+  }
+
+  void _loadCommentsAroundIndex(int index) {
+    final visiblePosts =
+        _feedDataManager?.visiblePosts ?? const <FeedPostItem>[];
+    if (visiblePosts.isEmpty || index < 0 || index >= visiblePosts.length) {
+      return;
+    }
+
+    final upperBound = (index + 2) < visiblePosts.length
+        ? (index + 2)
+        : visiblePosts.length;
+    _loadCommentsForItems(visiblePosts.sublist(index, upperBound));
+  }
+
+  void _loadCommentsForItems(
+    List<FeedPostItem> items, {
+    bool forceReload = false,
+  }) {
+    if (!mounted || items.isEmpty) {
+      return;
+    }
+
+    final postIds = items.map((item) => item.post.id).toList(growable: false);
+    unawaited(
+      _voiceCommentStateManager?.loadCommentsForPosts(
+        postIds,
+        context,
+        forceReload: forceReload,
+      ),
     );
   }
 

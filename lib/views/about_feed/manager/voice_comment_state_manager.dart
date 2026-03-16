@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
@@ -98,39 +99,222 @@ class VoiceCommentStateManager {
 
   /// 댓글을 특정 게시물에 대해 로드하는 메서드
   Future<void> loadCommentsForPost(int postId, BuildContext context) async {
+    await loadCommentsForPosts([postId], context);
+  }
+
+  Future<void> loadCommentsForPosts(
+    List<int> postIds,
+    BuildContext context, {
+    bool forceReload = false,
+  }) async {
+    final uniquePostIds = postIds
+        .toSet()
+        .where((postId) {
+          return forceReload || !_postComments.containsKey(postId);
+        })
+        .toList(growable: false);
+    if (uniquePostIds.isEmpty) {
+      return;
+    }
+
     try {
       final currentUserNickname = context
           .read<UserController>()
           .currentUser
           ?.userId;
-
-      // 댓글 컨트롤러 가져오기
       final commentController = Provider.of<CommentController>(
         context,
         listen: false,
       );
-      // 댓글 불러오기
-      final comments = await commentController.getComments(postId: postId);
+      final mediaController = context.read<api_media.MediaController>();
 
-      // 불러온 댓글 저장
-      _postComments[postId] = comments;
+      final commentResults = await Future.wait([
+        for (final postId in uniquePostIds)
+          () async {
+            final comments = await commentController.getComments(
+              postId: postId,
+            );
+            final resolvedComments = await _resolveCommentProfileImages(
+              comments,
+              mediaController,
+            );
+            return (postId: postId, comments: resolvedComments);
+          }(),
+      ]);
 
-      // 서버에서 받아온 댓글을 바탕으로, 내 이모지 선택값을 복원합니다.
-      if (currentUserNickname != null) {
-        final selected = _selectedEmojiFromComments(
-          comments: comments,
-          currentUserNickname: currentUserNickname,
-        );
-        if (selected != null) {
-          _selectedEmojisByPostId[postId] = selected;
+      if (!context.mounted) return;
+
+      final prefetchCandidates = <_ProfileImagePrefetchCandidate>[];
+      final seenPrefetchKeys = <String>{};
+
+      for (final result in commentResults) {
+        final postId = result.postId;
+        final comments = result.comments;
+
+        _postComments[postId] = comments;
+
+        if (currentUserNickname != null) {
+          final selected = _selectedEmojiFromComments(
+            comments: comments,
+            currentUserNickname: currentUserNickname,
+          );
+          if (selected != null) {
+            _selectedEmojisByPostId[postId] = selected;
+          }
         }
+
+        _voiceCommentSavedStates[postId] = comments.isNotEmpty;
+        _collectProfileImagePrefetchCandidates(
+          comments: comments,
+          prefetchCandidates: prefetchCandidates,
+          seenPrefetchKeys: seenPrefetchKeys,
+        );
       }
 
-      // 저장된 댓글이 있는지 여부 업데이트
-      _voiceCommentSavedStates[postId] = comments.isNotEmpty;
       _notifyStateChanged();
+      _prefetchProfileImages(context, prefetchCandidates);
     } catch (e) {
-      debugPrint('댓글 로드 실패(postId: $postId): $e');
+      debugPrint('댓글 로드 실패(postIds: $uniquePostIds): $e');
+    }
+  }
+
+  Future<List<Comment>> _resolveCommentProfileImages(
+    List<Comment> comments,
+    api_media.MediaController mediaController,
+  ) async {
+    if (comments.isEmpty) {
+      return comments;
+    }
+
+    final resolvedUrlsByKey = <String, String>{};
+    final keysToResolve = <String>[];
+    final seenKeys = <String>{};
+
+    for (final comment in comments) {
+      final profileKey = _extractCommentProfileKey(comment);
+      if (profileKey == null) {
+        continue;
+      }
+
+      final cachedUrl = mediaController.peekPresignedUrl(profileKey);
+      if (cachedUrl != null && cachedUrl.isNotEmpty) {
+        resolvedUrlsByKey[profileKey] = cachedUrl;
+        continue;
+      }
+
+      if (seenKeys.add(profileKey)) {
+        keysToResolve.add(profileKey);
+      }
+    }
+
+    if (keysToResolve.isNotEmpty) {
+      final resolvedUrls = await mediaController.getPresignedUrls(
+        keysToResolve,
+      );
+      final upperBound = keysToResolve.length < resolvedUrls.length
+          ? keysToResolve.length
+          : resolvedUrls.length;
+      for (var i = 0; i < upperBound; i++) {
+        final resolvedUrl = resolvedUrls[i].trim();
+        if (resolvedUrl.isEmpty) {
+          continue;
+        }
+        resolvedUrlsByKey[keysToResolve[i]] = resolvedUrl;
+      }
+    }
+
+    return comments
+        .map((comment) {
+          final profileKey = _extractCommentProfileKey(comment);
+          if (profileKey == null) {
+            return comment;
+          }
+
+          final originalUrl = (comment.userProfileUrl ?? '').trim();
+          final resolvedUrl = resolvedUrlsByKey[profileKey];
+          final nextUrl = (resolvedUrl != null && resolvedUrl.isNotEmpty)
+              ? resolvedUrl
+              : originalUrl;
+          final originalKey = (comment.userProfileKey ?? '').trim();
+          final nextKey = originalKey.isNotEmpty ? originalKey : profileKey;
+
+          if (nextUrl == originalUrl && nextKey == originalKey) {
+            return comment;
+          }
+
+          return comment.copyWith(
+            userProfileUrl: nextUrl.isEmpty ? profileKey : nextUrl,
+            userProfileKey: nextKey,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  String? _extractCommentProfileKey(Comment comment) {
+    final profileKey = (comment.userProfileKey ?? '').trim();
+    if (profileKey.isNotEmpty) {
+      return profileKey;
+    }
+
+    final profileUrl = (comment.userProfileUrl ?? '').trim();
+    if (profileUrl.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(profileUrl);
+    if (uri != null && uri.hasScheme) {
+      return null;
+    }
+
+    return profileUrl;
+  }
+
+  void _collectProfileImagePrefetchCandidates({
+    required List<Comment> comments,
+    required List<_ProfileImagePrefetchCandidate> prefetchCandidates,
+    required Set<String> seenPrefetchKeys,
+  }) {
+    for (final comment in comments) {
+      final imageUrl = (comment.userProfileUrl ?? '').trim();
+      if (imageUrl.isEmpty) {
+        continue;
+      }
+
+      final uri = Uri.tryParse(imageUrl);
+      if (uri == null || !uri.hasScheme) {
+        continue;
+      }
+
+      final cacheKey = _extractCommentProfileKey(comment);
+      final dedupeKey = cacheKey ?? imageUrl;
+      if (!seenPrefetchKeys.add(dedupeKey)) {
+        continue;
+      }
+
+      prefetchCandidates.add(
+        _ProfileImagePrefetchCandidate(imageUrl: imageUrl, cacheKey: cacheKey),
+      );
+    }
+  }
+
+  void _prefetchProfileImages(
+    BuildContext context,
+    List<_ProfileImagePrefetchCandidate> candidates,
+  ) {
+    if (!context.mounted || candidates.isEmpty) {
+      return;
+    }
+
+    for (final candidate in candidates.take(12)) {
+      unawaited(
+        precacheImage(
+          CachedNetworkImageProvider(
+            candidate.imageUrl,
+            cacheKey: candidate.cacheKey,
+          ),
+          context,
+        ).catchError((_) {}),
+      );
     }
   }
 
@@ -625,4 +809,14 @@ class VoiceCommentStateManager {
       (index) => source[(index * step).floor()],
     );
   }
+}
+
+class _ProfileImagePrefetchCandidate {
+  const _ProfileImagePrefetchCandidate({
+    required this.imageUrl,
+    required this.cacheKey,
+  });
+
+  final String imageUrl;
+  final String? cacheKey;
 }

@@ -27,13 +27,18 @@ class ApiPhotoCircleAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget avatarContent;
+    final normalizedImageUrl = imageUrl?.trim() ?? '';
+    final resolvedCacheKey = _resolveCacheKey(
+      explicitCacheKey: cacheKey,
+      imageUrl: normalizedImageUrl,
+    );
 
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
+    if (normalizedImageUrl.isNotEmpty) {
       avatarContent = ClipOval(
         child: CachedNetworkImage(
-          imageUrl: imageUrl!,
-          cacheKey: cacheKey,
-          useOldImageOnUrlChange: cacheKey != null,
+          imageUrl: normalizedImageUrl,
+          cacheKey: resolvedCacheKey,
+          useOldImageOnUrlChange: resolvedCacheKey != null,
           fadeInDuration: Duration.zero,
           fadeOutDuration: Duration.zero,
           width: size,
@@ -96,6 +101,33 @@ class ApiPhotoCircleAvatar extends StatelessWidget {
         ? Opacity(opacity: opacity, child: avatarContent)
         : avatarContent;
   }
+
+  String? _resolveCacheKey({
+    required String? explicitCacheKey,
+    required String imageUrl,
+  }) {
+    final normalizedExplicit = explicitCacheKey?.trim();
+    if (normalizedExplicit != null && normalizedExplicit.isNotEmpty) {
+      return normalizedExplicit;
+    }
+
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null || !uri.hasScheme) {
+      return null;
+    }
+
+    final normalizedHost = uri.host.trim();
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) {
+      return null;
+    }
+
+    if (normalizedHost.isEmpty) {
+      return normalizedPath;
+    }
+
+    return '$normalizedHost$normalizedPath';
+  }
 }
 
 class ApiPhotoPendingProgressAvatar extends StatelessWidget {
@@ -105,12 +137,14 @@ class ApiPhotoPendingProgressAvatar extends StatelessWidget {
     required this.size,
     required this.progress,
     this.opacity = 1,
+    this.cacheKey,
   });
 
   final String? imageUrl;
   final double size;
   final double? progress;
   final double opacity;
+  final String? cacheKey;
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +170,7 @@ class ApiPhotoPendingProgressAvatar extends StatelessWidget {
               imageUrl: imageUrl,
               size: size,
               opacity: opacity,
+              cacheKey: cacheKey,
             ),
           ],
         ),
