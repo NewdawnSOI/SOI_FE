@@ -55,6 +55,9 @@ firebase_options.dart
 # Environment files
 .env
 
+# Ignore local API workspace
+/api/
+
 # amplify
 node_modules
 .amplify
