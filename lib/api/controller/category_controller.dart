@@ -228,8 +228,9 @@ class CategoryController extends ChangeNotifier {
   ///   - [update]: 카테고리 객체를 받아 수정된 객체를 반환하는 함수
   void _updateCachedCategory(
     int categoryId,
-    model.Category Function(model.Category category) update,
-  ) {
+    model.Category Function(model.Category category) update, {
+    bool notify = true,
+  }) {
     bool updated = false;
 
     // 특정 카테고리만 갱신하는 내부 함수 (불변 리스트 유지)
@@ -249,9 +250,17 @@ class CategoryController extends ChangeNotifier {
     // 필터별 캐시 갱신
     _categoriesCache.updateAll((key, value) => updateList(value));
 
-    if (updated) {
+    if (updated && notify) {
       notifyListeners();
     }
+  }
+
+  String? _normalizeProfileImageKey(String? profileImageKey) {
+    final normalized = profileImageKey?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
   }
 
   void _updateCategoryNameInCache(int categoryId, String? newName) {
@@ -563,11 +572,7 @@ class CategoryController extends ChangeNotifier {
       // 서버에는 반영되지만 UI가 바로 갱신되지 않는 경우가 있어,
       // 성공 시 로컬 캐시도 즉시 갱신하여 화면에 바로 반영한다.
       if (result) {
-        // 프로필 이미지 키가 null이거나 빈 문자열인 경우 null로 정규화
-        final normalized =
-            (profileImageKey == null || profileImageKey.trim().isEmpty)
-            ? null
-            : profileImageKey.trim();
+        final normalized = _normalizeProfileImageKey(profileImageKey);
 
         // 카테고리 캐시 갱신
         _updateCachedCategory(
@@ -580,6 +585,52 @@ class CategoryController extends ChangeNotifier {
       return result;
     } catch (e) {
       _setError('카테고리 프로필 수정 실패: $e');
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  Future<bool> updateCustomProfilesBatch({
+    required Map<int, String?> profileImageKeysByCategoryId,
+  }) async {
+    if (profileImageKeysByCategoryId.isEmpty) return true;
+
+    _setLoading(true);
+    _clearError();
+    try {
+      final entries = profileImageKeysByCategoryId.entries.toList(
+        growable: false,
+      );
+      final results = await Future.wait([
+        for (final entry in entries)
+          _categoryService.updateCustomProfile(
+            categoryId: entry.key,
+            profileImageKey: entry.value,
+          ),
+      ]);
+
+      var hasLocalCacheUpdate = false;
+      for (var i = 0; i < entries.length; i++) {
+        if (!results[i]) continue;
+
+        final entry = entries[i];
+        final normalized = _normalizeProfileImageKey(entry.value);
+        _updateCachedCategory(
+          entry.key,
+          (category) => category.copyWith(photoUrl: normalized),
+          notify: false,
+        );
+        hasLocalCacheUpdate = true;
+      }
+
+      if (hasLocalCacheUpdate) {
+        notifyListeners();
+      }
+
+      _setLoading(false);
+      return results.every((value) => value == true);
+    } catch (e) {
+      _setError('카테고리 프로필 일괄 수정 실패: $e');
       _setLoading(false);
       return false;
     }

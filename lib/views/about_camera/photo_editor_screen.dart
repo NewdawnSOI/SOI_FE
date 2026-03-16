@@ -38,7 +38,7 @@ part 'photo_editor_screen_view.dart';
 /// - 미디어 처리(압축, 파형 인코딩 등)는 services/photo_editor_media_processing_service.dart에 분리
 /// - 업로드 준비, 업로드 실행, 업로드 후 정리 등은 담당하지 않습니다.
 ///
-/// Parameters:
+/// fields:
 /// - [downloadUrl]: 편집할 미디어의 다운로드 URL (네트워크 이미지인 경우 사용)
 /// - [filePath]: 편집할 미디어의 로컬 파일 경로 (카메라 촬영 또는 갤러리 선택 시 사용)
 /// - [asset]: 편집할 미디어의 AssetEntity (갤러리 선택 시 사용, filePath보다 우선)
@@ -46,6 +46,9 @@ part 'photo_editor_screen_view.dart';
 /// - [isVideo]: 편집할 미디어가 비디오인지 여부 (true: 비디오, false: 이미지, null인 경우 downloadUrl이나 filePath로 판단)
 /// - [initialImage]: 즉시 미리보기를 위해 사용할 ImageProvider (선택적, 제공된 경우 downloadUrl이나 filePath보다 우선)
 /// - [isFromCamera]: 카메라에서 직접 촬영된 미디어인지 여부 (true: 촬영됨, false: 갤러리에서 선택됨, 기본값은 true)
+///
+/// methods:
+/// - [uploadThenNavigate]: 선택된 카테고리 ID 목록을 받아 업로드를 실행하고 홈 화면으로 이동하는 메서드입니다. 업로드 실행과 업로드 후 정리는 photo_editor_screen_upload.dart에 구현되어 있습니다.
 class PhotoEditorScreen extends StatefulWidget {
   final String? downloadUrl;
   final String? filePath;
@@ -487,7 +490,8 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       final Future<_BackgroundCoverUploadResult> uploadFuture =
           selectedCover == null
           ? Future.value(const _BackgroundCoverUploadResult())
-          : _uploadService.uploadCategoryCoverImage(
+          : _uploadService
+                .uploadCategoryCoverImage(
                   imageFile: selectedCover,
                   userId: draft.requesterId,
                   refId: draft.requesterId,
@@ -933,6 +937,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   }
 }
 
+/// 카테고리 커버 이미지 업로드 결과를 나타내는 클래스
+/// 업로드된 이미지의 키 목록을 포함하며, 첫 번째 키를 편리하게 가져올 수 있는 getter 제공
+/// 업로드 실패 시 빈 키 목록으로 생성할 수 있습니다.
 class _BackgroundCoverUploadResult {
   final List<String> keys;
 

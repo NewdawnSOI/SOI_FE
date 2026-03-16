@@ -416,11 +416,20 @@ class PhotoEditorUploadService {
   }) async {
     if (!payload.isVideo || categoryIds.isEmpty) return null;
 
+    final seenCategoryIds = <int>{};
     final categoriesToUpdate = <int>[];
+
+    // 중복된 카테고리 ID를 제거하면서, 대표 이미지가 없는 카테고리만 업데이트 대상으로 선정합니다.
     for (final categoryId in categoryIds) {
+      if (!seenCategoryIds.add(categoryId)) {
+        continue;
+      }
+
       final category = _categoryController.getCategoryById(categoryId);
+
+      // 카테고리가 존재하고, 대표 이미지가 없는 경우에만 업데이트 대상으로 선정합니다.
       if (category != null &&
-          (category.photoUrl == null || category.photoUrl!.isEmpty)) {
+          (category.photoUrl == null || category.photoUrl!.trim().isEmpty)) {
         categoriesToUpdate.add(categoryId);
       }
     }
@@ -437,7 +446,7 @@ class PhotoEditorUploadService {
         payload.mediaPath,
       );
 
-      // 추출된 썸네일 파일이 null인 경우, 업로드를 진행할 수 없으므로 null을 반환합니다.
+      // 추출된 썸네일 파일이 null인 경우, 업로드를 진행할 수 없으므로 null을 반환하고 종료.
       if (thumbnailFile == null) {
         debugPrint('[PhotoEditorUploadService] 비디오 썸네일 생성 실패');
         return null;
@@ -470,15 +479,12 @@ class PhotoEditorUploadService {
       }
 
       // 각 카테고리에 대해 업로드된 썸네일 이미지의 S3 키를 사용하여 카테고리 대표 이미지를 업데이트합니다.
-      final results = await Future.wait([
-        for (var i = 0; i < usageCount; i++)
-          _categoryController.updateCustomProfile(
-            categoryId: categoriesToUpdate[i],
-            profileImageKey: keys[i],
-          ),
-      ]);
-
-      final allSuccess = results.every((value) => value == true);
+      final profileImageKeysByCategoryId = <int, String>{
+        for (var i = 0; i < usageCount; i++) categoriesToUpdate[i]: keys[i],
+      };
+      final allSuccess = await _categoryController.updateCustomProfilesBatch(
+        profileImageKeysByCategoryId: profileImageKeysByCategoryId,
+      );
       if (!allSuccess) {
         debugPrint('[PhotoEditorUploadService] 일부 카테고리 대표 이미지 업데이트 실패');
       }
