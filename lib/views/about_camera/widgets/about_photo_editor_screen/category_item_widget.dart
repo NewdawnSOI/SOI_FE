@@ -35,21 +35,6 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
   bool get wantKeepAlive => false;
 
   @override
-  void dispose() {
-    // 이미지 캐시에서 해당 이미지 제거
-    if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty) {
-      try {
-        PaintingBinding.instance.imageCache.evict(
-          NetworkImage(widget.imageUrl!),
-        );
-      } catch (e) {
-        // 캐시 제거 실패해도 계속 진행
-      }
-    }
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     super.build(context); // AutomaticKeepAliveClientMixin 때문에 필요
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -140,16 +125,23 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
     }
 
     // 이미지 URL이 있는 경우
-    if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty) {
+    final imageUrl = widget.imageUrl?.trim() ?? '';
+    if (imageUrl.isNotEmpty) {
+      final imageCacheKey = _deriveImageCacheKey(imageUrl);
       return SizedBox(
         width: dimensions.containerSize, // 컨테이너 크기와 일치
         height: dimensions.containerSize, // 컨테이너 크기와 일치
         child: CachedNetworkImage(
-          imageUrl: widget.imageUrl!,
+          imageUrl: imageUrl,
+          cacheKey: imageCacheKey,
+          useOldImageOnUrlChange: imageCacheKey != null,
+          fadeInDuration: Duration.zero,
+          fadeOutDuration: Duration.zero,
           fit: BoxFit.cover,
           width: dimensions.containerSize,
           height: dimensions.containerSize,
           memCacheWidth: (dimensions.containerSize * 2).round(),
+          memCacheHeight: (dimensions.containerSize * 2).round(),
           maxWidthDiskCache: (dimensions.containerSize * 2).round(),
           placeholder: (context, url) => _buildShimmer(dimensions),
           errorWidget: (context, url, error) => _buildErrorIcon(dimensions),
@@ -168,6 +160,19 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
         color: Color(0xffcecece),
       ),
     );
+  }
+
+  String? _deriveImageCacheKey(String imageUrl) {
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null) return null;
+
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) return null;
+
+    final normalizedHost = uri.host.trim();
+    if (normalizedHost.isEmpty) return normalizedPath;
+
+    return '$normalizedHost$normalizedPath';
   }
 
   /// 카테고리가 선택된 상태의 오버레이 위젯

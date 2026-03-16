@@ -9,17 +9,14 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:video_compress/video_compress.dart';
 import '../../api/controller/audio_controller.dart';
 import '../../api/controller/category_controller.dart' as api_category;
 import '../../api/controller/media_controller.dart' as api_media;
-import '../../api/models/models.dart';
 import '../../api/controller/post_controller.dart';
 import '../../api/controller/user_controller.dart';
-import '../../api/services/media_service.dart';
 import '../home_navigator_screen.dart';
 import 'add_category_screen.dart';
 import 'models/add_category_draft.dart';
@@ -29,9 +26,9 @@ import 'widgets/about_photo_editor_screen/category_list_widget.dart';
 import 'widgets/about_photo_editor_screen/photo_display_widget.dart';
 import 'models/photo_editor_upload_models.dart';
 import 'services/photo_editor_media_processing_service.dart';
+import 'services/photo_editor_upload_service.dart';
 import '../../utils/snackbar_utils.dart';
 
-part 'photo_editor_screen_upload.dart';
 part 'photo_editor_screen_view.dart';
 
 /// 사진/비디오 편집 및 업로드 화면
@@ -140,6 +137,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   late UserController _userController;
   late PostController _postController;
   late api_media.MediaController _mediaController;
+  late PhotoEditorUploadService _uploadService;
 
   final PhotoEditorMediaProcessingService _mediaProcessingService =
       const PhotoEditorMediaProcessingService(); // 미디어 처리를 담당하는 서비스 클래스의 인스턴스를 생성합니다.
@@ -265,6 +263,12 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
     _mediaController = Provider.of<api_media.MediaController>(
       context,
       listen: false,
+    );
+    _uploadService = PhotoEditorUploadService(
+      postController: _postController,
+      mediaController: _mediaController,
+      categoryController: _categoryController,
+      mediaProcessingService: _mediaProcessingService,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _audioController.initialize();
@@ -483,7 +487,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
       final Future<_BackgroundCoverUploadResult> uploadFuture =
           selectedCover == null
           ? Future.value(const _BackgroundCoverUploadResult())
-          : _uploadCategoryCoverImageInBackground(
+          : _uploadService.uploadCategoryCoverImage(
                   imageFile: selectedCover,
                   userId: draft.requesterId,
                   refId: draft.requesterId,
@@ -516,7 +520,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         // create 결과(categoryId)가 필요하므로 updateCustomProfile은 병렬 처리할 수 없습니다.
         // 업로드 결과가 비어 있으면 categoryId 기준으로 1회 재시도합니다.
         if (profileImageKey == null) {
-          final retryKeys = await _uploadCategoryCoverImageInBackground(
+          final retryKeys = await _uploadService.uploadCategoryCoverImage(
             imageFile: selectedCover,
             userId: draft.requesterId,
             refId: createdCategoryId,
@@ -571,22 +575,6 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         tr('camera.editor.category_create_error', context: context),
       );
     }
-  }
-
-  Future<List<String>> _uploadCategoryCoverImageInBackground({
-    required File imageFile,
-    required int userId,
-    required int refId,
-  }) async {
-    final multipart = await _mediaController.fileToMultipart(imageFile);
-    return _mediaController.uploadMedia(
-      files: [multipart],
-      types: [MediaType.image],
-      usageTypes: [MediaUsageType.categoryProfile],
-      userId: userId,
-      refId: refId,
-      usageCount: 1,
-    );
   }
 
   // 바텀시트가 목표 위치보다 아래에 있을 때만 애니메이션 실행
@@ -678,6 +666,193 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
         curve: Curves.easeInOut,
       );
     }
+  }
+
+  // ========== 업로드 오케스트레이션 ==========
+
+  String? get _currentFilePath => _resolvedFilePath ?? widget.filePath;
+
+  bool get _isTextOnlyMode {
+    final text = widget.inputText?.trim();
+    return text != null &&
+        text.isNotEmpty &&
+        widget.filePath == null &&
+        widget.asset == null &&
+        widget.downloadUrl == null;
+  }
+
+  String get _textOnlyContent => widget.inputText?.trim() ?? '';
+
+  Future<void> _uploadThenNavigate(List<int> categoryIds) async {
+    if (_uploadStarted) return;
+
+    _uploadStarted = true;
+
+    try {
+      final currentUser = _userController.currentUser;
+      if (currentUser == null) {
+        _showErrorSnackBar(tr('common.login_required_retry', context: context));
+        _uploadStarted = false;
+        return;
+      }
+
+      if (_isTextOnlyMode) {
+        final inputText = _textOnlyContent;
+        if (inputText.isEmpty) {
+          _showErrorSnackBar(tr('camera.text_input_hint', context: context));
+          _uploadStarted = false;
+          return;
+        }
+        if (categoryIds.isEmpty) {
+          _uploadStarted = false;
+          return;
+        }
+
+        _navigateToHome();
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            unawaited(
+              _runTextOnlyUpload(
+                userId: currentUser.id,
+                nickName: currentUser.userId,
+                categoryIds: List<int>.from(categoryIds),
+                inputText: inputText,
+              ),
+            );
+          });
+        });
+        return;
+      }
+
+      final filePath = _currentFilePath;
+      if (filePath == null || filePath.isEmpty) {
+        _safeSetState(() {
+          _errorMessageKey = 'camera.editor.upload_file_not_found';
+          _errorMessageArgs = null;
+        });
+        _uploadStarted = false;
+        return;
+      }
+
+      final snapshot = UploadSnapshot(
+        userId: currentUser.id,
+        nickName: currentUser.userId,
+        filePath: filePath,
+        isVideo: widget.isVideo ?? false,
+        isFromGallery: !widget.isFromCamera,
+        captionText: _captionController.text.trim(),
+        recordedAudioPath: _recordedAudioPath,
+        recordedWaveformData: _recordedWaveformData != null
+            ? List<double>.from(_recordedWaveformData!)
+            : null,
+        recordedAudioDurationSeconds: _recordedAudioDurationSeconds,
+        categoryIds: List<int>.from(categoryIds),
+        compressionTask: _compressionTask,
+        compressedFile: _compressedFile,
+        lastCompressedPath: _lastCompressedPath,
+      );
+
+      _navigateToHome();
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          unawaited(_runUploadPipelineAfterNavigation(snapshot));
+        });
+      });
+    } catch (e) {
+      debugPrint('업로드 실패: $e');
+      _uploadStarted = false;
+    }
+  }
+
+  Future<void> _runTextOnlyUpload({
+    required int userId,
+    required String nickName,
+    required List<int> categoryIds,
+    required String inputText,
+  }) async {
+    try {
+      await _uploadService.executeTextOnlyUpload(
+        userId: userId,
+        nickName: nickName,
+        categoryIds: categoryIds,
+        inputText: inputText,
+      );
+    } catch (e) {
+      debugPrint('[PhotoEditor] 텍스트 게시물 업로드 실패: $e');
+    } finally {
+      _uploadStarted = false;
+    }
+  }
+
+  Future<void> _runUploadPipelineAfterNavigation(
+    UploadSnapshot snapshot,
+  ) async {
+    try {
+      unawaited(_audioController.stopRealtimeAudio());
+      _audioController.clearCurrentRecording();
+      _evictCurrentImageFromCache(filePath: snapshot.filePath);
+
+      await _uploadService.executeMediaUpload(snapshot);
+    } catch (e) {
+      debugPrint('[PhotoEditor] 업로드 파이프라인 실패: $e');
+    } finally {
+      _uploadStarted = false;
+    }
+  }
+
+  void _navigateToHome() {
+    if (!mounted || _isDisposing) return;
+
+    _audioController.stopRealtimeAudio();
+    _audioController.clearCurrentRecording();
+
+    HomePageNavigationBar.requestTab(0);
+
+    final navigator = Navigator.of(context);
+    var foundHome = false;
+    navigator.popUntil((route) {
+      final isHome = route.settings.name == '/home_navigation_screen';
+      foundHome = foundHome || isHome;
+      return isHome || route.isFirst;
+    });
+
+    if (!foundHome && mounted) {
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => HomePageNavigationBar(
+            key: HomePageNavigationBar.rootKey,
+            currentPageIndex: 0,
+          ),
+          settings: const RouteSettings(name: '/home_navigation_screen'),
+        ),
+        (route) => false,
+      );
+    }
+
+    if (_draggableScrollController.isAttached) {
+      _draggableScrollController.jumpTo(0.0);
+    }
+  }
+
+  void _startPreCompressionIfNeeded() {
+    if (widget.isVideo == true) return;
+
+    final filePath = _currentFilePath;
+    if (filePath == null || filePath.isEmpty) return;
+    if (_lastCompressedPath == filePath && _compressionTask != null) return;
+
+    _lastCompressedPath = filePath;
+    _compressionTask = _mediaProcessingService
+        .compressImageIfNeeded(File(filePath))
+        .then((compressed) {
+          _compressedFile = compressed;
+          return compressed;
+        })
+        .catchError((error) {
+          debugPrint('백그라운드 압축 실패: $error');
+          _compressedFile = File(filePath);
+          return File(filePath);
+        });
   }
 
   // 실제 UI는 _buildEditorScaffold에서 구성

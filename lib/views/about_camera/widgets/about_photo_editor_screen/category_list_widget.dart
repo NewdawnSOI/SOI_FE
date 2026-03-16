@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -32,6 +35,9 @@ class CategoryListWidget extends StatefulWidget {
 
 class _CategoryListWidgetState extends State<CategoryListWidget>
     with AutomaticKeepAliveClientMixin {
+  final Set<String> _prefetchedCategoryImageKeys = <String>{};
+  String _lastPrefetchSignature = '';
+
   @override
   bool get wantKeepAlive => false; // 메모리 절약을 위해 keepAlive 비활성화
 
@@ -60,6 +66,7 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
         }
 
         final categories = viewModel.categories;
+        _scheduleCategoryImagePrefetch(categories);
 
         return Stack(
           alignment: Alignment.bottomCenter,
@@ -83,10 +90,11 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
                 // 캐시할 픽셀 범위 제한
                 cacheExtent: 200.h,
 
-                // 자동 keepAlive 비활성화
+                // GridView.builder의 addAutomaticKeepAlives와 addRepaintBoundaries를 false로 설정하여 메모리 사용 최적화
                 addAutomaticKeepAlives: false,
 
-                // 불필요한 repaint boundary 제거
+                // addRepaintBoundaries를 false로 설정하여 스크롤 성능 향상
+                // (단, 복잡한 아이템이 많을 경우 성능 저하 가능성 있음)
                 addRepaintBoundaries: false,
 
                 itemCount: categories.isEmpty ? 1 : categories.length + 1,
@@ -222,4 +230,77 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
       },
     );
   }
+
+  void _scheduleCategoryImagePrefetch(List<dynamic> categories) {
+    if (!mounted || categories.isEmpty) return;
+
+    final candidates = categories
+        .take(8)
+        .map((category) {
+          final imageUrl = (category.photoUrl as String?)?.trim() ?? '';
+          if (imageUrl.isEmpty) return null;
+
+          final cacheKey = _deriveImageCacheKey(imageUrl);
+          return _CategoryImageCandidate(
+            imageUrl: imageUrl,
+            dedupeKey: cacheKey ?? imageUrl,
+            cacheKey: cacheKey,
+          );
+        })
+        .whereType<_CategoryImageCandidate>()
+        .toList(growable: false);
+
+    if (candidates.isEmpty) return;
+
+    final signature = candidates
+        .map((candidate) => candidate.dedupeKey)
+        .join('|');
+    if (_lastPrefetchSignature == signature) return;
+    _lastPrefetchSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      for (final candidate in candidates) {
+        if (!_prefetchedCategoryImageKeys.add(candidate.dedupeKey)) {
+          continue;
+        }
+
+        unawaited(
+          precacheImage(
+            CachedNetworkImageProvider(
+              candidate.imageUrl,
+              cacheKey: candidate.cacheKey,
+            ),
+            context,
+          ).catchError((_) {}),
+        );
+      }
+    });
+  }
+
+  String? _deriveImageCacheKey(String imageUrl) {
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null) return null;
+
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) return null;
+
+    final normalizedHost = uri.host.trim();
+    if (normalizedHost.isEmpty) return normalizedPath;
+
+    return '$normalizedHost$normalizedPath';
+  }
+}
+
+class _CategoryImageCandidate {
+  const _CategoryImageCandidate({
+    required this.imageUrl,
+    required this.dedupeKey,
+    required this.cacheKey,
+  });
+
+  final String imageUrl;
+  final String dedupeKey;
+  final String? cacheKey;
 }
