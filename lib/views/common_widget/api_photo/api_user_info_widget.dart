@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../api/controller/friend_controller.dart';
 import '../../../api/controller/post_controller.dart';
 import '../../../api/controller/user_controller.dart';
+import '../../../utils/snackbar_utils.dart';
 import '../../../api/models/post.dart';
 import '../../../views/about_feed/manager/feed_data_manager.dart';
 import '../../../utils/format_utils.dart';
@@ -47,24 +48,14 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
       return;
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.'),
-        backgroundColor: Color(0xFF5A5A5A),
-      ),
-    );
+    SnackBarUtils.showSnackBar(context, '신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.');
   }
 
   Future<void> _blockUser() async {
     final userController = context.read<UserController>();
     final currentUser = userController.currentUser;
     if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('common.login_required', context: context)),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showSnackBar(context, tr('common.login_required', context: context));
       return;
     }
 
@@ -75,12 +66,7 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
       widget.post.nickName,
     );
     if (targetUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('common.user_info_unavailable', context: context)),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showSnackBar(context, tr('common.user_info_unavailable', context: context));
       return;
     }
 
@@ -96,19 +82,9 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
         widget.post.nickName,
       );
       context.read<PostController>().notifyPostsChanged();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('common.block_success', context: context)),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showSnackBar(context, tr('common.block_success', context: context));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('common.block_failed', context: context)),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showSnackBar(context, tr('common.block_failed', context: context));
     }
   }
 

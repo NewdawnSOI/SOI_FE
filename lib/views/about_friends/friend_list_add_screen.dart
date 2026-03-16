@@ -9,6 +9,7 @@ import 'package:soi/api/controller/friend_controller.dart' as api_friend;
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/selected_friend_model.dart';
 import 'package:soi/api/models/user.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 
 /// 친구 추가 화면 (REST API 버전)
 class FriendListAddScreen extends StatefulWidget {
@@ -178,17 +179,12 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
 
       if (!mounted || _isNavigating) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            tr(
-              'friends.invite_sent',
-              context: context,
-              namedArgs: {'count': receiverIds.length.toString()},
-            ),
-          ),
-          backgroundColor: const Color(0xFF5A5A5A),
-          duration: const Duration(seconds: 2),
+      SnackBarUtils.showSnackBar(
+        context,
+        tr(
+          'friends.invite_sent',
+          context: context,
+          namedArgs: {'count': receiverIds.length.toString()},
         ),
       );
 
@@ -581,12 +577,6 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFF5A5A5A),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    SnackBarUtils.showSnackBar(context, message);
   }
 }

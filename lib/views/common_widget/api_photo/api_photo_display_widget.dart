@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../../api/controller/audio_controller.dart';
 import '../../../api/controller/category_controller.dart' as api_category;
+import '../../../utils/snackbar_utils.dart';
 import '../../../api/controller/comment_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/models/post.dart';
@@ -559,9 +560,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   @override

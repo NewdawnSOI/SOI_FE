@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 // 내부 모듈
 import '../../../../../api/controller/audio_controller.dart';
 import '../../../../../api/controller/friend_controller.dart';
+import '../../../../../utils/snackbar_utils.dart';
 import '../../../../../api/controller/post_controller.dart';
 import '../../../../../api/controller/user_controller.dart';
 import '../../../../../api/models/comment.dart';
@@ -70,12 +71,7 @@ class ApiCommentRow extends StatelessWidget {
     final result = await ReportBottomSheet.show(context);
     if (result == null) return;
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.'),
-        backgroundColor: Color(0xFF5A5A5A),
-      ),
-    );
+    SnackBarUtils.showSnackBar(context, '신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.');
   }
 
   /// 사용자 차단 처리 메서드
@@ -87,12 +83,7 @@ class ApiCommentRow extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     final currentUser = userController.currentUser;
     if (currentUser == null) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(tr('common.login_required')),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showWithMessenger(messenger, tr('common.login_required'));
       return;
     }
 
@@ -102,23 +93,13 @@ class ApiCommentRow extends StatelessWidget {
 
     final nickname = comment.nickname ?? '';
     if (nickname.isEmpty) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(tr('common.user_info_unavailable')),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showWithMessenger(messenger, tr('common.user_info_unavailable'));
       return;
     }
 
     final targetUser = await userController.getUserByNickname(nickname);
     if (targetUser == null) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(tr('common.user_info_unavailable')),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showWithMessenger(messenger, tr('common.user_info_unavailable'));
       return;
     }
 
@@ -131,19 +112,9 @@ class ApiCommentRow extends StatelessWidget {
     if (ok) {
       feedDataManager.removePostsByNickname(nickname);
       postController.notifyPostsChanged();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(tr('common.block_success')),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showWithMessenger(messenger, tr('common.block_success'));
     } else {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(tr('common.block_failed')),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showWithMessenger(messenger, tr('common.block_failed'));
     }
   }
 

@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/utils/instagram_share_channel.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class InviteLinkCard extends StatelessWidget {
@@ -51,12 +52,7 @@ class InviteLinkCard extends StatelessWidget {
   void _copyLink(BuildContext context) {
     final link = _buildInviteLink(context);
     Clipboard.setData(ClipboardData(text: link));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(tr('friends.invite.link_copied', context: context)),
-        backgroundColor: const Color(0xff404040),
-      ),
-    );
+    SnackBarUtils.showSnackBar(context, tr('friends.invite.link_copied', context: context));
   }
 
   /// 시스템 공유 시트 열기
@@ -89,14 +85,7 @@ class InviteLinkCard extends StatelessWidget {
         await InstagramShareChannel.shareToInstagramDirect(message);
       } else {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                tr('friends.invite.instagram_missing', context: context),
-              ),
-              backgroundColor: const Color(0xff404040),
-            ),
-          );
+          SnackBarUtils.showSnackBar(context, tr('friends.invite.instagram_missing', context: context));
         }
       }
     } catch (e) {
@@ -130,12 +119,7 @@ class InviteLinkCard extends StatelessWidget {
         await launchUrl(uri);
       } else {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(tr('friends.invite.sms_unavailable', context: context)),
-              backgroundColor: const Color(0xff404040),
-            ),
-          );
+          SnackBarUtils.showSnackBar(context, tr('friends.invite.sms_unavailable', context: context));
         }
       }
     } catch (e) {
@@ -196,12 +180,7 @@ class InviteLinkCard extends StatelessWidget {
       } catch (e) {
         debugPrint('카카오톡 공유 실패: $e');
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(tr('friends.invite.kakao_failed', context: context)),
-              backgroundColor: const Color(0xff404040),
-            ),
-          );
+          SnackBarUtils.showSnackBar(context, tr('friends.invite.kakao_failed', context: context));
         }
       }
     } else {
@@ -214,12 +193,7 @@ class InviteLinkCard extends StatelessWidget {
       } catch (e) {
         debugPrint('웹 공유 실패: $e');
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(tr('friends.invite.kakao_missing', context: context)),
-              backgroundColor: const Color(0xff404040),
-            ),
-          );
+          SnackBarUtils.showSnackBar(context, tr('friends.invite.kakao_missing', context: context));
         }
       }
     }

@@ -29,6 +29,7 @@ import 'widgets/about_photo_editor_screen/category_list_widget.dart';
 import 'widgets/about_photo_editor_screen/photo_display_widget.dart';
 import 'models/photo_editor_upload_models.dart';
 import 'services/photo_editor_media_processing_service.dart';
+import '../../utils/snackbar_utils.dart';
 
 part 'photo_editor_screen_upload.dart';
 part 'photo_editor_screen_view.dart';
@@ -690,9 +691,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   /// 사용자에게 에러 메시지를 SnackBar로 표시
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   /// mounted 상태를 체크한 후 안전하게 setState 실행

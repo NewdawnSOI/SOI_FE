@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../api/controller/comment_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/controller/user_controller.dart';
+import '../../../utils/snackbar_utils.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
@@ -994,12 +995,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFF5A5A5A),
-      ),
-    );
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   void _notifyCommentsUpdated() {

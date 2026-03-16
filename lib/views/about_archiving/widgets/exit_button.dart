@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import 'package:soi/api/controller/category_controller.dart' as api_category;
 import 'package:soi/api/controller/user_controller.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 import '../../../api/models/category.dart';
 
 class ExitButton extends StatelessWidget {
@@ -100,16 +101,9 @@ class ExitButton extends StatelessWidget {
                         final currentUser = userController.currentUser;
 
                         if (currentUser == null) {
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                tr(
-                                  'common.user_info_unavailable',
-                                  context: context,
-                                ),
-                              ),
-                              backgroundColor: const Color(0xFFcccccc),
-                            ),
+                          SnackBarUtils.showWithMessenger(
+                            scaffoldMessenger,
+                            tr('common.user_info_unavailable', context: context),
                           );
                           return;
                         }
@@ -124,12 +118,7 @@ class ExitButton extends StatelessWidget {
                           final message =
                               categoryController.errorMessage ??
                               tr('category.leave.failed', context: context);
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                              content: Text(message),
-                              backgroundColor: const Color(0xFFcccccc),
-                            ),
-                          );
+                          SnackBarUtils.showWithMessenger(scaffoldMessenger, message);
                         }
                       },
                       style: ElevatedButton.styleFrom(

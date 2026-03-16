@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:soi/api/controller/friend_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/user.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 
 /// 친구 목록 화면
 /// 친구 검색 및 친구 선택 기능 포함
@@ -756,12 +757,7 @@ class _FriendListScreenState extends State<FriendListScreen> {
 
     if (currentUserId == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('common.login_info_required', context: context)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showSnackBar(context, tr('common.login_info_required', context: context));
       return;
     }
 
@@ -776,29 +772,17 @@ class _FriendListScreenState extends State<FriendListScreen> {
       if (!mounted) return;
 
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(tr('friends.delete_success', context: context)),
-            backgroundColor: Colors.green,
-          ),
-        );
+        SnackBarUtils.showSnackBar(context, tr('friends.delete_success', context: context));
         await _loadFriends();
       } else {
         final message =
             friendController.errorMessage ??
             tr('friends.delete_failed', context: context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
+        SnackBarUtils.showSnackBar(context, message);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('friends.delete_error', context: context)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showSnackBar(context, tr('friends.delete_error', context: context));
     }
   }
 
@@ -809,12 +793,7 @@ class _FriendListScreenState extends State<FriendListScreen> {
 
     if (currentUserId == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('common.login_info_required', context: context)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showSnackBar(context, tr('common.login_info_required', context: context));
       return;
     }
 
@@ -829,29 +808,17 @@ class _FriendListScreenState extends State<FriendListScreen> {
       if (!mounted) return;
 
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(tr('friends.block_success', context: context)),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackBarUtils.showSnackBar(context, tr('friends.block_success', context: context));
         await _loadFriends();
       } else {
         final message =
             friendController.errorMessage ??
             tr('friends.block_failed', context: context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
+        SnackBarUtils.showSnackBar(context, message);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr('friends.block_error', context: context)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showSnackBar(context, tr('friends.block_error', context: context));
     }
   }
 }

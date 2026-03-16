@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 
 import '../../../api/controller/friend_controller.dart';
 import '../../../api/controller/notification_controller.dart';
@@ -126,12 +127,7 @@ class _FriendRequestCardState extends State<FriendRequestCard> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFF5A5A5A),
-      ),
-    );
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   @override

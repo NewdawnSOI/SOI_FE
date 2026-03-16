@@ -12,6 +12,7 @@ import '../../../api/controller/user_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/models/comment_creation_result.dart';
 import '../../../utils/position_converter.dart';
+import '../../../utils/snackbar_utils.dart';
 import '../../common_widget/about_comment/pending_api_voice_comment.dart';
 
 /// 게시물별 음성/텍스트 댓글 상태를 관리하는 매니저 클래스
@@ -416,9 +417,7 @@ class VoiceCommentStateManager {
         _updatePendingProgress(postId, 0.85);
       } else if (pending.audioPath != null) {
         if (mediaController == null) {
-          messenger?.showSnackBar(
-            const SnackBar(content: Text('미디어 컨트롤러를 찾을 수 없습니다.')),
-          );
+          SnackBarUtils.showWithMessenger(messenger, '미디어 컨트롤러를 찾을 수 없습니다.');
           return false;
         }
         // 오디오 파일 객체 생성 --> Stirng으로 되어있는 경로를 File 객체로 변환
@@ -438,12 +437,7 @@ class VoiceCommentStateManager {
         );
 
         if (audioKey == null) {
-          messenger?.showSnackBar(
-            const SnackBar(
-              content: Text('음성 업로드에 실패했습니다.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackBarUtils.showWithMessenger(messenger, '음성 업로드에 실패했습니다.');
           return false;
         }
 
@@ -477,21 +471,11 @@ class VoiceCommentStateManager {
         return true;
       }
 
-      messenger?.showSnackBar(
-        const SnackBar(
-          content: Text('댓글 저장에 실패했습니다.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showWithMessenger(messenger, '댓글 저장에 실패했습니다.');
       return false;
     } catch (e) {
       debugPrint('댓글 저장 실패(postId: $postId): $e');
-      messenger?.showSnackBar(
-        const SnackBar(
-          content: Text('댓글 저장 중 오류가 발생했습니다.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showWithMessenger(messenger, '댓글 저장 중 오류가 발생했습니다.');
       return false;
     }
   }

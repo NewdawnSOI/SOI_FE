@@ -14,6 +14,7 @@ import 'manager/feed_audio_manager.dart';
 import 'manager/feed_data_manager.dart';
 import 'manager/voice_comment_state_manager.dart';
 import 'widgets/feed_page_builder.dart';
+import '../../utils/snackbar_utils.dart';
 import '../../utils/tab_reselect_registry.dart';
 
 class FeedHomeScreen extends StatefulWidget {
@@ -459,11 +460,6 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : const Color(0xFF5A5A5A),
-      ),
-    );
+    SnackBarUtils.showSnackBar(context, message);
   }
 }

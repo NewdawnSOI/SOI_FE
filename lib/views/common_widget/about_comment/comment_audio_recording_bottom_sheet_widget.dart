@@ -9,6 +9,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:provider/provider.dart';
 
 import '../../../api/controller/audio_controller.dart';
+import '../../../utils/snackbar_utils.dart';
 import '../../about_archiving/widgets/wave_form_widget/custom_waveform_widget.dart';
 
 class CommentAudioSheetResult {
@@ -304,8 +305,8 @@ class _CommentAudioRecordingBottomSheetWidgetState
   }
 
   void _showSnackBar(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.showSnackBar(SnackBar(content: Text(message)));
+    if (!mounted) return;
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   String _formatDuration(Duration duration) {

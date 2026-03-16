@@ -43,4 +43,37 @@ class SnackBarUtils {
       ),
     );
   }
+
+  /// 비동기 갭 이후에 사용할 수 있도록 미리 캡처된 ScaffoldMessengerState를 사용합니다.
+  static void showWithMessenger(
+    ScaffoldMessengerState? messenger,
+    String message, {
+    Duration duration = const Duration(seconds: 1),
+  }) {
+    messenger?.clearSnackBars();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Center(
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        backgroundColor: const Color(0xFF5a5a5a),
+        behavior: SnackBarBehavior.floating,
+        duration: duration,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15.r),
+        ),
+        margin: EdgeInsets.only(bottom: 50.h, left: 24.w, right: 24.w),
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
+        elevation: 6,
+      ),
+    );
+  }
 }

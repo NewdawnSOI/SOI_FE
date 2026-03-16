@@ -15,6 +15,7 @@ import 'widgets/about_camera/camera_preview_container.dart';
 import 'widgets/about_camera/camera_zoom_controls.dart';
 import 'widgets/about_camera/gallery_thumbnail.dart';
 import '../../utils/app_route_observer.dart';
+import '../../utils/snackbar_utils.dart';
 import 'photo_editor_screen.dart';
 
 enum _PendingVideoAction { none, stop, cancel }
@@ -815,16 +816,7 @@ class _CameraScreenState extends State<CameraScreen>
     Duration duration = const Duration(seconds: 2),
   }) {
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: backgroundColor,
-        behavior: SnackBarBehavior.floating,
-        duration: duration,
-      ),
-    );
+    SnackBarUtils.showSnackBar(context, message, duration: duration);
   }
 
   /// cameraservice에 카메라 전환 요청

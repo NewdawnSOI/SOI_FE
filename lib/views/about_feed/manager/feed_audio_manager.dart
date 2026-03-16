@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:soi/api/controller/comment_audio_controller.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 import '../../../api/models/post.dart';
 import '../../../api/controller/audio_controller.dart';
 import '../../../api/controller/media_controller.dart';
@@ -28,12 +29,7 @@ class FeedAudioManager {
 
       await audioController.togglePlayPause(resolvedUrl);
     } catch (e) {
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text('음성 파일을 재생할 수 없습니다: $e'),
-          backgroundColor: const Color(0xFF5A5A5A),
-        ),
-      );
+      SnackBarUtils.showWithMessenger(messenger, '음성 파일을 재생할 수 없습니다: $e');
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter_contacts/contact.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:soi/api/controller/contact_controller.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'widgets/friend_add_options_card.dart';
@@ -145,16 +146,12 @@ class _FriendManagementScreenState extends State<FriendManagementScreen>
           _isInitializing = false;
           _hasInitialized = true;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tr(
-                'friends.manage.init_error',
-                context: context,
-                namedArgs: {'error': e.toString()},
-              ),
-            ),
-            backgroundColor: const Color(0xFF5A5A5A),
+        SnackBarUtils.showSnackBar(
+          context,
+          tr(
+            'friends.manage.init_error',
+            context: context,
+            namedArgs: {'error': e.toString()},
           ),
         );
       }
@@ -206,22 +203,12 @@ class _FriendManagementScreenState extends State<FriendManagementScreen>
 
   /// SnackBar 표시 (결과 타입에 따른 색상)
   void _showSnackBar(String message, ContactToggleResultType type) {
-    // 모든 SnackBar 배경색을 0xFF5A5A5A로 통일
-    const backgroundColor = Color(0xFF5A5A5A);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: backgroundColor),
-    );
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   /// 초기화 결과 SnackBar 표시
   void _showInitSnackBar(String message, ContactInitResultType type) {
-    // 모든 SnackBar 배경색을 0xFF5A5A5A로 통일
-    const backgroundColor = Color(0xFF5A5A5A);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: backgroundColor),
-    );
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   /// 앱 설정 화면 열기
@@ -240,16 +227,12 @@ class _FriendManagementScreenState extends State<FriendManagementScreen>
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tr(
-                'friends.manage.settings_error',
-                context: context,
-                namedArgs: {'error': e.toString()},
-              ),
-            ),
-            backgroundColor: const Color(0xFF5A5A5A),
+        SnackBarUtils.showSnackBar(
+          context,
+          tr(
+            'friends.manage.settings_error',
+            context: context,
+            namedArgs: {'error': e.toString()},
           ),
         );
       }

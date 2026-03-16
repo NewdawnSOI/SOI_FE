@@ -7,6 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 
 import '../../api/controller/friend_controller.dart';
 import '../../api/controller/media_controller.dart';
@@ -211,17 +212,12 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
           _friendshipStatus[user.id] = 'pending';
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                tr(
-                  'friends.add_by_id.request_sent',
-                  context: context,
-                  namedArgs: {'name': user.name},
-                ),
-              ),
-              backgroundColor: const Color(0xFF5A5A5A),
-              duration: const Duration(seconds: 2),
+          SnackBarUtils.showSnackBar(
+            context,
+            tr(
+              'friends.add_by_id.request_sent',
+              context: context,
+              namedArgs: {'name': user.name},
             ),
           );
         }
@@ -229,13 +225,9 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
     } catch (e) {
       debugPrint('친구 요청 실패: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tr('friends.add_by_id.request_failed', context: context),
-            ),
-            backgroundColor: const Color(0xFF5A5A5A),
-          ),
+        SnackBarUtils.showSnackBar(
+          context,
+          tr('friends.add_by_id.request_failed', context: context),
         );
       }
     } finally {

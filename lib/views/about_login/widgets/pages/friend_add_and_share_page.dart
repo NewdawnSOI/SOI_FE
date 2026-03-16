@@ -59,9 +59,7 @@ class _FriendAddAndSharePageState extends State<FriendAddAndSharePage> {
     setState(() {});
 
     if (result.message.isNotEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.message)));
+      SnackBarUtils.showSnackBar(context, result.message);
     }
   }
 

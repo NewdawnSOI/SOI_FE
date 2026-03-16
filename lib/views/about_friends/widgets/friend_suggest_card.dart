@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import 'package:soi/api/controller/contact_controller.dart';
+import 'package:soi/utils/snackbar_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../api/controller/friend_controller.dart';
 import '../../../api/controller/user_controller.dart';
@@ -229,16 +230,12 @@ class _FriendSuggestCardState extends State<FriendSuggestCard> {
       // 친구 요청 성공
       debugPrint('친구 요청 성공: ${result.id}');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tr(
-                'friends.suggest.request_sent',
-                context: context,
-                namedArgs: {'name': contact.displayName},
-              ),
-            ),
-            backgroundColor: const Color(0xFF5A5A5A),
+        SnackBarUtils.showSnackBar(
+          context,
+          tr(
+            'friends.suggest.request_sent',
+            context: context,
+            namedArgs: {'name': contact.displayName},
           ),
         );
       }
@@ -275,16 +272,12 @@ class _FriendSuggestCardState extends State<FriendSuggestCard> {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                tr(
-                  'friends.suggest.invite_sms_sent',
-                  context: context,
-                  namedArgs: {'name': contact.displayName},
-                ),
-              ),
-              backgroundColor: const Color(0xFF5A5A5A),
+          SnackBarUtils.showSnackBar(
+            context,
+            tr(
+              'friends.suggest.invite_sms_sent',
+              context: context,
+              namedArgs: {'name': contact.displayName},
             ),
           );
         }

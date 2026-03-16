@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../api/services/camera_service.dart';
+import '../../../utils/snackbar_utils.dart';
 import '../../../utils/video_thumbnail_cache.dart';
 import '../../about_camera/widgets/about_camera/camera_capture_button.dart';
 
@@ -751,14 +752,8 @@ class _CommentCameraRecordingBottomSheetWidgetState
   }
 
   void _showSnackBar(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFF5A5A5A),
-      ),
-    );
+    if (!mounted) return;
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   @override
