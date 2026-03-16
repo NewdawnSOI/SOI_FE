@@ -20,6 +20,7 @@ enum _ProfileTab { media, text, comments }
 
 /// 프로필 페이지의 메인 위젯입니다.
 /// 사용자 정보, 프로필 이미지, 친구 수 등의 데이터를 로드하고, 프로필 헤더와 탭 바를 구성합니다.
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -257,6 +258,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 : IndexedStack(
                     index: _selectedTab.index,
                     children: [
+                      // 프로필 페이지의 각 탭에 해당하는 콘텐츠를 구성하는 위젯입니다.
+
+                      // '미디어' 탭 콘텐츠를 구성하는 ProfilePostTabView 위젯입니다.
+                      // 사용자의 미디어 게시물을 표시합니다.
                       ProfilePostTabView(
                         key: ValueKey('profile_media_tab_${displayUser!.id}'),
                         userId: displayUser.id,
@@ -268,6 +273,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         emptyMessageKey: 'profile.main.empty_media',
                       ),
+
+                      // '텍스트' 탭 콘텐츠를 구성하는 ProfilePostTabView 위젯입니다.
+                      // 사용자의 텍스트 게시물을 표시합니다.
                       ProfilePostTabView(
                         key: ValueKey('profile_text_tab_${displayUser.id}'),
                         userId: displayUser.id,
@@ -279,6 +287,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         emptyMessageKey: 'profile.main.empty_text',
                       ),
+
+                      // '댓글' 탭 콘텐츠를 구성하는 ProfileCommentTabView 위젯입니다.
+                      // 사용자의 댓글을 표시합니다.
                       ProfileCommentTabView(
                         key: ValueKey('profile_comment_tab_${displayUser.id}'),
                         userId: displayUser.id,

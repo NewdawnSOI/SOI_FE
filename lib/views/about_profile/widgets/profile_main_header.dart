@@ -4,6 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ProfileMainHeader extends StatelessWidget {
+  /// 프로필 페이지의 메인 헤더를 구성하는 위젯입니다.
+  /// 사용자의 닉네임, 프로필 이미지, 친구 수 등을 표시하며, 메뉴 버튼을 포함합니다.
+  ///
+  /// Parameters:
+  /// - [nickname]: 사용자의 닉네임입니다. 닉네임이 없는 경우 '@알 수 없음'으로 표시됩니다.
+  /// - [profileImageUrl]: 사용자의 프로필 이미지 URL입니다. 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
+  /// - [profileImageKey]: 프로필 이미지의 캐시 키입니다. 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
+  /// - [friendCount]: 사용자의 친구 수입니다. '친구 {count}명' 형식으로 표시됩니다.
+  /// - [onMenuTap]: 메뉴 버튼이 탭될 때 호출되는 콜백 함수입니다.
   const ProfileMainHeader({
     super.key,
     required this.nickname,
@@ -13,12 +22,22 @@ class ProfileMainHeader extends StatelessWidget {
     required this.onMenuTap,
   });
 
+  // 사용자의 닉네임입니다. 닉네임이 없는 경우 '@알 수 없음'으로 표시됩니다.
   final String? nickname;
+
+  // 사용자의 프로필 이미지 URL입니다. 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
   final String? profileImageUrl;
+
+  // 프로필 이미지의 캐시 키입니다. 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
   final String? profileImageKey;
+
+  // 사용자의 친구 수입니다. '친구 {count}명' 형식으로 표시됩니다.
   final int friendCount;
+
+  // 메뉴 버튼이 탭될 때 호출되는 콜백 함수입니다.
   final VoidCallback onMenuTap;
 
+  /// 닉네임 레이블을 생성하는 메서드입니다. 닉네임이 없는 경우 '@알 수 없음'으로 표시됩니다.
   String _nicknameLabel(BuildContext context) {
     final resolvedNickname = nickname?.trim() ?? '';
     if (resolvedNickname.isEmpty) {
@@ -27,6 +46,7 @@ class ProfileMainHeader extends StatelessWidget {
     return '@$resolvedNickname';
   }
 
+  /// 친구 수 레이블을 생성하는 메서드입니다. '친구 {count}명' 형식으로 표시됩니다.
   String _friendCountLabel(BuildContext context) {
     return tr(
       'profile.main.friends_count',

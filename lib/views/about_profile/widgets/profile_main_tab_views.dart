@@ -14,6 +14,17 @@ import '../../about_archiving/widgets/archive_card_widget/archive_card_placehold
 import '../../common_widget/about_comment/widget/about_comment_list_sheet/api_comment_row.dart';
 
 class ProfilePostTabView extends StatefulWidget {
+  /// 프로필 메인 탭의 게시물과 댓글 뷰
+  /// - 게시물 탭은 ApiPhotoGridItem을 사용하여 사진과 동영상 게시물을 표시합니다.
+  /// - 댓글 탭은 ApiCommentRow를 사용하여 사용자가 작성한 댓글을 표시합니다.
+  /// - 두 탭 모두 초기 로딩, 오류 상태, 빈 상태를 처리하며, 스크롤 위치에 따라 추가 데이터를 로드하는 무한 스크롤을 구현합니다.
+  ///
+  /// Parameters:
+  /// - [userId]: 표시할 게시물과 댓글의 사용자 ID. null인 경우 빈 상태를 표시합니다.
+  /// - [postType]: 게시물 탭에서 표시할 게시물 유형 (사진/동영상 또는 텍스트).
+  /// - [isActive]: 탭이 현재 활성화되어 있는지 여부. 활성화되지 않은 경우 초기 로딩을 지연시킵니다.
+  /// - [detailTitle]: ApiPhotoGridItem에 전달할 카테고리 이름 (게시물 탭에서만 사용).
+  /// - [emptyMessageKey]: 게시물 또는 댓글이 없는 경우 표시할 메시지의 로컬라이즈된 키.
   const ProfilePostTabView({
     super.key,
     required this.userId,
@@ -23,7 +34,7 @@ class ProfilePostTabView extends StatefulWidget {
     required this.emptyMessageKey,
   });
 
-  final int? userId;
+  final int? userId; //
   final PostType postType;
   final bool isActive;
   final String detailTitle;
@@ -280,10 +291,15 @@ class _ProfilePostTabViewState extends State<ProfilePostTabView>
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
-        padding: EdgeInsets.fromLTRB(8.w, 13.h, 8.w, 28.h),
+        padding: EdgeInsets.only(
+          left: (20.05).w,
+          right: (20.05).w,
+          top: 20.h,
+          bottom: 30.h,
+        ),
         crossAxisCount: 2,
-        mainAxisSpacing: 8.h,
-        crossAxisSpacing: 8.w,
+        mainAxisSpacing: 11.sp,
+        crossAxisSpacing: 11.sp,
         itemCount: _posts.length + (_isLoadingMore ? 2 : 0),
         itemBuilder: (context, index) {
           if (index >= _posts.length) {
@@ -567,13 +583,34 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
         onRefresh: _refresh,
         color: Colors.white,
         backgroundColor: const Color(0xFF1C1C1C),
-        child: ListView.builder(
+        child: ListView.separated(
           controller: _scrollController,
           physics: const BouncingScrollPhysics(
             parent: AlwaysScrollableScrollPhysics(),
           ),
           padding: EdgeInsets.fromLTRB(0, 8.h, 0, 28.h),
           itemCount: _comments.length + (_isLoadingMore ? 1 : 0),
+          separatorBuilder: (_, index) {
+            // 로딩 인디케이터 앞 구분선이나 범위 밖은 빈 위젯
+            if (index >= _comments.length - 1) return const SizedBox.shrink();
+            final next = _comments[index + 1];
+            // 다음 항목이 대댓글이면 같은 스레드로 간주해 선을 숨김
+            if (next.isReply) {
+              return SizedBox(width: double.infinity, height: 15.sp);
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 20.sp),
+                const Divider(
+                  color: Color(0xFF323232),
+                  thickness: 1,
+                  height: 1,
+                ),
+                SizedBox(height: 20.sp),
+              ],
+            );
+          },
           itemBuilder: (context, index) {
             if (index >= _comments.length) {
               return Padding(
@@ -583,31 +620,7 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
                 ),
               );
             }
-
-            final comment = _comments[index];
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: 6.h),
-                  child: ApiCommentRow(comment: comment),
-                ),
-                if (index < _comments.length - 1)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      left: 27.w,
-                      right: 27.w,
-                      top: 7.h,
-                      bottom: 7.h,
-                    ),
-                    child: const Divider(
-                      color: Color(0xFF1E1E1E),
-                      height: 1,
-                      thickness: 1,
-                    ),
-                  ),
-              ],
-            );
+            return ApiCommentRow(comment: _comments[index]);
           },
         ),
       ),
@@ -708,10 +721,15 @@ class _ProfilePostGridLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return MasonryGridView.count(
       physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(8.w, 13.h, 8.w, 28.h),
+      padding: EdgeInsets.only(
+        left: (20.05).w,
+        right: (20.05).w,
+        top: 20.h,
+        bottom: 30.h,
+      ),
       crossAxisCount: 2,
-      mainAxisSpacing: 8.h,
-      crossAxisSpacing: 8.w,
+      mainAxisSpacing: 11.sp,
+      crossAxisSpacing: 11.sp,
       itemCount: 6,
       itemBuilder: (_, __) => const _ProfileGridPlaceholderCard(),
     );
