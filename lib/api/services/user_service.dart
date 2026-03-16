@@ -43,18 +43,45 @@ import '../models/models.dart';
 /// final isAvailable = await userService.checknickNameAvailable('hong123');
 /// ```
 class UserService {
-  final AuthControllerApi _authApi;
+  // 로그인처럼 JWT 발급 전 호출하는 인증 API용 팩토리 함수
+  final AuthControllerApi Function() _buildUnauthenticatedAuthApi;
+
+  // 인증된 API 인스턴스 (JWT 토큰 포함)
   final UserAPIApi _userApi;
+
+  // 인증 없이 API 호출을 위한 팩토리 함수
+  final UserAPIApi Function() _buildUnauthenticatedUserApi;
+
+  // 인증 토큰 관리 콜백
   final void Function(String token) _setAuthToken;
+
+  // 인증 토큰 제거 콜백
   final void Function() _clearAuthToken;
 
   UserService({
     AuthControllerApi? authApi,
     UserAPIApi? userApi,
+
+    // 인증 없이 API 호출을 위한 팩토리 함수는 기본적으로 SoiApiClient의 createUnauthenticatedAuthApi를 사용합니다.
+    // 인증 없이 API 호출이 필요한 경우, 이 팩토리 함수를 주입하여 사용할 수 있습니다.
+    AuthControllerApi Function()? buildUnauthenticatedAuthApi,
+
+    // 인증 없이 API 호출을 위한 팩토리 함수는 기본적으로 SoiApiClient의 createUnauthenticatedAuthApi를 사용합니다.
+    // 인증 없이 API 호출이 필요한 경우, 이 팩토리 함수를 주입하여 사용할 수 있습니다.
+    UserAPIApi Function()? buildUnauthenticatedUserApi,
     void Function(String token)? onAuthTokenIssued,
     void Function()? onAuthTokenCleared,
-  }) : _authApi = authApi ?? SoiApiClient.instance.authApi,
+  }) : _buildUnauthenticatedAuthApi =
+           buildUnauthenticatedAuthApi ??
+           (() =>
+               authApi ?? SoiApiClient.instance.createUnauthenticatedAuthApi()),
        _userApi = userApi ?? SoiApiClient.instance.userApi,
+
+       // 인증 없이 API 호출을 위한 팩토리 함수는 기본적으로 SoiApiClient의 createUnauthenticatedUserApi를 사용합니다.
+       // 인증 없이 API 호출이 필요한 경우, 이 팩토리 함수를 주입하여 사용할 수 있습니다.
+       _buildUnauthenticatedUserApi =
+           buildUnauthenticatedUserApi ??
+           SoiApiClient.instance.createUnauthenticatedUserApi,
        _setAuthToken = onAuthTokenIssued ?? SoiApiClient.instance.setAuthToken,
        _clearAuthToken =
            onAuthTokenCleared ?? SoiApiClient.instance.clearAuthToken;
@@ -74,7 +101,8 @@ class UserService {
   /// - [SoiApiException]: 기타 API 에러
   Future<bool> sendSmsVerification(String phoneNum) async {
     try {
-      final result = await _userApi.authSMS(phoneNum);
+      // 인증 없이 전화번호 인증 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
+      final result = await _buildUnauthenticatedUserApi().authSMS(phoneNum);
       return result ?? false;
     } on ApiException catch (e) {
       throw _handleApiException(e);
@@ -86,9 +114,15 @@ class UserService {
   }
 
   /// SMS 인증 코드 확인
+  /// [phoneNum]과 [code]를 함께 전달하여 인증 코드를 확인합니다.
   ///
-  /// [phoneNum]과 [code]로 SMS 인증을 확인합니다.
-  /// 성공 시 true 반환, 실패 시 예외를 throw합니다.
+  /// parameters:
+  /// - [phoneNum]: 인증할 전화번호
+  /// - [code]: 사용자에게 발송된 인증 코드
+  ///
+  /// returns:
+  /// - [bool]: true - 인증 성공
+  /// - [bool]: false - 인증 실패 (코드 불일치)
   ///
   /// Throws:
   /// - [NetworkException]: 네트워크 연결 실패
@@ -96,8 +130,11 @@ class UserService {
   /// - [SoiApiException]: 기타 API 에러
   Future<bool> verifySmsCode(String phoneNum, String code) async {
     try {
+      // 인증 코드 확인을 위한 DTO 객체를 생성합니다.
       final dto = AuthCheckReqDto(phoneNum: phoneNum, code: code);
-      final result = await _userApi.checkAuthSMS(dto);
+
+      // 인증 없이 전화번호 인증 확인 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
+      final result = await _buildUnauthenticatedUserApi().checkAuthSMS(dto);
       return result ?? false;
     } on ApiException catch (e) {
       throw _handleApiException(e);
@@ -182,7 +219,7 @@ class UserService {
   /// - [nickName]: 사용자 아이디 (고유)
   /// - [phoneNum]: 전화번호
   /// - [birthDate]: 생년월일 (yyyy-MM-dd 형식)
-  /// - [profileImage]: 프로필 이미지 URL (선택)
+  /// - [profileImageKey]: 프로필 이미지 URL (선택)
   /// - [serviceAgreed]: 서비스 약관 동의 여부
   /// - [privacyPolicyAgreed]: 개인정보 처리방침 동의 여부
   /// - [marketingAgreed]: 마케팅 수신 동의 여부 (선택)
@@ -214,7 +251,10 @@ class UserService {
         marketingAgreed: marketingAgreed,
       );
 
-      final response = await _userApi.createUser(dto);
+      // 인증 없이 사용자 생성 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
+      // user를 생성하는 API는 인증이 필요하지 않으므로,
+      // SoiApiClient의 createUnauthenticatedUserApi를 사용하여 인증 없이 호출합니다.
+      final response = await _buildUnauthenticatedUserApi().createUser(dto);
 
       if (response == null) {
         throw const DataValidationException(message: '사용자 생성 응답이 없습니다.');
@@ -367,7 +407,10 @@ class UserService {
   /// - false: 이미 사용 중 (중복)
   Future<bool> checknickNameAvailable(String nickName) async {
     try {
-      final response = await _userApi.idCheck(nickName);
+      // 인증 없이 ID 중복 확인 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
+      // ID 중복 확인 API는 인증이 필요하지 않으므로,
+      // SoiApiClient의 createUnauthenticatedUserApi를 사용하여 인증 없이 호출합니다.
+      final response = await _buildUnauthenticatedUserApi().idCheck(nickName);
 
       if (response == null) {
         return false;
@@ -393,8 +436,8 @@ class UserService {
   // ============================================
 
   /// 사용자 정보 수정
-  ///
   /// 사용자의 기본 정보를 수정합니다.
+  /// 보안을 위해, JWT 인증된 사용자와 요청 대상 사용자가 일치하는지 확인합니다([_ensureCurrentUserMatches]).
   ///
   /// Parameters:
   /// - [id]: 사용자 고유 ID
@@ -405,6 +448,12 @@ class UserService {
   /// - [profileImageKey]: 변경할 프로필 이미지 키 (선택)
   ///
   /// Returns: 수정된 사용자 정보 (User)
+  ///
+  /// Throws:
+  /// - [ForbiddenException]: JWT 인증 사용자와 요청 대상 사용자가 일치하지 않는 경우
+  /// - [DataValidationException]: 응답 데이터가 예상과 다른 경우 (예: null)
+  /// - [SoiApiException]: 기타 API 에러
+  /// - [NetworkException]: 네트워크 연결 실패
   Future<User> updateUser({
     required int id,
     String? name,
@@ -414,7 +463,11 @@ class UserService {
     String? profileImageKey,
   }) async {
     try {
+      // 보안을 위해 현재 인증된 사용자와 요청 대상 사용자가 일치하는지 확인합니다.
       await _ensureCurrentUserMatches(id);
+
+      // 사용자 정보 수정을 위한 DTO 객체를 생성합니다.
+      // parameter로 전달된 값 중 null이 아닌 값만 DTO에 포함하여 API에 전송합니다.
       final dto = UserUpdateReqDto(
         name: name,
         nickname: nickName,
@@ -423,6 +476,7 @@ class UserService {
         profileImageKey: profileImageKey,
       );
 
+      // 사용자 정보 수정 API를 호출하여 응답을 받습니다.
       final response = await _userApi.update1(dto);
 
       if (response == null) {
@@ -449,16 +503,25 @@ class UserService {
   }
 
   /// 프로필 이미지 수정
-  ///
   /// [userId]의 프로필 이미지를 [profileImageKey] URL로 수정합니다.
   ///
+  /// Parameters:
+  /// - [userId]: 프로필 이미지를 수정할 사용자 ID
+  /// - [profileImageKey]: 새 프로필 이미지 URL
+  ///
   /// Returns: 수정된 사용자 정보 (User)
+  ///
+  /// Throws:
+  /// - [ForbiddenException]: JWT 인증 사용자와 요청 대상 사용자가 일치하지 않는 경우
+  /// - [SoiApiException]: 기타 API 에러
   Future<User> updateProfileImage({
     required int userId,
     required String profileImageKey,
   }) async {
     try {
+      // 보안을 위해 현재 인증된 사용자와 요청 대상 사용자가 일치하는지 확인합니다.
       await _ensureCurrentUserMatches(userId);
+
       final response = await _userApi.updateProfile(
         profileImageKey: profileImageKey,
       );
@@ -585,16 +648,26 @@ class UserService {
   }
 
   Future<User?> _login(LoginReqDto dto) async {
-    final loginResponse = await _authApi.login(dto);
+    // 로그인 API는 JWT 발급 전 호출하는 인증 API이므로, 인증 없이 호출해야 합니다.
+    // SoiApiClient의 createUnauthenticatedAuthApi를 사용하여 인증 없이 호출합니다.
+    final loginResponse = await _buildUnauthenticatedAuthApi().login(dto);
+
+    // loginResponse가 null인 경우, return으로 null을 반환하여 로그인 실패를 나타냅니다.
     if (loginResponse == null) {
       return null;
     }
 
+    // loginResponse에서 accessToken을 추출합니다.
     final accessToken = loginResponse.accessToken?.trim();
+
+    // accessToken이 null이거나 빈 문자열인 경우, 로그인 실패로 간주하여 null을 반환합니다.
     if (accessToken == null || accessToken.isEmpty) {
       throw const DataValidationException(message: '인증 토큰이 없습니다.');
     }
 
+    // 인증 토큰 설정
+    // 로그인 성공 시, 발급된 JWT 토큰을 SoiApiClient에 설정하여 이후 API 호출에 사용하도록 합니다.
+    // 발급된 JWT 토큰을 API 헤더에 자동으로 포함시키기 위해 SoiApiClient의 setAuthToken 콜백을 호출합니다.
     _setAuthToken(accessToken);
 
     try {
@@ -605,13 +678,34 @@ class UserService {
     }
   }
 
+  /// 현재 인증된 사용자와 요청 대상 사용자가 일치하는지 확인합니다.
+  /// 현재 인증된 사용자: JWT 토큰에서 추출된 사용자 정보입니다.
+  /// 요청 대상 사용자: 수정/삭제하려는 사용자 ID입니다.
+  ///
+  /// 일치하지 않는 경우, ForbiddenException을 throw하여 권한 오류를 나타냅니다.
+  ///
+  /// parameters:
+  /// - [expectedUserId]: 요청 대상 사용자 ID
+  ///
+  /// returns:
+  /// - 일치하는 경우: void (예외 없이 반환)
+  /// - 일치하지 않는 경우: ForbiddenException 예외 throw
+  ///
+  /// Throws:
+  /// - [ForbiddenException]: JWT 인증 사용자와 요청 대상 사용자가 일치하지 않는 경우
+  /// - [SoiApiException]: 기타 API 에러
   Future<void> _ensureCurrentUserMatches(int expectedUserId) async {
+    // 인증되지 않은 상태에서는 일치 여부를 확인할 수 없으므로,
+    // 예외 없이 반환하여 호출한 메서드가 계속 실행되도록 합니다.
     if (!SoiApiClient.instance.isAuthenticated) {
       return;
     }
 
-    final currentUser = await getCurrentUser();
+    final currentUser = await getCurrentUser(); // 현재 인증된 사용자 정보 조회
+
+    // 현재 인증된 사용자의 ID와 요청 대상 사용자 ID가 일치하는지 확인합니다.
     if (currentUser.id == expectedUserId) {
+      // 일치하는 경우, 아무 예외 없이 반환하여 호출한 메서드가 계속 실행되도록 합니다.
       return;
     }
 

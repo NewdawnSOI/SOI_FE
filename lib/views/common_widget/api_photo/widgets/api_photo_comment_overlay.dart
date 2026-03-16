@@ -59,7 +59,6 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
   }
 
   List<Widget> _buildCommentAvatars() {
-    // 위치가 있는 댓글만 필터링하여 표시합니다.
     final filteredComments = comments
         .where((comment) => comment.hasLocation)
         .toList(growable: false);

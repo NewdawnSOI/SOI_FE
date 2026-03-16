@@ -137,10 +137,27 @@ class SoiApiClient {
     return _authApi ??= AuthControllerApi(_apiClient);
   }
 
+  /// 인증 헤더 없이 호출해야 하는 공개 인증 API
+  ///
+  /// `/auth/login` 같이 JWT 발급 전 호출하는 엔드포인트에 사용합니다.
+  AuthControllerApi createUnauthenticatedAuthApi() {
+    _checkInitialized();
+    return AuthControllerApi(_createApiClientWithoutAuthorization());
+  }
+
   /// 사용자 API
   UserAPIApi get userApi {
     _checkInitialized();
     return _userApi ??= UserAPIApi(_apiClient);
+  }
+
+  /// 인증 헤더 없이 호출해야 하는 공개 사용자 API
+  ///
+  /// `/user/auth` 같은 비로그인 엔드포인트에 사용합니다.
+  /// 전역 default header 중 `Authorization`만 제외하고 복사합니다.
+  UserAPIApi createUnauthenticatedUserApi() {
+    _checkInitialized();
+    return UserAPIApi(_createApiClientWithoutAuthorization());
   }
 
   /// 카테고리 API
@@ -211,5 +228,16 @@ class SoiApiClient {
   void removeDefaultHeader(String key) {
     _checkInitialized();
     _apiClient.defaultHeaderMap.remove(key);
+  }
+
+  ApiClient _createApiClientWithoutAuthorization() {
+    final unauthenticatedClient = ApiClient(basePath: _apiClient.basePath);
+    for (final entry in _apiClient.defaultHeaderMap.entries) {
+      if (entry.key.toLowerCase() == 'authorization') {
+        continue;
+      }
+      unauthenticatedClient.addDefaultHeader(entry.key, entry.value);
+    }
+    return unauthenticatedClient;
   }
 }
