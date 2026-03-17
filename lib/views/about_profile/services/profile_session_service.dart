@@ -1,7 +1,3 @@
-import 'dart:async';
-
-import 'package:flutter/foundation.dart';
-
 import '../../../api/controller/user_controller.dart';
 import '../../../app/push/app_push_coordinator.dart';
 import '../../about_feed/manager/feed_data_manager.dart';
@@ -24,7 +20,7 @@ class ProfileSessionService {
   }
 
   /// 이 메서드는 회원탈퇴를 시작하고 남은 데이터를 정리해요.
-  /// 화면이 빨리 이동해도 삭제가 뒤에서 계속 되게 도와줘요.
+  /// 삭제가 끝나면 로컬 로그인 상태와 캐시도 함께 정리해요.
   Future<void> beginDeleteAccount({
     required UserController userController,
     required FeedDataManager feedDataManager,
@@ -35,15 +31,12 @@ class ProfileSessionService {
     }
 
     await AppPushCoordinator.instance.deleteCurrentDeviceToken();
-    final deletion = userController.deleteUser(currentUser.id);
+    final deletedUser = await userController.deleteUser(currentUser.id);
+    if (deletedUser == null) {
+      throw StateError('Account deletion failed.');
+    }
+
     AppPushCoordinator.instance.clearLocalState();
     feedDataManager.reset();
-
-    unawaited(
-      deletion.catchError((Object error, StackTrace stackTrace) {
-        debugPrint('계정 삭제 백그라운드 오류: $error');
-        return null;
-      }),
-    );
   }
 }

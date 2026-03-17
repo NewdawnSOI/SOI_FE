@@ -8,6 +8,8 @@ class AppPushPayload {
   final int? categoryInviteId;
   final int? postId;
   final int? commentId;
+  final String? nickname;
+  final String? imageUrl;
   final String? title;
   final String? body;
   final Map<String, dynamic> rawData;
@@ -20,6 +22,8 @@ class AppPushPayload {
     this.categoryInviteId,
     this.postId,
     this.commentId,
+    this.nickname,
+    this.imageUrl,
     this.title,
     this.body,
     this.rawData = const <String, dynamic>{},
@@ -39,6 +43,18 @@ class AppPushPayload {
       categoryInviteId: _parseInt(normalized['categoryInviteId']),
       postId: _parseInt(normalized['postId']),
       commentId: _parseInt(normalized['commentId']),
+      nickname: _parseFirstString(normalized, const [
+        'nickname',
+        'userNickname',
+        'name',
+      ]),
+      imageUrl: _parseFirstString(normalized, const [
+        'imageUrl',
+        'thumbnailUrl',
+        'postImageUrl',
+        'photoUrl',
+        'previewImageUrl',
+      ]),
       title: _parseString(title) ?? _parseString(normalized['title']),
       body:
           _parseString(body) ??
@@ -65,6 +81,8 @@ class AppPushPayload {
       'categoryInviteId': categoryInviteId,
       'postId': postId,
       'commentId': commentId,
+      'nickname': nickname,
+      'imageUrl': imageUrl,
       'title': title,
       'body': body,
       ...rawData,
@@ -72,6 +90,18 @@ class AppPushPayload {
   }
 
   bool get hasPostRoute => categoryId != null && postId != null;
+
+  String? get notificationTitle => nickname ?? title;
+
+  String? get notificationBody {
+    if (body != null && body!.isNotEmpty) {
+      return body;
+    }
+    if (nickname != null && title != null && title != nickname) {
+      return title;
+    }
+    return null;
+  }
 
   static String? _parseString(dynamic value) {
     if (value == null) {
@@ -89,6 +119,19 @@ class AppPushPayload {
       return value;
     }
     return int.tryParse(value.toString());
+  }
+
+  static String? _parseFirstString(
+    Map<String, dynamic> data,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = _parseString(data[key]);
+      if (value != null) {
+        return value;
+      }
+    }
+    return null;
   }
 
   static AppNotificationType? _parseType(dynamic raw) {

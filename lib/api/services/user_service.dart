@@ -647,6 +647,7 @@ class UserService {
         normalized.contains('i/o operation failed');
   }
 
+  ///
   Future<User?> _login(LoginReqDto dto) async {
     // 로그인 API는 JWT 발급 전 호출하는 인증 API이므로, 인증 없이 호출해야 합니다.
     // SoiApiClient의 createUnauthenticatedAuthApi를 사용하여 인증 없이 호출합니다.

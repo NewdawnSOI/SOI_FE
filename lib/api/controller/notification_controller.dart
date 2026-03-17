@@ -46,20 +46,24 @@ class NotificationController extends ChangeNotifier {
   ///
   /// Parameters:
   /// - [userId]: 사용자 ID
+  /// - [page]: 페이지 번호 (0부터 시작, 기본값: 0)
   ///
   /// Returns: 알림 결과 (NotificationGetAllResult)
   Future<NotificationGetAllResult> getAllNotifications({
     required int userId,
+    int page = 0,
   }) async {
-    // 캐시 확인
-    final now = DateTime.now();
-    final isCacheValid =
-        _lastLoadTime != null &&
-        now.difference(_lastLoadTime!) < _cacheTimeout &&
-        _lastLoadedUserId == userId;
+    final shouldUseFirstPageCache = page == 0;
+    if (shouldUseFirstPageCache) {
+      final now = DateTime.now();
+      final isCacheValid =
+          _lastLoadTime != null &&
+          now.difference(_lastLoadTime!) < _cacheTimeout &&
+          _lastLoadedUserId == userId;
 
-    if (isCacheValid && _cachedResult != null) {
-      return _cachedResult!;
+      if (isCacheValid && _cachedResult != null) {
+        return _cachedResult!;
+      }
     }
 
     _setLoading(true);
@@ -68,12 +72,14 @@ class NotificationController extends ChangeNotifier {
     try {
       final result = await _notificationService.getAllNotifications(
         userId: userId,
+        page: page,
       );
 
-      // 캐시 저장
-      _cachedResult = result;
-      _lastLoadedUserId = userId;
-      _lastLoadTime = DateTime.now();
+      if (shouldUseFirstPageCache) {
+        _cachedResult = result;
+        _lastLoadedUserId = userId;
+        _lastLoadTime = DateTime.now();
+      }
 
       _setLoading(false);
       return result;
@@ -91,7 +97,7 @@ class NotificationController extends ChangeNotifier {
   /// Parameters:
   /// - [userId]: 사용자 ID
   ///
-  /// Returns: 친구 관련 알림 목록 (List<AppNotification>)
+  /// Returns: 친구 관련 알림 목록
   Future<List<AppNotification>> getFriendNotifications({
     required int userId,
     int page = 0,

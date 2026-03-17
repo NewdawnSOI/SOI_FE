@@ -12,14 +12,22 @@ class _NoopAuthApi extends AuthControllerApi {}
 class _NoopUserApi extends UserAPIApi {}
 
 class _FakeUserService extends UserService {
-  _FakeUserService({this.onLogin, this.onGetCurrentUser, this.onCreateUser})
-    : super(
-        authApi: _NoopAuthApi(),
-        userApi: _NoopUserApi(),
-        onAuthTokenIssued: (_) {},
-        onAuthTokenCleared: () {},
-      );
+  _FakeUserService({
+    this.onSendSmsVerification,
+    this.onVerifySmsCode,
+    this.onLogin,
+    this.onGetCurrentUser,
+    this.onCreateUser,
+    this.onDeleteUser,
+  }) : super(
+         authApi: _NoopAuthApi(),
+         userApi: _NoopUserApi(),
+         onAuthTokenIssued: (_) {},
+         onAuthTokenCleared: () {},
+       );
 
+  final Future<bool> Function(String phoneNumber)? onSendSmsVerification;
+  final Future<bool> Function(String phoneNumber, String code)? onVerifySmsCode;
   final Future<User?> Function({String? nickName, String? phoneNum})? onLogin;
   final Future<User> Function()? onGetCurrentUser;
   final Future<User> Function({
@@ -33,6 +41,7 @@ class _FakeUserService extends UserService {
     bool marketingAgreed,
   })?
   onCreateUser;
+  final Future<User> Function(int id)? onDeleteUser;
 
   @override
   Future<User?> login({String? nickName, String? phoneNum}) async {
@@ -41,6 +50,24 @@ class _FakeUserService extends UserService {
       throw UnimplementedError('onLogin is not configured');
     }
     return handler(nickName: nickName, phoneNum: phoneNum);
+  }
+
+  @override
+  Future<bool> sendSmsVerification(String phoneNum) async {
+    final handler = onSendSmsVerification;
+    if (handler == null) {
+      throw UnimplementedError('onSendSmsVerification is not configured');
+    }
+    return handler(phoneNum);
+  }
+
+  @override
+  Future<bool> verifySmsCode(String phoneNum, String code) async {
+    final handler = onVerifySmsCode;
+    if (handler == null) {
+      throw UnimplementedError('onVerifySmsCode is not configured');
+    }
+    return handler(phoneNum, code);
   }
 
   @override
@@ -78,6 +105,15 @@ class _FakeUserService extends UserService {
       marketingAgreed: marketingAgreed,
     );
   }
+
+  @override
+  Future<User> deleteUser(int id) async {
+    final handler = onDeleteUser;
+    if (handler == null) {
+      throw UnimplementedError('onDeleteUser is not configured');
+    }
+    return handler(id);
+  }
 }
 
 void main() {
@@ -88,6 +124,42 @@ void main() {
   });
 
   group('UserController login error handling', () {
+    test('trims whitespace before requesting SMS verification', () async {
+      final controller = UserController(
+        userService: _FakeUserService(
+          onSendSmsVerification: (phoneNumber) async {
+            expect(phoneNumber, '+821066784110');
+            return true;
+          },
+        ),
+      );
+
+      final result = await controller.requestSmsVerification(
+        '  +821066784110  ',
+      );
+
+      expect(result, isTrue);
+    });
+
+    test('trims whitespace before verifying SMS code', () async {
+      final controller = UserController(
+        userService: _FakeUserService(
+          onVerifySmsCode: (phoneNumber, code) async {
+            expect(phoneNumber, '+821066784110');
+            expect(code, '12345');
+            return true;
+          },
+        ),
+      );
+
+      final result = await controller.verifySmsCode(
+        '  +821066784110  ',
+        ' 12345 ',
+      );
+
+      expect(result, isTrue);
+    });
+
     test('returns null when combined login throws NotFoundException', () async {
       final controller = UserController(
         userService: _FakeUserService(
@@ -189,6 +261,47 @@ void main() {
       expect(result, isNull);
       expect(controller.currentUser, isNull);
       expect(controller.errorMessage, contains('사용자 생성 실패'));
+    });
+
+    test('clears local session after account deletion succeeds', () async {
+      SharedPreferences.setMockInitialValues({
+        'api_is_logged_in': true,
+        'api_user_id': 1,
+        'api_phone_number': '01012345678',
+        'api_access_token': 'jwt-token',
+      });
+      SoiApiClient.instance.setAuthToken('jwt-token');
+
+      final controller = UserController(
+        userService: _FakeUserService(
+          onDeleteUser: (id) async {
+            expect(id, 1);
+            return const User(
+              id: 1,
+              userId: 'minchan',
+              name: '민찬',
+              phoneNumber: '01012345678',
+            );
+          },
+        ),
+      );
+      controller.setCurrentUser(
+        const User(
+          id: 1,
+          userId: 'minchan',
+          name: '민찬',
+          phoneNumber: '01012345678',
+        ),
+      );
+
+      final deletedUser = await controller.deleteUser(1);
+      final prefs = await SharedPreferences.getInstance();
+
+      expect(deletedUser?.id, 1);
+      expect(controller.currentUser, isNull);
+      expect(SoiApiClient.instance.authToken, isNull);
+      expect(prefs.getString('api_access_token'), isNull);
+      expect(prefs.getInt('api_user_id'), isNull);
     });
   });
 }

@@ -1,6 +1,7 @@
 import UIKit
 import Flutter
 import FirebaseCore
+import FirebaseMessaging
 import UserNotifications
 import AVFoundation
 
@@ -30,16 +31,24 @@ import AVFoundation
   
   // MARK: - APNs Token Registration
   override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    Messaging.messaging().apnsToken = deviceToken
     handleAPNsTokenRegistration(deviceToken)
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
   
   override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
     handleAPNsRegistrationFailure(error)
+    super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
   }
   
   // MARK: - Notification Handling
   override func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-    handleRemoteNotification(userInfo, completionHandler: completionHandler)
+    handleRemoteNotification(userInfo)
+    super.application(
+      application,
+      didReceiveRemoteNotification: userInfo,
+      fetchCompletionHandler: completionHandler
+    )
   }
   
   // MARK: - URL Handling
@@ -105,8 +114,8 @@ extension AppDelegate {
     print("해결 방법: Apple Developer Program, Provisioning Profile, Firebase 콘솔 설정을 확인하세요.")
   }
   
-  private func handleRemoteNotification(_ userInfo: [AnyHashable : Any], completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-    completionHandler(.noData)
+  private func handleRemoteNotification(_ userInfo: [AnyHashable : Any]) {
+    print("Remote notification received with keys: \(Array(userInfo.keys))")
   }
 }
 

@@ -46,6 +46,28 @@ NotificationRespDto _notificationDto() {
 
 void main() {
   group('NotificationService response mapping', () {
+    test('getAllNotifications forwards page to API', () async {
+      var capturedPage = -1;
+      final service = NotificationService(
+        notificationApi: _FakeNotificationApi(
+          onGetAll: (page) async {
+            capturedPage = page;
+            return ApiResponseDtoNotificationGetAllRespDto(
+              success: true,
+              data: NotificationGetAllRespDto(
+                friendReqCount: 0,
+                notifications: const [],
+              ),
+            );
+          },
+        ),
+      );
+
+      await service.getAllNotifications(userId: 7, page: 3);
+
+      expect(capturedPage, 3);
+    });
+
     test('getAllNotifications preserves reply comment ids', () async {
       final service = NotificationService(
         notificationApi: _FakeNotificationApi(

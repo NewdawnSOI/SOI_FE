@@ -75,11 +75,15 @@ class UserController extends ChangeNotifier {
   ///   - false: 요청 실패
 
   Future<bool> requestSmsVerification(String phoneNumber) async {
+    final normalizedPhoneNumber = phoneNumber.trim();
+
     _setLoading(true);
     _clearError();
 
     try {
-      final result = await _userService.sendSmsVerification(phoneNumber);
+      final result = await _userService.sendSmsVerification(
+        normalizedPhoneNumber,
+      );
       _setLoading(false);
       return result;
     } catch (e) {
@@ -101,11 +105,17 @@ class UserController extends ChangeNotifier {
   ///   - false: 확인 실패
 
   Future<bool> verifySmsCode(String phoneNumber, String code) async {
+    final normalizedPhoneNumber = phoneNumber.trim();
+    final normalizedCode = code.trim();
+
     _setLoading(true);
     _clearError();
 
     try {
-      final result = await _userService.verifySmsCode(phoneNumber, code);
+      final result = await _userService.verifySmsCode(
+        normalizedPhoneNumber,
+        normalizedCode,
+      );
       _setLoading(false);
       return result;
     } catch (e) {
@@ -498,7 +508,10 @@ class UserController extends ChangeNotifier {
 
     try {
       final user = await _userService.deleteUser(id);
+      _currentUser = null;
+      await clearLoginState();
       _setLoading(false);
+      notifyListeners();
       return user;
     } catch (e) {
       _setError('사용자 삭제 실패: $e');

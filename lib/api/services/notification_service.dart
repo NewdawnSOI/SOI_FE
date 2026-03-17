@@ -12,18 +12,22 @@ import '../models/notification.dart';
 /// 알림 조회 등 알림 관련 기능을 제공합니다.
 /// Provider를 통해 주입받아 사용합니다.
 ///
-/// 사용 예시:
-/// ```dart
-/// final notificationService = Provider.of<NotificationService>(context, listen: false);
+/// fields;
+/// - [_notificationApi]: OpenAPI로 생성된 NotificationAPIApi 인스턴스
 ///
-/// // 모든 알림 조회
-/// final result = await notificationService.getAllNotifications(userId: 1);
-/// print('친구 요청: ${result.friendRequestCount}개');
-/// print('알림: ${result.notifications.length}개');
-///
-/// // 친구 관련 알림만 조회
-/// final friendNotifications = await notificationService.getFriendNotifications(userId: 1);
-/// ```
+/// methods:
+/// - [getAllNotifications]
+///   - "userId"의 모든 알림을 조회합니다.
+///   - 친구 요청 개수와 전체 알림 목록을 반환합니다.
+/// - [getFriendNotifications]
+///   - "userId"의 친구 요청 관련 알림만 조회합니다.
+/// - [getFriendRequestCount]
+///   - 모든 알림을 조회하여 친구 요청 개수만 반환하는 편의 메서드입니다.
+/// - [getNotificationCount]
+///   - 모든 알림을 조회하여 전체 알림 개수만 반환하는 편의 메서드입니다.
+/// - [_handleApiException]
+///   - [ApiException]을 받아서 HTTP 상태 코드에 따라 적절한 [SoiApiException] 서브클래스로 변환하여 반환합니다.
+///   - 네트워크 관련 메시지를 감지하여 [NetworkException]으로 변환하는 로직도 포함합니다.
 class NotificationService {
   final NotificationAPIApi _notificationApi;
 
@@ -49,7 +53,8 @@ class NotificationService {
   /// Parameters:
   /// - [userId]: 사용자 ID
   ///
-  /// Returns: 알림 결과 (NotificationGetAllResult)
+  /// Returns:
+  /// - [NotificationGetAllResult]: 알림 결과 (친구 요청 개수와 전체 알림 목록)
   ///
   /// Throws:
   /// - [BadRequestException]: 잘못된 요청
@@ -86,14 +91,14 @@ class NotificationService {
     }
   }
 
-  /// 친구 관련 알림 조회
-  ///
-  /// [userId]의 친구 요청 관련 알림만 조회합니다.
+  /// 친구 관련 알림 조회: [userId]의 친구 요청 관련 알림만 조회합니다.
   ///
   /// Parameters:
   /// - [userId]: 사용자 ID
+  /// - [page]: 페이지 번호 (0부터 시작, 기본값: 0)
   ///
-  /// Returns: 친구 관련 알림 목록 (`List<AppNotification>`)
+  /// Returns:
+  /// - [List<AppNotification>]: 친구 관련 알림 목록
   ///
   /// Throws:
   /// - [BadRequestException]: 잘못된 요청
@@ -105,6 +110,8 @@ class NotificationService {
     try {
       // 파라미터 검증
       _validatePagingParams(page: page);
+
+      // 친구 알림 조회 API 호출
       final response = await _notificationApi.getFriend(page);
 
       if (response == null) {
@@ -126,21 +133,27 @@ class NotificationService {
     }
   }
 
-  /// 친구 요청 개수 조회 (편의 메서드)
+  /// 친구 요청 개수 조회 (편의 메서드): 모든 알림을 조회하여 친구 요청 개수만 반환합니다.
   ///
-  /// 모든 알림을 조회하여 친구 요청 개수만 반환합니다.
+  /// Parameters:
+  /// - [userId]: 사용자 ID
   ///
-  /// Returns: 친구 요청 개수
+  /// Returns
+  /// - [int]: 친구 요청 개수
   Future<int> getFriendRequestCount({required int userId}) async {
+    // 모든 알림을 조회하여 친구 요청 개수만 반환하는 편의 메소드를 호출해서 결과를 반환합니다.
+    //
     final result = await getAllNotifications(userId: userId);
     return result.friendRequestCount;
   }
 
-  /// 알림 개수 조회 (편의 메서드)
+  /// 알림 개수 조회 (편의 메서드): 모든 알림을 조회하여 전체 알림 개수만 반환합니다.
   ///
-  /// 모든 알림을 조회하여 전체 알림 개수만 반환합니다.
+  /// parameters:
+  /// - [userId]: 사용자 ID
   ///
-  /// Returns: 전체 알림 개수
+  /// Returns
+  /// - [int]: 전체 알림 개수
   Future<int> getNotificationCount({required int userId}) async {
     final result = await getAllNotifications(userId: userId);
     return result.totalCount;
@@ -151,7 +164,7 @@ class NotificationService {
   // ============================================
 
   SoiApiException _handleApiException(ApiException e) {
-    debugPrint('🔴 API Error [${e.code}]: ${e.message}');
+    debugPrint('API Error [${e.code}]: ${e.message}');
 
     switch (e.code) {
       case 400:

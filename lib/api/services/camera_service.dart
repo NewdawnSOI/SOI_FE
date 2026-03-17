@@ -6,8 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
 
-// 네이티브 카메라 & 오디오 서비스
-// Android CameraX와 MediaRecorder를 Flutter MethodChannel로 연동
+/// CameraService는 카메라 기능과 관련된 모든 네이티브 통신을 담당하는 싱글톤 서비스입니다.
 class CameraService {
   static const MethodChannel _cameraChannel = MethodChannel('com.soi.camera');
   static const Duration _defaultVideoMaxDuration = Duration(seconds: 30);
@@ -335,9 +334,7 @@ class CameraService {
         );
         _isSessionActive = resumed == true;
         if (_isSessionActive) {
-          unawaited(
-            optimizeCamera(),
-          ); // 카메라 최적화 함수를 비동기로 호출하여서 UI 스레드 차단 방지
+          unawaited(optimizeCamera()); // 카메라 최적화 함수를 비동기로 호출하여서 UI 스레드 차단 방지
         }
       } else {
         _isSessionActive = true;

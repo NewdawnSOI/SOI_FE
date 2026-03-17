@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -18,19 +20,25 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
+  static const double _paginationThreshold =
+      200; // 스크롤이 바닥에서 200픽셀 이내로 접근하면 다음 페이지 로드
+
   late api.NotificationController _notificationController;
   late ScrollController _scrollController;
 
   bool _isLoading = false;
   bool _isFriendRequestLoading = false;
+  bool _isLoadingMore = false; // 추가 페이지 로딩 중 여부
+  bool _hasMoreNotifications = true; // 추가 페이지 존재 여부
   String? _error;
   NotificationGetAllResult? _notificationResult;
   int? _friendRequestCount; // 친구추가 요청 개수
+  int _currentPage = 0; // 현재 페이지 번호 (0부터 시작)
 
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController();
+    _scrollController = ScrollController()..addListener(_handleScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFriendRequestCountFromGetFriendApi(); // 친구 요청 개수 로드(get-friend)
@@ -40,12 +48,32 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
   }
 
+  /// 스크롤 이벤트 핸들러: 페이지네이션 트리거
+  /// 스크롤이 바닥에서 일정 픽셀 이내로 접근하면 다음 페이지를 로드합니다.
+  void _handleScroll() {
+    if (!_scrollController.hasClients ||
+        _isLoading ||
+        _isLoadingMore ||
+        !_hasMoreNotifications ||
+        _notificationResult == null) {
+      return;
+    }
+
+    final position = _scrollController.position;
+    if (position.pixels < position.maxScrollExtent - _paginationThreshold) {
+      return;
+    }
+
+    unawaited(_loadNotifications(loadMore: true));
+  }
+
   /// 알림 로드
-  Future<void> _loadNotifications() async {
+  Future<void> _loadNotifications({bool loadMore = false}) async {
     final userController = context.read<UserController>();
     final user = userController.currentUser;
 
@@ -57,34 +85,101 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
 
     setState(() {
-      _isLoading = true;
-      _error = null;
+      if (loadMore) {
+        _isLoadingMore = true;
+      } else {
+        _isLoading = true;
+        _error = null;
+        _currentPage = 0;
+        _hasMoreNotifications = true;
+      }
     });
 
     try {
       _notificationController = context.read<api.NotificationController>();
+      final nextPage = loadMore ? _currentPage + 1 : 0;
       final result = await _notificationController.getAllNotifications(
         userId: user.id,
+        page: nextPage,
       );
 
+      // 페이지네이션 결과 처리
       if (mounted) {
+        final mergedNotifications = loadMore
+            ?
+              // 기존 알림과 새로 로드된 알림을 ID 기반으로 병합하여 중복 제거
+              _mergeNotifications(
+                _notificationResult?.notifications ?? const [],
+                result.notifications,
+              )
+            :
+              // 새로 로드된 알림으로 전체 결과를 대체 (페이지네이션이 아닌 경우)
+              result.notifications;
+
+        // 친구 요청 개수는 페이지네이션과 상관없이 항상 최신 값으로 업데이트
+        final baseResult = loadMore
+            ? (_notificationResult ??
+                  NotificationGetAllResult(
+                    friendRequestCount: result.friendRequestCount,
+                  ))
+            : result;
+
         setState(() {
-          _notificationResult = result;
+          _notificationResult = baseResult.copyWith(
+            friendRequestCount: result.friendRequestCount,
+            notifications: mergedNotifications,
+          );
+          _currentPage = nextPage;
+          _hasMoreNotifications = result.notifications.isNotEmpty;
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = tr(
-            'notification.load_failed_with_reason',
-            context: context,
-            namedArgs: {'error': e.toString()},
-          );
+          if (!loadMore) {
+            _error = tr(
+              'notification.load_failed_with_reason',
+              context: context,
+              namedArgs: {'error': e.toString()},
+            );
+          }
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
     }
+  }
+
+  /// 알림 목록과 새로 로드된 알림을 ID 기반으로 병합하여 중복 제거
+  List<AppNotification> _mergeNotifications(
+    List<AppNotification> current,
+    List<AppNotification> incoming,
+  ) {
+    final merged = List<AppNotification>.from(current);
+    final seenKeys = current.map(_notificationKey).toSet();
+
+    for (final notification in incoming) {
+      final key = _notificationKey(notification);
+      if (seenKeys.add(key)) {
+        merged.add(notification);
+      }
+    }
+
+    return merged;
+  }
+
+  /// 알림 객체에서 고유 키를 생성하는 헬퍼 메서드
+  String _notificationKey(AppNotification notification) {
+    return notification.id?.toString() ??
+        '${notification.type?.value}:'
+            '${notification.relatedId}:'
+            '${notification.categoryIdForPost}:'
+            '${notification.replyCommentId}:'
+            '${notification.parentCommentId}:'
+            '${notification.text ?? ''}:'
+            '${notification.nickname ?? ''}';
   }
 
   /// 친구 요청 개수 로드 (알림 리스트와 독립)
@@ -432,6 +527,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         : null,
                     isLast: i == notifications.length - 1,
                   ),
+                if (_isLoadingMore) ...[
+                  SizedBox(height: 8.h),
+                  const CircularProgressIndicator(color: Color(0xff634D45)),
+                  SizedBox(height: 16.h),
+                ],
                 SizedBox(height: 7.h),
               ],
             ),

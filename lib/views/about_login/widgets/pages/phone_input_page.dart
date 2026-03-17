@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:solar_icons/solar_icons.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -48,13 +49,11 @@ class PhoneInputPage extends StatelessWidget {
         Align(
           alignment: Alignment.center,
           child: Transform.translate(
-                offset: Offset(0, verticalOffset),
+            offset: Offset(0, verticalOffset),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                PageTitle(
-                  title: tr('register.phone_title', context: context),
-                ),
+                PageTitle(title: tr('register.phone_title', context: context)),
                 SizedBox(height: 16.h),
                 _CountrySelector(
                   selectedCountryCode: selectedCountryCode,
@@ -66,6 +65,7 @@ class PhoneInputPage extends StatelessWidget {
                   hintText: tr('register.phone_hint', context: context),
                   keyboardType: TextInputType.phone,
                   textAlign: TextAlign.start,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   prefixIcon: Icon(
                     SolarIconsOutline.phone,
                     color: const Color(0xffC0C0C0),
@@ -144,12 +144,14 @@ class _CountrySelector extends StatelessWidget {
             fontFamily: 'Pretendard',
             fontWeight: FontWeight.w500,
           ),
-          items: options.map((option) {
-            return DropdownMenuItem<String>(
-              value: option.code,
-              child: Text('${option.label} (${option.dialCode})'),
-            );
-          }).toList(growable: false),
+          items: options
+              .map((option) {
+                return DropdownMenuItem<String>(
+                  value: option.code,
+                  child: Text('${option.label} (${option.dialCode})'),
+                );
+              })
+              .toList(growable: false),
           onChanged: (value) {
             if (value != null) onChanged(value);
           },

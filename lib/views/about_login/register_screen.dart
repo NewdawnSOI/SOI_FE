@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
@@ -25,6 +26,12 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  static const Map<String, String> _dialCodesByCountry = {
+    'KR': '+82',
+    'US': '+1',
+    'MX': '+52',
+  };
+
   final PageController _pageController = PageController();
 
   // 자동 인증을 위한 Timer
@@ -273,12 +280,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 },
                 onResendPressed: () async {
                   try {
-                    String formattedPhone = phoneNumber;
-                    if (phoneNumber.startsWith('0')) {
-                      formattedPhone = '+82${phoneNumber.substring(1)}';
-                    } else if (!phoneNumber.startsWith('+')) {
-                      formattedPhone = '+82$phoneNumber';
-                    }
+                    final formattedPhone = _formatPhoneNumberForApi();
+                    phoneNumber = formattedPhone;
 
                     await _userController
                         .requestSmsVerification(formattedPhone)
@@ -320,7 +323,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         builder: (context) => AuthFinalScreen(
                           id: id,
                           name: name,
-                          phone: phoneNumber,
+                          phone: _formatPhoneNumberForApi(),
                           birthDate: birthDate,
                         ),
                       ),
@@ -431,17 +434,11 @@ class _AuthScreenState extends State<AuthScreen> {
                               );
                               break;
                             case 2: // 전화번호
-                              phoneNumber = phoneController.text;
+                              final formattedPhone = _formatPhoneNumberForApi(
+                                rawValue: phoneController.text,
+                              );
+                              phoneNumber = formattedPhone;
                               try {
-                                // 전화번호 형식을 국제 형식으로 변환 (+82)
-                                String formattedPhone = phoneNumber;
-                                if (phoneNumber.startsWith('0')) {
-                                  formattedPhone =
-                                      '+82${phoneNumber.substring(1)}';
-                                } else if (!phoneNumber.startsWith('+')) {
-                                  formattedPhone = '+82$phoneNumber';
-                                }
-
                                 final isSuccess = await _userController
                                     .requestSmsVerification(formattedPhone);
 
@@ -521,9 +518,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       final isSuccess = await _userController.verifySmsCode(
-        phoneNumber.startsWith('0')
-            ? '+82${phoneNumber.substring(1)}'
-            : (phoneNumber.startsWith('+') ? phoneNumber : '+82$phoneNumber'),
+        _formatPhoneNumberForApi(),
         smsCode,
       );
 
@@ -576,6 +571,48 @@ class _AuthScreenState extends State<AuthScreen> {
     agreeAll = agreeServiceTerms && agreePrivacyTerms && agreeMarketingInfo;
   }
 
+  String _formatPhoneNumberForApi({String? rawValue}) {
+    final source = (rawValue ?? phoneNumber).trim();
+    if (source.startsWith('+')) {
+      return source;
+    }
+
+    final digitsOnly = source.isNotEmpty
+        ? source.replaceAll(RegExp(r'\D'), '')
+        : phoneController.text.replaceAll(RegExp(r'\D'), '');
+
+    if (digitsOnly.isEmpty) {
+      return '';
+    }
+
+    switch (_selectedCountryCode) {
+      case 'KR':
+        var normalized = digitsOnly;
+        if (normalized.startsWith('82') && normalized.length > 2) {
+          normalized = normalized.substring(2);
+        }
+        if (normalized.startsWith('0')) {
+          normalized = normalized.substring(1);
+        }
+        return '+82$normalized';
+      case 'US':
+        var normalized = digitsOnly;
+        if (normalized.startsWith('1') && normalized.length > 10) {
+          normalized = normalized.substring(1);
+        }
+        return '+1$normalized';
+      case 'MX':
+        var normalized = digitsOnly;
+        if (normalized.startsWith('52') && normalized.length > 10) {
+          normalized = normalized.substring(2);
+        }
+        return '+52$normalized';
+      default:
+        final dialCode = _dialCodesByCountry[_selectedCountryCode] ?? '+82';
+        return '$dialCode$digitsOnly';
+    }
+  }
+
   void _navigateToAuthFinal() {
     // 회원가입 데이터를 AuthFinalScreen으로 전달
     // 실제 회원가입은 onboarding 완료 후 수행
@@ -585,7 +622,7 @@ class _AuthScreenState extends State<AuthScreen> {
         builder: (context) => AuthFinalScreen(
           id: id,
           name: name,
-          phone: phoneNumber,
+          phone: _formatPhoneNumberForApi(),
           birthDate: birthDate,
           profileImagePath: profileImagePath,
           agreeServiceTerms: agreeServiceTerms,
