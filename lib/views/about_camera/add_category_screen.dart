@@ -291,7 +291,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '스페이스 이름',
+          tr('camera.add_category.name_label', context: context),
           style: TextStyle(
             color: Color(0xffcccccc),
             fontSize: 18.sp,
@@ -323,7 +323,10 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
                   decoration: InputDecoration(
                     isCollapsed: true,
                     border: InputBorder.none,
-                    hintText: '스페이스 이름',
+                    hintText: tr(
+                      'camera.add_category.name_hint',
+                      context: context,
+                    ),
                     hintStyle: TextStyle(
                       color: const Color(0xFF909090),
                       fontSize: 16.sp,
@@ -561,7 +564,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
                   ),
                   SizedBox(width: 7.w),
                   Text(
-                    '친구 추가',
+                    tr('friends.add_friend', context: context),
                     style: TextStyle(
                       color: const Color(0xFFCBCBCB),
                       fontSize: 16.sp,
@@ -609,7 +612,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
       appBar: AppBar(
         iconTheme: const IconThemeData(color: Color(0xFFffffff)),
         title: Text(
-          "스페이스 만들기",
+          tr('camera.add_category.title', context: context),
           style: TextStyle(
             color: const Color(0xFFF8F8F8),
             fontSize: 20.sp,
@@ -636,7 +639,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
                 ),
               ),
               child: Text(
-                '확인',
+                tr('common.confirm', context: context),
                 style: TextStyle(
                   fontSize: 13.sp,
                   fontWeight: FontWeight.w700,
@@ -661,7 +664,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
               _buildNameInputSection(),
               SizedBox(height: 26.h),
               Text(
-                '친구 목록',
+                tr('friends.list_title', context: context),
                 style: TextStyle(
                   color: const Color(0xFFCBCBCB),
                   fontSize: 18.sp,

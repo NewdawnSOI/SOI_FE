@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -383,7 +384,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
         title: Column(
           children: [
             Text(
-              'SOI',
+              tr('common.app_name', context: context),
               style: TextStyle(
                 color: const Color(0xfff9f9f9),
                 fontSize: 20.sp,
@@ -424,7 +425,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
             ),
             SizedBox(height: 16.h),
             Text(
-              '아직 사진이 없어요',
+              tr('feed.empty_title', context: context),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18.sp,
@@ -432,8 +433,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
               ),
             ),
             SizedBox(height: 8.h),
-            const Text(
-              '친구들과 카테고리를 만들고\n첫 번째 사진을 공유해보세요!',
+            Text(
+              tr('feed.empty_description', context: context),
               style: TextStyle(color: Colors.white70),
               textAlign: TextAlign.center,
             ),

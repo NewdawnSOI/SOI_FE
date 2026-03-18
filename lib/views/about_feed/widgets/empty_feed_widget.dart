@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -15,7 +16,7 @@ class EmptyFeedWidget extends StatelessWidget {
           Icon(Icons.photo_camera_outlined, color: Colors.white54, size: 80),
           SizedBox(height: 16.h),
           Text(
-            '아직 사진이 없어요',
+            tr('feed.empty_title', context: context),
             style: TextStyle(
               color: Colors.white,
               fontSize: 18.sp,
@@ -24,7 +25,7 @@ class EmptyFeedWidget extends StatelessWidget {
           ),
           SizedBox(height: 8.h),
           Text(
-            '친구들과 카테고리를 만들고\n첫 번째 사진을 공유해보세요!',
+            tr('feed.empty_description', context: context),
             style: TextStyle(color: Colors.white70),
             textAlign: TextAlign.center,
           ),

@@ -23,6 +23,10 @@
     "login": "로그인",
     "signup": "회원가입",
     "unknown": "알 수 없음",
+    "app_name": "SOI",
+    "yes": "예",
+    "no": "아니오",
+    "block_confirm": "차단 하시겠습니까?",
     "report_received": "접수됨",
     "report_submit_success": "신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.",
     "report_submit_failed": "신고 접수에 실패했습니다.",
@@ -66,6 +70,7 @@
     "delete_error_with_reason": "삭제 중 오류가 발생했습니다: {error}"
   },
   "comments": {
+    "title": "댓글",
     "delete": "댓글 삭제",
     "delete_unavailable": "삭제할 수 없는 댓글입니다.",
     "delete_success": "댓글이 삭제되었습니다.",
@@ -73,6 +78,8 @@
     "delete_error": "댓글 삭제 중 오류가 발생했습니다.",
     "save_failed": "댓글 저장에 실패했습니다.",
     "save_error": "댓글 저장 중 오류가 발생했습니다.",
+    "empty": "댓글이 없습니다",
+    "add_comment_placeholder": "댓글 추가...",
     "audio_sheet": {
       "start_tag": "음성 태그 시작하기",
       "recording_failed": "녹음을 시작할 수 없습니다.",
@@ -90,6 +97,7 @@
   },
   "camera": {
     "preview_start_failed": "카메라를 시작할 수 없습니다.\n앱을 다시 시작해 주세요.",
+    "unsupported_platform": "지원되지 않는 플랫폼입니다",
     "video_saved": "동영상이 저장되었습니다.",
     "gallery_access_failed": "갤러리 접근 실패",
     "capture_error_stop_audio": "카메라 촬영 중 오류가 발생했습니다. 오디오 녹음을 중지하고 다시 시도해주세요.",
@@ -107,6 +115,11 @@
     "photo_load_failed": "이미지를 불러오지 못헀습니다.\n다시 시도해주세요.",
     "photo_unavailable": "이미지를 불러올 수 없습니다.",
     "video_unavailable": "비디오를 불러올 수 없습니다.",
+    "add_category": {
+      "title": "스페이스 만들기",
+      "name_label": "스페이스 이름",
+      "name_hint": "스페이스 이름"
+    },
     "editor": {
       "image_not_found": "이미지 파일을 찾을 수 없습니다.",
       "image_load_error_with_reason": "이미지 로딩 중 오류 발생: {error}",
@@ -203,7 +216,11 @@
     "options": {
       "contact_sync": "연락처 동기화",
       "id_label": "ID",
-      "add_by_id": "ID로 추가 하기"
+      "add_by_id": "ID로 추가 하기",
+      "contact_sync_disabled_title": "연락처 동기화 비활성화",
+      "contact_sync_disabled_description": "연락처 동기화를 비활성화하려면 기기 설정에서 연락처 권한을 직접 해제해주세요.",
+      "open_settings": "설정으로 이동",
+      "add_by_id_prompt": "추가할 아이디를 입력해주세요"
     },
     "request": {
       "login_required": "로그인이 필요합니다.",
@@ -338,6 +355,27 @@
   "post_management": {
     "title": "게시물 관리",
     "restore_deleted": "삭제한 게시물 복구"
+  },
+  "feed": {
+    "empty_title": "아직 사진이 없어요",
+    "empty_description": "친구들과 카테고리를 만들고\n첫 번째 사진을 공유해보세요!"
+  },
+  "post": {
+    "delete": {
+      "title": "사진 삭제",
+      "description": "사진 삭제 시 해당 카테고리에서 확인할 수 없으며,\n30일 이내에 복구가 가능합니다"
+    }
+  },
+  "report": {
+    "submit": "신고하기",
+    "reason_label": "사유 선택",
+    "detail_hint": "추가 설명 (선택)",
+    "reasons": {
+      "spam": "스팸",
+      "hate": "괴롭힘/혐오",
+      "inappropriate": "부적절한 콘텐츠",
+      "other": "기타"
+    }
   },
   "notification": {
     "title": "알림",

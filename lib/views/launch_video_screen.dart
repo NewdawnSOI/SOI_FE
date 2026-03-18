@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
@@ -90,7 +91,7 @@ class _LaunchVideoScreenState extends State<LaunchVideoScreen> {
                   foregroundColor: Colors.white,
                   backgroundColor: Colors.black54,
                 ),
-                child: const Text('건너뛰기'),
+                child: Text(tr('register.skip', context: context)),
               ),
             ),
           ],

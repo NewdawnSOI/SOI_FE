@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -63,14 +64,11 @@ class _FriendRequestScreenState extends State<FriendRequestScreen> {
     });
 
     try {
-      final result =
-          await _contactController!.initializeContactPermission();
+      final result = await _contactController!.initializeContactPermission();
       if (result.isEnabled &&
           mounted &&
           _contactController!.isActivelySyncing) {
-        _contacts = await _contactController!.getContacts(
-          forceRefresh: false,
-        );
+        _contacts = await _contactController!.getContacts(forceRefresh: false);
       }
     } catch (_) {
       // 연락처 초기화 실패 시에도 화면은 유지
@@ -95,8 +93,8 @@ class _FriendRequestScreenState extends State<FriendRequestScreen> {
           icon: const Icon(Icons.chevron_left, color: Color(0xFFF8F8F8)),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: const Text(
-          '친구 요청',
+        title: Text(
+          tr('friends.manage.requests', context: context),
           style: TextStyle(
             color: Color(0xFFF8F8F8),
             fontSize: 20,
@@ -113,7 +111,7 @@ class _FriendRequestScreenState extends State<FriendRequestScreen> {
             Center(child: FriendRequestCard(scale: 1.0)),
             SizedBox(height: 20.h),
             Text(
-              '친구 추천',
+              tr('friends.manage.suggest', context: context),
               style: TextStyle(
                 color: const Color(0xFFF8F8F8),
                 fontSize: 16.sp,

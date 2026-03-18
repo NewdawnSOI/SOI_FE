@@ -243,7 +243,7 @@ class _OnboardingMainScreenState extends State<OnboardingMainScreen> {
         elevation: 0,
         centerTitle: true,
         title: Text(
-          'SOI',
+          tr('common.app_name', context: context),
           style: TextStyle(
             color: const Color(0xFFF8F8F8),
             fontSize: 20.sp,

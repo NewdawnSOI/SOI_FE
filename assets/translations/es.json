@@ -23,6 +23,10 @@
     "login": "Entrar",
     "signup": "Registro",
     "unknown": "N/D",
+    "app_name": "SOI",
+    "yes": "Si",
+    "no": "No",
+    "block_confirm": "Quieres bloquear a este usuario?",
     "report_received": "Recibido",
     "report_submit_success": "Se recibio el reporte. El administrador lo revisara y lo procesara.",
     "report_submit_failed": "No se pudo enviar el reporte.",
@@ -66,6 +70,7 @@
     "delete_error_with_reason": "Error al eliminar: {error}"
   },
   "comments": {
+    "title": "Comentarios",
     "delete": "Borrar comentario",
     "delete_unavailable": "No se puede borrar",
     "delete_success": "Comentario eliminado",
@@ -73,6 +78,8 @@
     "delete_error": "Error al eliminar",
     "save_failed": "No se guardó",
     "save_error": "Error al guardar",
+    "empty": "No hay comentarios",
+    "add_comment_placeholder": "Agregar comentario...",
     "audio_sheet": {
       "start_tag": "Iniciar etiqueta de voz",
       "recording_failed": "No se pudo iniciar la grabación.",
@@ -90,6 +97,7 @@
   },
   "camera": {
     "preview_start_failed": "No inicia la cámara.\nReinicia.",
+    "unsupported_platform": "Plataforma no compatible.",
     "video_saved": "Video guardado",
     "gallery_access_failed": "No hay acceso",
     "capture_error_stop_audio": "Error al tomar foto.\nDetén audio y reintenta.",
@@ -107,6 +115,11 @@
     "photo_load_failed": "No cargó imagen.\nReintenta.",
     "photo_unavailable": "Imagen no disponible",
     "video_unavailable": "Video no disponible",
+    "add_category": {
+      "title": "Crear espacio",
+      "name_label": "Nombre del espacio",
+      "name_hint": "Nombre del espacio"
+    },
     "editor": {
       "image_not_found": "Imagen no encontrada",
       "image_load_error_with_reason": "Error imagen: {error}",
@@ -203,7 +216,11 @@
     "options": {
       "contact_sync": "Sincronizar",
       "id_label": "ID",
-      "add_by_id": "Por ID"
+      "add_by_id": "Por ID",
+      "contact_sync_disabled_title": "Sincronizacion de contactos desactivada",
+      "contact_sync_disabled_description": "Para desactivar la sincronizacion de contactos, quita manualmente el permiso de contactos en la configuracion del dispositivo.",
+      "open_settings": "Ir a configuracion",
+      "add_by_id_prompt": "Ingresa el ID que quieres agregar"
     },
     "request": {
       "login_required": "Inicia sesión.",
@@ -404,6 +421,27 @@
   "post_management": {
     "title": "Publicaciones",
     "restore_deleted": "Restaurar eliminadas"
+  },
+  "feed": {
+    "empty_title": "Aun no hay fotos",
+    "empty_description": "Crea categorias con tus amigos\ny comparte tu primera foto."
+  },
+  "post": {
+    "delete": {
+      "title": "Eliminar foto",
+      "description": "Si eliminas la foto, ya no podras verla en esa categoria\ny podras restaurarla dentro de 30 dias."
+    }
+  },
+  "report": {
+    "submit": "Reportar",
+    "reason_label": "Selecciona un motivo",
+    "detail_hint": "Detalle adicional (opcional)",
+    "reasons": {
+      "spam": "Spam",
+      "hate": "Acoso u odio",
+      "inappropriate": "Contenido inapropiado",
+      "other": "Otro"
+    }
   },
   "notification": {
     "title": "Avisos",

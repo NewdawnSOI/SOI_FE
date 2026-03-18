@@ -60,11 +60,19 @@
     "login": "Login",
     "signup": "Sign up",
     "unknown": "Unknown",
+    "app_name": "SOI",
+    "yes": "Yes",
+    "no": "No",
+    "block_confirm": "Do you want to block this user?",
     "report_received": "Received",
     "report_submit_success": "Your report has been received. An administrator will review it and take action if needed.",
     "report_submit_failed": "Failed to submit the report.",
     "block_success": "Blocked",
     "block_failed": "Block failed"
+  },
+  "push": {
+    "channel_name": "SOI Alerts",
+    "channel_description": "New updates and activity alerts"
   },
   "archive": {
     "tabs": {
@@ -99,6 +107,7 @@
     "delete_error_with_reason": "deleting: {error}"
   },
   "comments": {
+    "title": "Comments",
     "delete": "Delete comment",
     "delete_unavailable": "Can't delete this comment",
     "delete_success": "Comment deleted",
@@ -106,6 +115,8 @@
     "delete_error": "deleting comment",
     "save_failed": "Save failed",
     "save_error": "saving your comment",
+    "empty": "No comments",
+    "add_comment_placeholder": "Add a comment...",
     "audio_sheet": {
       "start_tag": "Start voice tag",
       "recording_failed": "Recording can't start",
@@ -123,6 +134,7 @@
   },
   "camera": {
     "preview_start_failed": "Can't start camera. Restart app",
+    "unsupported_platform": "This platform is not supported.",
     "video_saved": "Your video saved",
     "gallery_access_failed": "Gallery access failed",
     "capture_error_stop_audio": "Camera error. Stop audio recording and retry",
@@ -140,6 +152,11 @@
     "photo_load_failed": "Image load failed. Retry",
     "photo_unavailable": "Image unavailable",
     "video_unavailable": "Video unavailable",
+    "add_category": {
+      "title": "Create Space",
+      "name_label": "Space Name",
+      "name_hint": "Space Name"
+    },
     "editor": {
       "image_not_found": "Image file not found",
       "image_load_error_with_reason": "Error loading image: {error}",
@@ -236,7 +253,11 @@
     "options": {
       "contact_sync": "Contact sync",
       "id_label": "ID",
-      "add_by_id": "Add by ID"
+      "add_by_id": "Add by ID",
+      "contact_sync_disabled_title": "Contact Sync Disabled",
+      "contact_sync_disabled_description": "To disable contact sync, remove the contacts permission manually in your device settings.",
+      "open_settings": "Open Settings",
+      "add_by_id_prompt": "Enter the ID you want to add"
     },
     "request": {
       "login_required": "Login required",
@@ -372,6 +393,27 @@
     "title": "Post Management",
     "restore_deleted": "Recover deleted posts"
   },
+  "feed": {
+    "empty_title": "There are no photos yet",
+    "empty_description": "Create categories with your friends\nand share your first photo!"
+  },
+  "post": {
+    "delete": {
+      "title": "Delete Photo",
+      "description": "If you delete this photo, it will no longer be visible in that category,\nand it can be restored within 30 days."
+    }
+  },
+  "report": {
+    "submit": "Submit Report",
+    "reason_label": "Select a reason",
+    "detail_hint": "Additional details (optional)",
+    "reasons": {
+      "spam": "Spam",
+      "hate": "Harassment or hate",
+      "inappropriate": "Inappropriate content",
+      "other": "Other"
+    }
+  },
   "notification": {
     "title": "Notifications",
     "recent_7_days": "Last 7 days",
@@ -401,6 +443,25 @@
       "message": "This is a category where unknown friends are added. Do you want to accept?",
       "accept": "acceptance"
     }
+  },
+  "login": {
+    "title": "Enter your nickname and phone number.",
+    "nickname_hint": "Nickname",
+    "phone_hint": "Phone number",
+    "nickname_required": "Enter your nickname.",
+    "phone_required": "Enter your phone number.",
+    "not_found": "Check your nickname or phone number.",
+    "loading": "Logging in...",
+    "failed": "Login failed. Try again.",
+    "network_error": "Network is unstable. Try again.",
+    "invalid_input": "Check your input and try again.",
+    "test_push_token_action": "Get test FCM token",
+    "test_push_token_loading": "Getting test FCM token...",
+    "test_push_token_copied": "FCM token copied to clipboard.",
+    "test_push_token_unavailable": "Couldn't get FCM token. Try again later.",
+    "test_push_token_failed_with_reason": "Failed to get FCM token: {error}",
+    "test_push_token_dialog_title": "Test FCM Token",
+    "test_push_token_dialog_hint": "The token below was also copied to your clipboard."
   },
   "onboarding": {
     "message_1": "Capturing this moment with a camera, Get ready to capture your emotions",

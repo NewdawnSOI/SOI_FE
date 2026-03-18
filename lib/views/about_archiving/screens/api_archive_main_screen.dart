@@ -489,7 +489,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
           title: Column(
             children: [
               Text(
-                'SOI',
+                tr('common.app_name', context: context),
                 style: TextStyle(
                   color: Color(0xfff9f9f9),
                   fontSize: 20.sp,

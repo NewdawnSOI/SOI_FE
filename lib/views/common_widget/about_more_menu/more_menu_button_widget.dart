@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../about_archiving/widgets/archive_card_widget/animated_menu_overlay.dart';
@@ -146,7 +147,7 @@ class _MoreMenuButtonState extends State<MoreMenuButton>
                 ),
                 SizedBox(width: 10.w),
                 Text(
-                  '삭제',
+                  tr('common.delete', context: context),
                   style: TextStyle(
                     color: Colors.red,
                     fontSize: (15.35).sp,
@@ -192,7 +193,7 @@ class _MoreMenuButtonState extends State<MoreMenuButton>
             children: [
               SizedBox(height: 17.h),
               Text(
-                '사진 삭제',
+                tr('post.delete.title', context: context),
                 style: TextStyle(
                   color: const Color(0xFFF8F8F8),
                   fontSize: 19.78.sp,
@@ -205,7 +206,7 @@ class _MoreMenuButtonState extends State<MoreMenuButton>
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20.w),
                 child: Text(
-                  '사진 삭제 시 해당 카테고리에서 확인할 수 없으며,\n30일 이내에 복구가 가능합니다',
+                  tr('post.delete.description', context: context),
                   style: TextStyle(
                     color: const Color(0xFFF8F8F8),
                     fontSize: 14.sp,
@@ -231,7 +232,7 @@ class _MoreMenuButtonState extends State<MoreMenuButton>
                     ),
                   ),
                   child: Text(
-                    '삭제',
+                    tr('common.delete', context: context),
                     style: TextStyle(
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w600,
@@ -255,7 +256,7 @@ class _MoreMenuButtonState extends State<MoreMenuButton>
                     ),
                   ),
                   child: Text(
-                    '취소',
+                    tr('common.cancel', context: context),
                     style: TextStyle(
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w500,

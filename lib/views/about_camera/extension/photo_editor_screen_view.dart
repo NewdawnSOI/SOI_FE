@@ -123,7 +123,7 @@ extension _PhotoEditorScreenViewExtension on _PhotoEditorScreenState {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'SOI',
+              tr('common.app_name', context: context),
               style: TextStyle(
                 color: const Color(0xfff9f9f9),
                 fontSize: 20.sp,

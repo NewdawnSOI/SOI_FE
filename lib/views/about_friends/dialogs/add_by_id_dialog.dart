@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -43,7 +44,7 @@ class AddByIdDialog extends StatefulWidget {
                   children: [
                     // 제목
                     Text(
-                      '추가할 아이디를 입력해주세요',
+                      tr('friends.options.add_by_id_prompt', context: context),
                       style: TextStyle(
                         color: const Color(0xfff9f9f9),
                         fontSize: 16.sp,
@@ -106,7 +107,7 @@ class AddByIdDialog extends StatefulWidget {
                           elevation: 0,
                         ),
                         child: Text(
-                          '확인',
+                          tr('common.confirm', context: context),
                           style: TextStyle(
                             fontSize: (17.7778).sp,
                             fontWeight: FontWeight.w600,

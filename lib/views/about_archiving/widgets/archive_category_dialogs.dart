@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../api/models/category.dart' as api;
@@ -46,7 +47,7 @@ class ArchiveCategoryDialogs {
             children: [
               // 제목
               Text(
-                '카테고리 나가기',
+                tr('category.leave.title', context: context),
                 style: TextStyle(
                   fontFamily: 'Pretendard',
                   fontWeight: FontWeight.w700,
@@ -57,7 +58,7 @@ class ArchiveCategoryDialogs {
               ),
               SizedBox(height: 12.h),
               Text(
-                '카테고리를 나가면, 해당 카테고리에 저장된 사진은 더 이상 확인할 수 없으며 복구가 불가능합니다.',
+                tr('category.leave.confirm', context: context),
                 style: TextStyle(
                   color: const Color(0xFFF8F8F8),
                   fontSize: (15.78).sp,
@@ -93,7 +94,7 @@ class ArchiveCategoryDialogs {
                       height: 38,
                       child: Center(
                         child: Text(
-                          '나가기',
+                          tr('category.leave.button', context: context),
                           style: TextStyle(
                             fontFamily: 'Pretendard',
                             fontWeight: FontWeight.w600,
@@ -123,7 +124,7 @@ class ArchiveCategoryDialogs {
                       height: 38,
                       child: Center(
                         child: Text(
-                          '취소',
+                          tr('common.cancel', context: context),
                           style: TextStyle(
                             fontFamily: 'Pretendard Variable',
                             fontWeight: FontWeight.w500,

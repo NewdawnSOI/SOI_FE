@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -300,7 +301,10 @@ class CameraService {
       );
     } else {
       return Center(
-        child: Text('지원되지 않는 플랫폼입니다', style: TextStyle(color: Colors.white)),
+        child: Text(
+          'camera.unsupported_platform'.tr(),
+          style: const TextStyle(color: Colors.white),
+        ),
       );
     }
   }

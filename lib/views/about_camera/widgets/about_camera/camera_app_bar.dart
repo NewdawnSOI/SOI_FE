@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,7 +17,7 @@ class CameraAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: Column(
         children: [
           Text(
-            'SOI',
+            tr('common.app_name', context: context),
             style: TextStyle(
               color: const Color(0xfff9f9f9),
               fontSize: 20.sp,

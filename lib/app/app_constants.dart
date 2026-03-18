@@ -34,6 +34,10 @@ class AppConstant {
   static const hasSeenLaunchVideoKey = 'hasSeenLaunchVideo';
   static const kakaoNativeAppKey = 'KAKAO_NATIVE_APP_KEY';
   static const mixpanelProjectToken = 'MIXPANEL_PROJECT_TOKEN';
+  static const koreanLanguageCode = 'ko';
+  static const japaneseLanguageCode = 'ja';
+  static const chineseLanguageCode = 'zh';
+  static const englishLanguageCode = 'en';
   static const spanishLanguageCode = 'es';
   static const inviteFriendFallbackName = '친구';
 
@@ -57,6 +61,39 @@ class AppConstant {
   static const wideLayoutMaxWidth = 480.0;
 }
 
-const koreanLocale = Locale('ko');
-const spanishLocale = Locale('es');
-const supportedLocales = <Locale>[koreanLocale, spanishLocale];
+const koreanLocale = Locale(AppConstant.koreanLanguageCode);
+const japaneseLocale = Locale(AppConstant.japaneseLanguageCode);
+const chineseLocale = Locale(AppConstant.chineseLanguageCode);
+const spanishLocale = Locale(AppConstant.spanishLanguageCode);
+const englishLocale = Locale(AppConstant.englishLanguageCode);
+
+const supportedLocales = <Locale>[
+  koreanLocale,
+  japaneseLocale,
+  chineseLocale,
+  spanishLocale,
+  englishLocale,
+];
+
+const supportedDateFormattingLocales = <String>[
+  'ko_KR',
+  'ja_JP',
+  'zh_CN',
+  'es_ES',
+  'en_US',
+];
+
+Locale resolveSupportedLocale(Locale systemLocale) {
+  switch (systemLocale.languageCode.toLowerCase()) {
+    case AppConstant.koreanLanguageCode:
+      return koreanLocale;
+    case AppConstant.japaneseLanguageCode:
+      return japaneseLocale;
+    case AppConstant.chineseLanguageCode:
+      return chineseLocale;
+    case AppConstant.spanishLanguageCode:
+      return spanishLocale;
+    default:
+      return englishLocale;
+  }
+}

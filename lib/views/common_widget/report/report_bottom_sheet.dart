@@ -1,32 +1,24 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../api/models/report.dart';
 
 class ReportResult {
-  final String reason;
+  final ReportType reportType;
+  final String reasonLabel;
   final String? detail;
 
-  const ReportResult({required this.reason, this.detail});
+  const ReportResult({
+    required this.reportType,
+    required this.reasonLabel,
+    this.detail,
+  });
 }
 
 extension ReportResultMapper on ReportResult {
-  ReportType toReportType() {
-    switch (reason.trim()) {
-      case '스팸':
-        return ReportType.spam;
-      case '괴롭힘/혐오':
-        return ReportType.hate;
-      case '부적절한 콘텐츠':
-        return ReportType.illegal;
-      case '기타':
-      default:
-        return ReportType.etc;
-    }
-  }
-
   String toReportDetailPayload() {
-    final normalizedReason = reason.trim();
+    final normalizedReason = reasonLabel.trim();
     final normalizedDetail = detail?.trim();
 
     if (normalizedDetail == null || normalizedDetail.isEmpty) {
@@ -39,8 +31,13 @@ extension ReportResultMapper on ReportResult {
 
 class ReportBottomSheet {
   static Future<ReportResult?> show(BuildContext context) async {
-    final reasons = <String>['스팸', '괴롭힘/혐오', '부적절한 콘텐츠', '기타'];
-    String? selectedReason;
+    final reasons = <String, ReportType>{
+      'report.reasons.spam': ReportType.spam,
+      'report.reasons.hate': ReportType.hate,
+      'report.reasons.inappropriate': ReportType.illegal,
+      'report.reasons.other': ReportType.etc,
+    };
+    String? selectedReasonKey;
     final detailController = TextEditingController();
 
     return showModalBottomSheet<ReportResult>(
@@ -60,7 +57,7 @@ class ReportBottomSheet {
             padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             child: StatefulBuilder(
               builder: (context, setState) {
-                final canSubmit = selectedReason != null;
+                final canSubmit = selectedReasonKey != null;
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,7 +74,7 @@ class ReportBottomSheet {
                     ),
                     SizedBox(height: 16.h),
                     Text(
-                      '신고',
+                      tr('common.report', context: context),
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18.sp,
@@ -87,15 +84,15 @@ class ReportBottomSheet {
                     ),
                     SizedBox(height: 12.h),
                     DropdownButtonFormField<String>(
-                      initialValue: selectedReason,
+                      initialValue: selectedReasonKey,
                       dropdownColor: const Color(0xFF323232),
                       iconEnabledColor: Colors.white,
-                      items: reasons
+                      items: reasons.keys
                           .map(
-                            (reason) => DropdownMenuItem(
-                              value: reason,
+                            (reasonKey) => DropdownMenuItem(
+                              value: reasonKey,
                               child: Text(
-                                reason,
+                                tr(reasonKey, context: context),
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 14.sp,
@@ -105,10 +102,10 @@ class ReportBottomSheet {
                           )
                           .toList(),
                       onChanged: (value) {
-                        setState(() => selectedReason = value);
+                        setState(() => selectedReasonKey = value);
                       },
                       decoration: InputDecoration(
-                        labelText: '사유 선택',
+                        labelText: tr('report.reason_label', context: context),
                         labelStyle: TextStyle(
                           color: const Color(0xFFB0B0B0),
                           fontSize: 13.sp,
@@ -131,7 +128,7 @@ class ReportBottomSheet {
                       maxLines: 3,
                       style: TextStyle(color: Colors.white, fontSize: 14.sp),
                       decoration: InputDecoration(
-                        hintText: '추가 설명 (선택)',
+                        hintText: tr('report.detail_hint', context: context),
                         hintStyle: TextStyle(
                           color: const Color(0xFFB0B0B0),
                           fontSize: 13.sp,
@@ -158,7 +155,11 @@ class ReportBottomSheet {
                                 final detail = detailController.text.trim();
                                 Navigator.of(sheetContext).pop(
                                   ReportResult(
-                                    reason: selectedReason!,
+                                    reportType: reasons[selectedReasonKey!]!,
+                                    reasonLabel: tr(
+                                      selectedReasonKey!,
+                                      context: context,
+                                    ),
                                     detail: detail.isEmpty ? null : detail,
                                   ),
                                 );
@@ -174,7 +175,7 @@ class ReportBottomSheet {
                           ),
                         ),
                         child: Text(
-                          '신고하기',
+                          tr('report.submit', context: context),
                           style: TextStyle(
                             fontSize: 16.sp,
                             fontWeight: FontWeight.w600,

@@ -33,6 +33,9 @@ void main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
   await _lockPortraitOrientation();
+  final initialLocale = resolveSupportedLocale(
+    PlatformDispatcher.instance.locale,
+  );
 
   final prefs = await SharedPreferences.getInstance();
   final hasSeenLaunchVideo =
@@ -45,7 +48,7 @@ void main() async {
   }
 
   await dotenv.load(fileName: '.env');
-  await initializeDateFormatting('ko_KR', null);
+  await _initializeSupportedDateFormatting();
   _configureImageCache();
   api.SoiApiClient.instance.initialize();
   if (supportsFirebaseMessaging) {
@@ -75,17 +78,22 @@ void main() async {
     EasyLocalization(
       supportedLocales: supportedLocales,
       path: 'assets/translations',
-      fallbackLocale: koreanLocale,
-      startLocale:
-          PlatformDispatcher.instance.locale.languageCode ==
-              AppConstant.spanishLanguageCode
-          ? spanishLocale
-          : koreanLocale,
+      saveLocale: false,
+      fallbackLocale: englishLocale,
+      startLocale: initialLocale,
       child: MyApp(
         hasSeenLaunchVideo: hasSeenLaunchVideo,
         preloadedUserController: userController,
         analyticsService: analyticsService,
       ),
+    ),
+  );
+}
+
+Future<void> _initializeSupportedDateFormatting() async {
+  await Future.wait(
+    supportedDateFormattingLocales.map(
+      (locale) => initializeDateFormatting(locale, null),
     ),
   );
 }

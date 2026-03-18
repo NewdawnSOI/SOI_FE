@@ -69,7 +69,7 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
       reporterUserId: currentUser.id,
       targetId: widget.post.id,
       reportTargetType: ReportTargetType.post,
-      reportType: result.toReportType(),
+      reportType: result.reportType,
       reportDetail: result.toReportDetailPayload(),
     );
     if (!mounted) return;
@@ -142,7 +142,7 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
             children: [
               SizedBox(height: 17.h),
               Text(
-                '차단 하시겠습니까?',
+                tr('common.block_confirm', context: context),
                 style: TextStyle(
                   color: const Color(0xFFF8F8F8),
                   fontSize: 19.78.sp,
@@ -165,7 +165,7 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
                     ),
                   ),
                   child: Text(
-                    '예',
+                    tr('common.yes', context: context),
                     style: TextStyle(
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w600,
@@ -189,7 +189,7 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
                     ),
                   ),
                   child: Text(
-                    '아니오',
+                    tr('common.no', context: context),
                     style: TextStyle(
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w500,

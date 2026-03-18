@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -224,7 +225,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('개인정보 처리방침'),
+        title: Text(tr('profile.usage.privacy_policy', context: context)),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),

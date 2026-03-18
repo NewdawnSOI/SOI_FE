@@ -1064,7 +1064,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
           children: [
             SizedBox(height: 20.sp),
             Text(
-              "댓글",
+              tr('comments.title', context: context),
               style: TextStyle(
                 color: const Color(0xFFF8F8F8),
                 fontSize: 18.sp,
@@ -1108,7 +1108,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                         height: constraints.maxHeight,
                         child: Center(
                           child: Text(
-                            '댓글이 없습니다',
+                            tr('comments.empty', context: context),
                             style: TextStyle(
                               color: const Color(0xFF9E9E9E),
                               fontSize: 16.sp,

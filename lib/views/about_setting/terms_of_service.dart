@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -151,7 +152,7 @@ class _TermsOfServiceState extends State<TermsOfService> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('서비스 이용약관'),
+        title: Text(tr('profile.usage.terms_of_service', context: context)),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),

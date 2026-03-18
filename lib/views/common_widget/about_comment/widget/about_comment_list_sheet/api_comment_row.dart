@@ -71,7 +71,10 @@ class ApiCommentRow extends StatelessWidget {
     final result = await ReportBottomSheet.show(context);
     if (result == null) return;
     if (!context.mounted) return;
-    SnackBarUtils.showSnackBar(context, '신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.');
+    SnackBarUtils.showSnackBar(
+      context,
+      '신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.',
+    );
   }
 
   /// 사용자 차단 처리 메서드
@@ -93,13 +96,19 @@ class ApiCommentRow extends StatelessWidget {
 
     final nickname = comment.nickname ?? '';
     if (nickname.isEmpty) {
-      SnackBarUtils.showWithMessenger(messenger, tr('common.user_info_unavailable'));
+      SnackBarUtils.showWithMessenger(
+        messenger,
+        tr('common.user_info_unavailable'),
+      );
       return;
     }
 
     final targetUser = await userController.getUserByNickname(nickname);
     if (targetUser == null) {
-      SnackBarUtils.showWithMessenger(messenger, tr('common.user_info_unavailable'));
+      SnackBarUtils.showWithMessenger(
+        messenger,
+        tr('common.user_info_unavailable'),
+      );
       return;
     }
 
@@ -135,7 +144,7 @@ class ApiCommentRow extends StatelessWidget {
             children: [
               SizedBox(height: 17.sp),
               Text(
-                '차단 하시겠습니까?',
+                tr('common.block_confirm', context: context),
                 style: TextStyle(
                   color: const Color(0xFFF8F8F8),
                   fontSize: 19.78.sp,
@@ -158,7 +167,7 @@ class ApiCommentRow extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    '예',
+                    tr('common.yes', context: context),
                     style: TextStyle(
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w600,
@@ -182,7 +191,7 @@ class ApiCommentRow extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    '아니오',
+                    tr('common.no', context: context),
                     style: TextStyle(
                       fontFamily: 'Pretendard',
                       fontWeight: FontWeight.w500,
@@ -273,7 +282,12 @@ class ApiCommentRow extends StatelessWidget {
     final style = _userNameStyle();
 
     if (!comment.isReply || replyUserName.isEmpty) {
-      return Text(nickname, style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
+      return Text(
+        nickname,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
     }
 
     return Row(
@@ -290,11 +304,7 @@ class ApiCommentRow extends StatelessWidget {
         ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 6.sp),
-          child: Container(
-            width: 18.sp,
-            height: 1.0,
-            color: Colors.white,
-          ),
+          child: Container(width: 18.sp, height: 1.0, color: Colors.white),
         ),
         Flexible(
           child: Text(

@@ -1,9 +1,284 @@
 {
   "common": {
-    "report_submit_success": "報告を受け付けました。管理者が確認して必要に応じて対応します。",
-    "report_submit_failed": "報告の送信に失敗しました。"
+    "error_occurred": "エラーが発生しました。",
+    "retry": "再試行",
+    "confirm": "確認",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "done": "完了",
+    "add": "追加",
+    "send": "送信",
+    "more": "もっと見る",
+    "delete": "削除",
+    "block": "ブロック",
+    "report": "通報",
+    "continue": "続ける",
+    "please_wait": "しばらくお待ちください",
+    "search_empty": "検索結果がありません。",
+    "login_required": "ログインが必要です。",
+    "login_required_relogin": "ログインが必要です。再度ログインしてください。",
+    "login_required_retry": "ログイン後に再試行してください。",
+    "login_info_required": "ログイン情報が必要です。",
+    "user_info_unavailable": "ユーザー情報を確認できません。",
+    "login": "ログイン",
+    "signup": "会員登録",
+    "unknown": "不明",
+    "app_name": "SOI",
+    "yes": "はい",
+    "no": "いいえ",
+    "block_confirm": "ブロックしますか？",
+    "report_received": "受付済み",
+    "report_submit_success": "通報を受け付けました。管理者が確認後、対応します。",
+    "report_submit_failed": "通報の受付に失敗しました。",
+    "block_success": "ブロックしました。",
+    "block_failed": "ブロックに失敗しました。"
+  },
+  "push": {
+    "channel_name": "SOI通知",
+    "channel_description": "新着とアクティビティ通知"
+  },
+  "archive": {
+    "tabs": {
+      "all": "すべて",
+      "shared": "共有",
+      "mine": "自分"
+    },
+    "menu": {
+      "edit_name": "カテゴリ名を変更",
+      "pin": "固定",
+      "unpin": "固定解除",
+      "leave": "退出"
+    },
+    "edit_name_required": "名前を入力してください",
+    "category_info_unavailable": "カテゴリ情報が見つかりません",
+    "edit_name_success": "カテゴリ名を変更しました",
+    "edit_name_error": "名前の変更中にエラーが発生しました",
+    "create_category_title": "新しいカテゴリ",
+    "create_category_name_hint": "カテゴリ名を入力してください。",
+    "create_category_name_counter": "{count}/20文字",
+    "create_category_name_required": "カテゴリ名を入力してください",
+    "category_info_invalid": "カテゴリ情報が正しくありません。",
+    "create_category_failed": "カテゴリ作成に失敗しました",
+    "create_category_success": "新しいカテゴリを追加しました。",
+    "search_empty": "検索結果がありません。",
+    "empty_categories": "登録されたカテゴリがありません。",
+    "empty_shared_categories": "共有カテゴリがありません。",
+    "empty_photos": "写真がありません。",
+    "photo_load_failed": "写真の読み込みに失敗しました。",
+    "photo_deleted": "写真を削除しました。",
+    "delete_error": "削除中にエラーが発生しました。",
+    "delete_error_with_reason": "削除中にエラーが発生しました: {error}"
+  },
+  "comments": {
+    "title": "コメント",
+    "delete": "コメント削除",
+    "delete_unavailable": "削除できないコメントです。",
+    "delete_success": "コメントを削除しました。",
+    "delete_failed": "コメント削除に失敗しました。",
+    "delete_error": "コメント削除中にエラーが発生しました。",
+    "save_failed": "コメントの保存に失敗しました。",
+    "save_error": "コメント保存中にエラーが発生しました。",
+    "empty": "コメントがありません",
+    "add_comment_placeholder": "コメントを追加...",
+    "audio_sheet": {
+      "start_tag": "音声タグを開始",
+      "recording_failed": "録音を開始できません。",
+      "prepare_failed": "録音ファイルを準備できません。"
+    },
+    "reply_action": "返信",
+    "view_more_replies": "+ 返信を{count}件表示",
+    "hide_replies": "返信を隠す",
+    "time_placeholder": "6時間前",
+    "add_comment": "コメント追加"
+  },
+  "audio": {
+    "upload_failed": "音声のアップロードに失敗しました。",
+    "waveform_empty": "波形なし"
+  },
+  "camera": {
+    "preview_start_failed": "カメラを起動できません。\nアプリを再起動してください。",
+    "unsupported_platform": "未対応のプラットフォームです",
+    "video_saved": "動画を保存しました。",
+    "gallery_access_failed": "ギャラリーにアクセスできません",
+    "capture_error_stop_audio": "撮影中にエラーが発生しました。音声録音を停止して再試行してください。",
+    "video_record_start_failed": "動画撮影を開始できません。",
+    "switch_not_supported_while_recording": "この端末では録画中のカメラ切替に対応していません。",
+    "zoom_set_error": "ズーム設定中にエラーが発生しました。",
+    "zoom_set_error_with_reason": "ズーム設定中にエラーが発生しました: {error}",
+    "gallery_pick_failed": "ギャラリーからメディアを選択できません",
+    "recording_short": "REC",
+    "caption_hint": "投稿を追加...",
+    "mode_text": "テキスト",
+    "mode_camera": "カメラ",
+    "text_input_hint": "テキストを入力",
+    "text_mode_switch_blocked_recording": "録画中はテキストモードに切り替えできません。",
+    "photo_load_failed": "画像を読み込めませんでした。\n再試行してください。",
+    "photo_unavailable": "画像を読み込めません。",
+    "video_unavailable": "動画を読み込めません。",
+    "add_category": {
+      "title": "スペース作成",
+      "name_label": "スペース名",
+      "name_hint": "スペース名"
+    },
+    "editor": {
+      "image_not_found": "画像ファイルが見つかりません。",
+      "image_load_error_with_reason": "画像読み込みエラー: {error}",
+      "category_load_error_with_reason": "カテゴリ読み込みエラー: {error}",
+      "category_create_failed_retry": "カテゴリ作成に失敗しました。再試行してください。",
+      "category_create_error": "カテゴリ作成中にエラーが発生しました",
+      "upload_file_not_found": "アップロードするファイルが見つかりません。"
+    }
+  },
+  "category": {
+    "edit_title": "編集",
+    "name_label": "カテゴリ名",
+    "cover": {
+      "edit_button": "表紙写真を変更",
+      "edit_sheet_title": "表紙写真を変更",
+      "change_title": "表紙写真を変更",
+      "select_take_photo": "写真を撮る",
+      "select_from_library": "ライブラリから選択",
+      "select_from_category": "カテゴリから選択",
+      "delete_button": "表紙削除",
+      "upload_failed": "表紙写真のアップロードに失敗しました。",
+      "update_failed": "表紙写真の変更に失敗しました。",
+      "updated": "表紙写真を変更しました。",
+      "update_error": "表紙写真変更中にエラーが発生しました。",
+      "delete_failed": "表紙写真の削除に失敗しました。",
+      "deleted": "表紙写真を削除しました。",
+      "delete_error": "表紙写真削除中にエラーが発生しました。",
+      "camera_error": "撮影中にエラーが発生しました。",
+      "gallery_error": "ギャラリー選択中にエラーが発生しました。",
+      "no_photos": "まだ写真がありません"
+    },
+    "members": {
+      "add": "追加",
+      "add_friend": "友達追加",
+      "add_friend_action": "友達を追加",
+      "more": "+ もっと見る",
+      "collapse": "閉じる"
+    },
+    "leave": {
+      "button": "退出",
+      "title": "カテゴリを退出",
+      "confirm": "本当にこのカテゴリを退出しますか？\n退出すると、このカテゴリの写真はもう見られません。",
+      "success": "カテゴリを退出しました。",
+      "failed": "カテゴリを退出できません。"
+    },
+    "notification": {
+      "title": "通知設定",
+      "enabled": "通知が有効になりました。",
+      "disabled": "通知が無効になりました。",
+      "error": "通知設定の変更に失敗しました。"
+    }
+  },
+  "friends": {
+    "list_title": "友達リスト",
+    "search_hint": "友達を検索",
+    "empty": "まだ友達がいません",
+    "load_failed": "友達リストを読み込めませんでした。",
+    "load_failed_title": "友達リストを読み込めませんでした",
+    "load_failed_detail": "友達リストを読み込めませんでした。",
+    "add_friend": "友達追加",
+    "select_to_add": "追加する友達を選択してください。",
+    "invite_sent": "{count}人の友達に招待を送りました。",
+    "invite_error_with_reason": "友達招待中にエラーが発生しました: {error}",
+    "invite_check_title": "友達確認",
+    "menu": {
+      "delete": "友達削除",
+      "block": "ブロック"
+    },
+    "blocked": {
+      "title": "ブロックした友達",
+      "empty": "ブロックした友達はいません",
+      "unblock": "ブロック解除",
+      "load_error": "ブロックした友達を読み込めませんでした。"
+    },
+    "delete_confirm_title": "{name}さんを削除しますか？",
+    "delete_confirm_desc": "削除すると、追加済みカテゴリから削除される場合があります。",
+    "block_confirm_title": "{name}さんをブロックしますか？",
+    "block_confirm_desc": "ブロックすると、この友達は今後あなたをカテゴリに\n招待したり友達申請できません。",
+    "delete_success": "友達を削除しました。",
+    "delete_failed": "友達削除に失敗しました。",
+    "delete_error": "友達削除中にエラーが発生しました。",
+    "block_success": "友達をブロックしました。",
+    "block_failed": "友達のブロックに失敗しました。",
+    "block_error": "友達ブロック中にエラーが発生しました。",
+    "manage": {
+      "add_title": "友達追加",
+      "invite_link": "招待リンク",
+      "requests": "友達申請",
+      "list": "友達リスト",
+      "suggest": "友達おすすめ",
+      "init_error": "初期化中にエラーが発生しました: {error}",
+      "settings_error": "設定画面を開けません: {error}"
+    },
+    "options": {
+      "contact_sync": "連絡先同期",
+      "id_label": "ID",
+      "add_by_id": "IDで追加",
+      "contact_sync_disabled_title": "連絡先同期オフ",
+      "contact_sync_disabled_description": "連絡先同期を無効にするには、端末設定で連絡先権限を直接オフにしてください。",
+      "open_settings": "設定を開く",
+      "add_by_id_prompt": "追加するIDを入力してください"
+    },
+    "request": {
+      "login_required": "ログインが必要です。",
+      "load_failed": "友達申請を読み込めませんでした。",
+      "not_found": "申請情報が見つかりません。",
+      "accepted": "友達申請を承認しました",
+      "rejected": "友達申請を拒否しました",
+      "failed": "申請処理に失敗しました。しばらくしてから再試行してください。",
+      "loading": "友達申請を読み込み中...",
+      "empty": "受け取った友達申請はありません",
+      "default_text": "新しい友達申請が届きました",
+      "subtitle": "友達申請を承認または拒否できます",
+      "accept": "承認",
+      "reject": "拒否"
+    },
+    "invite": {
+      "share_text": "SOIアプリで友達になりましょう！\n\n{link}",
+      "share_subject": "SOI友達招待",
+      "link_copied": "リンクをコピーしました",
+      "instagram_missing": "Instagramがインストールされていません",
+      "sms_unavailable": "メッセージアプリを開けません",
+      "kakao_title": "SOIアプリで友達になりましょう！",
+      "kakao_description": "写真と音声でつながる新しいSNS",
+      "kakao_button": "SOIを始める",
+      "kakao_failed": "KakaoTalk共有に失敗しました",
+      "kakao_missing": "KakaoTalkがインストールされていません",
+      "copy": "リンクコピー",
+      "share": "共有",
+      "kakao": "KakaoTalk",
+      "instagram": "Instagram",
+      "message": "メッセージ"
+    },
+    "suggest": {
+      "request_sent": "{name}さんに友達申請を送りました。",
+      "sms_message": "友達の写真と声を今すぐチェック！\n\n{link}",
+      "invite_sms_sent": "{name}さんに招待メッセージを送ります。",
+      "pending": "申請済み",
+      "add": "友達追加",
+      "loading": "連絡先から友達を探しています...",
+      "empty": "おすすめの友達がいません",
+      "no_name": "名前なし",
+      "no_contacts": "連絡先から友達を見つけられません",
+      "enable_sync": "連絡先同期を有効にしてください"
+    },
+    "add_by_id": {
+      "title": "IDで追加",
+      "search_hint": "友達IDを検索",
+      "not_found": "存在しないIDです。もう一度入力してください",
+      "request_sent": "{name}さんに友達申請を送りました",
+      "request_failed": "友達申請に失敗しました",
+      "status_friend": "友達",
+      "status_pending": "申請済み",
+      "status_blocked": "ブロック済み",
+      "status_add": "友達追加"
+    }
   },
   "profile": {
+    "title": "プロフィール",
     "main": {
       "friends_count": "友達 {count}",
       "tabs": {
@@ -12,12 +287,190 @@
         "comments": "コメント"
       },
       "load_failed": "コンテンツを読み込めませんでした。",
-      "empty_media": "メディア投稿がありません。",
-      "empty_text": "テキスト投稿がありません。",
-      "empty_comments": "コメントがありません。"
+      "empty_media": "まだメディア投稿がありません。",
+      "empty_text": "まだテキスト投稿がありません。",
+      "empty_comments": "まだコメントがありません。"
+    },
+    "section": {
+      "account": "アカウント",
+      "app_settings": "アプリ設定",
+      "usage_guide": "利用案内",
+      "other": "その他"
+    },
+    "account": {
+      "id_label": "ID",
+      "name_label": "名前",
+      "birth_label": "誕生日",
+      "phone_label": "電話番号"
+    },
+    "settings": {
+      "language": "言語",
+      "language_ko": "韓国語",
+      "privacy": "プライバシー",
+      "post_management": "投稿管理"
+    },
+    "usage": {
+      "privacy_policy": "プライバシーポリシー",
+      "terms_of_service": "利用規約",
+      "app_version": "アプリバージョン",
+      "app_version_value": "1.0.0"
+    },
+    "other": {
+      "app_info_consent": "アプリ情報同意設定",
+      "delete_account": "退会",
+      "logout": "ログアウト"
+    },
+    "logout": {
+      "title": "ログアウトしますか？",
+      "confirm": "確認"
+    },
+    "delete_account": {
+      "title": "退会",
+      "description": "退会すると、アカウントは\n削除され復元できません。",
+      "confirm": "退会"
+    },
+    "snackbar": {
+      "login_required": "ログインが必要です。再度ログインしてください。",
+      "image_not_found": "選択した画像が見つかりません。",
+      "upload_failed": "プロフィール画像のアップロードに失敗しました。",
+      "profile_updated": "プロフィール画像を変更しました。",
+      "profile_update_failed": "プロフィール画像を変更できません。",
+      "logout_failed": "ログアウト中にエラーが発生しました。",
+      "delete_account_failed": "アカウント削除中にエラーが発生しました: {error}"
     }
   },
+  "privacy": {
+    "title": "プライバシー",
+    "blocked_users": "ブロックしたユーザー",
+    "contact_sync": "連絡先同期"
+  },
+  "deleted_posts": {
+    "title": "投稿復元",
+    "restore_button": "投稿に表示",
+    "empty": "削除した投稿がありません",
+    "restore_success": "{count}件の投稿を復元しました",
+    "restore_failed": "投稿の復元に失敗しました",
+    "restore_partial": "{success}件復元、{fail}件失敗"
+  },
+  "post_management": {
+    "title": "投稿管理",
+    "restore_deleted": "削除した投稿を復元"
+  },
+  "feed": {
+    "empty_title": "まだ写真がありません",
+    "empty_description": "友達とカテゴリを作って\n最初の写真を共有しましょう！"
+  },
+  "post": {
+    "delete": {
+      "title": "写真削除",
+      "description": "写真を削除すると、そのカテゴリでは見られず、\n30日以内なら復元できます"
+    }
+  },
+  "report": {
+    "submit": "通報する",
+    "reason_label": "理由を選択",
+    "detail_hint": "追加説明（任意）",
+    "reasons": {
+      "spam": "スパム",
+      "hate": "嫌がらせ・ヘイト",
+      "inappropriate": "不適切なコンテンツ",
+      "other": "その他"
+    }
+  },
+  "notification": {
+    "title": "通知",
+    "recent_7_days": "最近7日",
+    "loading_short": "読み込み中...",
+    "pending_requests": "保留中の申請 {count}人",
+    "no_requests": "受信した申請がありません",
+    "friend_requests": "友達申請",
+    "loading": "通知を読み込み中...",
+    "load_failed": "通知を読み込めません",
+    "load_failed_with_reason": "通知を読み込めません: {error}",
+    "unknown_error": "不明なエラーが発生しました",
+    "empty": "通知がありません",
+    "empty_subtitle": "新しい通知が来るとここに表示されます",
+    "login_required": "ログインが必要です。",
+    "invalid_notification": "通知情報を確認できません。",
+    "category_not_found": "カテゴリ情報が見つかりません。",
+    "category_default": "カテゴリ",
+    "invite_accepted": "カテゴリ招待を承認しました。",
+    "invite_accept_failed": "招待承認に失敗しました。",
+    "invite_declined": "カテゴリ招待を拒否しました。",
+    "invite_decline_failed": "招待拒否に失敗しました。",
+    "post_not_found": "投稿情報が見つかりません。",
+    "unsupported": "未対応の通知タイプです。",
+    "confirm": "確認",
+    "invite": {
+      "title": "\"{name}\"カテゴリに招待されました",
+      "message": "知らない友達がいるカテゴリです。\n承認しますか？",
+      "accept": "承認"
+    }
+  },
+  "login": {
+    "title": "ニックネームと電話番号を入力してください。",
+    "nickname_hint": "ニックネーム",
+    "phone_hint": "電話番号",
+    "nickname_required": "ニックネームを入力してください。",
+    "phone_required": "電話番号を入力してください。",
+    "not_found": "入力したニックネームまたは電話番号を確認してください。",
+    "loading": "ログイン中...",
+    "failed": "ログインに失敗しました。再試行してください。",
+    "network_error": "ネットワーク接続が不安定です。再試行してください。",
+    "invalid_input": "入力内容を確認して再試行してください。",
+    "test_push_token_action": "テスト用FCMトークン発行",
+    "test_push_token_loading": "テスト用FCMトークン発行中...",
+    "test_push_token_copied": "FCMトークンをクリップボードにコピーしました。",
+    "test_push_token_unavailable": "FCMトークンを発行できませんでした。しばらくしてから再試行してください。",
+    "test_push_token_failed_with_reason": "FCMトークン発行に失敗しました: {error}",
+    "test_push_token_dialog_title": "テスト用FCMトークン",
+    "test_push_token_dialog_hint": "下のトークンはクリップボードにもコピーされています。"
+  },
   "register": {
-    "id_not_allowed": "This username is not allowed. Please choose another."
+    "name_title": "あなたの名前を教えてください。",
+    "name_hint": "名前",
+    "id_title": "使用するIDを入力してください。",
+    "id_hint": "ID入力",
+    "id_available": "使用可能なIDです。",
+    "id_unavailable": "すでに使われているIDです。",
+    "id_check_error": "重複確認中にエラーが発生しました。",
+    "id_not_allowed": "使用できないIDです。別のIDを選んでください。",
+    "phone_title": "SOI利用のため電話番号を入力してください。",
+    "phone_hint": "電話番号",
+    "sms_title": "認証コードを入力してください。",
+    "sms_hint": "認証コード",
+    "sms_resend": "認証コードを再送",
+    "birth_title": "生年月日を入力してください。",
+    "skip": "スキップ",
+    "profile_image_title": "プロフィール写真を選択してください",
+    "profile_image_error": "画像選択中にエラーが発生しました。",
+    "friend_share_title": "共有リンクで友達を追加しましょう。",
+    "contact_sync": "連絡先同期",
+    "share_link": "友達リンク共有",
+    "share_text": "SOIアプリで友達になりましょう！\n\n{link}",
+    "share_subject": "SOI友達招待",
+    "share_failed_with_reason": "リンクを共有できません: {error}",
+    "agreement_welcome": "{name}さん、ようこそ。",
+    "agreement_description": "選択した情報をもとに\n個別化サービスを提供します。",
+    "agreement_all": "規約にすべて同意",
+    "agreement_service_required": "利用規約に同意（必須）",
+    "agreement_privacy_required": "個人情報の収集・利用に同意（必須）",
+    "agreement_marketing_optional": "E-mail・SMS広告受信に同意（任意）",
+    "member_default": "会員",
+    "country_kr": "韓国",
+    "country_us": "アメリカ",
+    "country_mx": "メキシコ",
+    "complete_title": "会員登録が完了しました。",
+    "complete_description": "これからSOIのすべての機能を\n自由に使えます。"
+  },
+  "onboarding": {
+    "message_1": "カメラで今この瞬間を撮って、\n気持ちを残す準備をしましょう。",
+    "message_2": "撮った写真に音声を録音して、\n好きなカテゴリへすぐ送れます。",
+    "message_3": "全体、共有記録、自分の記録を見られ、\nカテゴリ内にまとめられます。",
+    "message_4": "友達の記録を聞いてみましょう。\n友達の写真と声を一つずつ楽しめます。",
+    "message_5": "友達の面白い音声コメントを聞いて、\n自分でも音声コメントを残してみましょう！"
+  },
+  "start": {
+    "welcome": "SOIへようこそ！"
   }
 }

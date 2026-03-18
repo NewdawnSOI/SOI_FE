@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -47,7 +48,7 @@ class CommentBaseBarWidget extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '댓글 추가...',
+                  tr('comments.add_comment_placeholder', context: context),
                   style: TextStyle(
                     color: const Color(0xFFF8F8F8),
                     fontSize: 16.sp,

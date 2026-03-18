@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 class PermissionSettingsDialog {
@@ -10,15 +11,15 @@ class PermissionSettingsDialog {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: const Text(
-            '연락처 동기화 비활성화',
+          title: Text(
+            'friends.options.contact_sync_disabled_title'.tr(),
             style: TextStyle(
               color: Color(0xfff9f9f9),
               fontWeight: FontWeight.bold,
             ),
           ),
-          content: const Text(
-            '연락처 동기화를 비활성화하려면 기기 설정에서 연락처 권한을 직접 해제해주세요.',
+          content: Text(
+            'friends.options.contact_sync_disabled_description'.tr(),
             style: TextStyle(color: Color(0xffd9d9d9)),
           ),
           actions: [
@@ -26,8 +27,8 @@ class PermissionSettingsDialog {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text(
-                '취소',
+              child: Text(
+                'common.cancel'.tr(),
                 style: TextStyle(color: Color(0xff666666)),
               ),
             ),
@@ -40,7 +41,7 @@ class PermissionSettingsDialog {
                 backgroundColor: const Color(0xff404040),
                 foregroundColor: Colors.white,
               ),
-              child: const Text('설정으로 이동'),
+              child: Text('friends.options.open_settings'.tr()),
             ),
           ],
         );

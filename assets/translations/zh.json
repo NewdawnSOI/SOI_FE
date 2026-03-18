@@ -1,9 +1,284 @@
 {
   "common": {
-    "report_submit_success": "举报已提交。管理员将审核后进行处理。",
-    "report_submit_failed": "举报提交失败。"
+    "error_occurred": "发生错误。",
+    "retry": "重试",
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "done": "完成",
+    "add": "添加",
+    "send": "发送",
+    "more": "更多",
+    "delete": "删除",
+    "block": "屏蔽",
+    "report": "举报",
+    "continue": "继续",
+    "please_wait": "请稍候",
+    "search_empty": "没有搜索结果。",
+    "login_required": "需要登录。",
+    "login_required_relogin": "需要登录。请重新登录。",
+    "login_required_retry": "登录后再试。",
+    "login_info_required": "需要登录信息。",
+    "user_info_unavailable": "无法获取用户信息。",
+    "login": "登录",
+    "signup": "注册",
+    "unknown": "未知",
+    "app_name": "SOI",
+    "yes": "是",
+    "no": "否",
+    "block_confirm": "要屏蔽吗？",
+    "report_received": "已受理",
+    "report_submit_success": "举报已受理。管理员确认后会进行处理。",
+    "report_submit_failed": "举报受理失败。",
+    "block_success": "已屏蔽。",
+    "block_failed": "屏蔽失败。"
+  },
+  "push": {
+    "channel_name": "SOI通知",
+    "channel_description": "新消息与活动通知"
+  },
+  "archive": {
+    "tabs": {
+      "all": "全部",
+      "shared": "共享",
+      "mine": "我的"
+    },
+    "menu": {
+      "edit_name": "修改分类名",
+      "pin": "置顶",
+      "unpin": "取消置顶",
+      "leave": "退出"
+    },
+    "edit_name_required": "请输入名称",
+    "category_info_unavailable": "找不到分类信息",
+    "edit_name_success": "已修改分类名称",
+    "edit_name_error": "修改名称时出错",
+    "create_category_title": "新建分类",
+    "create_category_name_hint": "请输入分类名称。",
+    "create_category_name_counter": "{count}/20字",
+    "create_category_name_required": "请输入分类名称",
+    "category_info_invalid": "分类信息不正确。",
+    "create_category_failed": "创建分类失败",
+    "create_category_success": "已添加新分类。",
+    "search_empty": "没有搜索结果。",
+    "empty_categories": "暂无分类。",
+    "empty_shared_categories": "暂无共享分类。",
+    "empty_photos": "暂无照片。",
+    "photo_load_failed": "加载照片失败。",
+    "photo_deleted": "照片已删除。",
+    "delete_error": "删除时出错。",
+    "delete_error_with_reason": "删除时出错: {error}"
+  },
+  "comments": {
+    "title": "评论",
+    "delete": "删除评论",
+    "delete_unavailable": "此评论无法删除。",
+    "delete_success": "评论已删除。",
+    "delete_failed": "删除评论失败。",
+    "delete_error": "删除评论时出错。",
+    "save_failed": "保存评论失败。",
+    "save_error": "保存评论时出错。",
+    "empty": "暂无评论",
+    "add_comment_placeholder": "添加评论...",
+    "audio_sheet": {
+      "start_tag": "开始语音标签",
+      "recording_failed": "无法开始录音。",
+      "prepare_failed": "无法准备录音文件。"
+    },
+    "reply_action": "回复",
+    "view_more_replies": "+ 查看更多回复 {count}",
+    "hide_replies": "隐藏回复",
+    "time_placeholder": "6小时前",
+    "add_comment": "添加评论"
+  },
+  "audio": {
+    "upload_failed": "语音上传失败。",
+    "waveform_empty": "无波形"
+  },
+  "camera": {
+    "preview_start_failed": "无法启动相机。\n请重启应用。",
+    "unsupported_platform": "当前平台不受支持",
+    "video_saved": "视频已保存。",
+    "gallery_access_failed": "无法访问相册",
+    "capture_error_stop_audio": "拍摄时出错。请停止录音后重试。",
+    "video_record_start_failed": "无法开始录像。",
+    "switch_not_supported_while_recording": "此设备不支持录制时切换相机。",
+    "zoom_set_error": "设置缩放时出错。",
+    "zoom_set_error_with_reason": "设置缩放时出错: {error}",
+    "gallery_pick_failed": "无法从相册选择媒体",
+    "recording_short": "REC",
+    "caption_hint": "添加帖子...",
+    "mode_text": "文本",
+    "mode_camera": "相机",
+    "text_input_hint": "请输入文本",
+    "text_mode_switch_blocked_recording": "录制中无法切换到文本模式。",
+    "photo_load_failed": "无法加载图片。\n请重试。",
+    "photo_unavailable": "无法加载图片。",
+    "video_unavailable": "无法加载视频。",
+    "add_category": {
+      "title": "创建空间",
+      "name_label": "空间名称",
+      "name_hint": "空间名称"
+    },
+    "editor": {
+      "image_not_found": "找不到图片文件。",
+      "image_load_error_with_reason": "加载图片时出错: {error}",
+      "category_load_error_with_reason": "加载分类时出错: {error}",
+      "category_create_failed_retry": "创建分类失败。请重试。",
+      "category_create_error": "创建分类时出错",
+      "upload_file_not_found": "找不到要上传的文件。"
+    }
+  },
+  "category": {
+    "edit_title": "编辑",
+    "name_label": "分类名称",
+    "cover": {
+      "edit_button": "修改封面",
+      "edit_sheet_title": "修改封面",
+      "change_title": "更换封面",
+      "select_take_photo": "拍照",
+      "select_from_library": "从相册选择",
+      "select_from_category": "从分类选择",
+      "delete_button": "删除封面",
+      "upload_failed": "封面上传失败。",
+      "update_failed": "更换封面失败。",
+      "updated": "封面已更换。",
+      "update_error": "更换封面时出错。",
+      "delete_failed": "删除封面失败。",
+      "deleted": "封面已删除。",
+      "delete_error": "删除封面时出错。",
+      "camera_error": "拍摄时出错。",
+      "gallery_error": "选择相册时出错。",
+      "no_photos": "还没有照片"
+    },
+    "members": {
+      "add": "添加",
+      "add_friend": "添加好友",
+      "add_friend_action": "添加好友",
+      "more": "+ 更多",
+      "collapse": "收起"
+    },
+    "leave": {
+      "button": "退出",
+      "title": "退出分类",
+      "confirm": "确定要退出该分类吗？\n退出后将无法再查看该分类中的照片。",
+      "success": "已退出分类。",
+      "failed": "无法退出分类。"
+    },
+    "notification": {
+      "title": "通知设置",
+      "enabled": "通知已开启。",
+      "disabled": "通知已关闭。",
+      "error": "修改通知设置失败。"
+    }
+  },
+  "friends": {
+    "list_title": "好友列表",
+    "search_hint": "搜索好友",
+    "empty": "还没有好友",
+    "load_failed": "无法加载好友列表。",
+    "load_failed_title": "无法加载好友列表",
+    "load_failed_detail": "无法加载好友列表。",
+    "add_friend": "添加好友",
+    "select_to_add": "请选择要添加的好友。",
+    "invite_sent": "已向{count}位好友发送邀请。",
+    "invite_error_with_reason": "邀请好友时出错: {error}",
+    "invite_check_title": "确认好友",
+    "menu": {
+      "delete": "删除好友",
+      "block": "屏蔽"
+    },
+    "blocked": {
+      "title": "已屏蔽好友",
+      "empty": "没有已屏蔽好友",
+      "unblock": "解除屏蔽",
+      "load_error": "无法加载已屏蔽好友。"
+    },
+    "delete_confirm_title": "要删除{name}吗？",
+    "delete_confirm_desc": "删除后，可能会从已添加的分类中移除。",
+    "block_confirm_title": "要屏蔽{name}吗？",
+    "block_confirm_desc": "屏蔽后，对方将无法再邀请你进入分类\n或发送好友请求。",
+    "delete_success": "好友已删除。",
+    "delete_failed": "删除好友失败。",
+    "delete_error": "删除好友时出错。",
+    "block_success": "好友已屏蔽。",
+    "block_failed": "屏蔽好友失败。",
+    "block_error": "屏蔽好友时出错。",
+    "manage": {
+      "add_title": "添加好友",
+      "invite_link": "邀请链接",
+      "requests": "好友请求",
+      "list": "好友列表",
+      "suggest": "好友推荐",
+      "init_error": "初始化时出错: {error}",
+      "settings_error": "无法打开设置页: {error}"
+    },
+    "options": {
+      "contact_sync": "同步联系人",
+      "id_label": "ID",
+      "add_by_id": "按ID添加",
+      "contact_sync_disabled_title": "联系人同步已关闭",
+      "contact_sync_disabled_description": "如需关闭联系人同步，请在设备设置中手动关闭联系人权限。",
+      "open_settings": "前往设置",
+      "add_by_id_prompt": "请输入要添加的ID"
+    },
+    "request": {
+      "login_required": "需要登录。",
+      "load_failed": "无法加载好友请求。",
+      "not_found": "找不到请求信息。",
+      "accepted": "已接受好友请求",
+      "rejected": "已拒绝好友请求",
+      "failed": "处理请求失败。请稍后重试。",
+      "loading": "正在加载好友请求...",
+      "empty": "没有收到好友请求",
+      "default_text": "收到新的好友请求",
+      "subtitle": "可以接受或拒绝好友请求",
+      "accept": "接受",
+      "reject": "拒绝"
+    },
+    "invite": {
+      "share_text": "来 SOI 做好友吧！\n\n{link}",
+      "share_subject": "SOI好友邀请",
+      "link_copied": "链接已复制",
+      "instagram_missing": "未安装 Instagram",
+      "sms_unavailable": "无法打开短信应用",
+      "kakao_title": "来 SOI 做好友吧！",
+      "kakao_description": "用照片和语音交流的全新SNS",
+      "kakao_button": "开始使用 SOI",
+      "kakao_failed": "KakaoTalk 分享失败",
+      "kakao_missing": "未安装 KakaoTalk",
+      "copy": "复制链接",
+      "share": "分享",
+      "kakao": "KakaoTalk",
+      "instagram": "Instagram",
+      "message": "短信"
+    },
+    "suggest": {
+      "request_sent": "已向{name}发送好友请求。",
+      "sms_message": "马上看看好友的照片和声音！\n\n{link}",
+      "invite_sms_sent": "向{name}发送邀请短信。",
+      "pending": "已请求",
+      "add": "添加好友",
+      "loading": "正在从联系人中查找好友...",
+      "empty": "没有可推荐的好友",
+      "no_name": "无名称",
+      "no_contacts": "无法从联系人中找到好友",
+      "enable_sync": "请开启联系人同步"
+    },
+    "add_by_id": {
+      "title": "按ID添加",
+      "search_hint": "查找好友ID",
+      "not_found": "不存在的ID，请重新输入",
+      "request_sent": "已向{name}发送好友请求",
+      "request_failed": "好友请求失败",
+      "status_friend": "好友",
+      "status_pending": "已请求",
+      "status_blocked": "已屏蔽",
+      "status_add": "添加好友"
+    }
   },
   "profile": {
+    "title": "个人资料",
     "main": {
       "friends_count": "好友 {count}",
       "tabs": {
@@ -12,12 +287,190 @@
         "comments": "评论"
       },
       "load_failed": "无法加载内容。",
-      "empty_media": "暂无媒体帖子。",
-      "empty_text": "暂无文本帖子。",
-      "empty_comments": "暂无评论。"
+      "empty_media": "还没有媒体帖子。",
+      "empty_text": "还没有文本帖子。",
+      "empty_comments": "还没有评论。"
+    },
+    "section": {
+      "account": "账号",
+      "app_settings": "应用设置",
+      "usage_guide": "使用指南",
+      "other": "其他"
+    },
+    "account": {
+      "id_label": "ID",
+      "name_label": "姓名",
+      "birth_label": "生日",
+      "phone_label": "电话号码"
+    },
+    "settings": {
+      "language": "语言",
+      "language_ko": "韩语",
+      "privacy": "隐私",
+      "post_management": "帖子管理"
+    },
+    "usage": {
+      "privacy_policy": "隐私政策",
+      "terms_of_service": "服务条款",
+      "app_version": "应用版本",
+      "app_version_value": "1.0.0"
+    },
+    "other": {
+      "app_info_consent": "应用信息同意设置",
+      "delete_account": "注销账号",
+      "logout": "退出登录"
+    },
+    "logout": {
+      "title": "要退出登录吗？",
+      "confirm": "确认"
+    },
+    "delete_account": {
+      "title": "注销账号",
+      "description": "点击注销后，账号将被\n删除且无法恢复。",
+      "confirm": "注销"
+    },
+    "snackbar": {
+      "login_required": "需要登录。请重新登录。",
+      "image_not_found": "找不到所选图片。",
+      "upload_failed": "上传头像失败。",
+      "profile_updated": "头像已更换。",
+      "profile_update_failed": "无法更换头像。",
+      "logout_failed": "退出登录时出错。",
+      "delete_account_failed": "删除账号时出错: {error}"
     }
   },
+  "privacy": {
+    "title": "隐私",
+    "blocked_users": "已屏蔽用户",
+    "contact_sync": "同步联系人"
+  },
+  "deleted_posts": {
+    "title": "恢复帖子",
+    "restore_button": "显示在帖子中",
+    "empty": "没有已删除的帖子",
+    "restore_success": "已恢复{count}个帖子",
+    "restore_failed": "恢复帖子失败",
+    "restore_partial": "成功恢复{success}个，失败{fail}个"
+  },
+  "post_management": {
+    "title": "帖子管理",
+    "restore_deleted": "恢复已删除帖子"
+  },
+  "feed": {
+    "empty_title": "还没有照片",
+    "empty_description": "和朋友创建分类，\n分享第一张照片吧！"
+  },
+  "post": {
+    "delete": {
+      "title": "删除照片",
+      "description": "删除照片后，将无法在该分类中查看，\n但可在30天内恢复"
+    }
+  },
+  "report": {
+    "submit": "举报",
+    "reason_label": "选择原因",
+    "detail_hint": "补充说明（可选）",
+    "reasons": {
+      "spam": "垃圾信息",
+      "hate": "骚扰/仇恨",
+      "inappropriate": "不当内容",
+      "other": "其他"
+    }
+  },
+  "notification": {
+    "title": "通知",
+    "recent_7_days": "最近7天",
+    "loading_short": "加载中...",
+    "pending_requests": "待处理请求 {count}人",
+    "no_requests": "没有收到请求",
+    "friend_requests": "好友请求",
+    "loading": "正在加载通知...",
+    "load_failed": "无法加载通知",
+    "load_failed_with_reason": "无法加载通知: {error}",
+    "unknown_error": "发生未知错误",
+    "empty": "暂无通知",
+    "empty_subtitle": "有新通知时会显示在这里",
+    "login_required": "需要登录。",
+    "invalid_notification": "无法确认通知信息。",
+    "category_not_found": "找不到分类信息。",
+    "category_default": "分类",
+    "invite_accepted": "已接受分类邀请。",
+    "invite_accept_failed": "接受邀请失败。",
+    "invite_declined": "已拒绝分类邀请。",
+    "invite_decline_failed": "拒绝邀请失败。",
+    "post_not_found": "找不到帖子信息。",
+    "unsupported": "不支持的通知类型。",
+    "confirm": "确认",
+    "invite": {
+      "title": "你已被邀请到“{name}”分类",
+      "message": "该分类中有陌生好友。\n要接受吗？",
+      "accept": "接受"
+    }
+  },
+  "login": {
+    "title": "请输入昵称和电话号码。",
+    "nickname_hint": "昵称",
+    "phone_hint": "电话号码",
+    "nickname_required": "请输入昵称。",
+    "phone_required": "请输入电话号码。",
+    "not_found": "请检查输入的昵称或电话号码。",
+    "loading": "登录中...",
+    "failed": "登录失败。请重试。",
+    "network_error": "网络不稳定。请重试。",
+    "invalid_input": "请检查输入信息后重试。",
+    "test_push_token_action": "获取测试FCM令牌",
+    "test_push_token_loading": "正在获取测试FCM令牌...",
+    "test_push_token_copied": "已将FCM令牌复制到剪贴板。",
+    "test_push_token_unavailable": "无法获取FCM令牌。请稍后再试。",
+    "test_push_token_failed_with_reason": "获取FCM令牌失败: {error}",
+    "test_push_token_dialog_title": "测试FCM令牌",
+    "test_push_token_dialog_hint": "下方令牌也已复制到剪贴板。"
+  },
   "register": {
-    "id_not_allowed": "This username is not allowed. Please choose another."
+    "name_title": "请告诉我们你的名字。",
+    "name_hint": "姓名",
+    "id_title": "请输入要使用的ID。",
+    "id_hint": "输入ID",
+    "id_available": "此ID可用。",
+    "id_unavailable": "此ID已被使用。",
+    "id_check_error": "检查重复时出错。",
+    "id_not_allowed": "此ID不可用。请选择其他ID。",
+    "phone_title": "请输入电话号码以使用SOI。",
+    "phone_hint": "电话号码",
+    "sms_title": "请输入验证码。",
+    "sms_hint": "验证码",
+    "sms_resend": "重新获取验证码",
+    "birth_title": "请输入出生日期。",
+    "skip": "跳过",
+    "profile_image_title": "请选择头像",
+    "profile_image_error": "选择图片时出错。",
+    "friend_share_title": "通过分享链接添加好友吧。",
+    "contact_sync": "同步联系人",
+    "share_link": "分享好友链接",
+    "share_text": "来 SOI 做好友吧！\n\n{link}",
+    "share_subject": "SOI好友邀请",
+    "share_failed_with_reason": "无法分享链接: {error}",
+    "agreement_welcome": "{name}，欢迎你。",
+    "agreement_description": "我们会根据你选择的信息\n提供个性化服务。",
+    "agreement_all": "同意全部条款",
+    "agreement_service_required": "同意服务条款（必选）",
+    "agreement_privacy_required": "同意个人信息收集与使用（必选）",
+    "agreement_marketing_optional": "同意接收E-mail与SMS广告信息（可选）",
+    "member_default": "会员",
+    "country_kr": "韩国",
+    "country_us": "美国",
+    "country_mx": "墨西哥",
+    "complete_title": "注册已完成。",
+    "complete_description": "现在起可以自由使用\nSOI的全部功能。"
+  },
+  "onboarding": {
+    "message_1": "用相机记录这一刻，\n准备好留下心情吧。",
+    "message_2": "可在拍下的照片上录入语音，\n并立即发送到想要的分类。",
+    "message_3": "可以查看全部、共享记录和我的记录，\n并整理到分类中。",
+    "message_4": "听听好友的记录吧。\n逐一欣赏好友的照片与声音。",
+    "message_5": "听听好友有趣的语音评论，\n也来留下你的语音评论吧！"
+  },
+  "start": {
+    "welcome": "欢迎来到 SOI！"
   }
 }
