@@ -4,44 +4,20 @@ import 'package:soi/api/services/user_service.dart';
 import 'package:soi_api_client/api.dart';
 
 class _FakeAuthApi extends AuthControllerApi {
-  _FakeAuthApi({this.onLogin});
-
-  final Future<LoginRespDto?> Function(LoginReqDto)? onLogin;
-
-  @override
-  Future<LoginRespDto?> login(LoginReqDto loginReqDto) async {
-    final handler = onLogin;
-    if (handler == null) {
-      throw UnimplementedError('onLogin is not configured');
-    }
-    return handler(loginReqDto);
-  }
-}
-
-class _FakeUserApi extends UserAPIApi {
-  _FakeUserApi({
-    this.onGetUser,
+  _FakeAuthApi({
     this.onAuthSMS,
     this.onCheckAuthSMS,
     this.onCreateUser,
     this.onIdCheck,
+    this.onLogin,
   });
 
-  final Future<ApiResponseDtoUserRespDto?> Function()? onGetUser;
   final Future<bool?> Function(String phoneNum)? onAuthSMS;
   final Future<bool?> Function(AuthCheckReqDto dto)? onCheckAuthSMS;
   final Future<ApiResponseDtoUserRespDto?> Function(UserCreateReqDto dto)?
-      onCreateUser;
+  onCreateUser;
   final Future<ApiResponseDtoBoolean?> Function(String userId)? onIdCheck;
-
-  @override
-  Future<ApiResponseDtoUserRespDto?> getUser() async {
-    final handler = onGetUser;
-    if (handler == null) {
-      throw UnimplementedError('onGetUser is not configured');
-    }
-    return handler();
-  }
+  final Future<LoginRespDto?> Function(LoginReqDto)? onLogin;
 
   @override
   Future<bool?> authSMS(String phoneNum) async {
@@ -79,6 +55,43 @@ class _FakeUserApi extends UserAPIApi {
       throw UnimplementedError('onIdCheck is not configured');
     }
     return handler(userId);
+  }
+
+  @override
+  Future<LoginRespDto?> login(LoginReqDto loginReqDto) async {
+    final handler = onLogin;
+    if (handler == null) {
+      throw UnimplementedError('onLogin is not configured');
+    }
+    return handler(loginReqDto);
+  }
+}
+
+class _FakeUserApi extends UserAPIApi {
+  _FakeUserApi({this.onGetUser, this.onUpdateProfile});
+
+  final Future<ApiResponseDtoUserRespDto?> Function()? onGetUser;
+  final Future<ApiResponseDtoUserRespDto?> Function(String? profileImageKey)?
+  onUpdateProfile;
+
+  @override
+  Future<ApiResponseDtoUserRespDto?> getUser() async {
+    final handler = onGetUser;
+    if (handler == null) {
+      throw UnimplementedError('onGetUser is not configured');
+    }
+    return handler();
+  }
+
+  @override
+  Future<ApiResponseDtoUserRespDto?> updateProfile({
+    String? profileImageKey,
+  }) async {
+    final handler = onUpdateProfile;
+    if (handler == null) {
+      throw UnimplementedError('onUpdateProfile is not configured');
+    }
+    return handler(profileImageKey);
   }
 }
 
@@ -216,30 +229,33 @@ void main() {
       expect(result?.id, 1);
     });
 
-    test('uses unauthenticated user api for sms verification request', () async {
+    test(
+      'uses unauthenticated auth api for sms verification request',
+      () async {
+        final service = UserService(
+          authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+          userApi: _FakeUserApi(onGetUser: () async => null),
+          buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+            onAuthSMS: (phoneNum) async {
+              expect(phoneNum, '+821012345678');
+              return true;
+            },
+          ),
+          onAuthTokenIssued: (_) {},
+          onAuthTokenCleared: () {},
+        );
+
+        final result = await service.sendSmsVerification('+821012345678');
+
+        expect(result, isTrue);
+      },
+    );
+
+    test('uses unauthenticated auth api for sms code verification', () async {
       final service = UserService(
         authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
         userApi: _FakeUserApi(onGetUser: () async => null),
-        buildUnauthenticatedUserApi: () => _FakeUserApi(
-          onAuthSMS: (phoneNum) async {
-            expect(phoneNum, '+821012345678');
-            return true;
-          },
-        ),
-        onAuthTokenIssued: (_) {},
-        onAuthTokenCleared: () {},
-      );
-
-      final result = await service.sendSmsVerification('+821012345678');
-
-      expect(result, isTrue);
-    });
-
-    test('uses unauthenticated user api for sms code verification', () async {
-      final service = UserService(
-        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
-        userApi: _FakeUserApi(onGetUser: () async => null),
-        buildUnauthenticatedUserApi: () => _FakeUserApi(
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
           onCheckAuthSMS: (dto) async {
             expect(dto.phoneNum, '+821012345678');
             expect(dto.code, '12345');
@@ -255,11 +271,11 @@ void main() {
       expect(result, isTrue);
     });
 
-    test('uses unauthenticated user api for user creation', () async {
+    test('uses unauthenticated auth api for user creation', () async {
       final service = UserService(
         authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
         userApi: _FakeUserApi(onGetUser: () async => null),
-        buildUnauthenticatedUserApi: () => _FakeUserApi(
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
           onCreateUser: (dto) async {
             expect(dto.name, '민찬');
             expect(dto.nickname, 'minchan');
@@ -290,23 +306,56 @@ void main() {
       expect(result.userId, 'minchan');
     });
 
-    test('uses unauthenticated user api for nickname availability check', () async {
+    test(
+      'uses unauthenticated auth api for nickname availability check',
+      () async {
+        final service = UserService(
+          authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+          userApi: _FakeUserApi(onGetUser: () async => null),
+          buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+            onIdCheck: (userId) async {
+              expect(userId, 'minchan');
+              return ApiResponseDtoBoolean(success: true, data: true);
+            },
+          ),
+          onAuthTokenIssued: (_) {},
+          onAuthTokenCleared: () {},
+        );
+
+        final result = await service.checknickNameAvailable('minchan');
+
+        expect(result, isTrue);
+      },
+    );
+
+    test('updateProfile maps generated response to domain model', () async {
       final service = UserService(
         authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
-        userApi: _FakeUserApi(onGetUser: () async => null),
-        buildUnauthenticatedUserApi: () => _FakeUserApi(
-          onIdCheck: (userId) async {
-            expect(userId, 'minchan');
-            return ApiResponseDtoBoolean(success: true, data: true);
+        userApi: _FakeUserApi(
+          onUpdateProfile: (profileImageKey) async {
+            expect(profileImageKey, 'profile-key');
+            return ApiResponseDtoUserRespDto(
+              success: true,
+              data: UserRespDto(
+                id: 1,
+                nickname: 'minchan',
+                name: '민찬',
+                profileImageKey: profileImageKey,
+                phoneNum: '01012345678',
+              ),
+            );
           },
         ),
         onAuthTokenIssued: (_) {},
         onAuthTokenCleared: () {},
       );
 
-      final result = await service.checknickNameAvailable('minchan');
+      final result = await service.updateProfile(
+        profileImageKey: 'profile-key',
+      );
 
-      expect(result, isTrue);
+      expect(result.id, 1);
+      expect(result.profileImageUrlKey, 'profile-key');
     });
   });
 }

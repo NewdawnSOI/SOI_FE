@@ -19,6 +19,7 @@ import '../../../../api/models/user.dart';
 import '../../../../theme/theme.dart';
 import '../../../../utils/app_route_observer.dart';
 import '../../../../utils/video_thumbnail_cache.dart';
+import 'api_photo_detail_screen.dart';
 import 'widgets/category_photos_header+body/api_category_header_image_prefetch.dart';
 import 'widgets/category_photos_header+body/api_category_photos_body_slivers.dart';
 import 'widgets/category_photos_header+body/api_category_photos_header.dart';
@@ -44,11 +45,13 @@ import 'package:flutter/foundation.dart' as foundation show kDebugMode;
 class ApiCategoryPhotosScreen extends StatefulWidget {
   final Category category;
   final CategoryHeaderImagePrefetch? prefetchedHeaderImage;
+  final int? initialPostId;
 
   const ApiCategoryPhotosScreen({
     super.key,
     required this.category,
     this.prefetchedHeaderImage,
+    this.initialPostId,
   });
 
   @override
@@ -128,6 +131,11 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
       userController = Provider.of<UserController>(context, listen: false);
       friendController = Provider.of<FriendController>(context, listen: false);
       _attachPostChangedListenerIfNeeded();
+
+      if (widget.initialPostId != null) {
+        await _openInitialDeepLinkedPost(widget.initialPostId!);
+        return;
+      }
 
       await _loadPosts(); // 초기 데이터 로드
     });
@@ -236,6 +244,37 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
       context,
       payload,
     );
+  }
+
+  Future<void> _openInitialDeepLinkedPost(int postId) async {
+    final exactPost = await postController?.getPostDetail(postId);
+    if (!mounted) return;
+
+    if (exactPost?.id != postId) {
+      await _loadPosts(forceRefresh: true);
+      return;
+    }
+
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ApiPhotoDetailScreen(
+          allPosts: List<Post>.unmodifiable(<Post>[exactPost!]),
+          initialIndex: 0,
+          categoryName: _currentCategory.name,
+          categoryId: _currentCategory.id,
+          singlePostMode: true,
+        ),
+      ),
+    );
+    if (!mounted) return;
+
+    if (_needsRefreshOnVisible) {
+      _needsRefreshOnVisible = false;
+      _deferredVisibleRefreshTimer?.cancel();
+    }
+
+    await _loadPosts(forceRefresh: true);
   }
 
   /// 카테고리 내 사진(포스트) 목록 로드

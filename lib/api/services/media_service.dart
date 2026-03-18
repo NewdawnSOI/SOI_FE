@@ -81,7 +81,7 @@ class MediaService {
   /// Parameters:
   /// - [keys]: S3 파일 키 목록
   ///
-  /// Returns: Presigned URL 목록 (List<String>)
+  /// Returns: Presigned URL 목록 (`List<String>`)
   ///
   /// Throws:
   /// - [BadRequestException]: 잘못된 키 형식
@@ -130,7 +130,7 @@ class MediaService {
   /// - [userId]: 업로드 사용자 ID
   /// - [refId]: 참조 ID (게시물 ID 등)
   ///
-  /// Returns: 업로드된 파일의 S3 키 목록 (List<String>)
+  /// Returns: 업로드된 파일의 S3 키 목록 (`List<String>`)
   Future<List<String>> uploadMedia({
     required List<http.MultipartFile> files,
     required List<MediaType> types,
@@ -143,14 +143,18 @@ class MediaService {
       final typeStrings = types.map((t) => t.value).toList();
       final usageTypeStrings = usageTypes.map((t) => t.value).toList();
 
-      debugPrint('[MediaService] uploadMedia 호출:');
-      debugPrint('  - types: $typeStrings');
-      debugPrint('  - usageTypes: $usageTypeStrings');
-      debugPrint('  - userId: $userId');
-      debugPrint('  - refId: $refId');
-      debugPrint('  - files: ${files.length}개');
-      for (final file in files) {
-        debugPrint('    - filename: ${file.filename}, length: ${file.length}');
+      if (kDebugMode) {
+        debugPrint('[MediaService] uploadMedia 호출:');
+        debugPrint('  - types: $typeStrings');
+        debugPrint('  - usageTypes: $usageTypeStrings');
+        debugPrint('  - userId: $userId');
+        debugPrint('  - refId: $refId');
+        debugPrint('  - files: ${files.length}개');
+        for (final file in files) {
+          debugPrint(
+            '    - filename: ${file.filename}, length: ${file.length}',
+          );
+        }
       }
 
       final response = await _mediaApi.uploadMedia(
@@ -243,7 +247,7 @@ class MediaService {
     final keys = await uploadMedia(
       files: [file],
       types: [MediaType.audio],
-      usageTypes: [MediaUsageType.post],
+      usageTypes: [MediaUsageType.comment],
       userId: userId,
       refId: postId,
       usageCount: 1,

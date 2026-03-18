@@ -141,8 +141,8 @@ class NotificationService {
   /// Returns
   /// - [int]: 친구 요청 개수
   Future<int> getFriendRequestCount({required int userId}) async {
-    // 모든 알림을 조회하여 친구 요청 개수만 반환하는 편의 메소드를 호출해서 결과를 반환합니다.
-    //
+    // 친구 요청 배지는 count만 있으면 되므로, 전체 friend history 순회를 피하고
+    // 집계 응답의 friendRequestCount를 재사용합니다.
     final result = await getAllNotifications(userId: userId);
     return result.friendRequestCount;
   }

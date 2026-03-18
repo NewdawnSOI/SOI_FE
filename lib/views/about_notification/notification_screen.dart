@@ -41,7 +41,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     _scrollController = ScrollController()..addListener(_handleScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadFriendRequestCountFromGetFriendApi(); // 친구 요청 개수 로드(get-friend)
+      _loadFriendRequestCount(); // 친구 요청 개수는 집계 응답으로 가볍게 로드
       _loadNotifications(); // 알림 로드
     });
   }
@@ -183,7 +183,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   /// 친구 요청 개수 로드 (알림 리스트와 독립)
-  Future<void> _loadFriendRequestCountFromGetFriendApi() async {
+  Future<void> _loadFriendRequestCount() async {
     final userController = context.read<UserController>();
     final user = userController.currentUser;
 
@@ -197,18 +197,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
     try {
       final notificationController = context.read<api.NotificationController>();
-      final friendNotifications = await notificationController
-          .getAllFriendNotifications(userId: user.id);
-      final uniqueKeys = <String>{};
-      for (final n in friendNotifications) {
-        final key = n.relatedId ?? n.id;
-        if (key != null) {
-          uniqueKeys.add(key.toString());
-        }
-      }
-      final count = uniqueKeys.isNotEmpty
-          ? uniqueKeys.length
-          : friendNotifications.length;
+      // 친구 요청 배지는 count만 있으면 되므로 전체 friend 히스토리 순회를 피합니다.
+      final count = await notificationController.getFriendRequestCount(
+        userId: user.id,
+      );
       if (!mounted) return;
       setState(() {
         _friendRequestCount = count;
@@ -229,7 +221,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
     if (user != null) {
       context.read<api.NotificationController>().invalidateCache(); // 캐시 무효화
-      await _loadFriendRequestCountFromGetFriendApi(); // 친구 요청 개수 갱신
+      await _loadFriendRequestCount(); // 친구 요청 개수 갱신
       await _loadNotifications(); // 알림 갱신
     }
   }
@@ -498,45 +490,57 @@ class _NotificationScreenState extends State<NotificationScreen> {
   /// 알림 목록
   Widget _buildNotificationList() {
     final notifications = _notificationResult?.notifications ?? [];
+    final itemCount = notifications.length + (_isLoadingMore ? 1 : 0) + 2;
 
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: const Color(0xff634D45),
-      child: ListView(
-        controller: _scrollController,
-        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: const Color(0xff1c1c1c),
-            ),
-            child: Column(
-              children: [
-                SizedBox(height: 22.h),
-                for (int i = 0; i < notifications.length; i++)
-                  ApiNotificationItemWidget(
-                    notification: notifications[i],
-                    profileUrl: notifications[i].userProfile,
-                    imageUrl: notifications[i].imageUrl,
-                    onTap: () => _onNotificationTap(notifications[i]),
-                    onConfirm:
-                        notifications[i].type ==
-                            AppNotificationType.categoryInvite
-                        ? () => _onNotificationTap(notifications[i])
-                        : null,
-                    isLast: i == notifications.length - 1,
-                  ),
-                if (_isLoadingMore) ...[
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xff1c1c1c),
+        ),
+        child: ListView.builder(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          // builder로 바꿔 초기에 보이는 알림만 만들고, push fallback 메모리 피크를 줄입니다.
+          itemCount: itemCount,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return SizedBox(height: 22.h);
+            }
+
+            final notificationIndex = index - 1;
+            if (notificationIndex < notifications.length) {
+              final notification = notifications[notificationIndex];
+              return ApiNotificationItemWidget(
+                notification: notification,
+                profileUrl: notification.userProfile,
+                imageUrl: notification.imageUrl,
+                onTap: () => _onNotificationTap(notification),
+                onConfirm:
+                    notification.type == AppNotificationType.categoryInvite
+                    ? () => _onNotificationTap(notification)
+                    : null,
+                isLast: notificationIndex == notifications.length - 1,
+              );
+            }
+
+            if (_isLoadingMore && notificationIndex == notifications.length) {
+              return Column(
+                children: [
                   SizedBox(height: 8.h),
                   const CircularProgressIndicator(color: Color(0xff634D45)),
                   SizedBox(height: 16.h),
                 ],
-                SizedBox(height: 7.h),
-              ],
-            ),
-          ),
-        ],
+              );
+            }
+
+            return SizedBox(height: 7.h);
+          },
+        ),
       ),
     );
   }

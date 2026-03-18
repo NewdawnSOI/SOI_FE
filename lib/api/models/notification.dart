@@ -1,7 +1,7 @@
 import 'package:soi_api_client/api.dart';
 
 /// 알림 유형
-/// API의 NotificationRespDtoTypeEnum과 매핑되는 앱 내부에서 사용하기 위한 열거형입니다.
+/// API의 [NotificationRespDtoTypeEnum]과 매핑되는 앱 내부에서 사용하기 위한 열거형입니다.
 /// 알림 유형은 API에서 정의된 문자열 값을 기반으로 하며, 앱에서는 AppNotificationType 열거형으로 사용됩니다.
 enum AppNotificationType {
   categoryInvite('CATEGORY_INVITE'), // 카테고리 초대 알림

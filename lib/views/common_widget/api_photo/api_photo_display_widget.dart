@@ -150,9 +150,23 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   String? postImageUrl;
   VideoPlayerController? _videoController;
   Future<void>? _videoInitialization;
+
+  /// 비디오 커버 모드 여부. true인 경우, 비디오가 컨테이너에 꽉 차도록 BoxFit.cover로 표시됩니다.
+  /// 카메라에서 촬영한 비디오는 기본적으로 커버 모드로 표시하되, 사용자가 탭하여 모드를 전환할 수 있도록 합니다.
   bool _isVideoCoverMode = false;
+
+  /// 이미지 커버 모드 여부. true인 경우, 이미지가 컨테이너에 꽉 차도록 BoxFit.cover로 표시됩니다.
+  /// 카메라에서 촬영한 사진은 기본적으로 커버 모드로 표시하되, 사용자가 탭하여 모드를 전환할 수 있도록 합니다.
   bool _isImageCoverMode = false;
-  bool _isVideoVisible = true;
+
+  // 비디오는 실제로 보이는 시점에만 초기화해서 오프스크린 디코더 메모리 넘침 현상을 막습니다.
+
+  /// 비디오가 현재 화면에 보여지고 있는지 여부를 추적하는 상태 변수입니다.
+  bool _isVideoVisible = false;
+
+  /// videoController의 현재 초기화 세대입니다. 초기화가 필요할 때마다 증가시켜,
+  /// 비디오 초기화 완료 시점에 여전히 최신 컨트롤러인지 확인하는 데 사용합니다.
+  int _videoControllerGeneration = 0;
 
   @override
   void initState() {
@@ -165,12 +179,18 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
 
     final url = widget.post.postFileUrl;
     postImageUrl = (url != null && url.isNotEmpty) ? url : null;
-    _ensureVideoController();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!widget.post.isVideo) return;
+    if (state == AppLifecycleState.resumed) {
+      if (_isVideoVisible) {
+        _ensureVideoController();
+        _playVideoIfReady();
+      }
+      return;
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
@@ -221,7 +241,14 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
         final url = widget.post.postFileUrl;
         postImageUrl = (url != null && url.isNotEmpty) ? url : null;
       });
-      _ensureVideoController(forceRecreate: true);
+      if (_isVideoVisible) {
+        // URL이 변경된 경우 강제로 비디오 컨트롤러를 재생성하여 새로운 비디오를 로드합니다.
+        _ensureVideoController(forceRecreate: true);
+      } else {
+        // 비디오가 보이지 않는 상태에서 URL이 변경된 경우, 컨트롤러를 폐기하여 메모리를 확보합니다.
+        // 이렇게 하는 이유는, URL이 변경된 비디오가 보이지 않는 상태에서 초기화된 컨트롤러가 메모리를 점유하는 것을 방지하기 위함입니다.
+        _disposeVideoController();
+      }
     } else {
       _ensureVideoController();
     }
@@ -241,6 +268,12 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
       return;
     }
 
+    // 비디오가 보여지고 있지 않다면 컨트롤러를 초기화하지 않습니다.
+    // 이렇게 하면 푸시 알림에서 진입한 직후 인접 페이지의 메모리 점유를 줄일 수 있습니다.
+    if (!_isVideoVisible) {
+      return;
+    }
+
     final url = postImageUrl;
     if (url == null || url.isEmpty) return;
 
@@ -251,18 +284,43 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
 
     _disposeVideoController();
 
+    // 새로운 컨트롤러 세대 생성
+    // 비디오 컨트롤러를 초기화할 때마다 세대를 증가시켜,
+    // 초기화 완료 시점에 여전히 최신 컨트롤러인지 확인할 수 있도록 합니다.
+    final generation = ++_videoControllerGeneration;
     final controller = VideoPlayerController.networkUrl(Uri.parse(url));
     _videoController = controller;
+
+    // 컨트롤러 초기화 시작
+    // 초기화가 완료된 시점에, 여전히 최신 컨트롤러인지 확인하기 위해 세대 정보를 캡처합니다.
     _videoInitialization = controller.initialize().then((_) async {
-      await controller.setLooping(true);
+      if (!mounted ||
+          _videoController != controller ||
+          generation != _videoControllerGeneration) {
+        return;
+      }
+      await controller.setLooping(true); // 비디오를 반복 재생하도록 설정합니다.
+
+      // 비디오가 초기화된 시점에 여전히 화면에 보여지고 있는 경우에만 재생을 시작합니다.
       if (_isVideoVisible) {
         await controller.play();
+      }
+
+      // 초기화가 완료된 후 UI를 업데이트합니다. 이때도 여전히 최신 컨트롤러인지 확인합니다.
+      if (!mounted ||
+          _videoController != controller ||
+          generation != _videoControllerGeneration) {
+        // 초기화가 완료되었지만, 컨트롤러가 교체되었거나 위젯이 언마운트된 경우에는 UI 업데이트를 하지 않습니다.
+        // 위젯 언마운트란, 사용자가 다른 페이지로 이동하거나, 푸시 알림에서 진입한 직후 인접 페이지로 이동하는 등의 상황을 말합니다.
+        //  이런 경우에는 초기화가 완료된 컨트롤러가 더 이상 화면에 표시되지 않으므로, UI 업데이트를 하지 않는 것이 메모리 관리 측면에서 유리합니다.
+        return;
       }
       _safeSetState(() {});
     });
   }
 
   void _disposeVideoController() {
+    _videoControllerGeneration++;
     _videoController?.dispose();
     _videoController = null;
     _videoInitialization = null;
@@ -303,13 +361,21 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   }
 
   void _handleVideoVisibilityChanged(bool visible) {
-    if (_isVideoVisible == visible) return;
-    _isVideoVisible = visible;
-    if (visible) {
-      _playVideoIfReady();
-    } else {
-      _pauseVideo();
+    if (_isVideoVisible == visible) {
+      return;
     }
+
+    // 보이는 동안만 controller를 유지해 푸시 진입 직후 인접 페이지 메모리 점유를 줄입니다.
+    _isVideoVisible = visible;
+    if (!visible) {
+      _disposeVideoController();
+      _safeSetState(() {});
+      return;
+    }
+
+    _ensureVideoController();
+    _playVideoIfReady();
+    _safeSetState(() {});
   }
 
   void _notifyExpandedMediaOverlay(ExpandedMediaTagOverlayData? data) {

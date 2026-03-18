@@ -45,6 +45,73 @@ platform :ios do
     File.write(pubspec_path, new_content)
   end
 
+  def current_release_info(project_root)
+    current = read_pubspec_version(File.join(project_root, "pubspec.yaml"))
+    {
+      version_name: current[:name],
+      build_number: current[:build],
+      release_version: "#{current[:name]}+#{current[:build]}"
+    }
+  end
+
+  def env_flag(key, default: false)
+    value = ENV[key]
+    return default if value.nil? || value.strip.empty?
+
+    %w[1 true yes y on].include?(value.strip.downcase)
+  end
+
+  def env_int(key, default:)
+    value = ENV[key]
+    return default if value.nil? || value.strip.empty?
+
+    Integer(value, 10)
+  rescue ArgumentError
+    UI.user_error!("환경 변수 #{key}는 정수여야 합니다. 현재 값: #{value}")
+  end
+
+  def upload_to_testflight!(ipa_path:, app_identifier:, release_info:, default_changelog:)
+    wait_for_processing = env_flag("TESTFLIGHT_WAIT_FOR_PROCESSING", default: true)
+    distribute_external = env_flag("TESTFLIGHT_DISTRIBUTE_EXTERNAL", default: false)
+    notify_external_testers = env_flag("TESTFLIGHT_NOTIFY_EXTERNAL_TESTERS", default: false)
+    wait_processing_interval = env_int("TESTFLIGHT_WAIT_PROCESSING_INTERVAL", default: 30)
+    wait_processing_timeout = env_int("TESTFLIGHT_WAIT_PROCESSING_TIMEOUT", default: 5400)
+
+    changelog = ENV["TESTFLIGHT_CHANGELOG"]
+    changelog = default_changelog if changelog.nil? || changelog.strip.empty?
+
+    pilot_options = {
+      ipa: ipa_path,
+      app_identifier: app_identifier,
+      app_version: release_info[:version_name],
+      build_number: release_info[:build_number].to_s,
+      uses_non_exempt_encryption: false
+    }
+
+    if wait_for_processing
+      UI.message(
+        "⏳ TestFlight processing 완료까지 대기합니다. " \
+        "release=#{release_info[:release_version]}, timeout=#{wait_processing_timeout}s"
+      )
+
+      pilot_options[:skip_waiting_for_build_processing] = false
+      pilot_options[:distribute_external] = distribute_external
+      pilot_options[:wait_processing_interval] = wait_processing_interval
+      pilot_options[:wait_processing_timeout_duration] = wait_processing_timeout
+      pilot_options[:changelog] = changelog unless changelog.nil? || changelog.strip.empty?
+      pilot_options[:notify_external_testers] = notify_external_testers if distribute_external
+    else
+      UI.important(
+        "TESTFLIGHT_WAIT_FOR_PROCESSING=false 이므로 업로드만 수행합니다. " \
+        "테스터 배포와 changelog 반영은 건너뜁니다."
+      )
+
+      pilot_options[:skip_waiting_for_build_processing] = true
+    end
+
+    pilot(**pilot_options)
+  end
+
   # TestFlight 최신 build와 pubspec build를 비교해서 next build를 결정하고 pubspec을 갱신
   # 반환: { version_name: "1.0.1", build_number: 40, release_version: "1.0.1+40" }
   def bump_pubspec_build_number!(app_identifier:, project_root:)
@@ -83,7 +150,7 @@ platform :ios do
   end
 
   def find_latest_ipa(project_root)
-    ipa = Dir.glob("#{project_root}/build/ios/**/*.ipa").max_by { |f| File.mtime(f) }
+    ipa = Dir.glob("#{project_root}/build/ios/ipa/*.ipa").max_by { |f| File.mtime(f) }
     UI.user_error!("IPA 파일을 찾을 수 없습니다. 빌드가 성공했는지 확인해주세요.") unless ipa
     ipa
   end
@@ -110,14 +177,14 @@ platform :ios do
 
     ipa_path = find_latest_ipa(project_root)
     UI.message("IPA: #{ipa_path}")
+    release_info = current_release_info(project_root)
+    UI.message("✅ Final release for upload: #{release_info[:release_version]}")
 
-    pilot(
-      ipa: ipa_path,
+    upload_to_testflight!(
+      ipa_path: ipa_path,
       app_identifier: app_identifier,
-      skip_waiting_for_build_processing: true,
-      changelog: "이번 버전의 테스트 변경 사항입니다.",
-      distribute_external: false,
-      uses_non_exempt_encryption: false
+      release_info: release_info,
+      default_changelog: "이번 버전의 테스트 변경 사항입니다."
     )
   end
 
@@ -165,14 +232,14 @@ platform :ios do
     UI.message("📦 IPA 크기: #{file_size_mb.round(1)} MB")
 
     UI.message("🚀 App Store Connect 업로드 시작...")
+    release_info = current_release_info(project_root)
+    UI.message("✅ Final release for upload: #{release_info[:release_version]}")
 
-    pilot(
-      ipa: ipa_path,
+    upload_to_testflight!(
+      ipa_path: ipa_path,
       app_identifier: app_identifier,
-      skip_waiting_for_build_processing: true,
-      changelog: "Shorebird로 배포된 버전입니다.",
-      distribute_external: false,
-      uses_non_exempt_encryption: false
+      release_info: release_info,
+      default_changelog: "Shorebird로 배포된 버전입니다."
     )
 
     UI.success("✅ 모든 작업 완료!")

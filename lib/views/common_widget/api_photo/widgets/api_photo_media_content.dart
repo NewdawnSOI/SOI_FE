@@ -53,48 +53,53 @@ class ApiPhotoMediaContent extends StatelessWidget {
         return _buildMediaPlaceholder();
       }
 
-      if (controller == null || init == null) {
-        return _buildUnsupportedMedia();
-      }
+      // controller 유무와 상관없이 visibility를 먼저 측정해 lazy init 트리거를 보장합니다.
+      return VisibilityDetector(
+        key: ValueKey('api_video_$postFileKey'),
+        onVisibilityChanged: (info) {
+          onVideoVisibilityChanged(info.visibleFraction >= 0.6);
+        },
+        child: GestureDetector(
+          onDoubleTap: onVideoToggleFit,
+          child: Container(
+            width: imageSize.width,
+            height: imageSize.height,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              border: Border.all(color: const Color(0xff2b2b2b), width: 2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Builder(
+                builder: (context) {
+                  if (controller == null || init == null) {
+                    return _buildMediaPlaceholder();
+                  }
 
-      return FutureBuilder<void>(
-        future: init,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done ||
-              !controller.value.isInitialized) {
-            return _buildMediaPlaceholder();
-          }
+                  return FutureBuilder<void>(
+                    future: init,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done ||
+                          !controller.value.isInitialized) {
+                        return _buildMediaPlaceholder();
+                      }
 
-          return VisibilityDetector(
-            key: ValueKey('api_video_$postFileKey'),
-            onVisibilityChanged: (info) {
-              onVideoVisibilityChanged(info.visibleFraction >= 0.6);
-            },
-            child: GestureDetector(
-              onDoubleTap: onVideoToggleFit,
-              child: Container(
-                width: imageSize.width,
-                height: imageSize.height,
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  border: Border.all(color: const Color(0xff2b2b2b), width: 2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: FittedBox(
-                    fit: isVideoCoverMode ? BoxFit.contain : BoxFit.cover,
-                    child: SizedBox(
-                      width: controller.value.size.width,
-                      height: controller.value.size.height,
-                      child: VideoPlayer(controller),
-                    ),
-                  ),
-                ),
+                      return FittedBox(
+                        fit: isVideoCoverMode ? BoxFit.contain : BoxFit.cover,
+                        child: SizedBox(
+                          width: controller.value.size.width,
+                          height: controller.value.size.height,
+                          child: VideoPlayer(controller),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
-          );
-        },
+          ),
+        ),
       );
     }
 

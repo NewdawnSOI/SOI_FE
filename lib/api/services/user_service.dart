@@ -49,9 +49,6 @@ class UserService {
   // 인증된 API 인스턴스 (JWT 토큰 포함)
   final UserAPIApi _userApi;
 
-  // 인증 없이 API 호출을 위한 팩토리 함수
-  final UserAPIApi Function() _buildUnauthenticatedUserApi;
-
   // 인증 토큰 관리 콜백
   final void Function(String token) _setAuthToken;
 
@@ -62,13 +59,9 @@ class UserService {
     AuthControllerApi? authApi,
     UserAPIApi? userApi,
 
-    // 인증 없이 API 호출을 위한 팩토리 함수는 기본적으로 SoiApiClient의 createUnauthenticatedAuthApi를 사용합니다.
-    // 인증 없이 API 호출이 필요한 경우, 이 팩토리 함수를 주입하여 사용할 수 있습니다.
+    // 인증 없이 API 호출이 필요한 auth 엔드포인트는
+    // 기본적으로 SoiApiClient의 createUnauthenticatedAuthApi를 사용합니다.
     AuthControllerApi Function()? buildUnauthenticatedAuthApi,
-
-    // 인증 없이 API 호출을 위한 팩토리 함수는 기본적으로 SoiApiClient의 createUnauthenticatedAuthApi를 사용합니다.
-    // 인증 없이 API 호출이 필요한 경우, 이 팩토리 함수를 주입하여 사용할 수 있습니다.
-    UserAPIApi Function()? buildUnauthenticatedUserApi,
     void Function(String token)? onAuthTokenIssued,
     void Function()? onAuthTokenCleared,
   }) : _buildUnauthenticatedAuthApi =
@@ -76,12 +69,6 @@ class UserService {
            (() =>
                authApi ?? SoiApiClient.instance.createUnauthenticatedAuthApi()),
        _userApi = userApi ?? SoiApiClient.instance.userApi,
-
-       // 인증 없이 API 호출을 위한 팩토리 함수는 기본적으로 SoiApiClient의 createUnauthenticatedUserApi를 사용합니다.
-       // 인증 없이 API 호출이 필요한 경우, 이 팩토리 함수를 주입하여 사용할 수 있습니다.
-       _buildUnauthenticatedUserApi =
-           buildUnauthenticatedUserApi ??
-           SoiApiClient.instance.createUnauthenticatedUserApi,
        _setAuthToken = onAuthTokenIssued ?? SoiApiClient.instance.setAuthToken,
        _clearAuthToken =
            onAuthTokenCleared ?? SoiApiClient.instance.clearAuthToken;
@@ -101,8 +88,8 @@ class UserService {
   /// - [SoiApiException]: 기타 API 에러
   Future<bool> sendSmsVerification(String phoneNum) async {
     try {
-      // 인증 없이 전화번호 인증 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
-      final result = await _buildUnauthenticatedUserApi().authSMS(phoneNum);
+      // 인증 없이 전화번호 인증 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
+      final result = await _buildUnauthenticatedAuthApi().authSMS(phoneNum);
       return result ?? false;
     } on ApiException catch (e) {
       throw _handleApiException(e);
@@ -133,8 +120,8 @@ class UserService {
       // 인증 코드 확인을 위한 DTO 객체를 생성합니다.
       final dto = AuthCheckReqDto(phoneNum: phoneNum, code: code);
 
-      // 인증 없이 전화번호 인증 확인 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
-      final result = await _buildUnauthenticatedUserApi().checkAuthSMS(dto);
+      // 인증 없이 전화번호 인증 확인 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
+      final result = await _buildUnauthenticatedAuthApi().checkAuthSMS(dto);
       return result ?? false;
     } on ApiException catch (e) {
       throw _handleApiException(e);
@@ -251,10 +238,10 @@ class UserService {
         marketingAgreed: marketingAgreed,
       );
 
-      // 인증 없이 사용자 생성 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
+      // 인증 없이 사용자 생성 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
       // user를 생성하는 API는 인증이 필요하지 않으므로,
-      // SoiApiClient의 createUnauthenticatedUserApi를 사용하여 인증 없이 호출합니다.
-      final response = await _buildUnauthenticatedUserApi().createUser(dto);
+      // SoiApiClient의 createUnauthenticatedAuthApi를 사용하여 인증 없이 호출합니다.
+      final response = await _buildUnauthenticatedAuthApi().createUser(dto);
 
       if (response == null) {
         throw const DataValidationException(message: '사용자 생성 응답이 없습니다.');
@@ -409,8 +396,8 @@ class UserService {
     try {
       // 인증 없이 ID 중복 확인 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
       // ID 중복 확인 API는 인증이 필요하지 않으므로,
-      // SoiApiClient의 createUnauthenticatedUserApi를 사용하여 인증 없이 호출합니다.
-      final response = await _buildUnauthenticatedUserApi().idCheck(nickName);
+      // SoiApiClient의 createUnauthenticatedAuthApi를 사용하여 인증 없이 호출합니다.
+      final response = await _buildUnauthenticatedAuthApi().idCheck(nickName);
 
       if (response == null) {
         return false;
@@ -503,6 +490,48 @@ class UserService {
   }
 
   /// 프로필 이미지 수정
+  ///
+  /// 현재 인증된 사용자 프로필 이미지를 업데이트합니다.
+  ///
+  /// Parameters:
+  /// - [profileImageKey]: 새 프로필 이미지 키
+  ///
+  /// Returns: 수정된 사용자 정보 (User)
+  ///
+  /// Throws:
+  /// - [DataValidationException]: 응답 데이터가 예상과 다른 경우 (예: null)
+  /// - [SoiApiException]: 기타 API 에러
+  /// - [NetworkException]: 네트워크 연결 실패
+  Future<User> updateProfile({String? profileImageKey}) async {
+    try {
+      final response = await _userApi.updateProfile(
+        profileImageKey: profileImageKey,
+      );
+
+      if (response == null) {
+        throw const DataValidationException(message: '프로필 수정 응답이 없습니다.');
+      }
+
+      if (response.success != true) {
+        throw SoiApiException(message: response.message ?? '프로필 이미지 수정 실패');
+      }
+
+      if (response.data == null) {
+        throw const DataValidationException(message: '수정된 사용자 정보가 없습니다.');
+      }
+
+      return User.fromDto(response.data!);
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '프로필 이미지 수정 실패: $e', originalException: e);
+    }
+  }
+
+  /// 프로필 이미지 수정
   /// [userId]의 프로필 이미지를 [profileImageKey] URL로 수정합니다.
   ///
   /// Parameters:
@@ -521,24 +550,7 @@ class UserService {
     try {
       // 보안을 위해 현재 인증된 사용자와 요청 대상 사용자가 일치하는지 확인합니다.
       await _ensureCurrentUserMatches(userId);
-
-      final response = await _userApi.updateProfile(
-        profileImageKey: profileImageKey,
-      );
-
-      if (response == null) {
-        throw const DataValidationException(message: '프로필 수정 응답이 없습니다.');
-      }
-
-      if (response.success != true) {
-        throw SoiApiException(message: response.message ?? '프로필 이미지 수정 실패');
-      }
-
-      if (response.data == null) {
-        throw const DataValidationException(message: '수정된 사용자 정보가 없습니다.');
-      }
-
-      return User.fromDto(response.data!);
+      return updateProfile(profileImageKey: profileImageKey);
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {

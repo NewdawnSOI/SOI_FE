@@ -145,7 +145,7 @@ class FriendService {
   ///
   /// [userId]의 모든 친구 목록을 조회합니다.
   ///
-  /// Returns: 친구 목록 (List<User>)
+  /// Returns: 친구 목록 (`List<User>`)
   Future<List<User>> getAllFriends({
     required int userId,
     FriendStatus status = FriendStatus.accepted,
@@ -183,7 +183,7 @@ class FriendService {
   /// - [userId]: 요청 사용자 ID
   /// - [phoneNumbers]: 확인할 전화번호 목록
   ///
-  /// Returns: 친구 관계 정보 목록 (List<FriendCheckRespDto>)
+  /// Returns: 친구 관계 정보 목록 (`List<FriendCheck>`)
   Future<List<FriendCheck>> checkFriendRelations({
     required int userId,
     required List<String> phoneNumbers,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -24,6 +25,7 @@ const String _fallbackNotificationTitle = 'SOI';
 const String _backgroundChannelNameFallback = 'SOI 알림';
 const String _backgroundChannelDescriptionFallback = '새로운 소식과 활동 알림';
 const Duration _notificationImageDownloadTimeout = Duration(seconds: 4);
+const Duration _payloadDeduplicationWindow = Duration(seconds: 5);
 
 const InitializationSettings _localNotificationInitializationSettings =
     InitializationSettings(
@@ -96,6 +98,7 @@ NotificationDetails _buildNotificationDetails({
   required String channelDescription,
   AndroidBitmap<Object>? androidLargeIcon,
   StyleInformation? androidStyleInformation,
+  DarwinNotificationAttachment? iOSAttachment,
 }) {
   final title = AppPushCoordinator.resolveDisplayTitle(payload);
   final body = AppPushCoordinator.resolveDisplayBody(payload);
@@ -116,7 +119,9 @@ NotificationDetails _buildNotificationDetails({
             summaryText: _fallbackNotificationTitle,
           ),
     ),
-    iOS: const DarwinNotificationDetails(),
+    iOS: DarwinNotificationDetails(
+      attachments: iOSAttachment == null ? null : [iOSAttachment],
+    ),
   );
 }
 
@@ -133,6 +138,9 @@ Future<void> _showLocalNotification(
   final title = AppPushCoordinator.resolveDisplayTitle(payload);
   final body = AppPushCoordinator.resolveDisplayBody(payload);
   final notificationImage = await _loadAndroidNotificationImage(payload);
+  final notificationAttachment = await _loadDarwinNotificationAttachment(
+    payload,
+  );
 
   await _ensureNotificationChannel(
     plugin,
@@ -152,6 +160,7 @@ Future<void> _showLocalNotification(
         payload,
         image: notificationImage,
       ),
+      iOSAttachment: notificationAttachment,
     ),
     payload: jsonEncode(payload.toJson()),
   );
@@ -177,9 +186,8 @@ Future<AndroidBitmap<Object>?> _loadAndroidNotificationImage(
     return null;
   }
 
-  final imageUrl = payload.imageUrl?.trim();
-  final uri = imageUrl == null ? null : Uri.tryParse(imageUrl);
-  if (uri == null || !(uri.isScheme('https') || uri.isScheme('http'))) {
+  final uri = _resolveNotificationImageUri(payload);
+  if (uri == null) {
     return null;
   }
 
@@ -194,6 +202,103 @@ Future<AndroidBitmap<Object>?> _loadAndroidNotificationImage(
   } catch (error) {
     debugPrint('[Push] 알림 이미지 로드 실패: $error');
     return null;
+  }
+}
+
+Future<DarwinNotificationAttachment?> _loadDarwinNotificationAttachment(
+  AppPushPayload payload,
+) async {
+  if (defaultTargetPlatform != TargetPlatform.iOS) {
+    return null;
+  }
+
+  final uri = _resolveNotificationImageUri(payload);
+  if (uri == null) {
+    return null;
+  }
+
+  try {
+    final response = await http
+        .get(uri)
+        .timeout(_notificationImageDownloadTimeout);
+    if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+      return null;
+    }
+
+    final fileExtension = _resolveDarwinAttachmentExtension(
+      uri,
+      contentType: response.headers['content-type'],
+    );
+    if (fileExtension == null) {
+      debugPrint('[Push] iOS 알림 첨부 확장자를 확인할 수 없습니다: $uri');
+      return null;
+    }
+
+    final fileName =
+        'soi_push_${payload.notificationId ?? DateTime.now().millisecondsSinceEpoch}$fileExtension';
+    final file = File('${Directory.systemTemp.path}/$fileName');
+    await file.writeAsBytes(response.bodyBytes, flush: true);
+    return DarwinNotificationAttachment(file.path);
+  } catch (error) {
+    debugPrint('[Push] iOS 알림 이미지 로드 실패: $error');
+    return null;
+  }
+}
+
+Uri? _resolveNotificationImageUri(AppPushPayload payload) {
+  final imageUrl = payload.imageUrl?.trim();
+  final uri = imageUrl == null ? null : Uri.tryParse(imageUrl);
+  if (uri == null || !(uri.isScheme('https') || uri.isScheme('http'))) {
+    return null;
+  }
+  return uri;
+}
+
+String? _resolveDarwinAttachmentExtension(Uri uri, {String? contentType}) {
+  final path = uri.path;
+  final lastDotIndex = path.lastIndexOf('.');
+  if (lastDotIndex >= 0 && lastDotIndex < path.length - 1) {
+    final extension = _normalizeDarwinAttachmentExtension(
+      path.substring(lastDotIndex),
+    );
+    if (extension != null) {
+      return extension;
+    }
+  }
+
+  switch (contentType?.split(';').first.trim().toLowerCase()) {
+    case 'image/jpeg':
+      return '.jpg';
+    case 'image/png':
+      return '.png';
+    case 'image/gif':
+      return '.gif';
+    case 'image/heic':
+      return '.heic';
+    case 'image/heif':
+      return '.heif';
+    default:
+      return null;
+  }
+}
+
+String? _normalizeDarwinAttachmentExtension(String rawExtension) {
+  final normalized = rawExtension.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return null;
+  }
+
+  final extension = normalized.startsWith('.') ? normalized : '.$normalized';
+  switch (extension) {
+    case '.jpg':
+    case '.jpeg':
+    case '.png':
+    case '.gif':
+    case '.heic':
+    case '.heif':
+      return extension;
+    default:
+      return null;
   }
 }
 
@@ -267,6 +372,8 @@ class AppPushCoordinator {
   String? _lastKnownToken;
   String? _lastRegisteredBindingKey;
   AppPushPayload? _pendingPayload;
+  String? _lastHandledPayloadKey;
+  DateTime? _lastHandledPayloadAt;
 
   Future<void> initialize({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -398,6 +505,8 @@ class AppPushCoordinator {
     _lastKnownToken = null;
     _lastRegisteredBindingKey = null;
     _pendingPayload = null;
+    _lastHandledPayloadKey = null;
+    _lastHandledPayloadAt = null;
   }
 
   Future<void> processPendingNavigation() async {
@@ -411,6 +520,10 @@ class AppPushCoordinator {
     if (currentUser == null) {
       return;
     }
+    if (_isDuplicatePayload(payload)) {
+      _pendingPayload = null;
+      return;
+    }
 
     _isRoutingPayload = true;
     _pendingPayload = null;
@@ -419,6 +532,7 @@ class AppPushCoordinator {
         context: context,
         payload: payload,
       );
+      _markPayloadHandled(payload);
     } catch (error) {
       debugPrint('[Push] 알림 라우팅 실패: $error');
       _pendingPayload = payload;
@@ -524,6 +638,33 @@ class AppPushCoordinator {
   String get _localizedChannelName => tr('push.channel_name');
 
   String get _localizedChannelDescription => tr('push.channel_description');
+
+  // 짧은 시간 안에 같은 payload가 다시 들어오면 중복 push stack을 만들지 않도록 건너뜁니다.
+  bool _isDuplicatePayload(AppPushPayload payload) {
+    final handledAt = _lastHandledPayloadAt;
+    final handledKey = _lastHandledPayloadKey;
+    final nextKey = _buildPayloadKey(payload);
+    if (handledAt == null || handledKey == null || handledKey != nextKey) {
+      return false;
+    }
+    return DateTime.now().difference(handledAt) < _payloadDeduplicationWindow;
+  }
+
+  void _markPayloadHandled(AppPushPayload payload) {
+    _lastHandledPayloadKey = _buildPayloadKey(payload);
+    _lastHandledPayloadAt = DateTime.now();
+  }
+
+  String _buildPayloadKey(AppPushPayload payload) {
+    return [
+      payload.notificationId?.toString() ?? 'null',
+      payload.type?.value ?? 'null',
+      payload.categoryId?.toString() ?? 'null',
+      payload.postId?.toString() ?? 'null',
+      payload.commentId?.toString() ?? 'null',
+      payload.friendId?.toString() ?? 'null',
+    ].join(':');
+  }
 
   @visibleForTesting
   static AppPushPayload? decodeNotificationPayload(String? payload) {
