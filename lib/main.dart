@@ -132,8 +132,9 @@ Future<void> _lockPortraitOrientation() {
 class MyApp extends StatefulWidget {
   final bool hasSeenLaunchVideo;
   final UserController preloadedUserController;
-  final AnalyticsService
-  analyticsService; // AnalyticsService 인스턴스를 MyApp의 생성자로 전달받아서 멤버 변수로 저장합니다.
+
+  // AnalyticsService 인스턴스를 MyApp의 생성자로 전달받아서 멤버 변수로 저장합니다.
+  final AnalyticsService analyticsService;
 
   const MyApp({
     super.key,

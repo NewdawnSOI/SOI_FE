@@ -40,7 +40,10 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _primeInitialHeaderState();
-    _loadProfilePageData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_loadProfilePageData());
+    });
   }
 
   void _primeInitialHeaderState() {

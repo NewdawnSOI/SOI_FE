@@ -49,6 +49,7 @@ class _ProfilePostTabViewState extends State<ProfilePostTabView>
   final ScrollController _scrollController = ScrollController();
 
   List<Post> _posts = const <Post>[];
+  bool _initialLoadScheduled = false; // 위젯 트리가 완성된 후에 초기 로딩을 시도하기 위한 플래그
   bool _hasLoadedOnce = false;
   bool _isInitialLoading = false;
   bool _isLoadingMore = false;
@@ -63,7 +64,7 @@ class _ProfilePostTabViewState extends State<ProfilePostTabView>
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
-    _maybeLoadInitial();
+    _scheduleMaybeLoadInitial(); // 초기 로딩을 시도하되, 위젯 트리가 완성된 후에 실행되도록 예약
   }
 
   @override
@@ -74,12 +75,12 @@ class _ProfilePostTabViewState extends State<ProfilePostTabView>
     final typeChanged = oldWidget.postType != widget.postType;
     if (userChanged || typeChanged) {
       _resetState();
-      _maybeLoadInitial();
+      _scheduleMaybeLoadInitial();
       return;
     }
 
     if (!oldWidget.isActive && widget.isActive) {
-      _maybeLoadInitial();
+      _scheduleMaybeLoadInitial();
     }
   }
 
@@ -106,6 +107,18 @@ class _ProfilePostTabViewState extends State<ProfilePostTabView>
       return;
     }
     _loadInitial();
+  }
+
+  /// 초기 로딩을 시도하되, 위젯 트리가 완성된 후에 실행되도록 예약하는 메서드입니다.
+  void _scheduleMaybeLoadInitial() {
+    if (_initialLoadScheduled) return;
+
+    _initialLoadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialLoadScheduled = false;
+      if (!mounted) return;
+      _maybeLoadInitial();
+    });
   }
 
   void _handleScroll() {
@@ -347,6 +360,7 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
   late final AudioController _audioController;
 
   List<Comment> _comments = const <Comment>[];
+  bool _initialLoadScheduled = false; // 위젯 트리가 완성된 후에 초기 로딩을 시도하기 위한 플래그
   bool _hasLoadedOnce = false;
   bool _isInitialLoading = false;
   bool _isLoadingMore = false;
@@ -362,7 +376,7 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     super.initState();
     _audioController = AudioController();
     _scrollController.addListener(_handleScroll);
-    _maybeLoadInitial();
+    _scheduleMaybeLoadInitial();
   }
 
   @override
@@ -370,13 +384,13 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.userId != widget.userId) {
-      _resetState();
-      _maybeLoadInitial();
+      _resetState(); // 사용자 ID가 변경되면 상태를 초기화합니다.
+      _scheduleMaybeLoadInitial(); // 사용자 ID가 변경되면 상태를 초기화하고 새 사용자에 대한 데이터를 로드합니다.
       return;
     }
 
     if (!oldWidget.isActive && widget.isActive) {
-      _maybeLoadInitial();
+      _scheduleMaybeLoadInitial(); // 탭이 비활성화에서 활성화로 변경된 경우 초기 로딩을 시도합니다.
     }
   }
 
@@ -404,6 +418,18 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
       return;
     }
     _loadInitial();
+  }
+
+  /// 초기 로딩을 시도하되, 위젯 트리가 완성된 후에 실행되도록 예약하는 메서드입니다.
+  void _scheduleMaybeLoadInitial() {
+    if (_initialLoadScheduled) return;
+
+    _initialLoadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialLoadScheduled = false;
+      if (!mounted) return;
+      _maybeLoadInitial();
+    });
   }
 
   void _handleScroll() {
