@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../../api/models/report.dart';
+
 class ReportResult {
   final String reason;
   final String? detail;
@@ -8,14 +10,36 @@ class ReportResult {
   const ReportResult({required this.reason, this.detail});
 }
 
+extension ReportResultMapper on ReportResult {
+  ReportType toReportType() {
+    switch (reason.trim()) {
+      case '스팸':
+        return ReportType.spam;
+      case '괴롭힘/혐오':
+        return ReportType.hate;
+      case '부적절한 콘텐츠':
+        return ReportType.illegal;
+      case '기타':
+      default:
+        return ReportType.etc;
+    }
+  }
+
+  String toReportDetailPayload() {
+    final normalizedReason = reason.trim();
+    final normalizedDetail = detail?.trim();
+
+    if (normalizedDetail == null || normalizedDetail.isEmpty) {
+      return normalizedReason;
+    }
+
+    return '$normalizedReason\n$normalizedDetail';
+  }
+}
+
 class ReportBottomSheet {
   static Future<ReportResult?> show(BuildContext context) async {
-    final reasons = <String>[
-      '스팸',
-      '괴롭힘/혐오',
-      '부적절한 콘텐츠',
-      '기타',
-    ];
+    final reasons = <String>['스팸', '괴롭힘/혐오', '부적절한 콘텐츠', '기타'];
     String? selectedReason;
     final detailController = TextEditingController();
 
@@ -63,7 +87,7 @@ class ReportBottomSheet {
                     ),
                     SizedBox(height: 12.h),
                     DropdownButtonFormField<String>(
-                      value: selectedReason,
+                      initialValue: selectedReason,
                       dropdownColor: const Color(0xFF323232),
                       iconEnabledColor: Colors.white,
                       items: reasons
@@ -96,9 +120,7 @@ class ReportBottomSheet {
                           borderRadius: BorderRadius.circular(8.r),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(
-                            color: Colors.white,
-                          ),
+                          borderSide: const BorderSide(color: Colors.white),
                           borderRadius: BorderRadius.circular(8.r),
                         ),
                       ),
@@ -121,9 +143,7 @@ class ReportBottomSheet {
                           borderRadius: BorderRadius.circular(8.r),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(
-                            color: Colors.white,
-                          ),
+                          borderSide: const BorderSide(color: Colors.white),
                           borderRadius: BorderRadius.circular(8.r),
                         ),
                       ),

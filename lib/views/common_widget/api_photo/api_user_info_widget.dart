@@ -4,7 +4,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import '../../../api/controller/friend_controller.dart';
 import '../../../api/controller/post_controller.dart';
+import '../../../api/controller/report_controller.dart';
 import '../../../api/controller/user_controller.dart';
+import '../../../api/models/report.dart';
 import '../../../utils/snackbar_utils.dart';
 import '../../../api/models/post.dart';
 import '../../../views/about_feed/manager/feed_data_manager.dart';
@@ -47,15 +49,54 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
       await widget.onReportSubmitted!(result);
       return;
     }
+    await _submitPostReport(result);
+  }
+
+  Future<void> _submitPostReport(ReportResult result) async {
     if (!mounted) return;
-    SnackBarUtils.showSnackBar(context, '신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.');
+    final userController = context.read<UserController>();
+    final reportController = context.read<ReportController>();
+    final currentUser = userController.currentUser;
+    if (currentUser == null) {
+      SnackBarUtils.showSnackBar(
+        context,
+        tr('common.login_required', context: context),
+      );
+      return;
+    }
+
+    final success = await reportController.createReport(
+      reporterUserId: currentUser.id,
+      targetId: widget.post.id,
+      reportTargetType: ReportTargetType.post,
+      reportType: result.toReportType(),
+      reportDetail: result.toReportDetailPayload(),
+    );
+    if (!mounted) return;
+
+    final message = success
+        ? tr('common.report_submit_success', context: context)
+        : (reportController.errorMessage ??
+              tr('common.report_submit_failed', context: context));
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   Future<void> _blockUser() async {
     final userController = context.read<UserController>();
+    final friendController = context.read<FriendController>();
+    final feedDataManager = context.read<FeedDataManager>();
+    final postController = context.read<PostController>();
+    final messenger = ScaffoldMessenger.of(context);
+    final loginRequiredMessage = tr('common.login_required', context: context);
+    final userInfoUnavailableMessage = tr(
+      'common.user_info_unavailable',
+      context: context,
+    );
+    final blockSuccessMessage = tr('common.block_success', context: context);
+    final blockFailedMessage = tr('common.block_failed', context: context);
     final currentUser = userController.currentUser;
     if (currentUser == null) {
-      SnackBarUtils.showSnackBar(context, tr('common.login_required', context: context));
+      SnackBarUtils.showWithMessenger(messenger, loginRequiredMessage);
       return;
     }
 
@@ -66,11 +107,10 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
       widget.post.nickName,
     );
     if (targetUser == null) {
-      SnackBarUtils.showSnackBar(context, tr('common.user_info_unavailable', context: context));
+      SnackBarUtils.showWithMessenger(messenger, userInfoUnavailableMessage);
       return;
     }
 
-    final friendController = context.read<FriendController>();
     final ok = await friendController.blockFriend(
       requesterId: currentUser.id,
       receiverId: targetUser.id,
@@ -78,13 +118,11 @@ class _ApiUserInfoWidgetState extends State<ApiUserInfoWidget> {
     if (!mounted) return;
 
     if (ok) {
-      context.read<FeedDataManager>().removePostsByNickname(
-        widget.post.nickName,
-      );
-      context.read<PostController>().notifyPostsChanged();
-      SnackBarUtils.showSnackBar(context, tr('common.block_success', context: context));
+      feedDataManager.removePostsByNickname(widget.post.nickName);
+      postController.notifyPostsChanged();
+      SnackBarUtils.showWithMessenger(messenger, blockSuccessMessage);
     } else {
-      SnackBarUtils.showSnackBar(context, tr('common.block_failed', context: context));
+      SnackBarUtils.showWithMessenger(messenger, blockFailedMessage);
     }
   }
 

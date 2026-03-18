@@ -61,6 +61,8 @@
     "signup": "Sign up",
     "unknown": "Unknown",
     "report_received": "Received",
+    "report_submit_success": "Your report has been received. An administrator will review it and take action if needed.",
+    "report_submit_failed": "Failed to submit the report.",
     "block_success": "Blocked",
     "block_failed": "Block failed"
   },

@@ -24,6 +24,8 @@
     "signup": "Registro",
     "unknown": "N/D",
     "report_received": "Recibido",
+    "report_submit_success": "Se recibio el reporte. El administrador lo revisara y lo procesara.",
+    "report_submit_failed": "No se pudo enviar el reporte.",
     "block_success": "Bloqueado",
     "block_failed": "No se pudo"
   },

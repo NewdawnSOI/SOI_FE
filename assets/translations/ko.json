@@ -24,6 +24,8 @@
     "signup": "회원가입",
     "unknown": "알 수 없음",
     "report_received": "접수됨",
+    "report_submit_success": "신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.",
+    "report_submit_failed": "신고 접수에 실패했습니다.",
     "block_success": "차단되었습니다.",
     "block_failed": "차단에 실패했습니다."
   },

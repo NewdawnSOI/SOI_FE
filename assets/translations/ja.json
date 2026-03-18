@@ -1,4 +1,8 @@
 {
+  "common": {
+    "report_submit_success": "報告を受け付けました。管理者が確認して必要に応じて対応します。",
+    "report_submit_failed": "報告の送信に失敗しました。"
+  },
   "profile": {
     "main": {
       "friends_count": "友達 {count}",

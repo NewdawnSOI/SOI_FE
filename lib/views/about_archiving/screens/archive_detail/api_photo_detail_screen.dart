@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -24,7 +23,6 @@ import '../../../../utils/position_converter.dart';
 import '../../../../utils/snackbar_utils.dart';
 import '../../../common_widget/api_photo/api_photo_card_widget.dart';
 import '../../../common_widget/about_comment/pending_api_voice_comment.dart';
-import '../../../common_widget/report/report_bottom_sheet.dart';
 import '../../../../api/models/friend.dart';
 
 /// API 기반 사진 상세 화면
@@ -323,43 +321,12 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                 onCommentSaveFailure: _onCommentSaveFailure,
                 onDeletePressed: () => _deletePost(post),
                 onCommentsReloadRequested: _loadCommentsForPost,
-                onReportSubmitted: _saveReportToFirebase,
               );
             },
           ),
         ),
       ),
     );
-  }
-
-  // ================= 로직 =================
-
-  Future<void> _saveReportToFirebase(Post post, ReportResult report) async {
-    final currentUser = _userController?.currentUser;
-    final detail = report.detail?.trim();
-    final data = <String, dynamic>{
-      'postId': post.id,
-      'postNickName': post.nickName,
-      'categoryId': widget.categoryId,
-      'categoryName': widget.categoryName,
-      'reason': report.reason,
-      'detail': (detail == null || detail.isEmpty) ? null : detail,
-      'reporterUserId': currentUser?.id,
-      'reporterNickName': currentUser?.userId,
-      'createdAt': FieldValue.serverTimestamp(),
-    };
-
-    try {
-      await FirebaseFirestore.instance.collection('post_reports').add(data);
-      if (!mounted) return;
-      SnackBarUtils.showSnackBar(
-        context,
-        '신고가 접수되었습니다. 신고 내용을 관리자가 확인 후, 판단 후에 처리하도록 하겠습니다.',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      SnackBarUtils.showSnackBar(context, '신고 접수에 실패했습니다.');
-    }
   }
 
   /// 페이지 변경 시 처리
@@ -400,7 +367,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       final currentUserId = _userController?.currentUser?.userId;
       _handleCommentsUpdate(postId, currentUserId, comments);
     } catch (e) {
-      debugPrint('❌ 댓글 로드 실패: $e');
+      debugPrint('댓글 로드 실패: $e');
     }
   }
 

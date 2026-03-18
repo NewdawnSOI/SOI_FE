@@ -1,4 +1,8 @@
 {
+  "common": {
+    "report_submit_success": "举报已提交。管理员将审核后进行处理。",
+    "report_submit_failed": "举报提交失败。"
+  },
   "profile": {
     "main": {
       "friends_count": "好友 {count}",
