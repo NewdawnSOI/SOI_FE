@@ -146,9 +146,48 @@ rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/commo
 - 한국어 상세: `docs/AI_AGENT_PLAYBOOK.md`
 - 영어 상세: `docs/AI_AGENT_PLAYBOOK.en.md`
 
-## 12. Skill 라우팅 강제 규칙
+## 12. Skill 라우팅 강제 규칙 (Claude Code 전용)
 - 모든 사용자 프롬프트는 구현/분석/실행 전에 반드시 `prompt-json-first` 스킬을 먼저 적용한다.
 - 다른 스킬이 함께 필요한 경우에도 순서는 항상 `prompt-json-first` -> 대상 스킬 순서를 유지한다.
 - 사용자가 특정 스킬만 명시했더라도, 충돌 지시가 없는 한 `prompt-json-first`를 선행 적용한다.
+- 코드베이스 탐색 시 Serena(`mcp__plugin_serena_serena__*`) 도구를 우선 사용하고, 단순 경로 검색만 필요하면 Glob/Grep을 직접 사용한다.
+
+## 13. 앱 초기화 순서 (Boot Sequence)
+`main()`의 초기화는 의존 순서가 있으므로 변경 시 주의:
+1. `WidgetsFlutterBinding` + `EasyLocalization.ensureInitialized()`
+2. `SharedPreferences` 로드 → 런치 비디오 표시 여부 결정
+3. `.env` 로드 → `SoiApiClient.instance.initialize()`
+4. `Firebase.initializeApp()` + FCM background handler 등록 (`supportsFirebaseMessaging` 조건부 — web/linux 제외)
+5. `KakaoSdk.init()` → `AnalyticsService.create()` (Mixpanel)
+6. `UserController().tryAutoLogin()` → 성공 시 `refreshCurrentUser()`
+7. `FlutterNativeSplash.remove()` → `runApp()` → `buildAppProviders()` → `buildAppContainer()` → `buildAppRoutes()`
+8. `_MyAppState.initState()` → `AppPushCoordinator.initialize()` (navigatorKey 전달)
+
+규칙:
+- 3번과 4번 사이에 Firebase 없이 API 호출이 가능한 이유: `SoiApiClient`는 Supabase 기반이며 Firebase 독립적.
+- `FlutterNativeSplash`: `hasSeenLaunchVideo=true`면 auto-login 완료까지 스플래시 유지 후 제거.
+
+## 14. 코드 분리 패턴
+**Extension 파일 패턴**: 대형 화면은 `extension/` 디렉토리에 기능별로 분리.
+- 예: `photo_editor_screen.dart` ← `extension/photo_editor_screen_view.dart` / `_init.dart` / `_upload_flow.dart` / `_category_flow.dart` / `_helpers.dart`
+- 화면 수정 시 반드시 관련 `extension/` 파일 전체 확인 후 작업.
+
+**카메라 서비스 두 계층** (혼용 금지):
+- `lib/api/services/camera_service.dart` → 갤러리 접근/권한 (캐시: 갤러리 첫 이미지 5s, 권한 상태 10s)
+- `lib/views/about_camera/services/` → 뷰 레이어 서비스 (업로드/미디어 처리)
+
+**buildAppContainer** (`lib/app/app_container_builder.dart`):
+- 전역 레이아웃 래퍼. textScaler 클램핑(`textScaleMin`/`textScaleMax`) + wide layout 대응.
+- breakpoint/maxWidth 상수는 `AppConstant` 참조.
+
+## 15. 싱글턴/전역 키 레퍼런스
+| 심볼 | 위치 | 역할 |
+|---|---|---|
+| `SoiApiClient.instance` | `lib/api/api_client.dart` | OpenAPI 클라이언트 싱글턴. 직접 생성 금지. |
+| `AppPushCoordinator.instance` | `lib/app/push/app_push_coordinator.dart` | FCM 코디네이터. `_MyAppState`가 초기화, `UserController` 리스너로 인증 상태 동기화. |
+| `HomePageNavigationBar.rootKey` | `lib/views/home_navigator_screen.dart` | 탭 프로그래밍 전환용 GlobalKey. `AppRoute.homeNavigation`의 루트 키. |
+| `AppRoute` | `lib/app/app_constants.dart` | Named route 상수 클래스. |
+| `AppConstant` | `lib/app/app_constants.dart` | 이미지 캐시 크기, 텍스트 스케일, 딥링크 상수 등 정량 상수. |
+| `appRouteObserver` | `lib/utils/app_route_observer.dart` | `MaterialApp.navigatorObservers`에 등록된 라우트 옵저버. |
 
 이 파일은 "항상 적용되는 압축 규칙"이며, 상세 정책은 위 문서의 해당 섹션만 필요한 만큼 조회한다.
