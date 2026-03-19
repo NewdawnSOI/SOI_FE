@@ -15,13 +15,21 @@ import 'services/profile_data_service.dart';
 import 'widgets/profile_main_header.dart';
 import 'widgets/profile_main_tab_views.dart';
 
-/// 프로필 페이지의 탭바의 타입을 정의하는 열거형입니다.
-enum _ProfileTab { media, text, comments }
-
-/// 프로필 페이지의 메인 위젯입니다.
-/// 사용자 정보, 프로필 이미지, 친구 수 등의 데이터를 로드하고, 프로필 헤더와 탭 바를 구성합니다.
-
 class ProfilePage extends StatefulWidget {
+  ///
+  /// 프로필 페이지의 메인 위젯입니다.
+  /// 사용자 정보, 프로필 이미지, 친구 수 등의 데이터를 로드하고, 프로필 헤더와 탭 바를 구성합니다.
+  /// 각 탭에 해당하는 콘텐츠를 표시하는 탭 뷰도 포함되어 있습니다.
+  ///
+  /// fields:
+  /// - [_userInfo]: 현재 표시할 사용자 정보를 담는 User 객체입니다. 초기값은 null이며, 데이터 로드 후 업데이트됩니다.
+  /// - [_profileImageUrl]: 현재 표시할 프로필 이미지 URL입니다. 초기값은 null이며, 데이터 로드 후 업데이트됩니다.
+  /// - [_friendCount]: 현재 표시할 친구 수입니다. 초기값은 0이며, 데이터 로드 후 업데이트됩니다.
+  /// - [_selectedTab]: 현재 선택된 탭을 나타내는 _ProfileTab 열거형 값입니다. 초기값은 _ProfileTab.media입니다.
+  /// - [_profileDataService]
+  ///   - 프로필 페이지에서 필요한 데이터와 기능을 담당하는 ProfileDataService 객체입니다.
+  ///   - 데이터 로드와 프로필 이미지 선택 등의 작업을 수행합니다.
+  ///
   const ProfilePage({super.key});
 
   @override
@@ -409,3 +417,6 @@ class _ProfileTabItem extends StatelessWidget {
     );
   }
 }
+
+/// 프로필 페이지의 탭바의 타입을 정의하는 열거형입니다.
+enum _ProfileTab { media, text, comments }

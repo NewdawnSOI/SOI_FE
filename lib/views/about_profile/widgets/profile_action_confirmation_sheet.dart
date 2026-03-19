@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ProfileActionConfirmationSheet extends StatelessWidget {
+  ///
   /// 프로필 페이지에서 사용되는 액션 확인 시트를 구성하는 위젯입니다.
   /// 사용자가 프로필에서 특정 액션을 수행하기 전에 확인을 요청하는 모달 시트입니다.
   ///
@@ -11,6 +12,7 @@ class ProfileActionConfirmationSheet extends StatelessWidget {
   /// - [description]: 확인 시트의 추가 설명입니다. 액션의 결과나 중요성을 강조하는 데 사용됩니다. 이 필드는 선택적입니다.
   /// - [confirmLabel]: 확인 버튼에 표시될 텍스트입니다. 사용자가 액션을 수행하기 전에 명확한 행동 지침을 제공합니다.
   /// - [onConfirm]: 사용자가 확인 버튼을 탭했을 때 호출되는 콜백 함수입니다. 이 함수는 액션을 수행하는 로직을 포함해야 하며, 비동기 작업을 지원합니다.
+  ///
   const ProfileActionConfirmationSheet({
     super.key,
     required this.title,

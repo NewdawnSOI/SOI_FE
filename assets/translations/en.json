@@ -366,12 +366,19 @@
       "description": "When you choose the withdrawal button, your account will be It will be deleted and can't be recovered",
       "confirm": "secession"
     },
+    "image_sheet": {
+      "title": "Change profile image",
+      "take_photo": "Take a photo",
+      "select_from_library": "Choose from library"
+    },
     "snackbar": {
       "login_required": "Login required. login again",
       "image_not_found": "The image you selected can't be found",
       "upload_failed": "Profile image upload failed",
       "profile_updated": "Your profile image changed",
       "profile_update_failed": "You can't change your profile image",
+      "camera_error": "An error occurred while taking a photo.",
+      "gallery_error": "An error occurred while selecting from the library.",
       "logout_failed": "logging out.",
       "delete_account_failed": "deleting your account: {error}"
     }
@@ -471,6 +478,8 @@
     "message_5": "Listen to funny voice comments from your friends Leave a voice comment yourself!"
   },
   "start": {
-    "welcome": "Welcome to SOI!"
+    "welcome": "Welcome to SOI!",
+    "server_reset_notice_title": "Notice",
+    "server_reset_notice_message": "We've reset all data in the app.\nSorry for the inconvenience.\nPlease sign up again to keep using SOI."
   }
 }

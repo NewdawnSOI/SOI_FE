@@ -329,12 +329,19 @@
       "description": "点击注销后，账号将被\n删除且无法恢复。",
       "confirm": "注销"
     },
+    "image_sheet": {
+      "title": "更换头像",
+      "take_photo": "拍照",
+      "select_from_library": "从相册选择"
+    },
     "snackbar": {
       "login_required": "需要登录。请重新登录。",
       "image_not_found": "找不到所选图片。",
       "upload_failed": "上传头像失败。",
       "profile_updated": "头像已更换。",
       "profile_update_failed": "无法更换头像。",
+      "camera_error": "拍照时出错。",
+      "gallery_error": "从相册选择时出错。",
       "logout_failed": "退出登录时出错。",
       "delete_account_failed": "删除账号时出错: {error}"
     }
@@ -471,6 +478,8 @@
     "message_5": "听听好友有趣的语音评论，\n也来留下你的语音评论吧！"
   },
   "start": {
-    "welcome": "欢迎来到 SOI！"
+    "welcome": "欢迎来到 SOI！",
+    "server_reset_notice_title": "提示",
+    "server_reset_notice_message": "我们已重置应用内的所有数据。\n很抱歉给你带来不便。\n如需继续使用 SOI，请重新注册。"
   }
 }

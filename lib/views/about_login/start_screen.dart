@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../app/app_constants.dart';
 import '../../api/controller/user_controller.dart';
 import '../../theme/theme.dart';
 
@@ -16,8 +19,27 @@ class StartScreen extends StatefulWidget {
 
 class _StartScreenState extends State<StartScreen>
     with TickerProviderStateMixin {
+  /// 서버 초기화 공지 표시 여부 확인에 사용되는 키와 기존 설치 흔적 키 목록
+  /// 서버 초기화 공지 표시 여부는 SharedPreferences에 저장된 플래그와 기존 설치 흔적 키 존재 여부를 기반으로 결정됩니다.
+  static const String _serverResetNoticeShownKey =
+      'start_server_reset_notice_shown_20260319';
+
+  /// 기존 설치 흔적 키 목록 (하나라도 존재하면 서버 초기화 공지를 보여줌)
+  static const List<String> _existingInstallTraceKeys = [
+    AppConstant.hasSeenLaunchVideoKey,
+    'api_is_logged_in',
+    'api_user_id',
+    'api_phone_number',
+    'api_access_token',
+    'api_onboarding_completed',
+  ];
+
   bool _isCheckingAutoLogin = true;
   bool _homeNavigationScheduled = false;
+
+  /// 서버 초기화 공지 표시 여부 확인 완료 여부
+  /// 이 값이 true가 되면 이후로는 서버 초기화 공지 표시 여부를 다시 확인하지 않습니다.
+  bool _serverResetNoticeChecked = false;
 
   // 애니메이션 컨트롤러들
   late AnimationController _logoController;
@@ -117,6 +139,117 @@ class _StartScreenState extends State<StartScreen>
 
     _isCheckingAutoLogin = false;
     _startAnimations();
+    unawaited(_showServerResetNoticeIfNeeded());
+  }
+
+  Future<void> _showServerResetNoticeIfNeeded() async {
+    if (_serverResetNoticeChecked) {
+      return;
+    }
+    _serverResetNoticeChecked = true;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final alreadyShown = prefs.getBool(_serverResetNoticeShownKey) ?? false;
+      final hasExistingInstallTrace = _existingInstallTraceKeys.any(
+        prefs.containsKey,
+      );
+      if (alreadyShown || !hasExistingInstallTrace || !mounted) {
+        return;
+      }
+
+      await prefs.setBool(_serverResetNoticeShownKey, true);
+      if (!mounted) {
+        return;
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        unawaited(
+          showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) {
+              return Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+                child: Container(
+                  padding: EdgeInsets.fromLTRB(24.w, 28.h, 24.w, 24.h),
+                  decoration: BoxDecoration(
+                    color: AppTheme.lightTheme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(28.r),
+                    border: Border.all(
+                      color: const Color(0xff2b2b2b),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        tr(
+                          'start.server_reset_notice_title',
+                          context: dialogContext,
+                        ),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: const Color(0xFFF8F8F8),
+                          fontSize: 20.sp,
+                          fontFamily: 'Pretendard Variable',
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 14.h),
+                      Text(
+                        tr(
+                          'start.server_reset_notice_message',
+                          context: dialogContext,
+                        ),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: const Color(0xFFD9D9D9),
+                          fontSize: 15.sp,
+                          fontFamily: 'Pretendard Variable',
+                          fontWeight: FontWeight.w500,
+                          height: 1.55,
+                        ),
+                      ),
+                      SizedBox(height: 24.h),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            elevation: 0,
+                            minimumSize: Size(double.infinity, 52.h),
+                            shape: const StadiumBorder(),
+                          ),
+                          child: Text(
+                            tr('common.confirm', context: dialogContext),
+                            style: TextStyle(
+                              fontSize: 17.sp,
+                              fontFamily: 'Pretendard Variable',
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      });
+    } catch (error) {
+      debugPrint('서버 초기화 공지 표시 여부 확인 실패: $error');
+    }
   }
 
   /// 로그인 버튼 처리

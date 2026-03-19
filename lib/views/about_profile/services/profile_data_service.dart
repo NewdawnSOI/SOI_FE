@@ -82,12 +82,19 @@ class ProfileDataService {
     );
   }
 
-  /// 이 메서드는 앨범에서 프로필 사진 하나를 골라와요.
-  /// 사진을 안 고르면 아무것도 없이 조용히 끝나요.
-  Future<File?> pickProfileImage() async {
+  /// 사진을 고르거나 찍어서 프로필 사진으로 쓸 수 있게 하는 메서드
+  ///
+  /// parameters:
+  /// - [source]
+  ///   - 사진을 고를지 카메라로 찍을지 정하는 소스입니다.
+  ///   - ImageSource.gallery 또는 ImageSource.camera를 사용할 수 있어요.
+  ///
+  /// returns:
+  /// - [File]: 사용자가 사진을 고르거나 찍으면 그 사진의 File 객체를 돌려줘요.
+  Future<File?> pickProfileImage({required ImageSource source}) async {
     final pickedImage = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
+      source: source,
+      imageQuality: source == ImageSource.camera ? 85 : 70,
       maxWidth: 1080,
       maxHeight: 1080,
     );

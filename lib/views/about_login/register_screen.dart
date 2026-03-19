@@ -280,7 +280,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 },
                 onResendPressed: () async {
                   try {
-                    final formattedPhone = _formatPhoneNumberForApi();
+                    final formattedPhone = _formatPhoneNumberForApi(
+                      withCountryCode: true,
+                    );
                     phoneNumber = formattedPhone;
 
                     await _userController
@@ -436,6 +438,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             case 2: // 전화번호
                               final formattedPhone = _formatPhoneNumberForApi(
                                 rawValue: phoneController.text,
+                                withCountryCode: true,
                               );
                               phoneNumber = formattedPhone;
                               try {
@@ -518,7 +521,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       final isSuccess = await _userController.verifySmsCode(
-        _formatPhoneNumberForApi(),
+        _formatPhoneNumberForApi(withCountryCode: true),
         smsCode,
       );
 
@@ -571,11 +574,11 @@ class _AuthScreenState extends State<AuthScreen> {
     agreeAll = agreeServiceTerms && agreePrivacyTerms && agreeMarketingInfo;
   }
 
-  String _formatPhoneNumberForApi({String? rawValue}) {
+  String _formatPhoneNumberForApi({
+    String? rawValue,
+    bool withCountryCode = false,
+  }) {
     final source = (rawValue ?? phoneNumber).trim();
-    if (source.startsWith('+')) {
-      return source;
-    }
 
     final digitsOnly = source.isNotEmpty
         ? source.replaceAll(RegExp(r'\D'), '')
@@ -588,28 +591,25 @@ class _AuthScreenState extends State<AuthScreen> {
     switch (_selectedCountryCode) {
       case 'KR':
         var normalized = digitsOnly;
-        if (normalized.startsWith('82') && normalized.length > 2) {
+        if (normalized.startsWith('82') && normalized.length > 10) {
           normalized = normalized.substring(2);
         }
-        if (normalized.startsWith('0')) {
-          normalized = normalized.substring(1);
-        }
-        return '+82$normalized';
+        return withCountryCode ? '+82$normalized' : normalized;
       case 'US':
         var normalized = digitsOnly;
         if (normalized.startsWith('1') && normalized.length > 10) {
           normalized = normalized.substring(1);
         }
-        return '+1$normalized';
+        return withCountryCode ? '+1$normalized' : normalized;
       case 'MX':
         var normalized = digitsOnly;
-        if (normalized.startsWith('52') && normalized.length > 10) {
+        if (normalized.startsWith('52') && normalized.length > 11) {
           normalized = normalized.substring(2);
         }
-        return '+52$normalized';
+        return withCountryCode ? '+52$normalized' : normalized;
       default:
         final dialCode = _dialCodesByCountry[_selectedCountryCode] ?? '+82';
-        return '$dialCode$digitsOnly';
+        return withCountryCode ? '$dialCode$digitsOnly' : digitsOnly;
     }
   }
 

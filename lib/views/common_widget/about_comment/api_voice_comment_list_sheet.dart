@@ -826,7 +826,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
           if (parentIndex >= 0) {
             final currentParent = _comments[parentIndex];
             _comments[parentIndex] = currentParent.copyWith(
-              replyUserCount: (currentParent.replyUserCount ?? 0) + 1,
+              replyCommentCount: (currentParent.replyCommentCount ?? 0) + 1,
             );
             _expandedReplyParentKeys.add(_commentKeyId(currentParent));
           }
@@ -1160,13 +1160,13 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                           _showReplyInput(replyTarget: target),
                       showHideRepliesButton:
                           !comment.isReply &&
-                          (comment.replyUserCount ?? 0) > 0 &&
+                          (comment.replyCommentCount ?? 0) > 0 &&
                           _expandedReplyParentKeys.contains(
                             _commentKeyId(comment),
                           ),
                       showViewMoreRepliesButton:
                           !comment.isReply &&
-                          (comment.replyUserCount ?? 0) > 0 &&
+                          (comment.replyCommentCount ?? 0) > 0 &&
                           !_expandedReplyParentKeys.contains(
                             _commentKeyId(comment),
                           ),

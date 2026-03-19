@@ -1139,6 +1139,7 @@ class _CameraScreenState extends State<CameraScreen>
                               try {
                                 final stopwatch = Stopwatch()..start();
                                 debugPrint('[GalleryPick] tap');
+                                await _cameraService.pauseCamera();
                                 final permissionState =
                                     await PhotoManager.requestPermissionExtend();
                                 if (!permissionState.hasAccess) {

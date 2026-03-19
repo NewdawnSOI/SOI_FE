@@ -535,7 +535,9 @@ class UserService {
   /// [userId]의 프로필 이미지를 [profileImageKey] URL로 수정합니다.
   ///
   /// Parameters:
-  /// - [userId]: 프로필 이미지를 수정할 사용자 ID
+  /// - [userId]
+  ///   - 프로필 이미지를 수정할 사용자 ID
+  ///   - 보안을 위해, JWT 인증된 사용자와 [userId]가 일치하는지 확인합니다.
   /// - [profileImageKey]: 새 프로필 이미지 URL
   ///
   /// Returns: 수정된 사용자 정보 (User)

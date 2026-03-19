@@ -400,7 +400,7 @@ class ApiCommentRow extends StatelessWidget {
 
   /// "답글 보기"/"답글 숨기기" 버튼을 빌드하는 메서드
   Widget _buildReplyVisibilityButton() {
-    final replyCount = comment.replyUserCount ?? 0;
+    final replyCount = comment.replyCommentCount ?? 0;
 
     if (comment.isReply || replyCount <= 0) {
       return const SizedBox.shrink();

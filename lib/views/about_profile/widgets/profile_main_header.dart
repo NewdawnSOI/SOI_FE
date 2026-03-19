@@ -20,6 +20,7 @@ class ProfileMainHeader extends StatelessWidget {
     required this.profileImageKey,
     required this.friendCount,
     required this.onMenuTap,
+    this.onProfileImageTap,
   });
 
   // 사용자의 닉네임입니다. 닉네임이 없는 경우 '@알 수 없음'으로 표시됩니다.
@@ -36,6 +37,10 @@ class ProfileMainHeader extends StatelessWidget {
 
   // 메뉴 버튼이 탭될 때 호출되는 콜백 함수입니다.
   final VoidCallback onMenuTap;
+
+  /// 프로필 이미지가 탭될 때 호출되는 콜백 함수입니다.
+  /// 프로필 이미지를 변경하는 기능을 구현할 때 사용됩니다.
+  final VoidCallback? onProfileImageTap;
 
   /// 닉네임 레이블을 생성하는 메서드입니다. 닉네임이 없는 경우 '@알 수 없음'으로 표시됩니다.
   String _nicknameLabel(BuildContext context) {
@@ -107,6 +112,7 @@ class ProfileMainHeader extends StatelessWidget {
                   _ProfileHeaderAvatar(
                     profileImageUrl: profileImageUrl,
                     profileImageKey: profileImageKey,
+                    onTap: onProfileImageTap,
                   ),
                   SizedBox(width: 12.w),
                   Expanded(
@@ -148,10 +154,12 @@ class _ProfileHeaderAvatar extends StatelessWidget {
   const _ProfileHeaderAvatar({
     required this.profileImageUrl,
     required this.profileImageKey,
+    this.onTap,
   });
 
   final String? profileImageUrl;
   final String? profileImageKey;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -160,30 +168,33 @@ class _ProfileHeaderAvatar extends StatelessWidget {
     final hasResolvedProfileImage = resolvedProfileImageUrl.isNotEmpty;
     final hasProfileImage = resolvedProfileImageKey.isNotEmpty;
 
-    return ClipOval(
-      child: Container(
-        width: 45.9.sp,
-        height: 45.9.sp,
-        color: const Color(0xFF1C1C1C),
-        child: hasResolvedProfileImage
-            ? CachedNetworkImage(
-                imageUrl: resolvedProfileImageUrl,
-                cacheKey: hasProfileImage ? resolvedProfileImageKey : null,
-                useOldImageOnUrlChange: hasProfileImage,
-                fadeInDuration: Duration.zero,
-                fadeOutDuration: Duration.zero,
-                fit: BoxFit.cover,
-                memCacheWidth: (45.9.sp * 4).round(),
-                memCacheHeight: (45.9.sp * 4).round(),
-                maxWidthDiskCache: (45.9.sp * 4).round(),
-                placeholder: (_, __) =>
-                    const ColoredBox(color: Color(0xFF1C1C1C)),
-                errorWidget: (_, __, ___) =>
-                    const _ProfileHeaderAvatarFallback(),
-              )
-            : hasProfileImage
-            ? const ColoredBox(color: Color(0xFF1C1C1C))
-            : const _ProfileHeaderAvatarFallback(),
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipOval(
+        child: Container(
+          width: 45.9.sp,
+          height: 45.9.sp,
+          color: const Color(0xFF1C1C1C),
+          child: hasResolvedProfileImage
+              ? CachedNetworkImage(
+                  imageUrl: resolvedProfileImageUrl,
+                  cacheKey: hasProfileImage ? resolvedProfileImageKey : null,
+                  useOldImageOnUrlChange: hasProfileImage,
+                  fadeInDuration: Duration.zero,
+                  fadeOutDuration: Duration.zero,
+                  fit: BoxFit.cover,
+                  memCacheWidth: (45.9.sp * 4).round(),
+                  memCacheHeight: (45.9.sp * 4).round(),
+                  maxWidthDiskCache: (45.9.sp * 4).round(),
+                  placeholder: (_, __) =>
+                      const ColoredBox(color: Color(0xFF1C1C1C)),
+                  errorWidget: (_, __, ___) =>
+                      const _ProfileHeaderAvatarFallback(),
+                )
+              : hasProfileImage
+              ? const ColoredBox(color: Color(0xFF1C1C1C))
+              : const _ProfileHeaderAvatarFallback(),
+        ),
       ),
     );
   }

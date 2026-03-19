@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../api/controller/category_controller.dart';
 import '../../api/controller/friend_controller.dart';
 import '../../api/controller/media_controller.dart';
 import '../../api/controller/user_controller.dart';
@@ -36,6 +39,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
   int _friendCount = 0;
 
   bool _isLoading = true;
+  bool _isUpdatingProfileImage = false;
 
   @override
   void initState() {
@@ -216,6 +220,213 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();
+    }
+  }
+
+  /// 프로필 이미지 선택, 카메라 촬영 바텀 시트를 띄우고
+  /// 선택된 이미지로 프로필 이미지를 업데이트하는 함수입니다.
+  void _showProfileImageActionSheet() {
+    if (_isUpdatingProfileImage) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1C),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20.r),
+              topRight: Radius.circular(20.r),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: EdgeInsets.only(top: 12.h),
+                width: 56.w,
+                height: 3.h,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCCCCCC),
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
+              ),
+              SizedBox(height: 12.h),
+              Text(
+                tr('profile.image_sheet.title', context: context),
+                style: TextStyle(
+                  color: const Color(0xFFF8F8F8),
+                  fontSize: 18.sp,
+                  fontFamily: 'Pretendard Variable',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Divider(color: Color(0xFF5A5A5A)),
+
+              // "카메라로 촬영" 옵션을 선택하는 ListTile입니다.
+              ListTile(
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16.w,
+                  vertical: 0.h,
+                ),
+                leading: Image.asset(
+                  'assets/camera_archive_edit.png',
+                  width: 24.w,
+                  height: 24.h,
+                ),
+                title: Text(
+                  'category.cover.select_take_photo',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: 'Pretendard Variable',
+                  ),
+                ).tr(),
+                onTap: () {
+                  Navigator.of(bottomSheetContext).pop();
+                  unawaited(_selectProfileImage(ImageSource.camera));
+                },
+              ),
+
+              // "라이브러리에서 선택" 옵션을 선택하는 ListTile입니다.
+              ListTile(
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16.w,
+                  vertical: 0.h,
+                ),
+                leading: Image.asset(
+                  'assets/library_archive_edit.png',
+                  width: 24.w,
+                  height: 24.h,
+                ),
+                title: Text(
+                  'category.cover.select_from_library',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: 'Pretendard Variable',
+                  ),
+                ).tr(),
+                onTap: () {
+                  Navigator.of(bottomSheetContext).pop();
+                  unawaited(_selectProfileImage(ImageSource.gallery));
+                },
+              ),
+              SizedBox(height: 24.h),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _selectProfileImage(ImageSource source) async {
+    if (_isUpdatingProfileImage) return;
+
+    final userController = context.read<UserController>();
+    final mediaController = context.read<MediaController>();
+    final categoryController = context.read<CategoryController>();
+    final currentUser = userController.currentUser;
+
+    if (currentUser == null) {
+      SnackBarUtils.showSnackBar(
+        context,
+        tr('profile.snackbar.login_required', context: context),
+      );
+      return;
+    }
+
+    try {
+      final selectedFile = await _profileDataService.pickProfileImage(
+        source: source,
+      );
+      if (!mounted || selectedFile == null) return;
+
+      if (!selectedFile.existsSync()) {
+        SnackBarUtils.showSnackBar(
+          context,
+          tr('profile.snackbar.image_not_found', context: context),
+        );
+        return;
+      }
+
+      setState(() {
+        _isUpdatingProfileImage = true;
+      });
+
+      final File uploadFile = await _profileDataService.compressProfileImage(
+        selectedFile,
+      );
+      if (!mounted) return;
+
+      final uploadResult = await _profileDataService.uploadProfileImage(
+        file: uploadFile,
+        userId: currentUser.id,
+        userController: userController,
+        mediaController: mediaController,
+        categoryController: categoryController,
+      );
+      if (!mounted) return;
+
+      switch (uploadResult.status) {
+        case ProfileImageUploadStatus.success:
+          final resolvedUser =
+              uploadResult.userInfo ?? userController.currentUser;
+          final resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
+            previousUser: _userInfo,
+            previousUrl: _profileImageUrl,
+            nextUser: resolvedUser,
+            nextUrl: uploadResult.profileImageUrl,
+            mediaController: mediaController,
+          );
+
+          setState(() {
+            _userInfo = resolvedUser;
+            _profileImageUrl = resolvedProfileImageUrl;
+          });
+
+          if (resolvedProfileImageUrl == null) {
+            unawaited(
+              _prefetchProfileImageUrl(
+                user: resolvedUser,
+                mediaController: mediaController,
+              ),
+            );
+          }
+
+          SnackBarUtils.showSnackBar(
+            context,
+            tr('profile.snackbar.profile_updated', context: context),
+          );
+          break;
+        case ProfileImageUploadStatus.uploadFailed:
+          SnackBarUtils.showSnackBar(
+            context,
+            tr('profile.snackbar.upload_failed', context: context),
+          );
+          break;
+        case ProfileImageUploadStatus.failed:
+          SnackBarUtils.showSnackBar(
+            context,
+            tr('profile.snackbar.profile_update_failed', context: context),
+          );
+          break;
+      }
+    } catch (_) {
+      if (!mounted) return;
+      final errorKey = source == ImageSource.camera
+          ? 'profile.snackbar.camera_error'
+          : 'profile.snackbar.gallery_error';
+      SnackBarUtils.showSnackBar(context, tr(errorKey, context: context));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingProfileImage = false;
+        });
+      }
     }
   }
 
@@ -467,36 +678,69 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Column(
+      body: Stack(
         children: [
-          ProfileMainHeader(
-            nickname: displayUser?.userId,
-            profileImageUrl: displayProfileImageUrl,
-            profileImageKey: displayUser?.profileImageUrlKey,
-            friendCount: _friendCount,
-            onMenuTap: _closeSettings,
+          Column(
+            children: [
+              ProfileMainHeader(
+                nickname: displayUser?.userId,
+                profileImageUrl: displayProfileImageUrl,
+                profileImageKey: displayUser?.profileImageUrlKey,
+                friendCount: _friendCount,
+                onMenuTap: _closeSettings,
+                onProfileImageTap: _showProfileImageActionSheet,
+              ),
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFD9D9D9),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(17.w, 28.h, 17.w, 49.h),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ProfileAccountSection(userInfo: _userInfo),
+                            SizedBox(height: 36.h),
+                            _buildAppSettingsSection(), // 앱 설정 섹션을 빌드하여 화면에 추가합니다.
+                            SizedBox(height: 36.h),
+                            _buildUsageGuideSection(), // 이용 안내 섹션을 빌드하여 화면에 추가합니다.
+                            SizedBox(height: 36.h),
+                            _buildOtherSection(), // 기타 섹션을 빌드하여 화면에 추가합니다.
+                          ],
+                        ),
+                      ),
+              ),
+            ],
           ),
-          Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFD9D9D9)),
-                  )
-                : SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(17.w, 28.h, 17.w, 49.h),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ProfileAccountSection(userInfo: _userInfo),
-                        SizedBox(height: 36.h),
-                        _buildAppSettingsSection(),
-                        SizedBox(height: 36.h),
-                        _buildUsageGuideSection(),
-                        SizedBox(height: 36.h),
-                        _buildOtherSection(),
-                      ],
-                    ),
+          if (_isUpdatingProfileImage)
+            // 프로필 이미지 업데이트 중임을 나타내는 오버레이를 화면에 표시합니다.
+            // 로딩 인디케이터와 함께 "잠시만 기다려주세요" 메시지를 보여줍니다.
+            Positioned.fill(
+              child: ColoredBox(
+                color: Colors.black54,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(color: Color(0xFFF9F9F9)),
+                      SizedBox(height: 16.h),
+                      Text(
+                        tr('common.please_wait', context: context),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.sp,
+                          fontFamily: 'Pretendard Variable',
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-          ),
+                ),
+              ),
+            ),
         ],
       ),
     );

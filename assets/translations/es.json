@@ -341,7 +341,9 @@
     "message_5": "Escucha comentarios\ny deja el tuyo."
   },
   "start": {
-    "welcome": "¡Bienvenido!"
+    "welcome": "¡Bienvenido!",
+    "server_reset_notice_title": "Aviso",
+    "server_reset_notice_message": "Hemos reiniciado todos los datos de la app.\nPerdona las molestias.\nPara seguir usando SOI, vuelve a registrarte."
   },
   "profile": {
     "title": "Perfil",
@@ -395,12 +397,19 @@
       "description": "Se borrará y no se podrá recuperar.",
       "confirm": "Eliminar"
     },
+    "image_sheet": {
+      "title": "Cambiar foto de perfil",
+      "take_photo": "Tomar foto",
+      "select_from_library": "Elegir de la galería"
+    },
     "snackbar": {
       "login_required": "Inicia sesión.",
       "image_not_found": "Imagen no encontrada.",
       "upload_failed": "No se subió la imagen.",
       "profile_updated": "Imagen actualizada.",
       "profile_update_failed": "No se pudo actualizar.",
+      "camera_error": "Error al tomar la foto.",
+      "gallery_error": "Error al elegir desde la galería.",
       "logout_failed": "Error al salir.",
       "delete_account_failed": "Error al eliminar: {error}"
     }

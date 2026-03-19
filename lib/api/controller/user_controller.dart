@@ -192,7 +192,6 @@ class UserController extends ChangeNotifier {
 
   /// 로그아웃
   /// 현재 로그인된 사용자를 로그아웃 처리합니다.
-
   Future<void> logout() async {
     _currentUser = null;
     _clearError();
@@ -203,7 +202,6 @@ class UserController extends ChangeNotifier {
   }
 
   /// 현재 사용자 정보 갱신
-
   Future<void> refreshCurrentUser() async {
     if (!SoiApiClient.instance.isAuthenticated) return;
 
@@ -311,7 +309,6 @@ class UserController extends ChangeNotifier {
   ///
   /// Returns: 조회된 사용자 정보 (User)
   ///   - null: 조회 실패
-
   Future<User?> getUser(int id) async {
     _setLoading(true);
     _clearError();
@@ -465,10 +462,17 @@ class UserController extends ChangeNotifier {
   /// 사용자의 프로필 이미지를 업데이트합니다.
   ///
   /// Parameters:
-  /// - [userId]: 사용자 ID
+  /// - [userId]
+  ///   - 프로필 이미지를 수정할 사용자 ID
+  ///   - 보안을 위해, JWT 인증된 사용자와 [userId]가 일치하는지 확인합니다.
   /// - [profileImageKey]: 프로필 이미지 키
   ///
-  /// Returns: 수정된 사용자 정보 (User)
+  /// Returns:
+  /// - [User]: 수정된 사용자 정보
+  ///
+  /// Throws:
+  /// - [ForbiddenException]: JWT 인증 사용자와 요청 대상 사용자가 일치하지 않는 경우
+  /// - [SoiApiException]: 기타 API 에러
   Future<User?> updateprofileImageUrl({
     required int userId,
     required String profileImageKey,

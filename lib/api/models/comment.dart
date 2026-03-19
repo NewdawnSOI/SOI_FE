@@ -41,7 +41,7 @@ class Comment {
   final DateTime? createdAt;
 
   /// 해당 댓글의 대댓글 작성자 수 --> 이게 곧 대댓글의 개수와 동일
-  final int? replyUserCount;
+  final int? replyCommentCount;
 
   /// 텍스트 댓글 내용
   final String? text;
@@ -78,7 +78,7 @@ class Comment {
     this.fileUrl,
     this.fileKey,
     this.createdAt,
-    this.replyUserCount,
+    this.replyCommentCount,
     this.text,
     this.emojiId,
     this.audioUrl,
@@ -101,7 +101,7 @@ class Comment {
       fileKey: dto.fileKey,
       fileUrl: dto.fileUrl,
       createdAt: dto.createdAt,
-      replyUserCount: dto.replyUserCount,
+      replyCommentCount: dto.replyCommentCount,
       text: dto.text,
       emojiId: dto.emojiId,
       audioUrl: dto.audioUrl,
@@ -145,7 +145,7 @@ class Comment {
       fileKey: json['fileKey'] as String?,
       fileUrl: json['fileUrl'] as String?,
       createdAt: _dateTimeFromJson(json['createdAt']),
-      replyUserCount: json['replyUserCount'] as int?,
+      replyCommentCount: json['replyCommentCount'] as int?,
       text: json['text'] as String?,
       emojiId: json['emojiId'] as int?,
       audioUrl: json['audioUrl'] as String?,
@@ -231,7 +231,7 @@ class Comment {
       'fileUrl': fileUrl,
       'fileKey': fileKey,
       'createdAt': createdAt?.toIso8601String(),
-      'replyUserCount': replyUserCount,
+      'replyCommentCount': replyCommentCount,
       'text': text,
       'emojiId': emojiId,
       'audioUrl': audioUrl,
@@ -275,7 +275,7 @@ class Comment {
     String? fileUrl,
     String? fileKey,
     DateTime? createdAt,
-    int? replyUserCount,
+    int? replyCommentCount,
     String? replyUserName,
     String? text,
     int? emojiId,
@@ -296,7 +296,7 @@ class Comment {
       fileUrl: fileUrl ?? this.fileUrl,
       fileKey: fileKey ?? this.fileKey,
       createdAt: createdAt ?? this.createdAt,
-      replyUserCount: replyUserCount ?? this.replyUserCount,
+      replyCommentCount: replyCommentCount ?? this.replyCommentCount,
       text: text ?? this.text,
       emojiId: emojiId ?? this.emojiId,
       audioUrl: audioUrl ?? this.audioUrl,
@@ -310,6 +310,6 @@ class Comment {
 
   @override
   String toString() {
-    return 'Comment{id: $id, userId: $userId, nickname: $nickname, replyUserName: $replyUserName, fileUrl: $fileUrl, fileKey: $fileKey, createdAt: $createdAt, replyUserCount: $replyUserCount, type: $type, text: $text, emojiId: $emojiId}';
+    return 'Comment{id: $id, userId: $userId, nickname: $nickname, replyUserName: $replyUserName, fileUrl: $fileUrl, fileKey: $fileKey, createdAt: $createdAt, replyCommentCount: $replyCommentCount, type: $type, text: $text, emojiId: $emojiId}';
   }
 }

@@ -329,12 +329,19 @@
       "description": "退会すると、アカウントは\n削除され復元できません。",
       "confirm": "退会"
     },
+    "image_sheet": {
+      "title": "プロフィール画像を変更",
+      "take_photo": "写真を撮る",
+      "select_from_library": "ライブラリから選択"
+    },
     "snackbar": {
       "login_required": "ログインが必要です。再度ログインしてください。",
       "image_not_found": "選択した画像が見つかりません。",
       "upload_failed": "プロフィール画像のアップロードに失敗しました。",
       "profile_updated": "プロフィール画像を変更しました。",
       "profile_update_failed": "プロフィール画像を変更できません。",
+      "camera_error": "カメラ撮影中にエラーが発生しました。",
+      "gallery_error": "ライブラリ選択中にエラーが発生しました。",
       "logout_failed": "ログアウト中にエラーが発生しました。",
       "delete_account_failed": "アカウント削除中にエラーが発生しました: {error}"
     }
@@ -471,6 +478,8 @@
     "message_5": "友達の面白い音声コメントを聞いて、\n自分でも音声コメントを残してみましょう！"
   },
   "start": {
-    "welcome": "SOIへようこそ！"
+    "welcome": "SOIへようこそ！",
+    "server_reset_notice_title": "お知らせ",
+    "server_reset_notice_message": "アプリ内データを再整理したため、既存の情報はすべて初期化されました。\nご不便をおかけして申し訳ありません。\n引き続きSOIをご利用いただくには、もう一度ご登録ください。"
   }
 }
