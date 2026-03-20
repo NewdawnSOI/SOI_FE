@@ -12,7 +12,7 @@ import '../../../utils/snackbar_utils.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
-import 'comment_camera_recording_bottom_sheet_widget.dart';
+import 'comment_camera_bottom_sheet_widget.dart';
 import 'comment_text_input_widget.dart';
 import 'widget/about_comment_list_sheet/api_comment_row.dart';
 

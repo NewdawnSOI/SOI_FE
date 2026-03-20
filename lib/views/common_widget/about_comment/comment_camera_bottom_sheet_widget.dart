@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eva_icons_flutter/eva_icons_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
 
@@ -27,8 +29,8 @@ class CommentCameraSheetResult {
 
 enum _PendingVideoAction { none, stop, cancel }
 
-/// 카메라 권한 요청, 사진 촬영, 최대 30초까지의 영상 촬영 기능을 제공하는 하단 시트 위젯입니다.
 class CommentCameraRecordingBottomSheetWidget extends StatefulWidget {
+  /// 카메라 권한 요청, 사진 촬영, 최대 30초까지의 영상 촬영 기능을 제공하는 하단 시트 위젯입니다.
   const CommentCameraRecordingBottomSheetWidget({super.key});
 
   @override
@@ -38,12 +40,13 @@ class CommentCameraRecordingBottomSheetWidget extends StatefulWidget {
 
 class _CommentCameraRecordingBottomSheetWidgetState
     extends State<CommentCameraRecordingBottomSheetWidget> {
-  static const double _sheetHeight = 320;
-  static const double _previewMaxSize = 170;
+  static final double _sheetHeight = 360.sp;
+  static final double _previewMaxSize = 181.sp;
   static const int _maxVideoDurationSeconds = 30;
 
   final CameraService _cameraService = CameraService.instance;
   final ValueNotifier<double> _videoProgress = ValueNotifier<double>(0.0);
+  final ValueNotifier<int> _recordingDurationNotifier = ValueNotifier<int>(0);
 
   bool _isLoading = true;
   bool _isFlashOn = false;
@@ -93,6 +96,7 @@ class _CommentCameraRecordingBottomSheetWidgetState
     _pendingVideoAction = _PendingVideoAction.none;
     _disposeCapturedVideoController();
     unawaited(_cameraService.pauseCamera());
+    _recordingDurationNotifier.dispose();
     _videoProgress.dispose();
     super.dispose();
   }
@@ -175,6 +179,7 @@ class _CommentCameraRecordingBottomSheetWidgetState
       _showCapturedVideoPlayOverlay = true;
       _capturedVideoLoadFailed = false;
     });
+    _recordingDurationNotifier.value = 0;
 
     if (isVideo) {
       unawaited(_prepareCapturedVideoController(path));
@@ -211,6 +216,7 @@ class _CommentCameraRecordingBottomSheetWidgetState
     _videoStartInFlight = true;
     _recordingStartedAt = DateTime.now();
     _recordingDurationMs = 0;
+    _recordingDurationNotifier.value = 0;
     final started = await _cameraService.startVideoRecording();
 
     if (!mounted) {
@@ -314,11 +320,10 @@ class _CommentCameraRecordingBottomSheetWidgetState
 
       final startedAt = _recordingStartedAt;
       if (startedAt != null) {
-        setState(() {
-          _recordingDurationMs = DateTime.now()
-              .difference(startedAt)
-              .inMilliseconds;
-        });
+        _recordingDurationMs = DateTime.now()
+            .difference(startedAt)
+            .inMilliseconds;
+        _recordingDurationNotifier.value = _recordingDurationMs;
       }
 
       final next = _videoProgress.value + (0.1 / _maxVideoDurationSeconds);
@@ -336,6 +341,7 @@ class _CommentCameraRecordingBottomSheetWidgetState
     _videoProgressTimer?.cancel();
     _videoProgressTimer = null;
     _videoProgress.value = 0.0;
+    _recordingDurationNotifier.value = _recordingDurationMs;
   }
 
   Future<void> _toggleFlash() async {
@@ -505,28 +511,45 @@ class _CommentCameraRecordingBottomSheetWidgetState
     }
   }
 
+  /// 바텀 시트 상단 위젯
+  /// 캡처된 미디어가 없는 경우에는 닫기 버튼만 표시되고,
+  /// 캡처된 미디어가 있는 경우에는 뒤로 가기 버튼과 확인 버튼이 표시됩니다.
   Widget _buildTopBar() {
     if (_hasCapturedMedia) {
       return Row(
         children: [
-          IconButton(
-            onPressed: _resetCapturedState,
-            icon: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
+          Padding(
+            padding: EdgeInsets.only(left: (7.96).sp, top: (7.96).sp),
+            child: IconButton(
+              onPressed: _resetCapturedState,
+              icon: Icon(Icons.chevron_left, color: Colors.white, size: 40.sp),
+            ),
           ),
           const Spacer(),
-          TextButton(
-            onPressed: _confirmCaptured,
-            style: TextButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            ),
-            child: Text(
-              tr('common.confirm'),
-              style: const TextStyle(
-                fontSize: 14,
-                fontFamily: 'Pretendard',
-                fontWeight: FontWeight.w600,
+
+          Padding(
+            padding: EdgeInsets.only(right: (15.96).sp, top: (7.96).sp),
+            child: SizedBox(
+              height: 29.sp,
+              child: TextButton(
+                onPressed: _confirmCaptured,
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  alignment: Alignment.center,
+                  padding: EdgeInsets.symmetric(horizontal: 12.sp),
+
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  tr('common.confirm'),
+                  style: TextStyle(
+                    color: Color(0xFF1C1C1C),
+                    fontSize: 13,
+                    fontFamily: 'Pretendard Variable',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ),
@@ -534,21 +557,36 @@ class _CommentCameraRecordingBottomSheetWidgetState
       );
     }
 
+    // 캡처된 미디어가 없는 경우에는 닫기 버튼만 표시
     return Row(
       children: [
-        IconButton(
-          onPressed: _closeSheet,
-          icon: const Icon(Icons.close, color: Color(0xFF8A8A8A), size: 28),
+        Padding(
+          padding: EdgeInsets.only(top: (7.96).sp),
+          child: IconButton(
+            onPressed: _closeSheet,
+            icon: SvgPicture.asset(
+              "assets/cancel.svg",
+              width: (30.08).sp,
+              height: (30.08).sp,
+            ),
+          ),
         ),
-        const Spacer(),
       ],
     );
   }
 
-  Widget _buildCircularPreview() {
+  /// 사진/영상 프리뷰 위젯
+  Widget _buildPreviewWidget() {
     final path = _capturedPath;
     if (_isLoading) {
-      return _buildPreviewShell(
+      return Container(
+        width: _previewMaxSize.sp,
+        height: _previewMaxSize.sp,
+        decoration: const BoxDecoration(
+          color: Color(0xFF505050),
+          shape: BoxShape.circle,
+        ),
+        clipBehavior: Clip.antiAlias,
         child: const Center(
           child: SizedBox(
             width: 24,
@@ -561,172 +599,183 @@ class _CommentCameraRecordingBottomSheetWidgetState
 
     if (path != null && path.isNotEmpty) {
       if (_capturedIsVideo) {
-        return _buildPreviewShell(child: _buildVideoPreview(path));
+        final controller = _capturedVideoController;
+        final initialization = _capturedVideoInitialization;
+        final canUsePlayer =
+            !_capturedVideoLoadFailed &&
+            controller != null &&
+            initialization != null;
+
+        return Container(
+          width: _previewMaxSize.sp,
+          height: _previewMaxSize.sp,
+          decoration: const BoxDecoration(
+            color: Color(0xFF505050),
+            shape: BoxShape.circle,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleCapturedVideoPlayback,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // 영상이 정상적으로 로드된 경우에는 VideoPlayer 위젯을 사용하여 프리뷰를 보여주고,
+                if (canUsePlayer)
+                  FutureBuilder<void>(
+                    future: initialization,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done ||
+                          !controller.value.isInitialized) {
+                        return FutureBuilder<Uint8List?>(
+                          future: VideoThumbnailCache.getThumbnail(
+                            videoUrl: path,
+                            cacheKey: path,
+                          ),
+                          builder: (context, snapshot) {
+                            final bytes = snapshot.data;
+                            if (bytes != null) {
+                              return Image.memory(bytes, fit: BoxFit.cover);
+                            }
+                            return const ColoredBox(color: Color(0xFF5A5A5A));
+                          },
+                        );
+                      }
+
+                      final width = controller.value.size.width;
+                      final height = controller.value.size.height;
+                      if (width <= 0 || height <= 0) {
+                        return FutureBuilder<Uint8List?>(
+                          future: VideoThumbnailCache.getThumbnail(
+                            videoUrl: path,
+                            cacheKey: path,
+                          ),
+                          builder: (context, snapshot) {
+                            final bytes = snapshot.data;
+                            if (bytes != null) {
+                              return Image.memory(bytes, fit: BoxFit.cover);
+                            }
+                            return const ColoredBox(color: Color(0xFF5A5A5A));
+                          },
+                        );
+                      }
+
+                      return FittedBox(
+                        fit: BoxFit.cover,
+                        child: SizedBox(
+                          width: width,
+                          height: height,
+                          child: VideoPlayer(controller),
+                        ),
+                      );
+                    },
+                  )
+                // 영상이 로드되지 않았거나 초기화되지 않은 경우에는 썸네일 이미지 보여주기
+                else
+                  FutureBuilder<Uint8List?>(
+                    future: VideoThumbnailCache.getThumbnail(
+                      videoUrl: path,
+                      cacheKey: path,
+                    ),
+                    builder: (context, snapshot) {
+                      final bytes = snapshot.data;
+                      if (bytes != null) {
+                        return Image.memory(bytes, fit: BoxFit.cover);
+                      }
+                      return const ColoredBox(color: Color(0xFF5A5A5A));
+                    },
+                  ),
+                if (_showCapturedVideoPlayOverlay)
+                  const Center(
+                    child: Icon(
+                      Icons.play_circle_fill,
+                      color: Colors.white,
+                      size: 42,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
       }
-      return _buildPreviewShell(child: _buildImagePreview(path));
+
+      final file = File(path);
+      return Container(
+        width: _previewMaxSize.sp,
+        height: _previewMaxSize.sp,
+        decoration: const BoxDecoration(
+          color: Color(0xFF505050),
+          shape: BoxShape.circle,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: !file.existsSync()
+            ? const Center(
+                child: Icon(
+                  Icons.image_not_supported,
+                  color: Colors.white70,
+                  size: 34,
+                ),
+              )
+            : Image.file(
+                file,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) {
+                  return const Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      color: Colors.white70,
+                      size: 34,
+                    ),
+                  );
+                },
+              ),
+      );
     }
 
-    return _buildPreviewShell(
+    return Container(
+      width: _previewMaxSize.sp,
+      height: _previewMaxSize.sp,
+      decoration: const BoxDecoration(
+        color: Color(0xFF505050),
+        shape: BoxShape.circle,
+      ),
+      clipBehavior: Clip.antiAlias,
       child: ClipOval(
         child: SizedBox.expand(child: _cameraService.buildCameraView()),
       ),
     );
   }
 
-  Widget _buildPreviewShell({required Widget child}) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF505050),
-        shape: BoxShape.circle,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: child,
-    );
-  }
-
-  Widget _buildImagePreview(String path) {
-    final file = File(path);
-    if (!file.existsSync()) {
-      return const Center(
-        child: Icon(Icons.image_not_supported, color: Colors.white70, size: 34),
-      );
-    }
-
-    return Image.file(
-      file,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) {
-        return const Center(
-          child: Icon(Icons.broken_image, color: Colors.white70, size: 34),
-        );
-      },
-    );
-  }
-
-  Widget _buildVideoPreview(String path) {
-    final controller = _capturedVideoController;
-    final initialization = _capturedVideoInitialization;
-    final canUsePlayer =
-        !_capturedVideoLoadFailed &&
-        controller != null &&
-        initialization != null;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _toggleCapturedVideoPlayback,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (canUsePlayer)
-            FutureBuilder<void>(
-              future: initialization,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done ||
-                    !controller.value.isInitialized) {
-                  return _buildVideoThumbnailFallback(path);
-                }
-
-                final width = controller.value.size.width;
-                final height = controller.value.size.height;
-                if (width <= 0 || height <= 0) {
-                  return _buildVideoThumbnailFallback(path);
-                }
-
-                return FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: width,
-                    height: height,
-                    child: VideoPlayer(controller),
-                  ),
-                );
-              },
-            )
-          else
-            _buildVideoThumbnailFallback(path),
-          if (_showCapturedVideoPlayOverlay)
-            const Center(
-              child: Icon(
-                Icons.play_circle_fill,
-                color: Colors.white,
-                size: 42,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVideoThumbnailFallback(String path) {
-    return FutureBuilder<Uint8List?>(
-      future: VideoThumbnailCache.getThumbnail(videoUrl: path, cacheKey: path),
-      builder: (context, snapshot) {
-        final bytes = snapshot.data;
-        if (bytes != null) {
-          return Image.memory(bytes, fit: BoxFit.cover);
-        }
-        return const ColoredBox(color: Color(0xFF5A5A5A));
-      },
-    );
-  }
-
-  Widget _buildDurationLabel() {
-    if (_isVideoRecording) {
-      return Text(
-        _formatDuration(Duration(milliseconds: _recordingDurationMs)),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontFamily: 'Pretendard',
-          fontWeight: FontWeight.w400,
-        ),
-      );
-    }
-
-    if (_hasCapturedMedia && _capturedIsVideo) {
-      return Text(
-        _formatDuration(Duration(milliseconds: _capturedDurationMs)),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontFamily: 'Pretendard',
-          fontWeight: FontWeight.w400,
-        ),
-      );
-    }
-
-    return const SizedBox(height: 20);
-  }
-
-  Widget _buildControls() {
+  /// 하단 플래시, 촬영, 토글 Row 위젯
+  Widget _buildBottomControlsRow() {
     if (_hasCapturedMedia) {
       return const SizedBox(height: 56);
     }
 
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // 플래시 토글 버튼
         SizedBox(
-          width: 70,
+          width: 120.sp,
           child: IconButton(
             onPressed: _toggleFlash,
             icon: Icon(
               _isFlashOn ? EvaIcons.flash : EvaIcons.flashOff,
               color: Colors.white,
-              size: 24,
+              size: 34.sp,
             ),
           ),
         ),
-        Expanded(
-          child: CameraCaptureButton(
-            isVideoRecording: _isVideoRecording,
-            videoProgress: _videoProgress,
-            onTakePicture: _takePicture,
-            onStartVideoRecording: _startVideoRecording,
-            onStopVideoRecording: _stopVideoRecording,
-          ),
+        CameraCaptureButton(
+          isVideoRecording: _isVideoRecording,
+          videoProgress: _videoProgress,
+          onTakePicture: _takePicture,
+          onStartVideoRecording: _startVideoRecording,
+          onStopVideoRecording: _stopVideoRecording,
         ),
         SizedBox(
-          width: 70,
+          width: 120.sp,
           child: IconButton(
             onPressed:
                 (_isVideoRecording && !_supportsLiveSwitch) ||
@@ -737,7 +786,12 @@ class _CommentCameraRecordingBottomSheetWidgetState
               turns: _cameraSwitchTurns,
               duration: const Duration(milliseconds: 320),
               curve: Curves.easeOut,
-              child: Image.asset('assets/switch.png', width: 32, height: 32),
+              child: Image.asset(
+                'assets/switch.png',
+                width: 52.sp,
+                height: 52.sp,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -767,49 +821,77 @@ class _CommentCameraRecordingBottomSheetWidgetState
             color: Color(0xFF1F1F1F),
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-            child: Column(
-              children: [
-                _buildTopBar(),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth: _previewMaxSize,
-                              maxHeight: _previewMaxSize,
-                            ),
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: _buildCircularPreview(),
-                            ),
+          child: Column(
+            children: [
+              _buildTopBar(),
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: _previewMaxSize,
+                            maxHeight: _previewMaxSize,
+                          ),
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child: _buildPreviewWidget(),
                           ),
                         ),
                       ),
-                      _buildDurationLabel(),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 65,
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              minHeight: 56,
-                              maxHeight: 65,
+                    ),
+
+                    if (_isVideoRecording)
+                      ValueListenableBuilder<int>(
+                        valueListenable: _recordingDurationNotifier,
+                        builder: (_, durationMs, __) {
+                          return Text(
+                            _formatDuration(Duration(milliseconds: durationMs)),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13.sp,
+                              fontFamily: 'Pretendard Variable',
+                              fontWeight: FontWeight.w600,
                             ),
-                            child: _buildControls(),
+                          );
+                        },
+                      )
+                    else if (_hasCapturedMedia && _capturedIsVideo)
+                      Text(
+                        _formatDuration(
+                          Duration(milliseconds: _capturedDurationMs),
+                        ),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13.sp,
+                          fontFamily: 'Pretendard Variable',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    else
+                      SizedBox(height: 20.sp),
+                    SizedBox(height: 20.sp),
+
+                    // 하단 플래시, 촬영, 토글 Row 위젯
+                    SizedBox(
+                      height: 65,
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minHeight: 56,
+                            maxHeight: 65,
                           ),
+                          child: _buildBottomControlsRow(),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    SizedBox(height: 32.sp),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

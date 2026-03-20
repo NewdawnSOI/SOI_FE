@@ -11,7 +11,10 @@ class WaveformPainter extends CustomPainter {
   final double barSpacing;
   final double maxBarHeightFactor;
   final double amplitudeScale;
+  final double amplitudeExponent;
   final double minBarHeight;
+  final bool fitToWidth;
+  final bool alignRight;
   final StrokeCap strokeCap;
 
   WaveformPainter({
@@ -23,7 +26,10 @@ class WaveformPainter extends CustomPainter {
     this.barSpacing = 7.0,
     this.maxBarHeightFactor = 0.5,
     this.amplitudeScale = 1.0,
+    this.amplitudeExponent = 1.0,
     this.minBarHeight = 0.0,
+    this.fitToWidth = true,
+    this.alignRight = false,
     this.strokeCap = StrokeCap.round,
   });
 
@@ -41,20 +47,32 @@ class WaveformPainter extends CustomPainter {
       ..strokeWidth = barThickness
       ..strokeCap = strokeCap;
 
-    // 바의 샘플링된 데이터
-    final sampledData = _stretchData(waveformData, barCount);
+    // 재생 파형은 전체 폭에 맞게 샘플링하고, 실시간 파형은 최근 샘플만 유지합니다.
+    final sampledData = _prepareData(waveformData, barCount);
+    final barsToDraw = sampledData.length;
+    final effectiveExponent = amplitudeExponent <= 0 ? 1.0 : amplitudeExponent;
 
     final centerY = size.height / 2;
 
     // 파형의 최대 바의 높이는 전체적으로 조절하는 부분
     final maxBarHeight = size.height * effectiveHeightFactor;
+    final waveformWidth = barsToDraw <= 1
+        ? 0.0
+        : (barsToDraw - 1) * effectiveSpacing;
+    final startX = alignRight
+        ? max(0.0, size.width - waveformWidth - barThickness)
+        : 0.0;
 
-    for (int i = 0; i < barCount; i++) {
-      final x = i * effectiveSpacing;
+    for (int i = 0; i < barsToDraw; i++) {
+      final x = startX + (i * effectiveSpacing);
       if (x >= size.width) break;
 
       // 파형 높이 계산 (0.0 ~ 1.0 범위의 데이터를 바 높이로 변환)
-      final normalizedHeight = (sampledData[i] * effectiveAmplitudeScale).clamp(
+      final shapedValue = pow(
+        sampledData[i].clamp(0.0, 1.0),
+        effectiveExponent,
+      ).toDouble();
+      final normalizedHeight = (shapedValue * effectiveAmplitudeScale).clamp(
         0.0,
         1.0,
       );
@@ -65,7 +83,7 @@ class WaveformPainter extends CustomPainter {
       barHeight = barHeight.clamp(0.0, maxBarHeight);
 
       // 진행 상태에 따라 색상 결정
-      final isActive = progress > 0 && (i / barCount) <= progress;
+      final isActive = progress > 0 && (i / max(1, barsToDraw)) <= progress;
       paint.color = isActive ? activeColor : color;
 
       // 파형 바 그리기 (중앙에서 위아래로)
@@ -75,6 +93,20 @@ class WaveformPainter extends CustomPainter {
         paint,
       );
     }
+  }
+
+  List<double> _prepareData(List<double> data, int targetCount) {
+    if (data.isEmpty) return const [];
+    if (fitToWidth) {
+      return _stretchData(data, targetCount);
+    }
+    if (data.length <= targetCount) {
+      return List<double>.from(data);
+    }
+    if (alignRight) {
+      return data.sublist(data.length - targetCount);
+    }
+    return data.sublist(0, targetCount);
   }
 
   // 파형 데이터를 지정된 개수로 늘려서 전체 너비를 채움
@@ -142,7 +174,10 @@ class WaveformPainter extends CustomPainter {
         oldDelegate.barSpacing != barSpacing ||
         oldDelegate.maxBarHeightFactor != maxBarHeightFactor ||
         oldDelegate.amplitudeScale != amplitudeScale ||
+        oldDelegate.amplitudeExponent != amplitudeExponent ||
         oldDelegate.minBarHeight != minBarHeight ||
+        oldDelegate.fitToWidth != fitToWidth ||
+        oldDelegate.alignRight != alignRight ||
         oldDelegate.strokeCap != strokeCap;
   }
 }

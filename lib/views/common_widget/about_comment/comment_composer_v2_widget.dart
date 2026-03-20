@@ -6,7 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../api/models/comment.dart';
 import 'pending_api_voice_comment.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
-import 'comment_camera_recording_bottom_sheet_widget.dart';
+import 'comment_camera_bottom_sheet_widget.dart';
 import 'comment_base_bar_widget.dart';
 import 'comment_profile_tag_widget.dart';
 import 'comment_save_payload.dart';

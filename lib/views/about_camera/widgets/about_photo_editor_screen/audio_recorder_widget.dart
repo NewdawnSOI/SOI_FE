@@ -638,12 +638,12 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
                 color: Colors.grey,
                 activeColor: Colors.white,
                 progress: progress,
-                barThickness: 3.0,
-                barSpacing: 7.0,
-                maxBarHeightFactor: 0.5,
-                amplitudeScale: 1.0,
-                minBarHeight: 0.0,
-                strokeCap: StrokeCap.round,
+                barThickness: 3.0, // 파형의 두께
+                barSpacing: 7.0, // 파형의 간격
+                maxBarHeightFactor: 0.5, // 파형의 최대 높이 비율
+                amplitudeScale: 1.0, // 파형의 진폭 스케일
+                minBarHeight: 0.0, // 최소 바 높이
+                strokeCap: StrokeCap.round, // 바의 끝 모양
               );
             },
           )

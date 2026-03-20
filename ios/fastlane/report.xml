@@ -5,42 +5,42 @@
     
     
       
-      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000368">
+      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000432">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="1: app_store_connect_api_key" time="0.003664">
+      <testcase classname="fastlane.lanes" name="1: app_store_connect_api_key" time="0.004266">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="2: latest_testflight_build_number" time="1.715016">
+      <testcase classname="fastlane.lanes" name="2: latest_testflight_build_number" time="2.104526">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="3: BUNDLE_GEMFILE=/Users/minchanpark/Documents/SOI/ios/Gemfile /opt/homebrew/opt/ruby/bin/bundle exec pod --version" time="1.186493">
+      <testcase classname="fastlane.lanes" name="3: BUNDLE_GEMFILE=/Users/minchanpark/Documents/SOI/ios/Gemfile /opt/homebrew/opt/ruby/bin/bundle exec pod --version" time="0.85946">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="4: BUNDLE_GEMFILE=/Users/minchanpark/Documents/SOI/ios/Gemfile /opt/homebrew/opt/ruby/bin/bundle exec pod install" time="34.997435">
+      <testcase classname="fastlane.lanes" name="4: BUNDLE_GEMFILE=/Users/minchanpark/Documents/SOI/ios/Gemfile /opt/homebrew/opt/ruby/bin/bundle exec pod install" time="22.297787">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="5: BUNDLE_GEMFILE=/Users/minchanpark/Documents/SOI/ios/Gemfile /opt/homebrew/opt/ruby/bin/bundle exec flutter pub get" time="4.208318">
+      <testcase classname="fastlane.lanes" name="5: BUNDLE_GEMFILE=/Users/minchanpark/Documents/SOI/ios/Gemfile /opt/homebrew/opt/ruby/bin/bundle exec flutter pub get" time="3.530364">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="6: shorebird release ios" time="492.781488">
+      <testcase classname="fastlane.lanes" name="6: shorebird release ios" time="491.883208">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="7: pilot" time="1355.225535">
+      <testcase classname="fastlane.lanes" name="7: pilot" time="474.877315">
         
       </testcase>
     

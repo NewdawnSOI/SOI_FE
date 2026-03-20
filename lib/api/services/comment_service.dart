@@ -85,6 +85,14 @@ class CommentService {
       final normalizedLocationY = locationY ?? 0.0;
       final commentTypeEnum = _toCommentTypeEnum(type);
 
+      // 대댓글은 위치 정보를 가지지 않습니다.
+      final isReply =
+          normalizedParentId > 0 ||
+          normalizedReplyUserId > 0 ||
+          type == CommentType.reply;
+      final dtoLocationX = isReply ? null : normalizedLocationX;
+      final dtoLocationY = isReply ? null : normalizedLocationY;
+
       // waveformData 변환: "[0.0275,...]" → "0.0275,..."
       var processedWaveformData = normalizedWaveform;
       if (normalizedWaveform.isNotEmpty) {
@@ -109,8 +117,8 @@ class CommentService {
         fileKey: normalizedFileKey,
         waveformData: processedWaveformData,
         duration: normalizedDuration,
-        locationX: normalizedLocationX,
-        locationY: normalizedLocationY,
+        locationX: dtoLocationX,
+        locationY: dtoLocationY,
         commentType: commentTypeEnum,
       );
 

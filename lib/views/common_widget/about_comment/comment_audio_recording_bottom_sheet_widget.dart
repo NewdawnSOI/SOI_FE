@@ -37,7 +37,12 @@ class CommentAudioRecordingBottomSheetWidget extends StatefulWidget {
 
 class _CommentAudioRecordingBottomSheetWidgetState
     extends State<CommentAudioRecordingBottomSheetWidget> {
-  static const double _sheetHeight = 258;
+  // sp 단위로 설정해야 내부 콘텐츠(.sp 기반)와 함께 스케일되어
+  // 어떤 디바이스에서도 오버플로가 발생하지 않습니다.
+  double get _sheetHeight => 310.sp;
+
+  /// 녹음 중과 재생 중에 동일한 높이로 파형이 표시되도록, 두 모드에서 모두 적절한 높이로 설정합니다.
+  double get _waveformHeight => 80.sp;
 
   late final AudioController _audioController;
   late final RecorderController _recorderController;
@@ -54,12 +59,13 @@ class _CommentAudioRecordingBottomSheetWidgetState
   void initState() {
     super.initState();
     _audioController = context.read<AudioController>();
-    _recorderController = RecorderController()
+    _recorderController = RecorderController(useLegacyNormalization: false)
       ..overrideAudioSession = false
       ..androidEncoder = AndroidEncoder.aac
       ..androidOutputFormat = AndroidOutputFormat.mpeg4
       ..iosEncoder = IosEncoder.kAudioFormatMPEG4AAC
-      ..sampleRate = 44100;
+      ..sampleRate = 44100
+      ..updateFrequency = const Duration(milliseconds: 50);
     _recorderController.checkPermission();
     _playerController = PlayerController();
   }
@@ -315,48 +321,67 @@ class _CommentAudioRecordingBottomSheetWidgetState
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
+  /// 상단 바를 빌드하는 메서드입니다. 상태에 따라 다른 버튼 구성을 보여줍니다.
+  /// - ready 상태에서는 닫기 버튼만 보여줍니다.
+  /// - recording과 playback 상태에서는 뒤로 가기 버튼과, playback 상태에서는 추가로 확인 버튼을 보여줍니다.
   Widget _buildTopBar() {
     switch (_state) {
       case _CommentAudioSheetState.ready:
         return Row(
           children: [
-            IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close, color: Color(0xFF8A8A8A), size: 28),
+            Padding(
+              padding: EdgeInsets.only(left: (7.96).sp, top: (7.96).sp),
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: SvgPicture.asset(
+                  "assets/cancel.svg",
+                  width: (30.08).sp,
+                  height: (30.08).sp,
+                ),
+              ),
             ),
-            const Spacer(),
           ],
         );
       case _CommentAudioSheetState.recording:
       case _CommentAudioSheetState.playback:
         return Row(
           children: [
-            IconButton(
-              onPressed: _backToReady,
-              icon: const Icon(
-                Icons.chevron_left,
-                color: Colors.white,
-                size: 28,
+            Padding(
+              padding: EdgeInsets.only(left: (7.96).sp, top: (7.96).sp),
+              child: IconButton(
+                onPressed: _backToReady,
+                icon: const Icon(
+                  Icons.chevron_left,
+                  color: Colors.white,
+                  size: 38,
+                ),
               ),
             ),
             const Spacer(),
             if (_state == _CommentAudioSheetState.playback)
-              TextButton(
-                onPressed: _confirm,
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                ),
-                child: Text(
-                  tr('common.confirm'),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontFamily: 'Pretendard',
-                    fontWeight: FontWeight.w600,
+              Padding(
+                padding: EdgeInsets.only(right: (15.96).sp, top: (7.96).sp),
+                child: SizedBox(
+                  height: 29.sp,
+                  child: TextButton(
+                    onPressed: _confirm,
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      alignment: Alignment.center,
+                      padding: EdgeInsets.symmetric(horizontal: 12.sp),
+
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      tr('common.confirm'),
+                      style: TextStyle(
+                        color: Color(0xFF1C1C1C),
+                        fontSize: 13,
+                        fontFamily: 'Pretendard Variable',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -365,12 +390,14 @@ class _CommentAudioRecordingBottomSheetWidgetState
     }
   }
 
+  /// 녹음 시작 전 초기 UI
   Widget _buildReadyBody() {
     return Expanded(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Image.asset("assets/waveform_icon.png", width: 93.sp, height: 93.sp),
+          SizedBox(height: 5.sp),
           Text(
             tr('comments.audio_sheet.start_tag'),
             style: TextStyle(
@@ -395,217 +422,241 @@ class _CommentAudioRecordingBottomSheetWidgetState
     );
   }
 
-  Widget _buildDurationPill(Widget child) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFF3A3A3A),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: child,
-    );
-  }
-
   /// 녹음 중 UI
   Widget _buildRecordingBody() {
     return Expanded(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Selector<AudioController, String>(
-            selector: (_, controller) => controller.formattedRecordingDuration,
-            builder: (_, duration, __) {
-              return _buildDurationPill(
-                Text(
-                  duration,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontFamily: 'Pretendard',
-                    fontWeight: FontWeight.w500,
+      child: Padding(
+        padding: EdgeInsets.only(left: 42.sp, right: 42.sp),
+        child: Column(
+          children: [
+            // 녹음된 시간 표시
+            Selector<AudioController, String>(
+              selector: (_, controller) =>
+                  controller.formattedRecordingDuration,
+              builder: (_, duration, __) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3A3A3A),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    duration,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontFamily: 'Pretendard Variable',
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: -0.40,
+                    ),
+                  ),
+                );
+              },
+            ),
+            SizedBox(height: 20.sp),
+            // 녹음 중인 파형을 보여주는 위젯
+            AudioWaveforms(
+              size: Size(double.infinity, _waveformHeight),
+              recorderController: _recorderController,
+
+              waveStyle: const WaveStyle(
+                waveColor: Colors.white,
+                showMiddleLine: false, // 가운데 기준선은 보이지 않도록 합니다.
+                extendWaveform: true, // 녹음 중인 파형이 컨테이너 끝까지 이어지도록 합니다.
+                scaleFactor: 40, // 녹음 중인 파형이 더 역동적으로 보이도록 스케일을 키웁니다.
+                waveCap: StrokeCap.round, // 녹음 중인 파형의 끝 모양을 둥글게 합니다.
+                spacing: 7, // 녹음 중인 파형의 간격을 조금 더 넓게 합니다.
+              ),
+            ),
+
+            SizedBox(height: 40.sp),
+            // 녹음 취소 버튼과 녹음 완료 버튼이 배치된 영역
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: _backToReady,
+                    icon: Image.asset(
+                      'assets/trash_comment.png',
+                      width: 33.sp,
+                      height: 33.sp,
+                    ),
                   ),
                 ),
-              );
-            },
-          ),
-          AudioWaveforms(
-            size: const Size(double.infinity, 70),
-            recorderController: _recorderController,
-            waveStyle: const WaveStyle(
-              waveColor: Colors.white,
-              showMiddleLine: false,
-              extendWaveform: true,
-              waveThickness: 2.5,
-              spacing: 5,
-            ),
-          ),
-          Row(
-            children: [
-              _buildSecondaryCircleButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.white),
-                onTap: _discardRecordingAndReset,
-              ),
-              const Spacer(),
-              _buildPrimaryCircleButton(
-                icon: const Icon(Icons.pause, color: Colors.white, size: 30),
-                onTap: _stopRecordingAndPreparePlayback,
-              ),
-              const Spacer(),
-              const SizedBox(width: 48),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 녹음 완료 후 재생 UI
-  Widget _buildPlaybackWaveform() {
-    final player = _playerController;
-    if (player == null || _waveformData.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return StreamBuilder<int>(
-      stream: player.onCurrentDurationChanged,
-      builder: (context, snapshot) {
-        final current = snapshot.data ?? 0;
-        final total = player.maxDuration;
-        final progress = total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0;
-        return Container(
-          height: 90.sp,
-          padding: EdgeInsets.symmetric(horizontal: 42.sp),
-          child: CustomWaveformWidget(
-            waveformData: _waveformData,
-            color: const Color(0xFF5A5A5A),
-            activeColor: Colors.white,
-            progress: progress,
-            barThickness: 3.0, // 녹음된 파형의 두께
-            barSpacing: 8.0, // 녹음된 파형의 간격
-            maxBarHeightFactor: 2.0, // 녹음된 파형의 최대 높이 비율
-            amplitudeScale: 1.2, // 녹음된 파형의 진폭 스케일
-            minBarHeight: 3.0, // 녹음된 파형의 최소 높이
-            strokeCap: StrokeCap.round, // 녹음된 파형의 끝 모양
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPlaybackDuration() {
-    final player = _playerController;
-    if (player == null) {
-      return _buildDurationPill(
-        Text(
-          _formatDuration(Duration(milliseconds: _recordingDurationMs)),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontFamily: 'Pretendard',
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      );
-    }
-
-    return StreamBuilder<int>(
-      stream: player.onCurrentDurationChanged,
-      builder: (context, snapshot) {
-        final currentDuration = Duration(milliseconds: snapshot.data ?? 0);
-        final fallback = Duration(milliseconds: _recordingDurationMs);
-        final display = currentDuration == Duration.zero
-            ? fallback
-            : currentDuration;
-        return _buildDurationPill(
-          Text(
-            _formatDuration(display),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontFamily: 'Pretendard',
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPlaybackBody() {
-    final player = _playerController;
-    return Expanded(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _buildPlaybackDuration(),
-          _buildPlaybackWaveform(),
-          Row(
-            children: [
-              _buildSecondaryCircleButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.white),
-                onTap: _discardRecordingAndReset,
-              ),
-              const Spacer(),
-              StreamBuilder<PlayerState>(
-                stream: player?.onPlayerStateChanged,
-                builder: (context, snapshot) {
-                  final isPlaying =
-                      (snapshot.data ?? player?.playerState)?.isPlaying ??
-                      false;
-                  return _buildPrimaryCircleButton(
-                    icon: Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
+                GestureDetector(
+                  onTap: _stopRecordingAndPreparePlayback,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3F3F3F),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.pause,
                       color: Colors.white,
                       size: 30,
                     ),
-                    onTap: _togglePlayback,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 녹음이 완료된 후 보여지는 재생 UI의 본문을 빌드하는 메서드입니다.
+  Widget _buildPlaybackBody() {
+    final player = _playerController;
+    return Expanded(
+      child: Padding(
+        padding: EdgeInsets.only(left: 42.sp, right: 42.sp),
+        child: Column(
+          children: [
+            if (player == null)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3A3A3A),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _formatDuration(Duration(milliseconds: _recordingDurationMs)),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontFamily: 'Pretendard Variable',
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.40,
+                  ),
+                ),
+              )
+            else
+              StreamBuilder<int>(
+                stream: player.onCurrentDurationChanged,
+                builder: (context, snapshot) {
+                  final currentDuration = Duration(
+                    milliseconds: snapshot.data ?? 0,
+                  );
+                  final fallback = Duration(milliseconds: _recordingDurationMs);
+                  final display = currentDuration == Duration.zero
+                      ? fallback
+                      : currentDuration;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3A3A3A),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      _formatDuration(display),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontFamily: 'Pretendard Variable',
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.40,
+                      ),
+                    ),
                   );
                 },
               ),
-              const Spacer(),
-              const SizedBox(width: 48),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+            SizedBox(height: 20.sp),
+            if (player == null || _waveformData.isEmpty)
+              SizedBox(height: _waveformHeight)
+            else
+              StreamBuilder<int>(
+                stream: player.onCurrentDurationChanged,
+                builder: (context, snapshot) {
+                  final current = snapshot.data ?? 0;
+                  final total = player.maxDuration;
+                  final progress = total > 0
+                      ? (current / total).clamp(0.0, 1.0)
+                      : 0.0;
+                  return SizedBox(
+                    height: _waveformHeight,
+                    child: CustomWaveformWidget(
+                      waveformData: _waveformData,
+                      color: const Color(0xFF5A5A5A),
+                      activeColor: Colors.white,
+                      progress: progress,
+                      barThickness: 3.0,
+                      barSpacing: 7.0,
+                      maxBarHeightFactor: 0.82,
+                      amplitudeScale: 1.0,
+                      minBarHeight: 0.0,
+                      strokeCap: StrokeCap.round,
+                    ),
+                  );
+                },
+              ),
+            SizedBox(height: 40.sp),
 
-  Widget _buildPrimaryCircleButton({
-    required Widget icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: const Color(0xFF3F3F3F),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            // 녹음 취소 버튼과 재생/일시정지 버튼이 배치된 영역
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: _discardRecordingAndReset,
+                    icon: Image.asset(
+                      "assets/trash_comment.png",
+                      width: 33.sp,
+                      height: 33.sp,
+                    ),
+                  ),
+                ),
+                // 재생/일시정지 버튼
+                GestureDetector(
+                  onTap: _togglePlayback,
+                  child: StreamBuilder<PlayerState>(
+                    stream: player?.onPlayerStateChanged,
+                    builder: (context, snapshot) {
+                      final isPlaying =
+                          (snapshot.data ?? player?.playerState)?.isPlaying ??
+                          false;
+                      return Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3F3F3F),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.15),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-        alignment: Alignment.center,
-        child: icon,
-      ),
-    );
-  }
-
-  Widget _buildSecondaryCircleButton({
-    required Widget icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFF2F2F2F),
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: icon,
       ),
     );
   }
@@ -626,7 +677,7 @@ class _CommentAudioRecordingBottomSheetWidgetState
           child: DecoratedBox(
             decoration: const BoxDecoration(
               color: Color(0xFF1F1F1F),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24.8)),
             ),
             child: Column(
               children: [
