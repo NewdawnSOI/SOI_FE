@@ -143,35 +143,27 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
   /// Parameters:
   ///   - [String] query: 검색어
   Future<void> _performSearch(String query, int generation) async {
-    // 검색어에 대한 캐시된 결과가 있는지 확인합니다.
-    // 캐시된 결과가 있으면 API 호출 없이 빠르게 결과를 표시할 수 있습니다.
+    // 검색어에 대한 캐시된 결과 조회
     final cached = _searchCache[query];
 
-    // 캐시된 결과가 있고, 현재 검색 세대와 일치하는 경우에만 캐시된 결과를 사용합니다.
+    // 검색 결과가 캐시에 존재(cached가 null이 아님)하고,
+    // 검색어와 세대가 최신인 경우(_isLatestSearch(query, generation)가 true) 캐시된 결과를 사용합니다.
     if (cached != null) {
-      // 검색 세대와 검색어가 현재 최신인지 확인하여,
-      // 오래된 검색 결과가 최신 검색 결과를 덮어쓰는 것을 방지합니다.
       if (!_isLatestSearch(query, generation)) {
         return;
       }
-      setState(() {
-        _results = cached.results; // 캐시된 검색 결과 사용 --> API 호출 없이 빠르게 결과 표시
 
-        // 캐시된 친구 상태 사용 --> API 호출 없이 빠르게 결과 표시
-        _friendshipStatus = Map<int, String>.from(cached.status);
+      // 캐시된 검색 결과 적용
+      _applySearchResult(cached);
 
-        // 검색이 완료된 상태로 업데이트
-        _isSearching = false;
-      });
+      // 프로필 이미지 presigned URL을 미리 로드합니다.
+      // 검색 결과에 프로필 이미지가 포함된 경우, presigned URL을 미리 로드하여 빠르게 이미지를 표시할 수 있도록 지원합니다.
+      unawaited(_preloadProfileUrls(cached.results));
       return;
     }
 
-    // controller 인스턴스 가져오기
-    final userController = context.read<UserController>();
-    final friendController = context.read<FriendController>();
-
     // 현재 사용자 ID 가져오기
-    final currentUserId = userController.currentUser?.id;
+    final currentUserId = context.read<UserController>().currentUser?.id;
 
     // 현재 사용자 ID가 없으면 검색 중지
     if (currentUserId == null) {
@@ -180,70 +172,16 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
       return;
     }
 
-    setState(() => _isSearching = true); // 검색 중 상태로 업데이트
+    // 검색 중 상태로 업데이트
+    setState(() => _isSearching = true);
 
     try {
-      // UserController의 키워드 검색 사용
-      // list는 User 객체의 리스트를 받는다.
-      final list = await userController.findUsersByKeyword(query);
-
-      // 검색 결과에서 현재 사용자 제외
-      // searchResultWOCurrentUser: 검색 결과에서 현재 사용자를 제외한 User 객체의 리스트입니다.
-      final searchResultWOCurrentUser = List<User>.unmodifiable(
-        list.where((user) => user.id != currentUserId),
+      // 검색 결과 가져오기
+      // 검색어에 대한 검색 결과와 친구 상태를 캐싱하여, 동일 검색어에 대한 빠른 결과 표시를 지원합니다.
+      final resolvedSearch = await _resolveSearchResult(
+        query: query,
+        currentUserId: currentUserId,
       );
-
-      // 친구 상태 매핑을 위한 Map 초기화
-      final statusByUserId = <int, String>{};
-
-      // 검색 결과가 비어있지 않은 경우에만 친구 관계 확인 API 호출
-      if (searchResultWOCurrentUser.isNotEmpty) {
-        // 전화번호 정규화 및 중복 제거
-        // searchResultWOCurrentUser에서 각 사용자의 전화번호를 추출하여 정규화한 후,
-        // 중복을 제거하여 고유한 전화번호 List를 생성합니다.
-        final phoneNumbers = searchResultWOCurrentUser
-            .map((u) => u.phoneNumber)
-            .where((p) => p.isNotEmpty)
-            .toList();
-
-        // 전화번호가 있는 사용자에 대해서만 친구 관계 확인 API를 호출하여, 불필요한 API 호출을 방지합니다.
-        if (phoneNumbers.isNotEmpty) {
-          // 친구 관계 확인 API 호출
-          // relations는 친구 관계 조회 결과로, 각 전화번호에 대한 친구 상태를 포함합니다.
-          final relations = await friendController.checkFriendRelations(
-            userId: currentUserId,
-            phoneNumbers: phoneNumbers,
-          );
-          if (kDebugMode) {
-            debugPrint("친구 관계 조회 결과: $relations");
-          }
-
-          // 정규화된 전화번호에 대해서 친구 상태를 매핑합니다.
-          Map<String, String> phoneToStatus = <String, String>{};
-
-          // 친구 관계 조회 결과를 순회하며, 전화번호를 정규화하여 상태 매핑을 채웁니다.
-          for (final relation in relations) {
-            // 전화번호 정규화를 통해 일관된 키로 상태 매핑을 채웁니다.
-            // 예시: {'01012345678': 'accepted', '01098765432': 'pending'}
-            phoneToStatus[_normalizePhoneNumber(relation.phoneNumber)] =
-                relation.statusString;
-          }
-          // 자신을 제외한 검색 결과를 순회하여서 user를 가져와서 전화번호 정규화에 대한 친구 상태를 매핑하여 친구 관계 리스트에 저장합니다.
-          for (final user in searchResultWOCurrentUser) {
-            // 전화번호 정규화에 대한 친구 상태를 매핑하여 친구 관계 리스트에 저장합니다.
-            final relationShipStatus =
-                phoneToStatus[_normalizePhoneNumber(user.phoneNumber)] ??
-                'none';
-
-            // 친구 상태(status에 저장되어있음)에 대해서 userId를 키로 하는 매핑을 채웁니다.
-            // 예시: {123: 'accepted', 456: 'pending', 789: 'none'}
-            statusByUserId[user.id] = relationShipStatus;
-          }
-          if (kDebugMode) {
-            debugPrint("최종 친구 상태 매핑: $statusByUserId");
-          }
-        }
-      }
 
       // 검색 결과가 돌아왔을 때, 검색어와 세대가 현재 최신인지 확인하여,
       // 오래된 검색 결과가 최신 검색 결과를 덮어쓰는 것을 방지합니다.
@@ -252,27 +190,15 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
         return;
       }
 
-      // 검색 결과와 친구 상태를 캐싱하여, 동일 검색어에 대한 빠른 결과 표시를 지원합니다.
-      //
-      // Map<int, String>.unmodifiable(statusByUserId)
-      // - 친구 상태 매핑을 **불변 맵**으로 만들어 캐시에 저장합니다.
-      // - 이를 통해 캐시된 친구 상태가 외부에서 변경되는 것을 방지합니다.
-      final cachedResult = _CachedSearchResult(
-        searchResultWOCurrentUser,
-        Map<int, String>.unmodifiable(statusByUserId),
-      );
-
       // 검색어에 대한 검색 결과와 친구 상태를 캐싱하여, 동일 검색어에 대한 빠른 결과 표시를 지원합니다.
-      _searchCache[query] = cachedResult;
+      _searchCache[query] = resolvedSearch;
 
-      setState(() {
-        _results = searchResultWOCurrentUser;
-        _friendshipStatus = Map<int, String>.from(cachedResult.status);
-        _isSearching = false;
-      });
+      // 검색 결과 적용
+      _applySearchResult(resolvedSearch);
 
-      // 프로필 이미지 presigned URL 미리 로드
-      unawaited(_preloadProfileUrls(searchResultWOCurrentUser));
+      // 프로필 이미지 presigned URL을 미리 로드합니다.
+      // 검색 결과에 프로필 이미지가 포함된 경우, presigned URL을 미리 로드하여 빠르게 이미지를 표시할 수 있도록 지원합니다.
+      unawaited(_preloadProfileUrls(resolvedSearch.results));
     } catch (e) {
       debugPrint('검색 실패: $e');
       if (!_isLatestSearch(query, generation)) {
@@ -284,6 +210,113 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
         _isSearching = false;
       });
     }
+  }
+
+  /// 검색 결과와 친구 상태를 함께 캐싱하는 클래스입니다.
+  /// 검색 결과와 해당 결과에 대한 친구 상태 매핑을 함께 저장하여, 동일 검색어에 대한 빠른 결과 표시를 지원합니다.
+  ///
+  /// Parameters:
+  /// - [query]: 검색어
+  /// - [currentUserId]: 현재 사용자 ID
+  ///
+  /// Returns:
+  /// - [_CachedSearchResult]: 검색 결과와 친구 상태 매핑을 함께 포함하는 객체
+  Future<_CachedSearchResult> _resolveSearchResult({
+    required String query,
+    required int currentUserId,
+  }) async {
+    // controller 인스턴스 정의
+    final userController = context.read<UserController>();
+    final friendController = context.read<FriendController>();
+
+    // 검색어에 해당하는 사용자 목록을 먼저 가져오기
+    final users = await userController.findUsersByKeyword(query);
+
+    // 검색 결과에서 현재 사용자를 제외하고 친구 상태 매핑을 생성합니다.
+    final searchResultWocurrentUser = List<User>.unmodifiable(
+      users.where((user) => user.id != currentUserId),
+    );
+
+    // 전화번호에 대한 친구 상태를 매핑하는 맵을 생성합니다.
+    final phoneToStatus = <String, String>{};
+
+    // userId에 대한 친구 상태를 매핑하는 맵을 생성합니다.
+    final statusByUserId = <int, String>{};
+
+    // 검색 결과가 비어있지 않은 경우에만 친구 관계 조회를 수행합니다.
+    if (searchResultWocurrentUser.isNotEmpty) {
+      // 친구 관계 조회를 위해 필요한 전화번호 목록입니다.
+      final phoneNumbers = <String>[];
+
+      // 중복된 전화번호를 추적하여 중복 조회 방지
+      final seenPhoneNumbers = <String>{};
+
+      // 검색 결과에서 현재 사용자를 제외한 사용자 목록을 순회하면서,
+      // 전화번호를 정규화하여 중복을 제거하고 친구 관계 조회에 필요한 전화번호 목록을 생성합니다.
+      for (final user in searchResultWocurrentUser) {
+        // 전화번호 정규화
+        final normalizedPhoneNumber = _normalizePhoneNumber(user.phoneNumber);
+
+        // 전화번호가 비어있거나 이미 처리된 전화번호인 경우, 해당 사용자는 친구 관계 조회에서 제외합니다.
+        if (normalizedPhoneNumber.isEmpty ||
+            !seenPhoneNumbers.add(normalizedPhoneNumber)) {
+          continue;
+        }
+        // 친구 관계 조회에 필요한 전화번호 목록에 추가합니다.
+        phoneNumbers.add(normalizedPhoneNumber);
+      }
+
+      // 전화번호 목록이 비어있지 않은 경우에만 친구 관계 조회를 수행합니다.
+      if (phoneNumbers.isNotEmpty) {
+        // 친구 관계 조회 API를 호출하여,
+        // 현재 사용자와 검색 결과에 포함된 사용자들 간의 친구 관계를 조회합니다.
+        // relations에는 각 전화번호에 대한 친구 상태가 포함되어 있습니다.
+        final relations = await friendController.checkFriendRelations(
+          userId: currentUserId,
+          phoneNumbers: phoneNumbers,
+        );
+        if (kDebugMode) {
+          debugPrint("친구 관계 조회 결과: $relations");
+        }
+
+        // 친구 관계 조회 결과를 바탕으로, 전화번호에 대한 친구 상태 매핑을 생성합니다.
+        // 결과 예시: {'01012345678': 'accepted', '01098765432': 'pending'}
+        for (final relation in relations) {
+          phoneToStatus[_normalizePhoneNumber(relation.phoneNumber)] =
+              relation.statusString;
+        }
+      }
+
+      // 검색 결과에서 현재 사용자를 제외한 사용자 목록을 순회하면서,
+      // 전화번호를 정규화하여 친구 상태 매핑을 생성합니다.
+      for (final user in searchResultWocurrentUser) {
+        statusByUserId[user.id] =
+            phoneToStatus[_normalizePhoneNumber(user.phoneNumber)] ?? 'none';
+      }
+      if (kDebugMode) {
+        debugPrint("최종 친구 상태 매핑: $statusByUserId");
+      }
+    }
+
+    // 검색 결과와 친구 상태를 함께 캐싱하는 객체를 생성하여 반환합니다.
+    return _CachedSearchResult(
+      searchResultWocurrentUser,
+      Map<int, String>.unmodifiable(statusByUserId),
+    );
+  }
+
+  /// 검색 결과와 친구 상태를 화면에 적용하는 메서드입니다.
+  /// setState를 사용하여 검색 결과와 친구 상태를 업데이트하며, 사용자에게 표시되는 UI가 변경됩니다.
+  void _applySearchResult(_CachedSearchResult result) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _results = result.results; // 검색 결과 사용자 목록 업데이트
+      _friendshipStatus = Map<int, String>.from(result.status); // 친구 상태 매핑 업데이트
+      _isSearching = false; // 검색이 완료되었으므로 검색 중 상태 해제
+    });
   }
 
   /// 프로필 이미지 presigned URL 미리 로드
@@ -336,6 +369,11 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
     });
   }
 
+  /// 친구 요청 보내기
+  /// 친구 요청을 보내는 동안 해당 userId는 _sending 집합에 추가되어, 중복 요청이 방지되고 로딩 상태가 표시됩니다.
+  ///
+  /// Parameters:
+  /// - [User] user: 친구 요청을 보낼 대상 사용자입니다.
   Future<void> _sendFriendRequest(User user) async {
     final userController = context.read<UserController>();
     final friendController = context.read<FriendController>();
@@ -346,13 +384,20 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
       return;
     }
 
-    setState(() => _sending.add(user.id));
+    setState(() => _sending.add(user.id)); // 친구 요청 보내는 중 상태로 업데이트
+
+    // 친구 요청 보내기
     try {
+      // 친구 요청 API 호출
+      // 친구 요청이 성공하면, 해당 userId의 친구 상태를 'pending'으로 업데이트하고, 성공 메시지를 표시합니다.
+      // ressult에는 친구 추가 요청 성공시에는 추가된 친구데이터(Friend)가 반환되고, 실패시에는 null이 반환됩니다.
       final result = await friendController.addFriendByNickName(
         requesterId: currentUserId,
         receiverNickName: user.userId,
       );
 
+      // 친구 요청이 성공(result가 null이 아니면)하면,
+      // 해당 userId의 친구 상태를 'pending'으로 업데이트하고, 성공 메시지를 표시합니다.
       if (result != null) {
         setState(() {
           _friendshipStatus[user.id] = 'pending';
@@ -716,7 +761,18 @@ class _UserResultTile extends StatelessWidget {
   }
 }
 
-/// 메모이제이션된 검색 결과 구조체
+/// 검색 결과와 친구 상태를 함께 캐싱하는 클래스입니다.
+/// 검색어에 대한 검색 결과와 친구 상태를 함께 저장하여, 동일 검색어에 대한 빠른 결과 표시를 지원합니다.
+///
+/// fields:
+/// - [results]: 검색 결과로 반환된 사용자 목록입니다.
+/// - [status]: userId에 대한 친구 상태를 매핑합니다.
+///   - 예시: {123: 'accepted', 456: 'pending', 789: 'none'}
+///
+/// usage:
+/// - 검색 결과가 캐시에 존재할 때, 해당 검색 결과와 친구 상태를 함께 적용하여 빠르게 결과를 표시할 수 있습니다.
+/// - 검색 결과가 캐시에 존재하지 않을 때, API를 호출하여 검색 결과와 친구 상태를 가져오고,
+///   이를 캐시에 저장하여 이후 동일 검색어에 대한 빠른 결과 표시를 지원합니다.
 class _CachedSearchResult {
   _CachedSearchResult(this.results, this.status);
 
