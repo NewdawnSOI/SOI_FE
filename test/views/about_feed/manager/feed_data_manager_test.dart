@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -55,6 +57,10 @@ void main() {
           postController.calls.every((call) => call.forceRefresh == false),
           isTrue,
         );
+        expect(
+          postController.calls.every((call) => call.notifyLoading == false),
+          isTrue,
+        );
       },
     );
 
@@ -92,8 +98,198 @@ void main() {
         expect(categoryController.forceReloads, [true]);
         expect(postController.calls, hasLength(_categories.length));
         expect(postController.calls.every((call) => call.forceRefresh), isTrue);
+        expect(
+          postController.calls.every((call) => call.notifyLoading == false),
+          isTrue,
+        );
       },
     );
+
+    testWidgets('keeps visible feed while warm cache refresh is in flight', (
+      tester,
+    ) async {
+      final manager = FeedDataManager();
+      final userController =
+          UserController(userService: UserService(userApi: _NoopUserApi()))
+            ..setCurrentUser(
+              const User(
+                id: 7,
+                userId: 'viewer',
+                name: 'Viewer',
+                phoneNumber: '01000000000',
+              ),
+            );
+      final categoryController = _RecordingCategoryController(
+        categories: _categories,
+      );
+      final postController = _RecordingPostController();
+      final friendController = _NoopFriendController();
+
+      final context = await _pumpProviderTree(
+        tester: tester,
+        manager: manager,
+        userController: userController,
+        categoryController: categoryController,
+        postController: postController,
+        friendController: friendController,
+      );
+
+      await manager.loadUserCategoriesAndPhotos(context);
+      expect(manager.visiblePosts, isNotEmpty);
+      expect(manager.isLoading, isFalse);
+
+      final refreshCompleter = Completer<List<Post>>();
+      postController.onGetPostsByCategory =
+          ({
+            required int categoryId,
+            required int userId,
+            int? notificationId,
+            int page = 0,
+            bool notifyLoading = true,
+            bool forceRefresh = false,
+          }) => refreshCompleter.future;
+
+      unawaited(
+        manager.loadUserCategoriesAndPhotos(context, forceRefresh: true),
+      );
+      await tester.pump();
+
+      expect(manager.isLoading, isFalse);
+      expect(manager.visiblePosts, isNotEmpty);
+
+      refreshCompleter.complete([
+        Post(
+          id: 999,
+          nickName: 'refreshed',
+          createdAt: DateTime.utc(2026, 3, 12),
+        ),
+      ]);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('preserves stale posts when refresh fails after cache warmup', (
+      tester,
+    ) async {
+      final manager = FeedDataManager();
+      final userController =
+          UserController(userService: UserService(userApi: _NoopUserApi()))
+            ..setCurrentUser(
+              const User(
+                id: 7,
+                userId: 'viewer',
+                name: 'Viewer',
+                phoneNumber: '01000000000',
+              ),
+            );
+      final categoryController = _RecordingCategoryController(
+        categories: _categories,
+      );
+      final postController = _RecordingPostController();
+      final friendController = _NoopFriendController();
+
+      final context = await _pumpProviderTree(
+        tester: tester,
+        manager: manager,
+        userController: userController,
+        categoryController: categoryController,
+        postController: postController,
+        friendController: friendController,
+      );
+
+      await manager.loadUserCategoriesAndPhotos(context);
+      final initialVisiblePosts = manager.visiblePosts;
+
+      postController.onGetPostsByCategory =
+          ({
+            required int categoryId,
+            required int userId,
+            int? notificationId,
+            int page = 0,
+            bool notifyLoading = true,
+            bool forceRefresh = false,
+          }) async => throw Exception('network error');
+
+      await manager.loadUserCategoriesAndPhotos(context, forceRefresh: true);
+
+      expect(manager.isLoading, isFalse);
+      expect(manager.visiblePosts, same(initialVisiblePosts));
+      expect(manager.allPosts, isNotEmpty);
+    });
+
+    testWidgets('defers posts-changed refresh until feed tab is visible', (
+      tester,
+    ) async {
+      final manager = FeedDataManager();
+      final userController =
+          UserController(userService: UserService(userApi: _NoopUserApi()))
+            ..setCurrentUser(
+              const User(
+                id: 7,
+                userId: 'viewer',
+                name: 'Viewer',
+                phoneNumber: '01000000000',
+              ),
+            );
+      final categoryController = _RecordingCategoryController(
+        categories: _categories,
+      );
+      final postController = _RecordingPostController();
+      final friendController = _NoopFriendController();
+
+      var tickerEnabled = false;
+      late StateSetter setTickerMode;
+      late BuildContext capturedContext;
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<FeedDataManager>.value(value: manager),
+            ChangeNotifierProvider<UserController>.value(value: userController),
+            ChangeNotifierProvider<CategoryController>.value(
+              value: categoryController,
+            ),
+            ChangeNotifierProvider<PostController>.value(value: postController),
+            ChangeNotifierProvider<FriendController>.value(
+              value: friendController,
+            ),
+          ],
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                setTickerMode = setState;
+                return TickerMode(
+                  enabled: tickerEnabled,
+                  child: Builder(
+                    builder: (context) {
+                      capturedContext = context;
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      manager.listenToPostController(postController, capturedContext);
+      postController.notifyPostsChanged();
+      await tester.pump();
+
+      expect(postController.calls, isEmpty);
+
+      setTickerMode(() {
+        tickerEnabled = true;
+      });
+      await tester.pump();
+
+      manager.refreshIfPendingVisible();
+      await tester.pumpAndSettle();
+
+      expect(postController.calls, hasLength(_categories.length));
+      expect(postController.calls.every((call) => call.forceRefresh), isTrue);
+    });
   });
 }
 
@@ -164,6 +360,15 @@ class _RecordingPostController extends PostController {
   _RecordingPostController()
     : super(postService: PostService(postApi: _NoopPostApi()));
 
+  Future<List<Post>> Function({
+    required int categoryId,
+    required int userId,
+    int? notificationId,
+    int page,
+    bool notifyLoading,
+    bool forceRefresh,
+  })?
+  onGetPostsByCategory;
   final List<_PostRequest> calls = <_PostRequest>[];
 
   @override
@@ -180,9 +385,22 @@ class _RecordingPostController extends PostController {
         categoryId: categoryId,
         userId: userId,
         page: page,
+        notifyLoading: notifyLoading,
         forceRefresh: forceRefresh,
       ),
     );
+
+    final handler = onGetPostsByCategory;
+    if (handler != null) {
+      return handler(
+        categoryId: categoryId,
+        userId: userId,
+        notificationId: notificationId,
+        page: page,
+        notifyLoading: notifyLoading,
+        forceRefresh: forceRefresh,
+      );
+    }
 
     return [
       Post(
@@ -213,12 +431,14 @@ class _PostRequest {
     required this.categoryId,
     required this.userId,
     required this.page,
+    required this.notifyLoading,
     required this.forceRefresh,
   });
 
   final int categoryId;
   final int userId;
   final int page;
+  final bool notifyLoading;
   final bool forceRefresh;
 }
 

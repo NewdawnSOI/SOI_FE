@@ -176,6 +176,31 @@ void main() {
       expect(controller.currentUser, isNull);
     });
 
+    test('trims nickname and phone before delegating login', () async {
+      final controller = UserController(
+        userService: _FakeUserService(
+          onLogin: ({String? nickName, String? phoneNum}) async {
+            expect(nickName, 'minchan');
+            expect(phoneNum, '01011112222');
+            return const User(
+              id: 1,
+              userId: 'minchan',
+              name: '민찬',
+              phoneNumber: '01011112222',
+            );
+          },
+        ),
+      );
+
+      final result = await controller.login(
+        nickName: '  minchan  ',
+        phoneNumber: ' 01011112222 ',
+      );
+
+      expect(result?.id, 1);
+      expect(controller.currentUser?.id, 1);
+    });
+
     test(
       'rethrows NetworkException when combined login fails by network',
       () async {

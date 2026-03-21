@@ -403,17 +403,35 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   }
 
   Widget _buildBody() {
-    // Provider 구독(변경 시 자동 rebuild) - 캐시를 유지하면서도 UI는 최신 상태로 갱신됩니다.
-    final feedDataManager = Provider.of<FeedDataManager>(context);
-    _feedDataManager ??= feedDataManager;
+    // 화면이 실제로 소비하는 피드 상태만 선택해서 불필요한 전체 rebuild를 줄입니다.
+    final feedViewState = context
+        .select<
+          FeedDataManager,
+          ({
+            bool isLoading,
+            bool hasPosts,
+            List<FeedPostItem> visiblePosts,
+            bool hasMoreData,
+            bool isLoadingMore,
+          })
+        >(
+          (manager) => (
+            isLoading: manager.isLoading,
+            hasPosts: manager.allPosts.isNotEmpty,
+            visiblePosts: manager.visiblePosts,
+            hasMoreData: manager.hasMoreData,
+            isLoadingMore: manager.isLoadingMore,
+          ),
+        );
+    _feedDataManager ??= context.read<FeedDataManager>();
 
-    if (feedDataManager.isLoading) {
+    if (feedViewState.isLoading) {
       return const Center(
         child: CircularProgressIndicator(color: Colors.white),
       );
     }
 
-    if (feedDataManager.allPosts.isEmpty) {
+    if (!feedViewState.hasPosts) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -445,7 +463,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
 
     return RefreshIndicator(
       // 당겨서 새로고침은 서버에서 다시 가져오도록 강제 리프레시합니다.
-      onRefresh: () => feedDataManager.loadUserCategoriesAndPhotos(
+      onRefresh: () => _feedDataManager!.loadUserCategoriesAndPhotos(
         context,
         forceRefresh: true,
       ),
@@ -453,9 +471,9 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       backgroundColor: Colors.black,
       child: FeedPageBuilder(
         pageController: _feedPageController,
-        posts: feedDataManager.visiblePosts,
-        hasMoreData: feedDataManager.hasMoreData,
-        isLoadingMore: feedDataManager.isLoadingMore,
+        posts: feedViewState.visiblePosts,
+        hasMoreData: feedViewState.hasMoreData,
+        isLoadingMore: feedViewState.isLoadingMore,
         postComments: _voiceCommentStateManager!.postComments,
         selectedEmojisByPostId:
             _voiceCommentStateManager!.selectedEmojisByPostId,

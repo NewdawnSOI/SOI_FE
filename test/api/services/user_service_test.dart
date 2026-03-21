@@ -192,6 +192,40 @@ void main() {
       expect(result?.userId, 'minchan');
     });
 
+    test('trims login credentials before calling auth api', () async {
+      String? issuedToken;
+      final service = UserService(
+        authApi: _FakeAuthApi(
+          onLogin: (dto) async {
+            expect(dto.nickname, 'minchan');
+            expect(dto.phoneNum, '01012345678');
+            return LoginRespDto(accessToken: 'jwt-token');
+          },
+        ),
+        userApi: _FakeUserApi(
+          onGetUser: () async => ApiResponseDtoUserRespDto(
+            success: true,
+            data: UserRespDto(
+              id: 1,
+              nickname: 'minchan',
+              name: '민찬',
+              phoneNum: '01012345678',
+            ),
+          ),
+        ),
+        onAuthTokenIssued: (token) => issuedToken = token,
+        onAuthTokenCleared: () {},
+      );
+
+      final result = await service.login(
+        nickName: '  minchan  ',
+        phoneNum: ' 01012345678 ',
+      );
+
+      expect(issuedToken, 'jwt-token');
+      expect(result?.id, 1);
+    });
+
     test('uses unauthenticated auth api for login', () async {
       String? issuedToken;
       final service = UserService(

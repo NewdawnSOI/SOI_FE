@@ -77,19 +77,17 @@ class UserController extends ChangeNotifier {
   Future<bool> requestSmsVerification(String phoneNumber) async {
     final normalizedPhoneNumber = phoneNumber.trim();
 
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
-      final result = await _userService.sendSmsVerification(
-        normalizedPhoneNumber,
-      );
-      _setLoading(false);
-      return result;
+      return await _userService.sendSmsVerification(normalizedPhoneNumber);
     } catch (e) {
-      _setError('SMS 인증 요청 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: 'SMS 인증 요청 실패: $e');
       return false;
+    } finally {
+      if (_isLoading) {
+        _finishLoading();
+      }
     }
   }
 
@@ -108,20 +106,20 @@ class UserController extends ChangeNotifier {
     final normalizedPhoneNumber = phoneNumber.trim();
     final normalizedCode = code.trim();
 
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
-      final result = await _userService.verifySmsCode(
+      return await _userService.verifySmsCode(
         normalizedPhoneNumber,
         normalizedCode,
       );
-      _setLoading(false);
-      return result;
     } catch (e) {
-      _setError('인증 코드 확인 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '인증 코드 확인 실패: $e');
       return false;
+    } finally {
+      if (_isLoading) {
+        _finishLoading();
+      }
     }
   }
 
@@ -143,8 +141,7 @@ class UserController extends ChangeNotifier {
     final normalizedNickname = nickName?.trim();
     final normalizedPhoneNumber = phoneNumber?.trim();
 
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
       final user = await _userService.login(
@@ -160,7 +157,7 @@ class UserController extends ChangeNotifier {
         debugPrint('[UserController.login] 로그인 실패 code=404');
       }
 
-      _setLoading(false);
+      _finishLoading(notify: false);
       notifyListeners();
       return user;
     } on NotFoundException catch (e) {
@@ -168,15 +165,14 @@ class UserController extends ChangeNotifier {
         '[UserController.login] 로그인 실패 code=${e.statusCode ?? 404}, message=${e.message}',
       );
       _currentUser = null;
-      _setLoading(false);
+      _finishLoading(notify: false);
       notifyListeners();
       return null;
     } on SoiApiException catch (e) {
       debugPrint(
         '[UserController.login] 로그인 실패 code=${e.statusCode ?? 'unknown'}, message=${e.message}',
       );
-      _setError('로그인 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '로그인 실패: $e');
       rethrow;
     } catch (e) {
       debugPrint('[UserController.login] 로그인 실패 code=unknown, error=$e');
@@ -184,8 +180,7 @@ class UserController extends ChangeNotifier {
         message: '로그인 실패: $e',
         originalException: e,
       );
-      _setError(wrapped.message);
-      _setLoading(false);
+      _finishLoading(errorMessage: wrapped.message);
       throw wrapped;
     }
   }
@@ -205,20 +200,22 @@ class UserController extends ChangeNotifier {
   Future<void> refreshCurrentUser() async {
     if (!SoiApiClient.instance.isAuthenticated) return;
 
-    _setLoading(true);
+    _beginLoading();
     try {
       final user = await _userService.getCurrentUser();
       _currentUser = user;
-      _setLoading(false);
+      _finishLoading(notify: false);
       notifyListeners();
     } catch (e) {
-      _setError('사용자 정보 갱신 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '사용자 정보 갱신 실패: $e');
     }
   }
 
   /// 현재 사용자 설정 (외부에서 직접 설정 필요 시)
   void setCurrentUser(User? user) {
+    if (_currentUser == user) {
+      return;
+    }
     _currentUser = user;
     notifyListeners();
   }
@@ -253,8 +250,7 @@ class UserController extends ChangeNotifier {
     bool privacyPolicyAgreed = true,
     bool marketingAgreed = false,
   }) async {
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
       await _userService.createUser(
@@ -278,14 +274,13 @@ class UserController extends ChangeNotifier {
 
       _currentUser = authenticatedUser;
       await saveLoginState(userId: authenticatedUser.id, phoneNumber: phoneNum);
+      _finishLoading(notify: false);
       notifyListeners();
-      _setLoading(false);
       return authenticatedUser;
     } catch (e) {
       _currentUser = null;
       await clearLoginState();
-      _setError('사용자 생성 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '사용자 생성 실패: $e');
       return null;
     }
   }
@@ -310,17 +305,17 @@ class UserController extends ChangeNotifier {
   /// Returns: 조회된 사용자 정보 (User)
   ///   - null: 조회 실패
   Future<User?> getUser(int id) async {
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
-      final user = await _userService.getUser(id);
-      _setLoading(false);
-      return user;
+      return await _userService.getUser(id);
     } catch (e) {
-      _setError('사용자 조회 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '사용자 조회 실패: $e');
       return null;
+    } finally {
+      if (_isLoading) {
+        _finishLoading();
+      }
     }
   }
 
@@ -347,17 +342,17 @@ class UserController extends ChangeNotifier {
   /// 모든 사용자 정보를 가지고 오는 메서드
   /// Returns: 사용자 목록 (`List<User>`)
   Future<List<User>> getAllUsers() async {
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
-      final users = await _userService.getAllUsers();
-      _setLoading(false);
-      return users;
+      return await _userService.getAllUsers();
     } catch (e) {
-      _setError('사용자 목록 조회 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '사용자 목록 조회 실패: $e');
       return [];
+    } finally {
+      if (_isLoading) {
+        _finishLoading();
+      }
     }
   }
 
@@ -369,17 +364,17 @@ class UserController extends ChangeNotifier {
   ///
   /// Returns: 검색된 사용자 목록 (`List<User>`)
   Future<List<User>> findUsersByKeyword(String keyword) async {
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
-      final users = await _userService.findUsersByKeyword(keyword);
-      _setLoading(false);
-      return users;
+      return await _userService.findUsersByKeyword(keyword);
     } catch (e) {
-      _setError('사용자 검색 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '사용자 검색 실패: $e');
       return [];
+    } finally {
+      if (_isLoading) {
+        _finishLoading();
+      }
     }
   }
 
@@ -394,17 +389,17 @@ class UserController extends ChangeNotifier {
   ///
   /// Returns: 사용 가능한 경우 true, 중복된 경우 false
   Future<bool> checknickNameAvailable(String nickName) async {
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
-      final isAvailable = await _userService.checknickNameAvailable(nickName);
-      _setLoading(false);
-      return isAvailable;
+      return await _userService.checknickNameAvailable(nickName);
     } catch (e) {
-      _setError('ID 중복 확인 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: 'ID 중복 확인 실패: $e');
       return false;
+    } finally {
+      if (_isLoading) {
+        _finishLoading();
+      }
     }
   }
 
@@ -433,16 +428,16 @@ class UserController extends ChangeNotifier {
     String? birthDate,
     String? profileImageKey,
   }) async {
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
       if (nickName != null && isForbiddenUsername(nickName)) {
-        _setError('This username is not allowed. Please choose another.');
-        _setLoading(false);
+        _finishLoading(
+          errorMessage: 'This username is not allowed. Please choose another.',
+        );
         return null;
       }
-      final user = await _userService.updateUser(
+      return await _userService.updateUser(
         id: id,
         name: name,
         nickName: nickName,
@@ -450,12 +445,13 @@ class UserController extends ChangeNotifier {
         birthDate: birthDate,
         profileImageKey: profileImageKey,
       );
-      _setLoading(false);
-      return user;
     } catch (e) {
-      _setError('사용자 정보 수정 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '사용자 정보 수정 실패: $e');
       return null;
+    } finally {
+      if (_isLoading) {
+        _finishLoading();
+      }
     }
   }
 
@@ -477,20 +473,20 @@ class UserController extends ChangeNotifier {
     required int userId,
     required String profileImageKey,
   }) async {
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
-      final user = await _userService.updateProfileImage(
+      return await _userService.updateProfileImage(
         userId: userId,
         profileImageKey: profileImageKey,
       );
-      _setLoading(false);
-      return user;
     } catch (e) {
-      _setError('프로필 이미지 수정 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '프로필 이미지 수정 실패: $e');
       return null;
+    } finally {
+      if (_isLoading) {
+        _finishLoading();
+      }
     }
   }
 
@@ -507,19 +503,17 @@ class UserController extends ChangeNotifier {
   /// Returns: 삭제된 사용자 정보 (User)
   ///   - null: 삭제 실패
   Future<User?> deleteUser(int id) async {
-    _setLoading(true);
-    _clearError();
+    _beginLoading();
 
     try {
       final user = await _userService.deleteUser(id);
       _currentUser = null;
       await clearLoginState();
-      _setLoading(false);
+      _finishLoading(notify: false);
       notifyListeners();
       return user;
     } catch (e) {
-      _setError('사용자 삭제 실패: $e');
-      _setLoading(false);
+      _finishLoading(errorMessage: '사용자 삭제 실패: $e');
       return null;
     }
   }
@@ -529,18 +523,26 @@ class UserController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _setLoading(bool value) {
-    _isLoading = value;
-    notifyListeners();
-  }
-
-  void _setError(String message) {
-    _errorMessage = message;
-    notifyListeners();
-  }
-
   void _clearError() {
     _errorMessage = null;
+  }
+
+  void _beginLoading() {
+    final shouldNotify = !_isLoading || _errorMessage != null;
+    _isLoading = true;
+    _errorMessage = null;
+    if (shouldNotify) {
+      notifyListeners();
+    }
+  }
+
+  void _finishLoading({String? errorMessage, bool notify = true}) {
+    final shouldNotify = _isLoading || _errorMessage != errorMessage;
+    _isLoading = false;
+    _errorMessage = errorMessage;
+    if (notify && shouldNotify) {
+      notifyListeners();
+    }
   }
 
   // ============================================================
@@ -564,14 +566,17 @@ class UserController extends ChangeNotifier {
       final hasAccessToken =
           effectiveAccessToken != null && effectiveAccessToken.isNotEmpty;
 
-      await prefs.setBool(_keyIsLoggedIn, hasAccessToken);
-      await prefs.setInt(_keynickName, userId);
-      await prefs.setString(_keyPhoneNumber, phoneNumber);
+      final operations = <Future<bool>>[
+        prefs.setBool(_keyIsLoggedIn, hasAccessToken),
+        prefs.setInt(_keynickName, userId),
+        prefs.setString(_keyPhoneNumber, phoneNumber),
+      ];
       if (hasAccessToken) {
-        await prefs.setString(_keyAccessToken, effectiveAccessToken);
+        operations.add(prefs.setString(_keyAccessToken, effectiveAccessToken));
       } else {
-        await prefs.remove(_keyAccessToken);
+        operations.add(prefs.remove(_keyAccessToken));
       }
+      await Future.wait(operations);
       debugPrint('[UserController] 로그인 상태 저장 완료: userId=$userId');
     } catch (e) {
       debugPrint('[UserController] 로그인 상태 저장 실패: $e');
@@ -634,16 +639,16 @@ class UserController extends ChangeNotifier {
         return null;
       }
 
-      final nickName = prefs.getInt(_keynickName);
+      final userId = prefs.getInt(_keynickName);
       final phoneNumber = prefs.getString(_keyPhoneNumber);
       final accessToken = prefs.getString(_keyAccessToken);
 
-      if (nickName == null) {
+      if (userId == null) {
         return null;
       }
 
       return {
-        'nickName': nickName,
+        'userId': userId,
         'phoneNumber': phoneNumber,
         'accessToken': accessToken,
         'onboardingCompleted': prefs.getBool(_keyOnboardingCompleted) ?? false,
@@ -669,9 +674,9 @@ class UserController extends ChangeNotifier {
         return false;
       }
 
-      final nickName = savedInfo['nickName'] as int;
+      final userId = savedInfo['userId'] as int;
       final accessToken = savedInfo['accessToken'] as String?;
-      debugPrint('[UserController] 저장된 nickName: $nickName');
+      debugPrint('[UserController] 저장된 userId: $userId');
 
       if (accessToken == null || accessToken.isEmpty) {
         debugPrint('[UserController] 저장된 JWT 토큰 없음');
@@ -700,11 +705,13 @@ class UserController extends ChangeNotifier {
     try {
       SoiApiClient.instance.clearAuthToken();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_keyIsLoggedIn);
-      await prefs.remove(_keynickName);
-      await prefs.remove(_keyPhoneNumber);
-      await prefs.remove(_keyAccessToken);
-      await prefs.remove(_keyOnboardingCompleted);
+      await Future.wait(<Future<bool>>[
+        prefs.remove(_keyIsLoggedIn),
+        prefs.remove(_keynickName),
+        prefs.remove(_keyPhoneNumber),
+        prefs.remove(_keyAccessToken),
+        prefs.remove(_keyOnboardingCompleted),
+      ]);
       debugPrint('[UserController] 로그인 상태 삭제 완료');
     } catch (e) {
       debugPrint('[UserController] 로그인 상태 삭제 실패: $e');

@@ -23,22 +23,15 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  api.UserController? _apiUserController;
-
   final TextEditingController _nicknameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  late final Listenable _inputFieldsListenable = Listenable.merge([
+    _nicknameController,
+    _phoneController,
+  ]);
 
   bool _isSubmitting = false;
   bool _isIssuingTestPushToken = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _apiUserController ??= Provider.of<api.UserController>(
-      context,
-      listen: false,
-    );
-  }
 
   @override
   void dispose() {
@@ -99,12 +92,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      ContinueButton(
-                        isEnabled: _hasRequiredInputs && !_isSubmitting,
-                        text: _isSubmitting
-                            ? tr('login.loading', context: context)
-                            : tr('common.login', context: context),
-                        onPressed: () => _submitLogin(),
+                      ListenableBuilder(
+                        listenable: _inputFieldsListenable,
+                        builder: (context, _) {
+                          return ContinueButton(
+                            isEnabled: _hasRequiredInputs && !_isSubmitting,
+                            text: _isSubmitting
+                                ? tr('login.loading', context: context)
+                                : tr('common.login', context: context),
+                            onPressed: () => _submitLogin(),
+                          );
+                        },
                       ),
                       if (kDebugMode && supportsFirebaseMessaging) ...[
                         SizedBox(height: 12.h),
@@ -147,7 +145,6 @@ class _LoginScreenState extends State<LoginScreen> {
         color: const Color(0xffC0C0C0),
         size: 24.sp,
       ),
-      onChanged: (_) => setState(() {}),
       onSubmitted: (_) => _handleSubmitted(),
     );
   }
@@ -164,7 +161,6 @@ class _LoginScreenState extends State<LoginScreen> {
         size: 24.sp,
       ),
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9-]'))],
-      onChanged: (_) => setState(() {}),
       onSubmitted: (_) => _handleSubmitted(),
     );
   }
@@ -263,6 +259,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final nickname = _nicknameController.text.trim();
     final phoneNumber = _normalizedPhoneNumber;
+    final userController = context.read<api.UserController>();
 
     if (nickname.isEmpty) {
       _showErrorSnackBar(tr('login.nickname_required', context: context));
@@ -281,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final user = await _apiUserController!.login(
+      final user = await userController.login(
         nickName: nickname,
         phoneNumber: phoneNumber,
       );
@@ -295,20 +292,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       debugPrint('[LoginScreen] 로그인 실패 code=404');
       _showErrorSnackBar(tr('login.not_found', context: context));
-    } on NetworkException catch (e) {
-      if (!mounted) return;
-      _handleLoginException(
-        e,
-        logPrefix: '로그인',
-        defaultMessage: tr('login.failed', context: context),
-      );
-    } on BadRequestException catch (e) {
-      if (!mounted) return;
-      _handleLoginException(
-        e,
-        logPrefix: '로그인',
-        defaultMessage: tr('login.failed', context: context),
-      );
     } on SoiApiException catch (e) {
       if (!mounted) return;
       _handleLoginException(

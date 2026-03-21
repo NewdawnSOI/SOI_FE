@@ -5,7 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../common/page_title.dart';
 
 /// 생년월일 입력 페이지 위젯
-class BirthDatePage extends StatelessWidget {
+class BirthDatePage extends StatefulWidget {
   final TextEditingController monthController;
   final TextEditingController dayController;
   final TextEditingController yearController;
@@ -24,6 +24,23 @@ class BirthDatePage extends StatelessWidget {
   });
 
   @override
+  State<BirthDatePage> createState() => _BirthDatePageState();
+}
+
+class _BirthDatePageState extends State<BirthDatePage> {
+  late final FocusNode _monthFocusNode = FocusNode(); // 월 입력 필드에 대한 포커스 노드
+  late final FocusNode _dayFocusNode = FocusNode(); // 일 입력 필드에 대한 포커스 노드
+  late final FocusNode _yearFocusNode = FocusNode(); // 년 입력 필드에 대한 포커스 노드
+
+  @override
+  void dispose() {
+    _monthFocusNode.dispose();
+    _dayFocusNode.dispose();
+    _yearFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // 키보드 높이 계산
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
@@ -36,7 +53,7 @@ class BirthDatePage extends StatelessWidget {
           left: 20.w,
           child: IconButton(
             onPressed: () {
-              pageController?.previousPage(
+              widget.pageController?.previousPage(
                 duration: Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
               );
@@ -48,7 +65,7 @@ class BirthDatePage extends StatelessWidget {
           top: 60.h,
           right: 20.w,
           child: TextButton(
-            onPressed: onSkip,
+            onPressed: widget.onSkip,
             child: Text(
               tr('register.skip', context: context),
               style: TextStyle(
@@ -67,9 +84,7 @@ class BirthDatePage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                PageTitle(
-                  title: tr('register.birth_title', context: context),
-                ),
+                PageTitle(title: tr('register.birth_title', context: context)),
                 SizedBox(height: 24.h),
                 Container(
                   width: 320.w,
@@ -83,8 +98,10 @@ class BirthDatePage extends StatelessWidget {
                     children: [
                       Expanded(
                         child: TextField(
-                          controller: monthController,
+                          controller: widget.monthController,
+                          focusNode: _monthFocusNode, // 월 입력 필드에 포커스 노드 연결
                           keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
                           textAlign: TextAlign.center,
                           maxLength: 2,
                           cursorColor: Color(0xFFF8F8F8),
@@ -107,10 +124,9 @@ class BirthDatePage extends StatelessWidget {
                           ),
                           onChanged: (v) {
                             if (v.length == 2) {
-                              // 자동으로 다음 필드로 포커스 이동
-                              FocusScope.of(context).nextFocus();
+                              _dayFocusNode.requestFocus();
                             }
-                            if (v.length <= 2) onChanged();
+                            if (v.length <= 2) widget.onChanged();
                           },
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
@@ -126,8 +142,10 @@ class BirthDatePage extends StatelessWidget {
                       ),
                       Expanded(
                         child: TextField(
-                          controller: dayController,
+                          controller: widget.dayController,
+                          focusNode: _dayFocusNode,
                           keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
                           textAlign: TextAlign.center,
                           maxLength: 2,
                           cursorColor: Color(0xFFF8F8F8),
@@ -150,10 +168,9 @@ class BirthDatePage extends StatelessWidget {
                           ),
                           onChanged: (v) {
                             if (v.length == 2) {
-                              // 자동으로 포커스 이동
-                              FocusScope.of(context).nextFocus();
+                              _yearFocusNode.requestFocus();
                             }
-                            if (v.length <= 2) onChanged();
+                            if (v.length <= 2) widget.onChanged();
                           },
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
@@ -169,8 +186,10 @@ class BirthDatePage extends StatelessWidget {
                       ),
                       Expanded(
                         child: TextField(
-                          controller: yearController,
+                          controller: widget.yearController,
+                          focusNode: _yearFocusNode,
                           keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
                           textAlign: TextAlign.center,
                           maxLength: 4,
                           cursorColor: Color(0xFFF8F8F8),
@@ -192,7 +211,7 @@ class BirthDatePage extends StatelessWidget {
                             ),
                           ),
                           onChanged: (v) {
-                            if (v.length <= 4) onChanged();
+                            if (v.length <= 4) widget.onChanged();
                           },
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,

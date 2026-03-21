@@ -39,6 +39,10 @@ class PostService {
   PostService({PostAPIApi? postApi})
     : _postApi = postApi ?? SoiApiClient.instance.postApi;
 
+  List<Post> _mapPosts(Iterable<PostRespDto> dtos) {
+    return List<Post>.unmodifiable(dtos.map(Post.fromDto));
+  }
+
   // ============================================
   // 게시물 생성
   // ============================================
@@ -152,7 +156,7 @@ class PostService {
         throw SoiApiException(message: response.message ?? '피드 조회 실패');
       }
 
-      return response.data.map((dto) => Post.fromDto(dto)).toList();
+      return _mapPosts(response.data);
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {
@@ -197,7 +201,7 @@ class PostService {
         throw SoiApiException(message: response.message ?? '카테고리 게시물 조회 실패');
       }
 
-      return response.data.map((dto) => Post.fromDto(dto)).toList();
+      return _mapPosts(response.data);
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {
@@ -282,7 +286,7 @@ class PostService {
         return (posts: <Post>[], hasMore: false);
       }
 
-      final posts = slice.content.map((dto) => Post.fromDto(dto)).toList();
+      final posts = _mapPosts(slice.content);
       final hasMore = slice.last == false;
       return (posts: posts, hasMore: hasMore);
     } on ApiException catch (e) {

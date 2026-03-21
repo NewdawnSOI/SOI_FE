@@ -43,24 +43,25 @@ import '../models/models.dart';
 /// final isAvailable = await userService.checknickNameAvailable('hong123');
 /// ```
 class UserService {
-  // 로그인처럼 JWT 발급 전 호출하는 인증 API용 팩토리 함수
+  /// 인증 없이 사용하는 API 인스턴스 (SMS 인증, 사용자 생성 등)
+  /// 기본적으로는 SoiApiClient의 createUnauthenticatedAuthApi를 사용하지만, 필요에 따라 커스텀 구현을 주입할 수 있도록 설계되었습니다.
   final AuthControllerApi Function() _buildUnauthenticatedAuthApi;
 
-  // 인증된 API 인스턴스 (JWT 토큰 포함)
+  /// 인증된 API 인스턴스 (JWT 토큰 포함)
+  /// 기본적으로 SoiApiClient의 userApi를 사용하지만, 필요에 따라 커스텀 구현을 주입할 수 있도록 설계되었습니다.
   final UserAPIApi _userApi;
 
-  // 인증 토큰 관리 콜백
+  /// 인증 토큰 관리 콜백
   final void Function(String token) _setAuthToken;
 
-  // 인증 토큰 제거 콜백
+  /// 인증 토큰 제거 콜백
   final void Function() _clearAuthToken;
 
+  // 생성자
   UserService({
     AuthControllerApi? authApi,
     UserAPIApi? userApi,
 
-    // 인증 없이 API 호출이 필요한 auth 엔드포인트는
-    // 기본적으로 SoiApiClient의 createUnauthenticatedAuthApi를 사용합니다.
     AuthControllerApi Function()? buildUnauthenticatedAuthApi,
     void Function(String token)? onAuthTokenIssued,
     void Function()? onAuthTokenCleared,
@@ -73,6 +74,50 @@ class UserService {
        _clearAuthToken =
            onAuthTokenCleared ?? SoiApiClient.instance.clearAuthToken;
 
+  /// 텍스트 정규화 (공백 제거)
+  /// 사용자 입력에서 불필요한 공백을 제거하여 API 요청에 사용하기 적합한 형태로 변환합니다.
+  String _normalizeText(String value) => value.trim();
+
+  /// 선택적 텍스트 정규화 (공백 제거)
+  /// 사용자 입력에서 불필요한 공백을 제거하여 API 요청에 사용하기 적합한 형태로 변환합니다.
+  /// null 또는 공백만 있는 경우 null을 반환하여, API 요청 시 해당 필드를 생략할 수 있도록 합니다.
+  String? _normalizeOptionalText(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized; // null이 아닌 경우, 정규화된 텍스트 반환
+  }
+
+  /// 로그인 요청 DTO를 만들어서 반환하는 헬퍼 함수입니다.
+  LoginReqDto _buildLoginRequest({String? nickName, String? phoneNum}) {
+    // 닉네임은 로그인에 모두 필요하므로, null이거나 유효한 값이어야 합니다.
+    final normalizedNickName = _normalizeOptionalText(nickName);
+
+    // 전화번호는 로그인에 모두 필요하므로, null이거나 유효한 값이어야 합니다.
+    final normalizedPhoneNum = _normalizeOptionalText(phoneNum);
+
+    if (normalizedNickName == null || normalizedPhoneNum == null) {
+      throw const BadRequestException(message: '닉네임과 전화번호를 모두 전달해야 합니다.');
+    }
+
+    // 로그인 요청 DTO를 생성하여 반환합니다. 닉네임과 전화번호는 정규화된 값을 사용합니다.
+    return LoginReqDto(
+      nickname: normalizedNickName,
+      phoneNum: normalizedPhoneNum,
+    );
+  }
+
+  /// 액세스 토큰을 로그인 응답에서 추출하여 반환하는 헬퍼 함수입니다.
+  String _requireAccessToken(LoginRespDto loginResponse) {
+    // 로그인 응답에서 액세스 토큰을 추출하여 반환합니다.
+    final accessToken = loginResponse.accessToken?.trim();
+    if (accessToken == null || accessToken.isEmpty) {
+      throw const DataValidationException(message: '인증 토큰이 없습니다.');
+    }
+    return accessToken;
+  }
+
   // ============================================
   // SMS 인증
   // ============================================
@@ -82,14 +127,22 @@ class UserService {
   /// [phoneNum]으로 SMS 인증 코드를 발송합니다.
   /// 성공 시 true 반환, 실패 시 예외를 throw합니다.
   ///
-  /// Throws:
-  /// - [NetworkException]: 네트워크 연결 실패
-  /// - [BadRequestException]: 잘못된 전화번호 형식
-  /// - [SoiApiException]: 기타 API 에러
+  /// Parameters:
+  /// - [phoneNum]: 인증할 전화번호
+  ///
+  /// Returns:
+  /// - [bool]: true - SMS 발송 성공
+  /// - [bool]: false - SMS 발송 실패 (예: API에서 false 반환)
   Future<bool> sendSmsVerification(String phoneNum) async {
     try {
-      // 인증 없이 전화번호 인증 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
-      final result = await _buildUnauthenticatedAuthApi().authSMS(phoneNum);
+      // 전화번호 정규화
+      final normalizedPhoneNum = _normalizeText(phoneNum);
+
+      // 인증 없이 SMS 인증 발송 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
+      // _buildUnauthenticatedAuthApi(): 인증이 필요 없는 API 인스턴스를 생성하는 헬퍼 함수입니다.
+      final result = await _buildUnauthenticatedAuthApi().authSMS(
+        normalizedPhoneNum,
+      );
       return result ?? false;
     } on ApiException catch (e) {
       throw _handleApiException(e);
@@ -110,15 +163,16 @@ class UserService {
   /// returns:
   /// - [bool]: true - 인증 성공
   /// - [bool]: false - 인증 실패 (코드 불일치)
-  ///
-  /// Throws:
-  /// - [NetworkException]: 네트워크 연결 실패
-  /// - [BadRequestException]: 잘못된 인증 코드
-  /// - [SoiApiException]: 기타 API 에러
   Future<bool> verifySmsCode(String phoneNum, String code) async {
     try {
+      final normalizedPhoneNum = _normalizeText(phoneNum); // 전화번호 정규화
+      final normalizedCode = _normalizeText(code); // 인증 코드 정규화
+
       // 인증 코드 확인을 위한 DTO 객체를 생성합니다.
-      final dto = AuthCheckReqDto(phoneNum: phoneNum, code: code);
+      final dto = AuthCheckReqDto(
+        phoneNum: normalizedPhoneNum,
+        code: normalizedCode,
+      );
 
       // 인증 없이 전화번호 인증 확인 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
       final result = await _buildUnauthenticatedAuthApi().checkAuthSMS(dto);
@@ -150,29 +204,18 @@ class UserService {
   /// - [NotFoundException]: 등록되지 않은 사용자
   /// - [SoiApiException]: 기타 API 에러
   Future<User?> login({String? nickName, String? phoneNum}) async {
-    final normalizedNickName = nickName?.trim();
-    final normalizedPhoneNum = phoneNum?.trim();
-    final hasNickName =
-        normalizedNickName != null && normalizedNickName.isNotEmpty;
-    final hasPhoneNum =
-        normalizedPhoneNum != null && normalizedPhoneNum.isNotEmpty;
-
-    if (!hasNickName || !hasPhoneNum) {
-      throw const BadRequestException(message: '닉네임과 전화번호를 모두 전달해야 합니다.');
-    }
-
-    final dto = LoginReqDto(
-      nickname: normalizedNickName,
-      phoneNum: normalizedPhoneNum,
-    );
+    // 로그인 요청 DTO를 생성하는 헬퍼 함수를 사용하여,
+    // 닉네임과 전화번호를 정규화하고 DTO 객체로 만들어서 반환받습니다.
+    final dto = _buildLoginRequest(nickName: nickName, phoneNum: phoneNum);
 
     try {
+      // 실제 로그인 API 호출을 수행하는 헬퍼 함수입니다.
       return await _login(dto);
     } on ApiException catch (e) {
       debugPrint(
         '[UserService.login] API 예외 code=${e.code}, message=${e.message}',
       );
-      // 404는 신규 회원을 의미할 수 있음
+
       if (e.code == 404) {
         debugPrint('[UserService.login] 로그인 실패 code=404');
         return null;
@@ -227,12 +270,19 @@ class UserService {
     bool marketingAgreed = false,
   }) async {
     try {
+      final normalizedName = _normalizeText(name); // 이름 정규화
+      final normalizedNickName = _normalizeText(nickName); // 아이디 정규화
+      final normalizedPhoneNum = _normalizeText(phoneNum); // 전화번호 정규화
+      final normalizedBirthDate = _normalizeText(birthDate); // 생년월일 정규화
+      final normalizedProfileImageKey = profileImageKey
+          ?.trim(); // 프로필 이미지 키 정규화 (선택)
+
       final dto = UserCreateReqDto(
-        name: name,
-        nickname: nickName,
-        phoneNum: phoneNum,
-        birthDate: birthDate,
-        profileImageKey: profileImageKey ?? '', // null 대신 빈 문자열 전송
+        name: normalizedName,
+        nickname: normalizedNickName,
+        phoneNum: normalizedPhoneNum,
+        birthDate: normalizedBirthDate,
+        profileImageKey: normalizedProfileImageKey ?? '', // null 대신 빈 문자열 전송
         serviceAgreed: serviceAgreed,
         privacyPolicyAgreed: privacyPolicyAgreed,
         marketingAgreed: marketingAgreed,
@@ -360,7 +410,8 @@ class UserService {
   /// Returns: 검색된 사용자 목록 (`List<User>`)
   Future<List<User>> findUsersByKeyword(String keyword) async {
     try {
-      final response = await _userApi.findUser(keyword);
+      // 키워드 정규화
+      final response = await _userApi.findUser(_normalizeText(keyword));
 
       if (response == null) {
         return [];
@@ -394,10 +445,15 @@ class UserService {
   /// - false: 이미 사용 중 (중복)
   Future<bool> checknickNameAvailable(String nickName) async {
     try {
+      // 닉네임 정규화
+      final normalizedNickName = _normalizeText(nickName);
+
       // 인증 없이 ID 중복 확인 API를 호출하기 위해 별도의 UserAPIApi 인스턴스를 생성합니다.
       // ID 중복 확인 API는 인증이 필요하지 않으므로,
       // SoiApiClient의 createUnauthenticatedAuthApi를 사용하여 인증 없이 호출합니다.
-      final response = await _buildUnauthenticatedAuthApi().idCheck(nickName);
+      final response = await _buildUnauthenticatedAuthApi().idCheck(
+        normalizedNickName,
+      );
 
       if (response == null) {
         return false;
@@ -673,12 +729,7 @@ class UserService {
     }
 
     // loginResponse에서 accessToken을 추출합니다.
-    final accessToken = loginResponse.accessToken?.trim();
-
-    // accessToken이 null이거나 빈 문자열인 경우, 로그인 실패로 간주하여 null을 반환합니다.
-    if (accessToken == null || accessToken.isEmpty) {
-      throw const DataValidationException(message: '인증 토큰이 없습니다.');
-    }
+    final accessToken = _requireAccessToken(loginResponse);
 
     // 인증 토큰 설정
     // 로그인 성공 시, 발급된 JWT 토큰을 SoiApiClient에 설정하여 이후 API 호출에 사용하도록 합니다.

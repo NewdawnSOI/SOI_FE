@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -27,7 +28,8 @@ class FeedPostItem {
 }
 
 class FeedDataManager extends ChangeNotifier {
-  List<FeedPostItem> _allPosts = []; // 전체 피드 게시물을 담는 리스트입니다.
+  List<FeedPostItem> _allPosts =
+      const <FeedPostItem>[]; // 전체 피드 게시물을 담는 리스트입니다.
   bool _isLoading = true; // 피드 전체 로딩 상태
   bool _isLoadingMore = false; // 추가 로딩 상태
   bool _hasMoreData = false;
@@ -35,6 +37,7 @@ class FeedDataManager extends ChangeNotifier {
   // "처음엔 5개만 보여주고, 스크롤 중간쯤에서 더 보여주기"용(네트워크가 아니라 UI 노출만 단계적으로)
   static const int _pageSize = 5; // 한 번에 보여줄 게시물 수 --> 5개
   int _visibleCount = 0; // 현재 노출된 게시물 수
+  List<FeedPostItem> _visiblePosts = const <FeedPostItem>[]; // 현재 노출된 게시물 캐시
 
   VoidCallback? _onStateChanged; // 상태 변경 콜백 --> 상태가 변경되면 호출
   Function(List<FeedPostItem>)?
@@ -60,9 +63,8 @@ class FeedDataManager extends ChangeNotifier {
   bool get isLoading => _isLoading; // 피드 전체 로딩 상태를 반환하는 getter
   bool get isLoadingMore => _isLoadingMore; // 추가 로딩 상태를 반환하는 getter
   bool get hasMoreData => _hasMoreData; // 더 보여줄 데이터가 있는지 여부를 반환하는 getter
-  List<FeedPostItem> get visiblePosts => _allPosts
-      .take(_visibleCount)
-      .toList(growable: false); // 현재 노출된 게시물 목록을 반환하는 getter
+  List<FeedPostItem> get visiblePosts =>
+      _visiblePosts; // 현재 노출된 게시물 목록을 반환하는 getter
 
   /// 상태 변경 콜백 설정 메소드
   /// 상태가 변경될 때 호출할 콜백 함수를 설정합니다.
@@ -91,6 +93,38 @@ class FeedDataManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _syncVisiblePosts({int? visibleCount}) {
+    final desiredVisibleCount = visibleCount ?? _visibleCount;
+    final boundedVisibleCount = math.min(
+      math.max(desiredVisibleCount, 0),
+      _allPosts.length,
+    );
+
+    _visibleCount = boundedVisibleCount;
+    _hasMoreData = _visibleCount < _allPosts.length;
+    _visiblePosts = _visibleCount == 0
+        ? const <FeedPostItem>[]
+        : List<FeedPostItem>.unmodifiable(_allPosts.take(_visibleCount));
+  }
+
+  void _replaceAllPosts(List<FeedPostItem> posts, {int? visibleCount}) {
+    _allPosts = posts.isEmpty
+        ? const <FeedPostItem>[]
+        : List<FeedPostItem>.unmodifiable(posts);
+    _syncVisiblePosts(visibleCount: visibleCount);
+  }
+
+  void _restorePreviousPosts({
+    required List<FeedPostItem> posts,
+    required List<FeedPostItem> visiblePosts,
+    required int visibleCount,
+  }) {
+    _allPosts = posts;
+    _visiblePosts = visiblePosts;
+    _visibleCount = visibleCount;
+    _hasMoreData = _visibleCount < _allPosts.length;
+  }
+
   /// PostController의 게시물 변경을 구독
   void listenToPostController(
     PostController postController,
@@ -108,14 +142,20 @@ class FeedDataManager extends ChangeNotifier {
     _context = context;
 
     _postsChangedListener = () {
-      if (_context != null && _context!.mounted) {
-        // _pendingPostRefresh 플래그가 false라는 것은 탭이 보이는 상태에서 게시물 변경이 감지된 경우,
-        // 바로 새로고침을 수행하지 않습니다.
-        _pendingPostRefresh = false;
-
-        // 게시물이 변경된 경우에는 서버에서 다시 받아오도록 강제 새로고침합니다.
-        unawaited(loadUserCategoriesAndPhotos(_context!, forceRefresh: true));
+      final feedContext = _context;
+      if (feedContext == null || !feedContext.mounted) {
+        return;
       }
+
+      if (!TickerMode.valuesOf(feedContext).enabled) {
+        _pendingPostRefresh = true;
+        return;
+      }
+
+      _pendingPostRefresh = false;
+
+      // 게시물이 변경된 경우에는 서버에서 다시 받아오도록 강제 새로고침합니다.
+      unawaited(loadUserCategoriesAndPhotos(feedContext, forceRefresh: true));
     };
 
     // PostController에 게시물 변경 리스너를 등록합니다.
@@ -137,7 +177,7 @@ class FeedDataManager extends ChangeNotifier {
   void refreshIfPendingVisible() {
     if (!_pendingPostRefresh) return;
     if (_context == null || !_context!.mounted) return;
-    if (!TickerMode.of(_context!)) return;
+    if (!TickerMode.valuesOf(_context!).enabled) return;
 
     _pendingPostRefresh = false; // 새로고침을 수행하므로 플래그를 초기화합니다.
     unawaited(loadUserCategoriesAndPhotos(_context!, forceRefresh: true));
@@ -168,7 +208,11 @@ class FeedDataManager extends ChangeNotifier {
     /// Parameters:
     /// - [context]: 빌드 컨텍스트
     /// - [forceRefresh]: true면 서버에서 강제 새로고침
-    final isInitialLoad = !_isLoadingMore; // 처음 로드하는 것인지의 여부를 체크합니다.
+    var hadCachedPosts = _allPosts.isNotEmpty;
+    var previousPosts = _allPosts;
+    var previousVisiblePosts = _visiblePosts;
+    var previousVisibleCount = _visibleCount;
+
     try {
       final userController = Provider.of<UserController>(
         context,
@@ -189,26 +233,28 @@ class FeedDataManager extends ChangeNotifier {
       }
       _lastUserId = currentUser.id;
 
+      hadCachedPosts = _allPosts.isNotEmpty;
+      previousPosts = _allPosts;
+      previousVisiblePosts = _visiblePosts;
+      previousVisibleCount = _visibleCount;
+
       if (!forceRefresh && _allPosts.isNotEmpty) {
         _isLoading = false;
 
-        // 현재 로드된 게시물의 개수가 0개라면
-        if (_visibleCount == 0) {
-          // 처음 로드 시에는 5개만 보여주기
-          _visibleCount = _allPosts.length < _pageSize
-              ? _allPosts.length
-              : _pageSize;
-        }
-        _hasMoreData = _visibleCount < _allPosts.length;
+        _syncVisiblePosts(
+          visibleCount: _visibleCount == 0 ? _pageSize : _visibleCount,
+        );
         _notifyStateChanged();
         return;
       }
 
-      if (isInitialLoad) {
+      if (!hadCachedPosts) {
         _isLoading = true; // 처음 로드하는 경우라면, 로딩 상태를 설정합니다.
         _hasMoreData = false; // 더 보여줄 데이터 없음으로 초기화
         _notifyStateChanged();
       }
+
+      if (!context.mounted) return;
 
       final categoryController = Provider.of<api_category.CategoryController>(
         context,
@@ -223,6 +269,12 @@ class FeedDataManager extends ChangeNotifier {
         listen: false,
       );
 
+      var hadCategoryLoadFailure = false;
+      final blockedUsersFuture = friendController.getAllFriends(
+        userId: currentUser.id,
+        status: FriendStatus.blocked,
+      );
+
       // 피드 캐싱/노출(5개씩)은 `loadUserCategoriesAndPhotos`와 `_visibleCount`에서 담당합니다.
       // 사용자 카테고리 로드
       final categories = await categoryController.loadCategories(
@@ -232,7 +284,7 @@ class FeedDataManager extends ChangeNotifier {
       );
 
       if (categories.isEmpty) {
-        _allPosts = [];
+        _replaceAllPosts(const <FeedPostItem>[], visibleCount: 0);
         _isLoading = false;
         _notifyStateChanged();
         return;
@@ -246,6 +298,7 @@ class FeedDataManager extends ChangeNotifier {
             final posts = await postController.getPostsByCategory(
               categoryId: category.id,
               userId: currentUser.id,
+              notifyLoading: false,
               forceRefresh: forceRefresh,
             );
 
@@ -260,6 +313,7 @@ class FeedDataManager extends ChangeNotifier {
                 )
                 .toList(growable: false);
           } catch (e) {
+            hadCategoryLoadFailure = true;
             debugPrint('[FeedDataManager] 카테고리 ${category.id} 로드 실패: $e');
             return const <FeedPostItem>[];
           }
@@ -270,11 +324,19 @@ class FeedDataManager extends ChangeNotifier {
         for (final items in combinedLists) ...items,
       ];
 
+      if (combined.isEmpty && hadCachedPosts && hadCategoryLoadFailure) {
+        _restorePreviousPosts(
+          posts: previousPosts,
+          visiblePosts: previousVisiblePosts,
+          visibleCount: previousVisibleCount,
+        );
+        _isLoading = false;
+        _notifyStateChanged();
+        return;
+      }
+
       // 차단 사용자 게시물 필터링
-      final blockedUsers = await friendController.getAllFriends(
-        userId: currentUser.id,
-        status: FriendStatus.blocked,
-      );
+      final blockedUsers = await blockedUsersFuture;
       if (blockedUsers.isNotEmpty) {
         final blockedIds = blockedUsers.map((user) => user.userId).toSet();
         combined.removeWhere((item) => blockedIds.contains(item.post.nickName));
@@ -289,29 +351,30 @@ class FeedDataManager extends ChangeNotifier {
         return bTime.compareTo(aTime);
       });
 
-      _allPosts = combined;
-      if (isInitialLoad) {
-        _isLoading = false;
-      }
-
-      // 처음엔 5개만 보여주기 (데이터는 캐싱해두고 UI 노출만 단계적으로)
-      _visibleCount = _allPosts.length < _pageSize
-          ? _allPosts.length
-          : _pageSize;
-
-      // 더 보여줄 게시물이 남았는지 여부 업데이트
-      _hasMoreData = _visibleCount < _allPosts.length;
+      _replaceAllPosts(
+        combined,
+        visibleCount: hadCachedPosts && previousVisibleCount > 0
+            ? previousVisibleCount
+            : _pageSize,
+      );
+      _isLoading = false;
 
       _notifyStateChanged(); // 상태 변경 알림
-      _onPostsLoaded?.call(combined); // 로드 완료 콜백 호출
+      _onPostsLoaded?.call(_allPosts); // 로드 완료 콜백 호출
     } catch (e) {
       debugPrint('[FeedDataManager] 피드 로드 실패: $e');
-      _allPosts = []; //
-      _hasMoreData = false;
-      _visibleCount = 0;
-      if (isInitialLoad) {
-        _isLoading = false;
+
+      if (previousPosts.isNotEmpty) {
+        _restorePreviousPosts(
+          posts: previousPosts,
+          visiblePosts: previousVisiblePosts,
+          visibleCount: previousVisibleCount,
+        );
+      } else {
+        _replaceAllPosts(const <FeedPostItem>[], visibleCount: 0);
       }
+
+      _isLoading = false;
       _notifyStateChanged();
     }
   }
@@ -335,10 +398,7 @@ class FeedDataManager extends ChangeNotifier {
     _notifyStateChanged();
     // 이미 로드된 목록에서 "더 보여주기"만 수행(새 네트워크 요청 없음)
     final next = _visibleCount + _pageSize; // 다음으로 보여줄 게시물 수 --> 기존 포스트 개수 + 5개
-    _visibleCount = next > _allPosts.length
-        ? _allPosts.length
-        : next; // 최대 전체 게시물 수를 넘지 않도록 제한
-    _hasMoreData = _visibleCount < _allPosts.length; // 더 보여줄 게시물이 남았는지 여부 업데이트
+    _syncVisiblePosts(visibleCount: next);
     _isLoadingMore = false; // 로딩 상태 해제
     _notifyStateChanged(); // 상태 변경 알림
   }
@@ -370,7 +430,8 @@ class FeedDataManager extends ChangeNotifier {
   /// - [index]: 제거할 게시물의 인덱스
   void removePhoto(int index) {
     if (index >= 0 && index < _allPosts.length) {
-      _allPosts.removeAt(index); // 해당 인덱스의 게시물 데이터 제거
+      final nextPosts = List<FeedPostItem>.of(_allPosts)..removeAt(index);
+      _replaceAllPosts(nextPosts, visibleCount: _visibleCount);
       _notifyStateChanged(); // 상태 변경 알림
     }
   }
@@ -383,11 +444,7 @@ class FeedDataManager extends ChangeNotifier {
         .toList(growable: false);
     if (filtered.length == _allPosts.length) return;
 
-    _allPosts = filtered;
-    if (_visibleCount > _allPosts.length) {
-      _visibleCount = _allPosts.length;
-    }
-    _hasMoreData = _visibleCount < _allPosts.length;
+    _replaceAllPosts(filtered, visibleCount: _visibleCount);
     _notifyStateChanged();
   }
 
@@ -397,9 +454,7 @@ class FeedDataManager extends ChangeNotifier {
   /// Parameters:
   /// - [notify]: true면 상태 변경 알림 호출
   void reset({bool notify = true}) {
-    _allPosts = [];
-    _visibleCount = 0;
-    _hasMoreData = false;
+    _replaceAllPosts(const <FeedPostItem>[], visibleCount: 0);
     _isLoading = false;
     _isLoadingMore = false;
     _lastUserId = null;
