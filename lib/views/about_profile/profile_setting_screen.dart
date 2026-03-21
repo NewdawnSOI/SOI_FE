@@ -65,8 +65,11 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
         mediaController: mediaController,
       ),
     );
-    if (friendController.cachedFriendsUserId == currentUser.id) {
-      _friendCount = friendController.cachedFriends.length;
+    final cachedFriendCount = friendController.peekCachedFriendCount(
+      userId: currentUser.id,
+    );
+    if (cachedFriendCount != null) {
+      _friendCount = cachedFriendCount;
     }
   }
 
@@ -161,7 +164,6 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
       return;
     }
 
-    ProfileScreenData? profileData;
     final previousUser = _userInfo ?? currentUser;
     var resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
       previousUser: previousUser,
@@ -172,12 +174,30 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     );
     var resolvedFriendCount = _friendCount;
 
-    try {
-      profileData = await _profileDataService.loadUserData(
-        userId: currentUser.id,
-        userController: userController,
-        mediaController: mediaController,
-      );
+    final profileFuture = _profileDataService
+        .loadUserData(
+          userId: currentUser.id,
+          userController: userController,
+          mediaController: mediaController,
+        )
+        .then<ProfileScreenData?>((value) => value)
+        .catchError((error) {
+          debugPrint('사용자 데이터 로드 오류: $error');
+          return null;
+        });
+    final friendsFuture = friendController
+        .getAllFriends(userId: currentUser.id)
+        .then<List<User>?>((value) => value)
+        .catchError((error) {
+          debugPrint('친구 수 로드 오류: $error');
+          return null;
+        });
+
+    final results = await Future.wait<Object?>([profileFuture, friendsFuture]);
+    final profileData = results[0] as ProfileScreenData?;
+    final friends = results[1] as List<User>?;
+
+    if (profileData != null) {
       resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
         previousUser: previousUser,
         previousUrl: _profileImageUrl,
@@ -185,17 +205,10 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
         nextUrl: profileData.profileImageUrl,
         mediaController: mediaController,
       );
-    } catch (error) {
-      debugPrint('사용자 데이터 로드 오류: $error');
     }
 
-    try {
-      final friends = await friendController.getAllFriends(
-        userId: currentUser.id,
-      );
+    if (friends != null) {
       resolvedFriendCount = friends.length;
-    } catch (error) {
-      debugPrint('친구 수 로드 오류: $error');
     }
 
     if (!mounted) return;

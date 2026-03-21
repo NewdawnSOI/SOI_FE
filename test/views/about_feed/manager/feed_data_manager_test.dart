@@ -202,6 +202,7 @@ class _NoopFriendController extends FriendController {
   Future<List<User>> getAllFriends({
     required int userId,
     FriendStatus status = FriendStatus.accepted,
+    bool forceRefresh = false,
   }) async {
     return const <User>[];
   }

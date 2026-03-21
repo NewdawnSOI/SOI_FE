@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -13,13 +14,13 @@ import '../models/models.dart';
 /// Provider를 통해 주입받아 사용합니다.
 ///
 /// 사용 예시:
-/// ```dart
+/// ```
 /// final friendService = Provider.of<FriendService>(context, listen: false);
 ///
 /// // 친구 추가
 /// final friend = await friendService.addFriend(
 ///   requesterId: 1,
-///   receiverId: 2,
+///   receiverPhoneNum: '01012345678',
 /// );
 ///
 /// // 친구 목록 조회
@@ -32,10 +33,28 @@ import '../models/models.dart';
 /// );
 /// ```
 class FriendService {
+  static const Duration _friendListCacheTtl = Duration(seconds: 30);
+  static const Duration _friendRelationCacheTtl = Duration(seconds: 30);
+
   final FriendAPIApi _friendApi;
 
-  FriendService({FriendAPIApi? friendApi})
-    : _friendApi = friendApi ?? SoiApiClient.instance.friendApi;
+  /// 시간 제공 함수 (테스트 용이성 위해 주입)
+  final DateTime Function() _now;
+
+  /// 친구 목록 캐시: 'userId|status' -> 친구 목록 및 캐시 시간
+  final Map<String, _FriendListCacheEntry> _friendListCache =
+      <String, _FriendListCacheEntry>{};
+
+  final Map<String, Future<List<User>>> _inFlightFriendListRequests =
+      <String, Future<List<User>>>{};
+  final Map<int, Map<String, _FriendRelationCacheEntry>> _friendRelationCache =
+      <int, Map<String, _FriendRelationCacheEntry>>{};
+  final Map<String, Future<Map<String, FriendCheck>>>
+  _inFlightRelationRequests = <String, Future<Map<String, FriendCheck>>>{};
+
+  FriendService({FriendAPIApi? friendApi, DateTime Function()? now})
+    : _friendApi = friendApi ?? SoiApiClient.instance.friendApi,
+      _now = now ?? DateTime.now;
 
   // ============================================
   // 친구 추가
@@ -149,28 +168,31 @@ class FriendService {
   Future<List<User>> getAllFriends({
     required int userId,
     FriendStatus status = FriendStatus.accepted,
+    bool forceRefresh = false,
   }) async {
+    final cacheKey = _friendListCacheKey(userId, status);
+    final cachedEntry = _friendListCache[cacheKey];
+    if (!forceRefresh &&
+        cachedEntry != null &&
+        !cachedEntry.isExpired(referenceTime: _now())) {
+      return cachedEntry.users;
+    }
+
+    final inFlightRequest = _inFlightFriendListRequests[cacheKey];
+    if (inFlightRequest != null) {
+      return inFlightRequest;
+    }
+
+    final request = _fetchFriendList(status: status, cacheKey: cacheKey);
+    _inFlightFriendListRequests[cacheKey] = request;
+
     try {
-      final response = await _friendApi.getAllFriend(
-        _mapStatusToQueryParam(status),
-      );
-
-      if (response == null) {
-        return [];
+      return await request;
+    } finally {
+      final registeredRequest = _inFlightFriendListRequests[cacheKey];
+      if (identical(registeredRequest, request)) {
+        _inFlightFriendListRequests.remove(cacheKey);
       }
-
-      if (response.success != true) {
-        throw SoiApiException(message: response.message ?? '친구 목록 조회 실패');
-      }
-
-      return response.data.map((dto) => User.fromFindDto(dto)).toList();
-    } on ApiException catch (e) {
-      throw _handleApiException(e);
-    } on SocketException catch (e) {
-      throw NetworkException(originalException: e);
-    } catch (e) {
-      if (e is SoiApiException) rethrow;
-      throw SoiApiException(message: '친구 목록 조회 실패: $e', originalException: e);
     }
   }
 
@@ -187,27 +209,129 @@ class FriendService {
   Future<List<FriendCheck>> checkFriendRelations({
     required int userId,
     required List<String> phoneNumbers,
+    bool forceRefresh = false,
   }) async {
-    try {
-      final response = await _friendApi.getAllFriend1(phoneNumbers);
+    final normalizedPhoneNumbers = _normalizePhoneNumbers(phoneNumbers);
+    if (normalizedPhoneNumbers.isEmpty) {
+      return const <FriendCheck>[];
+    }
 
-      if (response == null) {
-        return [];
+    final relationCache = _friendRelationCache.putIfAbsent(
+      userId,
+      () => <String, _FriendRelationCacheEntry>{},
+    );
+    final resolvedRelations = <String, FriendCheck>{};
+    final missingPhoneNumbers = <String>[];
+
+    for (final phoneNumber in normalizedPhoneNumbers) {
+      final cachedEntry = relationCache[phoneNumber];
+      final isFresh =
+          cachedEntry != null &&
+          !cachedEntry.isExpired(referenceTime: _now()) &&
+          !forceRefresh;
+
+      if (isFresh) {
+        resolvedRelations[phoneNumber] = cachedEntry.relation;
+      } else {
+        missingPhoneNumbers.add(phoneNumber);
+      }
+    }
+
+    if (missingPhoneNumbers.isNotEmpty) {
+      final requestKey = _friendRelationRequestKey(userId, missingPhoneNumbers);
+      final inFlightRequest = _inFlightRelationRequests[requestKey];
+      final request =
+          inFlightRequest ??
+          _fetchFriendRelations(
+            phoneNumbers: missingPhoneNumbers,
+            relationCache: relationCache,
+          );
+      if (inFlightRequest == null) {
+        _inFlightRelationRequests[requestKey] = request;
       }
 
-      if (response.success != true) {
-        throw SoiApiException(message: response.message ?? '친구 관계 확인 실패');
+      try {
+        final fetchedRelations = await request;
+        resolvedRelations.addAll(fetchedRelations);
+      } finally {
+        final registeredRequest = _inFlightRelationRequests[requestKey];
+        if (identical(registeredRequest, request)) {
+          _inFlightRelationRequests.remove(requestKey);
+        }
       }
+    }
 
-      final data = response.data;
-      return data.map((dto) => FriendCheck.fromDto(dto)).toList();
-    } on ApiException catch (e) {
-      throw _handleApiException(e);
-    } on SocketException catch (e) {
-      throw NetworkException(originalException: e);
-    } catch (e) {
-      if (e is SoiApiException) rethrow;
-      throw SoiApiException(message: '친구 관계 확인 실패: $e', originalException: e);
+    return List<FriendCheck>.unmodifiable(
+      normalizedPhoneNumbers.map(
+        (phoneNumber) =>
+            resolvedRelations[phoneNumber] ?? _noneFriendCheck(phoneNumber),
+      ),
+    );
+  }
+
+  List<User>? peekCachedFriends({
+    required int userId,
+    FriendStatus status = FriendStatus.accepted,
+  }) {
+    return _friendListCache[_friendListCacheKey(userId, status)]?.users;
+  }
+
+  bool hasFreshFriendsCache({
+    required int userId,
+    FriendStatus status = FriendStatus.accepted,
+  }) {
+    final cachedEntry = _friendListCache[_friendListCacheKey(userId, status)];
+    return cachedEntry != null && !cachedEntry.isExpired(referenceTime: _now());
+  }
+
+  void invalidateFriendListCache({int? userId, FriendStatus? status}) {
+    if (userId == null && status == null) {
+      _friendListCache.clear();
+      return;
+    }
+
+    if (userId != null && status != null) {
+      _friendListCache.remove(_friendListCacheKey(userId, status));
+      return;
+    }
+
+    if (userId != null) {
+      final cacheKeyPrefix = '$userId|';
+      _friendListCache.removeWhere(
+        (cacheKey, _) => cacheKey.startsWith(cacheKeyPrefix),
+      );
+      return;
+    }
+
+    final statusSuffix = '|${status!.name}';
+    _friendListCache.removeWhere(
+      (cacheKey, _) => cacheKey.endsWith(statusSuffix),
+    );
+  }
+
+  void invalidateRelationCache({int? userId, Iterable<String>? phoneNumbers}) {
+    if (userId == null) {
+      _friendRelationCache.clear();
+      return;
+    }
+
+    final relationCache = _friendRelationCache[userId];
+    if (relationCache == null) {
+      return;
+    }
+
+    if (phoneNumbers == null) {
+      _friendRelationCache.remove(userId);
+      return;
+    }
+
+    final normalizedPhoneNumbers = _normalizePhoneNumbers(phoneNumbers);
+    for (final phoneNumber in normalizedPhoneNumbers) {
+      relationCache.remove(phoneNumber);
+    }
+
+    if (relationCache.isEmpty) {
+      _friendRelationCache.remove(userId);
     }
   }
 
@@ -422,6 +546,132 @@ class FriendService {
     }
   }
 
+  Future<List<User>> _fetchFriendList({
+    required FriendStatus status,
+    required String cacheKey,
+  }) async {
+    try {
+      final response = await _friendApi.getAllFriend(
+        _mapStatusToQueryParam(status),
+      );
+
+      if (response == null) {
+        const users = <User>[];
+        _friendListCache[cacheKey] = _FriendListCacheEntry(
+          users: users,
+          cachedAt: _now(),
+        );
+        return users;
+      }
+
+      if (response.success != true) {
+        throw SoiApiException(message: response.message ?? '친구 목록 조회 실패');
+      }
+
+      final users = List<User>.unmodifiable(
+        response.data.map((dto) => User.fromFindDto(dto)),
+      );
+      _friendListCache[cacheKey] = _FriendListCacheEntry(
+        users: users,
+        cachedAt: _now(),
+      );
+      return users;
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '친구 목록 조회 실패: $e', originalException: e);
+    }
+  }
+
+  Future<Map<String, FriendCheck>> _fetchFriendRelations({
+    required List<String> phoneNumbers,
+    required Map<String, _FriendRelationCacheEntry> relationCache,
+  }) async {
+    try {
+      final response = await _friendApi.getAllFriend1(phoneNumbers);
+
+      if (response != null && response.success != true) {
+        throw SoiApiException(message: response.message ?? '친구 관계 확인 실패');
+      }
+
+      final fetchedRelations = <String, FriendCheck>{};
+      for (final dto in response?.data ?? const <FriendCheckRespDto>[]) {
+        final relation = FriendCheck.fromDto(dto);
+        final normalizedPhoneNumber = _normalizePhoneNumber(
+          relation.phoneNumber,
+        );
+        if (normalizedPhoneNumber.isEmpty) {
+          continue;
+        }
+
+        fetchedRelations[normalizedPhoneNumber] = FriendCheck(
+          phoneNumber: normalizedPhoneNumber,
+          isFriend: relation.isFriend,
+          status: relation.status,
+        );
+      }
+
+      final cachedAt = _now();
+      for (final phoneNumber in phoneNumbers) {
+        final relation =
+            fetchedRelations[phoneNumber] ?? _noneFriendCheck(phoneNumber);
+        relationCache[phoneNumber] = _FriendRelationCacheEntry(
+          relation: relation,
+          cachedAt: cachedAt,
+        );
+        fetchedRelations.putIfAbsent(phoneNumber, () => relation);
+      }
+
+      return Map<String, FriendCheck>.unmodifiable(fetchedRelations);
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '친구 관계 확인 실패: $e', originalException: e);
+    }
+  }
+
+  String _friendListCacheKey(int userId, FriendStatus status) {
+    return '$userId|${status.name}';
+  }
+
+  String _friendRelationRequestKey(int userId, List<String> phoneNumbers) {
+    return '$userId|${phoneNumbers.join(',')}';
+  }
+
+  List<String> _normalizePhoneNumbers(Iterable<String> phoneNumbers) {
+    final normalizedPhoneNumbers = <String>[];
+    final seenPhoneNumbers = <String>{};
+
+    for (final phoneNumber in phoneNumbers) {
+      final normalizedPhoneNumber = _normalizePhoneNumber(phoneNumber);
+      if (normalizedPhoneNumber.isEmpty ||
+          !seenPhoneNumbers.add(normalizedPhoneNumber)) {
+        continue;
+      }
+      normalizedPhoneNumbers.add(normalizedPhoneNumber);
+    }
+
+    return normalizedPhoneNumbers;
+  }
+
+  String _normalizePhoneNumber(String phoneNumber) {
+    return phoneNumber.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+  }
+
+  FriendCheck _noneFriendCheck(String phoneNumber) {
+    return FriendCheck(
+      phoneNumber: phoneNumber,
+      isFriend: false,
+      status: FriendStatus.none,
+    );
+  }
+
   /// FriendStatus를 API enum으로 변환
   FriendUpdateRespDtoStatusEnum? _toFriendStatusEnum(FriendStatus status) {
     switch (status) {
@@ -451,5 +701,32 @@ class FriendService {
       case FriendStatus.none:
         return 'NONE';
     }
+  }
+}
+
+class _FriendListCacheEntry {
+  const _FriendListCacheEntry({required this.users, required this.cachedAt});
+
+  final List<User> users;
+  final DateTime cachedAt;
+
+  bool isExpired({required DateTime referenceTime}) {
+    return referenceTime.difference(cachedAt) >=
+        FriendService._friendListCacheTtl;
+  }
+}
+
+class _FriendRelationCacheEntry {
+  const _FriendRelationCacheEntry({
+    required this.relation,
+    required this.cachedAt,
+  });
+
+  final FriendCheck relation;
+  final DateTime cachedAt;
+
+  bool isExpired({required DateTime referenceTime}) {
+    return referenceTime.difference(cachedAt) >=
+        FriendService._friendRelationCacheTtl;
   }
 }

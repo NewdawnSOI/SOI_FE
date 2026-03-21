@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -37,6 +38,7 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
   final Map<int, String?> _profileUrlCache = {};
   final Map<String, _CachedSearchResult> _searchCache = {};
   final Set<int> _sending = {}; // 요청 버튼 로딩 대상
+  int _searchGeneration = 0;
 
   @override
   void initState() {
@@ -56,6 +58,8 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
   void _onQueryChanged() {
     _debounce?.cancel();
     final query = _textController.text.trim();
+    _searchGeneration += 1;
+    final generation = _searchGeneration;
     if (query.isEmpty) {
       setState(() {
         _results = [];
@@ -65,31 +69,49 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
       return;
     }
     _debounce = Timer(const Duration(milliseconds: 400), () {
-      _performSearch(query);
+      _performSearch(query, generation);
     });
+  }
+
+  void _submitSearch(String rawQuery) {
+    _debounce?.cancel();
+    final query = rawQuery.trim();
+    _searchGeneration += 1;
+    final generation = _searchGeneration;
+
+    if (query.isEmpty) {
+      setState(() {
+        _results = [];
+        _friendshipStatus = {};
+        _isSearching = false;
+      });
+      return;
+    }
+
+    _performSearch(query, generation);
   }
 
   /// 실제 검색 수행
   ///
   /// Parameters:
   ///   - [String] query: 검색어
-  Future<void> _performSearch(String query) async {
+  Future<void> _performSearch(String query, int generation) async {
     final cached = _searchCache[query];
     if (cached != null) {
+      if (!_isLatestSearch(query, generation)) {
+        return;
+      }
       setState(() {
         _results = cached.results;
-        _friendshipStatus = cached.status;
+        _friendshipStatus = Map<int, String>.from(cached.status);
         _isSearching = false;
       });
       return;
     }
 
     // API 호출
-    final userController = Provider.of<UserController>(context, listen: false);
-    final friendController = Provider.of<FriendController>(
-      context,
-      listen: false,
-    );
+    final userController = context.read<UserController>();
+    final friendController = context.read<FriendController>();
 
     // 현재 사용자 ID 가져오기
     final currentUserId = userController.currentUser?.id;
@@ -108,8 +130,10 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
       final list = await userController.findUsersByKeyword(query);
 
       // 본인 제외
-      final filteredList = list.where((u) => u.id != currentUserId).toList();
-      _results = filteredList;
+      final filteredList = List<User>.unmodifiable(
+        list.where((user) => user.id != currentUserId),
+      );
+      final statusByUserId = <int, String>{};
 
       // 친구 관계 상태 조회
       if (filteredList.isNotEmpty) {
@@ -124,75 +148,114 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
             userId: currentUserId,
             phoneNumbers: phoneNumbers,
           );
-          debugPrint("친구 관계 조회 결과: $relations");
+          if (kDebugMode) {
+            debugPrint("친구 관계 조회 결과: $relations");
+          }
 
           // 전화번호 -> 상태 매핑을 userId -> 상태로 변환
           final phoneToStatus = <String, String>{};
           for (final relation in relations) {
             // FriendCheck 모델의 statusString 사용
-            phoneToStatus[relation.phoneNumber] = relation.statusString;
+            phoneToStatus[_normalizePhoneNumber(relation.phoneNumber)] =
+                relation.statusString;
           }
-          // userId -> 상태 매핑 생성
-          _friendshipStatus = {};
-
           // filteredList를 순회하며 상태 매핑 채우기
           for (final user in filteredList) {
-            final status = phoneToStatus[user.phoneNumber] ?? 'none';
-            _friendshipStatus[user.id] = status;
+            final status =
+                phoneToStatus[_normalizePhoneNumber(user.phoneNumber)] ??
+                'none';
+            statusByUserId[user.id] = status;
           }
-          debugPrint("최종 친구 상태 매핑: $_friendshipStatus");
-        } else {
-          _friendshipStatus = {};
+          if (kDebugMode) {
+            debugPrint("최종 친구 상태 매핑: $statusByUserId");
+          }
         }
-      } else {
-        _friendshipStatus = {};
       }
 
-      _searchCache[query] = _CachedSearchResult(_results, _friendshipStatus);
+      if (!_isLatestSearch(query, generation)) {
+        return;
+      }
+
+      final cachedResult = _CachedSearchResult(
+        filteredList,
+        Map<int, String>.unmodifiable(statusByUserId),
+      );
+      _searchCache[query] = cachedResult;
+
+      setState(() {
+        _results = filteredList;
+        _friendshipStatus = Map<int, String>.from(cachedResult.status);
+        _isSearching = false;
+      });
 
       // 프로필 이미지 presigned URL 미리 로드
-      _preloadProfileUrls(filteredList);
+      unawaited(_preloadProfileUrls(filteredList));
     } catch (e) {
       debugPrint('검색 실패: $e');
-      _results = [];
-      _friendshipStatus = {};
-    } finally {
-      if (mounted) setState(() => _isSearching = false);
+      if (!_isLatestSearch(query, generation)) {
+        return;
+      }
+      setState(() {
+        _results = [];
+        _friendshipStatus = {};
+        _isSearching = false;
+      });
     }
   }
 
   /// 프로필 이미지 presigned URL 미리 로드
   Future<void> _preloadProfileUrls(List<User> users) async {
-    final mediaController = Provider.of<MediaController>(
-      context,
-      listen: false,
-    );
+    final mediaController = context.read<MediaController>();
+    final usersToResolve = users
+        .where(
+          (user) =>
+              user.profileImageUrlKey?.isNotEmpty == true &&
+              !_profileUrlCache.containsKey(user.id),
+        )
+        .toList(growable: false);
 
-    for (final user in users) {
-      if (user.profileImageUrlKey?.isNotEmpty == true &&
-          !_profileUrlCache.containsKey(user.id)) {
+    if (usersToResolve.isEmpty) {
+      return;
+    }
+
+    final resolvedEntries = await Future.wait<MapEntry<int, String?>?>(
+      usersToResolve.map((user) async {
         try {
           final url = await mediaController.getPresignedUrl(
             user.profileImageUrlKey!,
           );
-          if (mounted) {
-            setState(() {
-              _profileUrlCache[user.id] = url;
-            });
-          }
+          return MapEntry<int, String?>(user.id, url);
         } catch (e) {
           debugPrint('프로필 이미지 URL 로드 실패: $e');
+          return null;
         }
-      }
+      }),
+    );
+
+    if (!mounted) {
+      return;
     }
+
+    final resolvedUrls = <int, String?>{};
+    for (final entry in resolvedEntries) {
+      if (entry == null) {
+        continue;
+      }
+      resolvedUrls[entry.key] = entry.value;
+    }
+
+    if (resolvedUrls.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _profileUrlCache.addAll(resolvedUrls);
+    });
   }
 
   Future<void> _sendFriendRequest(User user) async {
-    final userController = Provider.of<UserController>(context, listen: false);
-    final friendController = Provider.of<FriendController>(
-      context,
-      listen: false,
-    );
+    final userController = context.read<UserController>();
+    final friendController = context.read<FriendController>();
     final currentUserId = userController.currentUser?.id;
 
     if (currentUserId == null) {
@@ -233,6 +296,21 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
     } finally {
       if (mounted) setState(() => _sending.remove(user.id));
     }
+  }
+
+  /// 검색어와 세대가 현재 최신인지 확인
+  /// 세대란?
+  /// - 검색이 시작될 때마다 증가하는 숫자.
+  /// - 검색 결과가 돌아왔을 때, 이 숫자가 검색어와 함께 최신인지 확인하여, 오래된 검색 결과가 최신 검색 결과를 덮어쓰는 것을 방지합니다.
+  bool _isLatestSearch(String query, int generation) {
+    return mounted &&
+        generation == _searchGeneration &&
+        query == _textController.text.trim();
+  }
+
+  /// 전화번호에서 숫자만 추출하여 정규화
+  String _normalizePhoneNumber(String phoneNumber) {
+    return phoneNumber.replaceAll(RegExp(r'[\s\-\(\)]'), '');
   }
 
   @override
@@ -320,7 +398,7 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
                   isDense: true,
                 ),
                 textInputAction: TextInputAction.search,
-                onSubmitted: (v) => _performSearch(v.trim()),
+                onSubmitted: _submitSearch,
               ),
             ),
             if (_textController.text.isNotEmpty)

@@ -71,8 +71,11 @@ class _ProfilePageState extends State<ProfilePage> {
         mediaController: mediaController,
       ),
     );
-    if (friendController.cachedFriendsUserId == currentUser.id) {
-      _friendCount = friendController.cachedFriends.length;
+    final cachedFriendCount = friendController.peekCachedFriendCount(
+      userId: currentUser.id,
+    );
+    if (cachedFriendCount != null) {
+      _friendCount = cachedFriendCount;
     }
   }
 
@@ -173,12 +176,24 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     var resolvedFriendCount = _friendCount;
 
-    try {
-      final profileData = await _profileDataService.loadUserData(
-        userId: currentUser.id,
-        userController: userController,
-        mediaController: mediaController,
-      );
+    final profileFuture = _profileDataService
+        .loadUserData(
+          userId: currentUser.id,
+          userController: userController,
+          mediaController: mediaController,
+        )
+        .then<ProfileScreenData?>((value) => value)
+        .catchError((_) => null);
+    final friendsFuture = friendController
+        .getAllFriends(userId: currentUser.id)
+        .then<List<User>?>((value) => value)
+        .catchError((_) => null);
+
+    final results = await Future.wait<Object?>([profileFuture, friendsFuture]);
+    final profileData = results[0] as ProfileScreenData?;
+    final friends = results[1] as List<User>?;
+
+    if (profileData != null) {
       resolvedUser = profileData.userInfo ?? previousUser;
       resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
         previousUser: previousUser,
@@ -187,16 +202,13 @@ class _ProfilePageState extends State<ProfilePage> {
         nextUrl: profileData.profileImageUrl,
         mediaController: mediaController,
       );
-    } catch (_) {
+    } else {
       resolvedUser = previousUser;
     }
 
-    try {
-      final friends = await friendController.getAllFriends(
-        userId: currentUser.id,
-      );
+    if (friends != null) {
       resolvedFriendCount = friends.length;
-    } catch (_) {
+    } else {
       resolvedFriendCount = _friendCount;
     }
 

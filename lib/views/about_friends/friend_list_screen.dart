@@ -38,11 +38,6 @@ class _FriendListScreenState extends State<FriendListScreen> {
   Future<void> _loadFriends() async {
     if (!mounted) return;
 
-    setState(() {
-      _isLoadingFriends = true;
-      _friendLoadErrorKey = null;
-    });
-
     try {
       // 현재 사용자 ID 가져오기
       final userController = context.read<UserController>();
@@ -61,6 +56,18 @@ class _FriendListScreenState extends State<FriendListScreen> {
 
       // API로 친구 목록 조회
       final friendController = context.read<FriendController>();
+      final cachedFriends = friendController.peekCachedFriends(
+        userId: currentUserId,
+      );
+      final hadCachedFriends = cachedFriends != null;
+
+      setState(() {
+        if (cachedFriends != null) {
+          _friends = cachedFriends;
+        }
+        _isLoadingFriends = !hadCachedFriends;
+        _friendLoadErrorKey = null;
+      });
 
       // 현재 로그인한 사용자 기준으로 친구 관계인 모든 사용자 조회
       final friends = await friendController.getAllFriends(
@@ -70,6 +77,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
       if (mounted) {
         setState(() {
           _friends = friends;
+          _friendLoadErrorKey =
+              !hadCachedFriends && friendController.errorMessage != null
+              ? 'friends.load_failed_detail'
+              : null;
         });
       }
     } catch (e) {
@@ -757,7 +768,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
 
     if (currentUserId == null) {
       if (!mounted) return;
-      SnackBarUtils.showSnackBar(context, tr('common.login_info_required', context: context));
+      SnackBarUtils.showSnackBar(
+        context,
+        tr('common.login_info_required', context: context),
+      );
       return;
     }
 
@@ -772,7 +786,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
       if (!mounted) return;
 
       if (success) {
-        SnackBarUtils.showSnackBar(context, tr('friends.delete_success', context: context));
+        SnackBarUtils.showSnackBar(
+          context,
+          tr('friends.delete_success', context: context),
+        );
         await _loadFriends();
       } else {
         final message =
@@ -782,7 +799,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      SnackBarUtils.showSnackBar(context, tr('friends.delete_error', context: context));
+      SnackBarUtils.showSnackBar(
+        context,
+        tr('friends.delete_error', context: context),
+      );
     }
   }
 
@@ -793,7 +813,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
 
     if (currentUserId == null) {
       if (!mounted) return;
-      SnackBarUtils.showSnackBar(context, tr('common.login_info_required', context: context));
+      SnackBarUtils.showSnackBar(
+        context,
+        tr('common.login_info_required', context: context),
+      );
       return;
     }
 
@@ -808,7 +831,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
       if (!mounted) return;
 
       if (success) {
-        SnackBarUtils.showSnackBar(context, tr('friends.block_success', context: context));
+        SnackBarUtils.showSnackBar(
+          context,
+          tr('friends.block_success', context: context),
+        );
         await _loadFriends();
       } else {
         final message =
@@ -818,7 +844,10 @@ class _FriendListScreenState extends State<FriendListScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      SnackBarUtils.showSnackBar(context, tr('friends.block_error', context: context));
+      SnackBarUtils.showSnackBar(
+        context,
+        tr('friends.block_error', context: context),
+      );
     }
   }
 }

@@ -4,6 +4,7 @@ import '../../../api/controller/category_controller.dart';
 import '../models/add_category_draft.dart';
 import 'photo_editor_upload_service.dart';
 
+/// 카테고리 로드 및 생성과 관련된 비즈니스 로직을 처리하는 서비스입니다.
 class PhotoEditorCategoryLoadResult {
   const PhotoEditorCategoryLoadResult({
     required this.didLoad,
@@ -137,14 +138,13 @@ class PhotoEditorCategoryFlowService {
       return const [];
     }
 
-    final receiverIds = <int>[draft.requesterId];
+    // LinkedHashSet으로 O(1) 중복 제거 + 삽입 순서 유지
+    final seen = <int>{draft.requesterId};
     for (final friend in draft.selectedFriends) {
       final parsedId = int.tryParse(friend.uid);
-      if (parsedId != null && !receiverIds.contains(parsedId)) {
-        receiverIds.add(parsedId);
-      }
+      if (parsedId != null) seen.add(parsedId);
     }
-    return receiverIds;
+    return seen.toList();
   }
 
   Future<_BackgroundCoverUploadResult> _createCoverUploadFuture({

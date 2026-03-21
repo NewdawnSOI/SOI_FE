@@ -144,6 +144,7 @@ class _FakeFriendController extends FriendController {
   Future<List<User>> getAllFriends({
     required int userId,
     FriendStatus status = FriendStatus.accepted,
+    bool forceRefresh = false,
   }) async => friends;
 }
 

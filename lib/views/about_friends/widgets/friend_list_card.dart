@@ -50,7 +50,7 @@ class _FriendListCardState extends State<FriendListCard> {
         listen: false,
       );
 
-      await friendController.refreshFriends(userId: currentUserId);
+      await friendController.getAllFriends(userId: currentUserId);
       if (mounted) {
         _refreshingUserId = null;
       }
@@ -64,9 +64,31 @@ class _FriendListCardState extends State<FriendListCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<UserController, FriendController>(
-      builder: (context, userController, friendController, _) {
+    return Selector2<
+      UserController,
+      FriendController,
+      _FriendListCardViewState
+    >(
+      selector: (_, userController, friendController) {
         final currentUserId = userController.currentUser?.id;
+        final hasCurrentUserCache =
+            currentUserId != null &&
+            friendController.cachedFriendsUserId == currentUserId;
+        final friends = hasCurrentUserCache
+            ? friendController.cachedFriends
+            : const <User>[];
+        final showLoading = friendController.isLoading && friends.isEmpty;
+
+        return _FriendListCardViewState(
+          currentUserId: currentUserId,
+          hasCurrentUserCache: hasCurrentUserCache,
+          friends: friends,
+          showLoading: showLoading,
+          acceptedFriendsRevision: friendController.acceptedFriendsRevision,
+        );
+      },
+      builder: (context, state, _) {
+        final currentUserId = state.currentUserId;
         if (!_initialized) {
           _initialized = true;
           WidgetsBinding.instance.addPostFrameCallback(
@@ -74,8 +96,7 @@ class _FriendListCardState extends State<FriendListCard> {
           );
         }
 
-        if (currentUserId != null &&
-            friendController.cachedFriendsUserId != currentUserId) {
+        if (currentUserId != null && !state.hasCurrentUserCache) {
           if (_refreshingUserId != currentUserId) {
             WidgetsBinding.instance.addPostFrameCallback(
               (_) => _refreshFriends(),
@@ -83,11 +104,7 @@ class _FriendListCardState extends State<FriendListCard> {
           }
         }
 
-        final friends =
-            currentUserId == null ||
-                friendController.cachedFriendsUserId != currentUserId
-            ? const <User>[]
-            : friendController.cachedFriends;
+        final friends = state.friends;
 
         return SizedBox(
           width: 354.w,
@@ -97,7 +114,7 @@ class _FriendListCardState extends State<FriendListCard> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            child: friendController.isLoading && friends.isEmpty
+            child: state.showLoading
                 ? SizedBox(
                     height: 132.h,
                     child: Center(
@@ -146,7 +163,8 @@ class _FriendListCardState extends State<FriendListCard> {
                                     color: Color(0xff323232),
                                   ),
                                   child: ClipOval(
-                                    child: friend.profileImageUrlKey == null ||
+                                    child:
+                                        friend.profileImageUrlKey == null ||
                                             friend.profileImageUrlKey!.isEmpty
                                         ? _buildInitialOrIcon(friend)
                                         : Image.network(
@@ -154,23 +172,25 @@ class _FriendListCardState extends State<FriendListCard> {
                                             cacheWidth: (44 * 4).round(),
                                             cacheHeight: (44 * 4).round(),
                                             fit: BoxFit.cover,
-                                            loadingBuilder: (
-                                              context,
-                                              child,
-                                              loadingProgress,
-                                            ) {
-                                              if (loadingProgress == null) {
-                                                return child;
-                                              }
-                                              return _buildInitialOrIcon(friend);
-                                            },
-                                            errorBuilder: (
-                                              context,
-                                              error,
-                                              stackTrace,
-                                            ) {
-                                              return _buildInitialOrIcon(friend);
-                                            },
+                                            loadingBuilder:
+                                                (
+                                                  context,
+                                                  child,
+                                                  loadingProgress,
+                                                ) {
+                                                  if (loadingProgress == null) {
+                                                    return child;
+                                                  }
+                                                  return _buildInitialOrIcon(
+                                                    friend,
+                                                  );
+                                                },
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                                  return _buildInitialOrIcon(
+                                                    friend,
+                                                  );
+                                                },
                                           ),
                                   ),
                                 ),
@@ -262,10 +282,41 @@ Widget _buildInitialOrIcon(User friend) {
     );
   }
   return Center(
-    child: Icon(
-      Icons.person,
-      size: (30).sp,
-      color: const Color(0xff777777),
-    ),
+    child: Icon(Icons.person, size: (30).sp, color: const Color(0xff777777)),
+  );
+}
+
+class _FriendListCardViewState {
+  const _FriendListCardViewState({
+    required this.currentUserId,
+    required this.hasCurrentUserCache,
+    required this.friends,
+    required this.showLoading,
+    required this.acceptedFriendsRevision,
+  });
+
+  final int? currentUserId;
+  final bool hasCurrentUserCache;
+  final List<User> friends;
+  final bool showLoading;
+  final int acceptedFriendsRevision;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _FriendListCardViewState &&
+        other.currentUserId == currentUserId &&
+        other.hasCurrentUserCache == hasCurrentUserCache &&
+        identical(other.friends, friends) &&
+        other.showLoading == showLoading &&
+        other.acceptedFriendsRevision == acceptedFriendsRevision;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    currentUserId,
+    hasCurrentUserCache,
+    friends,
+    showLoading,
+    acceptedFriendsRevision,
   );
 }

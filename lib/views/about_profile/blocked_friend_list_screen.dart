@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -41,14 +43,6 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
 
   /// 차단된 사용자 목록을 불러옵니다.
   Future<void> _loadBlockedFriends() async {
-    setState(() {
-      _isLoading = true;
-      _errorKey = null;
-      if (_blockedUsers.isNotEmpty) {
-        _shimmerPlaceholderCount = _blockedUsers.length;
-      }
-    });
-
     try {
       // 컨트롤러 인스턴스 가져오기
       final userController = context.read<UserController>();
@@ -62,6 +56,35 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
           _isLoading = false;
         });
         return;
+      }
+
+      final cachedBlockedUsers = friendController.peekCachedFriends(
+        userId: currentUserId,
+        status: FriendStatus.blocked,
+      );
+      final hadCachedBlockedUsers = cachedBlockedUsers != null;
+
+      setState(() {
+        _errorKey = null;
+        _isLoading = !hadCachedBlockedUsers;
+        if (_blockedUsers.isNotEmpty) {
+          _shimmerPlaceholderCount = _blockedUsers.length;
+        }
+        if (cachedBlockedUsers != null) {
+          _blockedUsers
+            ..clear()
+            ..addAll(cachedBlockedUsers);
+          _shimmerPlaceholderCount = cachedBlockedUsers.length;
+        }
+      });
+
+      if (cachedBlockedUsers != null && cachedBlockedUsers.isNotEmpty) {
+        unawaited(
+          _applyResolvedProfileUrls(
+            cachedBlockedUsers,
+            mediaController: mediaController,
+          ),
+        );
       }
 
       // 차단된 친구 목록 불러오기
@@ -90,6 +113,10 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
           ..clear()
           ..addAll(resolvedProfileUrlsByUserId);
         _shimmerPlaceholderCount = blockedUsers.length;
+        _errorKey =
+            !hadCachedBlockedUsers && friendController.errorMessage != null
+            ? 'friends.blocked.load_error'
+            : null;
         _isLoading = false;
       });
     } catch (e) {
@@ -99,6 +126,23 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _applyResolvedProfileUrls(
+    List<User> users, {
+    required MediaController mediaController,
+  }) async {
+    final resolvedProfileUrlsByUserId = await _resolveProfileUrlsByUserId(
+      users,
+      mediaController: mediaController,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _resolvedProfileUrlsByUserId
+        ..clear()
+        ..addAll(resolvedProfileUrlsByUserId);
+    });
   }
 
   /// 사용자 목록에서 프로필 이미지 URL을 매핑해서 반환합니다.

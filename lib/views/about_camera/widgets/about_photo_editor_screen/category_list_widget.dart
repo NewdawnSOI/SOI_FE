@@ -33,13 +33,9 @@ class CategoryListWidget extends StatefulWidget {
   State<CategoryListWidget> createState() => _CategoryListWidgetState();
 }
 
-class _CategoryListWidgetState extends State<CategoryListWidget>
-    with AutomaticKeepAliveClientMixin {
+class _CategoryListWidgetState extends State<CategoryListWidget> {
   final Set<String> _prefetchedCategoryImageKeys = <String>{};
   String _lastPrefetchSignature = '';
-
-  @override
-  bool get wantKeepAlive => false; // 메모리 절약을 위해 keepAlive 비활성화
 
   @override
   void dispose() {
@@ -57,8 +53,6 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-
     return Consumer<api_category.CategoryController>(
       builder: (context, viewModel, child) {
         if (viewModel.isLoading) {
@@ -240,7 +234,9 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
           final imageUrl = (category.photoUrl as String?)?.trim() ?? '';
           if (imageUrl.isEmpty) return null;
 
-          final cacheKey = _deriveImageCacheKey(imageUrl);
+          // 캐시 키 유도
+          // 캐시 키를 유도하여 URL이 변경되어도 동일한 이미지를 사용할 수 있도록 합니다.
+          final cacheKey = deriveCategoryImageCacheKey(imageUrl);
           return _CategoryImageCandidate(
             imageUrl: imageUrl,
             dedupeKey: cacheKey ?? imageUrl,
@@ -277,19 +273,6 @@ class _CategoryListWidgetState extends State<CategoryListWidget>
         );
       }
     });
-  }
-
-  String? _deriveImageCacheKey(String imageUrl) {
-    final uri = Uri.tryParse(imageUrl);
-    if (uri == null) return null;
-
-    final normalizedPath = uri.path.trim();
-    if (normalizedPath.isEmpty) return null;
-
-    final normalizedHost = uri.host.trim();
-    if (normalizedHost.isEmpty) return normalizedPath;
-
-    return '$normalizedHost$normalizedPath';
   }
 }
 

@@ -62,18 +62,11 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
   }
 
   void _onSearchChanged() {
-    setState(() {
-      debugPrint('검색어 변경: "${_searchController.text}"');
-    });
+    setState(() {});
   }
 
   Future<void> _loadFriends() async {
     if (!mounted) return;
-
-    setState(() {
-      _isLoadingFriends = true;
-      _friendLoadErrorKey = null;
-    });
 
     try {
       final userController = context.read<UserController>();
@@ -88,6 +81,19 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
       }
 
       final friendController = context.read<api_friend.FriendController>();
+      final cachedFriends = friendController.peekCachedFriends(
+        userId: currentUserId,
+      );
+      final hadCachedFriends = cachedFriends != null;
+
+      setState(() {
+        if (cachedFriends != null) {
+          _friends = cachedFriends;
+        }
+        _isLoadingFriends = !hadCachedFriends;
+        _friendLoadErrorKey = null;
+      });
+
       final friends = await friendController.getAllFriends(
         userId: currentUserId,
       );
@@ -95,6 +101,10 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
       if (mounted) {
         setState(() {
           _friends = friends;
+          _friendLoadErrorKey =
+              !hadCachedFriends && friendController.errorMessage != null
+              ? 'friends.load_failed'
+              : null;
         });
       }
     } catch (e) {

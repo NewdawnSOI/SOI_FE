@@ -3,6 +3,20 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shimmer/shimmer.dart';
 
+/// URL에서 캐시 키를 유도합니다. host + path를 조합하여 쿼리스트링 변경 시에도 동일 키를 반환합니다.
+String? deriveCategoryImageCacheKey(String imageUrl) {
+  final uri = Uri.tryParse(imageUrl);
+  if (uri == null) return null;
+
+  final normalizedPath = uri.path.trim();
+  if (normalizedPath.isEmpty) return null;
+
+  final normalizedHost = uri.host.trim();
+  if (normalizedHost.isEmpty) return normalizedPath;
+
+  return '$normalizedHost$normalizedPath';
+}
+
 /// 카테고리 아이템 위젯
 /// 각 카테고리를 표현하는 UI 요소입니다.
 /// 아이콘이나 이미지 URL을 함께 표시할 수 있습니다.
@@ -28,15 +42,9 @@ class CategoryItemWidget extends StatefulWidget {
   State<CategoryItemWidget> createState() => _CategoryItemWidgetState();
 }
 
-class _CategoryItemWidgetState extends State<CategoryItemWidget>
-    with AutomaticKeepAliveClientMixin {
-  // 메모리 절약을 위해 keepAlive 비활성화
-  @override
-  bool get wantKeepAlive => false;
-
+class _CategoryItemWidgetState extends State<CategoryItemWidget> {
   @override
   Widget build(BuildContext context) {
-    super.build(context); // AutomaticKeepAliveClientMixin 때문에 필요
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isSelected = _isSelectedCategory();
     final dimensions = _calculateDimensions(screenWidth);
@@ -127,7 +135,9 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
     // 이미지 URL이 있는 경우
     final imageUrl = widget.imageUrl?.trim() ?? '';
     if (imageUrl.isNotEmpty) {
-      final imageCacheKey = _deriveImageCacheKey(imageUrl);
+      // 캐시 키 유도
+      // 캐시 키를 유도하여 URL이 변경되어도 동일한 이미지를 사용할 수 있도록 합니다.
+      final imageCacheKey = deriveCategoryImageCacheKey(imageUrl);
       return SizedBox(
         width: dimensions.containerSize, // 컨테이너 크기와 일치
         height: dimensions.containerSize, // 컨테이너 크기와 일치
@@ -160,19 +170,6 @@ class _CategoryItemWidgetState extends State<CategoryItemWidget>
         color: Color(0xffcecece),
       ),
     );
-  }
-
-  String? _deriveImageCacheKey(String imageUrl) {
-    final uri = Uri.tryParse(imageUrl);
-    if (uri == null) return null;
-
-    final normalizedPath = uri.path.trim();
-    if (normalizedPath.isEmpty) return null;
-
-    final normalizedHost = uri.host.trim();
-    if (normalizedHost.isEmpty) return normalizedPath;
-
-    return '$normalizedHost$normalizedPath';
   }
 
   /// 카테고리가 선택된 상태의 오버레이 위젯

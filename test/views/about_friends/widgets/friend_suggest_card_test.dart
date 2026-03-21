@@ -85,6 +85,7 @@ class _FakeFriendController extends FriendController {
   Future<List<FriendCheck>> checkFriendRelations({
     required int userId,
     required List<String> phoneNumbers,
+    bool forceRefresh = false,
   }) {
     requestedBatches.add(List<String>.from(phoneNumbers));
     return onCheckFriendRelations(userId: userId, phoneNumbers: phoneNumbers);
@@ -251,7 +252,7 @@ void main() {
       await tester.pump();
 
       expect(friendController.requestedBatches, isNotEmpty);
-      expect(friendController.requestedBatches.first.length, 12);
+      expect(friendController.requestedBatches.first.length, 10);
       expect(friendController.requestedBatches.first.length, lessThan(20));
     });
   });

@@ -69,6 +69,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   UserController? _userController;
   FriendController? _friendController;
   VoidCallback? _friendListener;
+  int _lastBlockedFriendsRevision = 0;
 
   // 상태 맵 (Firebase 버전과 동일한 구조)
   final Map<int, List<Comment>> _postComments = {};
@@ -128,9 +129,17 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     _audioController = AudioController();
     _userController = Provider.of<UserController>(context, listen: false);
     _friendController = Provider.of<FriendController>(context, listen: false);
+    _lastBlockedFriendsRevision =
+        _friendController?.blockedFriendsRevision ?? 0;
     if (!widget.singlePostMode) {
       _friendListener = () {
-        if (!mounted) return;
+        final friendController = _friendController;
+        if (!mounted || friendController == null) return;
+        final nextRevision = friendController.blockedFriendsRevision;
+        if (nextRevision == _lastBlockedFriendsRevision) {
+          return;
+        }
+        _lastBlockedFriendsRevision = nextRevision;
         unawaited(_refreshPostsForBlockStatus());
       };
       _friendController?.addListener(_friendListener!);

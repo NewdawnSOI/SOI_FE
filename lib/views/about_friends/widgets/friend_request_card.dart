@@ -100,6 +100,7 @@ class _FriendRequestCardState extends State<FriendRequestCard> {
       friendId: friendId,
       status: status,
       notificationId: notification.id!,
+      userId: userId,
     );
 
     if (!mounted) return;

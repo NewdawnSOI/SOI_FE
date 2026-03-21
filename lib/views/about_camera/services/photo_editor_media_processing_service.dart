@@ -22,7 +22,8 @@ String _encodeWaveformDataWorker(List<double> waveformData) {
 }
 
 class PhotoEditorMediaProcessingService {
-  /// 사진 편집과 관련된 미디어 처리 서비스를 제공하는 클래스입니다.
+  ///
+  /// **사진 편집**과 관련된 **미디어 처리 서비스**를 제공하는 클래스입니다.
   /// 이미지 압축, 비디오 압축, 썸네일 추출, 파형 데이터 인코딩 등의 기능을 포함합니다.
   /// 이 서비스는 사진 편집 화면에서 사용되는 미디어 파일을 최적화하여 업로드할 수 있도록 도와줍니다.
   ///
@@ -67,11 +68,6 @@ class PhotoEditorMediaProcessingService {
   ///   - 지정된 품질로 비디오를 압축하며, 압축된 파일을 반환합니다.
   ///   - 압축에 실패할 경우 null을 반환합니다.
   ///
-  /// - [_tryCompressVideoWithBitrate]
-  ///   - 비디오 압축을 시도하는 메서드입니다.
-  ///   - 지정된 비트레이트와 프레임 레이트로 비디오를 압축하며, 압축된 파일을 반환합니다.
-  ///   - 압축에 실패할 경우 null을 반환합니다.
-  ///
   /// - [_tryProgressiveCompression]
   ///   - 이미지 압축을 시도하는 메서드입니다.
   ///   - 초기 품질과 차원으로 압축을 시작하여, 필요에 따라 품질과 차원을 점진적으로 낮추며 압축을 시도합니다.
@@ -90,6 +86,7 @@ class PhotoEditorMediaProcessingService {
   ///   - 파형 데이터를 문자열로 인코딩하는 메서드입니다.
   ///   - 입력된 파형 데이터 리스트를 콤마로 구분된 문자열로 변환하여 반환합니다.
   ///   - 입력 데이터가 null이거나 비어있는 경우 null을 반환합니다.
+  ///
   const PhotoEditorMediaProcessingService();
 
   static const int _maxImageSizeBytes = 1024 * 1024;
@@ -174,51 +171,30 @@ class PhotoEditorMediaProcessingService {
       return file;
     }
 
-    var compressed = await _tryCompressVideoWithBitrate(
-      // 기본 비트레이트로 압축
+    debugPrint('[PhotoEditor] 비디오 압축 필요: ${size ~/ 1024}KB');
+
+    // 1단계: 720p 품질로 압축
+    var compressed = await _tryCompressVideo(
       file,
-      bitrate: 1500000,
-      frameRate: 30,
+      VideoQuality.Res1280x720Quality,
     );
     if (compressed != null) {
       final compressedSize = await compressed.length();
-      if (compressedSize <= _maxVideoSizeBytes) {
-        debugPrint('[PhotoEditor] 1단계 압축 성공: ${compressedSize ~/ 1024}KB');
-        return compressed;
-      }
+      debugPrint('[PhotoEditor] 1단계 압축 결과: ${compressedSize ~/ 1024}KB');
+      if (compressedSize <= _maxVideoSizeBytes) return compressed;
     }
 
-    compressed = await _tryCompressVideoWithBitrate(
-      // 더 낮은 비트레이트로 재시도
-      file,
-      bitrate: 1000000,
-      frameRate: 30,
-    );
-    if (compressed != null) {
-      final compressedSize = await compressed.length();
-      if (compressedSize <= _maxVideoSizeBytes) {
-        debugPrint('[PhotoEditor] 2단계 압축 성공: ${compressedSize ~/ 1024}KB');
-        return compressed;
-      }
-    }
-
-    compressed = await _tryCompressVideoWithBitrate(
-      // 비트레이트를 더 낮춰서 압축 시도
-      file,
-      bitrate: 800000,
-      frameRate: 30,
-    );
-    if (compressed != null) {
-      final compressedSize = await compressed.length();
-      if (compressedSize <= _maxVideoSizeBytes) {
-        debugPrint('[PhotoEditor] 3단계 압축 성공: ${compressedSize ~/ 1024}KB');
-        return compressed;
-      }
-    }
-
-    debugPrint('[PhotoEditor] 비트레이트 압축 실패, MediumQuality 시도');
+    // 2단계: 중간 품질로 압축
     compressed = await _tryCompressVideo(file, VideoQuality.MediumQuality);
+    if (compressed != null) {
+      final compressedSize = await compressed.length();
+      debugPrint('[PhotoEditor] 2단계 압축 결과: ${compressedSize ~/ 1024}KB');
+      if (compressedSize <= _maxVideoSizeBytes) return compressed;
+    }
 
+    // 3단계: 낮은 품질로 최종 압축 시도
+    debugPrint('[PhotoEditor] 3단계: LowQuality 압축 시도');
+    compressed = await _tryCompressVideo(file, VideoQuality.LowQuality);
     return compressed ?? file;
   }
 
@@ -254,28 +230,6 @@ class PhotoEditorMediaProcessingService {
       return info?.file;
     } catch (e) {
       debugPrint('[PhotoEditor] 비디오 압축 실패: $e');
-      return null;
-    }
-  }
-
-  /// 비디오 압축을 시도하는 메서드, 실패 시 null 반환
-  Future<File?> _tryCompressVideoWithBitrate(
-    File file, {
-    required int bitrate,
-    int frameRate = 30,
-  }) async {
-    try {
-      final info = await VideoCompress.compressVideo(
-        // 비트레이트 설정으로 압축 시도
-        file.path,
-        quality: VideoQuality.DefaultQuality,
-        frameRate: frameRate,
-        includeAudio: true,
-        deleteOrigin: false,
-      );
-      return info?.file;
-    } catch (e) {
-      debugPrint('[PhotoEditor] 비디오 비트레이트 압축 실패: $e');
       return null;
     }
   }

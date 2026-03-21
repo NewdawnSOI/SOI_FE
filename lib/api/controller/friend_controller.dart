@@ -9,7 +9,7 @@ import '../services/friend_service.dart';
 /// FriendService를 내부적으로 사용하며, API 변경 시 Service만 수정하면 됩니다.
 ///
 /// 사용 예시:
-/// ```dart
+/// ```
 /// final controller = Provider.of<FriendController>(context, listen: false);
 ///
 /// // 친구 추가
@@ -29,13 +29,17 @@ class FriendController extends ChangeNotifier {
     : _friendService = friendService ?? FriendService();
 
   // 캐시된 친구 목록 (FriendListCard 즉시 갱신용)
-  List<User> _cachedFriends = const [];
+  List<User> _cachedFriends = const <User>[];
   int? _cachedFriendsUserId;
 
   final FriendService _friendService;
 
   bool _isLoading = false;
   String? _errorMessage;
+  int _activeRequestCount = 0;
+  int _acceptedFriendsRevision = 0;
+  int _blockedFriendsRevision = 0;
+  final Map<String, String> _friendListSignatures = <String, String>{};
 
   /// 로딩 상태
   bool get isLoading => _isLoading;
@@ -48,6 +52,31 @@ class FriendController extends ChangeNotifier {
 
   /// 캐시된 친구 목록이 어떤 userId 기준인지
   int? get cachedFriendsUserId => _cachedFriendsUserId;
+
+  /// 친구 목록 revision
+  int get acceptedFriendsRevision => _acceptedFriendsRevision;
+
+  /// 차단 목록 revision
+  int get blockedFriendsRevision => _blockedFriendsRevision;
+
+  List<User>? peekCachedFriends({
+    required int userId,
+    FriendStatus status = FriendStatus.accepted,
+  }) {
+    return _friendService.peekCachedFriends(userId: userId, status: status);
+  }
+
+  bool hasFreshFriendsCache({
+    required int userId,
+    FriendStatus status = FriendStatus.accepted,
+  }) {
+    return _friendService.hasFreshFriendsCache(userId: userId, status: status);
+  }
+
+  int? peekCachedFriendCount({required int userId}) {
+    final cachedFriends = peekCachedFriends(userId: userId);
+    return cachedFriends?.length;
+  }
 
   // ============================================
   // 친구 추가
@@ -68,7 +97,7 @@ class FriendController extends ChangeNotifier {
     required int requesterId,
     required String receiverPhoneNum,
   }) async {
-    _setLoading(true);
+    _beginRequest();
     _clearError();
 
     try {
@@ -76,12 +105,13 @@ class FriendController extends ChangeNotifier {
         requesterId: requesterId,
         receiverPhoneNum: receiverPhoneNum,
       );
-      _setLoading(false);
+      _friendService.invalidateRelationCache(userId: requesterId);
       return friend;
     } catch (e) {
       _setError('친구 추가 실패: $e');
-      _setLoading(false);
       return null;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -99,7 +129,7 @@ class FriendController extends ChangeNotifier {
     required int requesterId,
     required String receiverNickName,
   }) async {
-    _setLoading(true);
+    _beginRequest();
     _clearError();
 
     try {
@@ -107,12 +137,13 @@ class FriendController extends ChangeNotifier {
         requesterId: requesterId,
         receiverNickName: receiverNickName,
       );
-      _setLoading(false);
+      _friendService.invalidateRelationCache(userId: requesterId);
       return friend;
     } catch (e) {
       _setError('친구 추가 실패: $e');
-      _setLoading(false);
       return null;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -131,21 +162,32 @@ class FriendController extends ChangeNotifier {
   Future<List<User>> getAllFriends({
     required int userId,
     FriendStatus status = FriendStatus.accepted,
+    bool forceRefresh = false,
   }) async {
-    _setLoading(true);
+    final shouldTrackLoading =
+        forceRefresh ||
+        !_friendService.hasFreshFriendsCache(userId: userId, status: status);
+    if (shouldTrackLoading) {
+      _beginRequest();
+    }
     _clearError();
 
     try {
       final friends = await _friendService.getAllFriends(
         userId: userId,
         status: status,
+        forceRefresh: forceRefresh,
       );
-      _setLoading(false);
+      _rememberFriendSnapshot(userId: userId, status: status, friends: friends);
       return friends;
     } catch (e) {
       _setError('친구 목록 조회 실패: $e');
-      _setLoading(false);
-      return [];
+      return _friendService.peekCachedFriends(userId: userId, status: status) ??
+          const <User>[];
+    } finally {
+      if (shouldTrackLoading) {
+        _endRequest();
+      }
     }
   }
 
@@ -156,21 +198,7 @@ class FriendController extends ChangeNotifier {
     required int userId,
     FriendStatus status = FriendStatus.accepted,
   }) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      final friends = await _friendService.getAllFriends(
-        userId: userId,
-        status: status,
-      );
-      _cachedFriendsUserId = userId;
-      _cachedFriends = friends;
-      _setLoading(false);
-    } catch (e) {
-      _setError('친구 목록 조회 실패: $e');
-      _setLoading(false);
-    }
+    await getAllFriends(userId: userId, status: status, forceRefresh: true);
   }
 
   /// 친구관계 확인
@@ -185,21 +213,23 @@ class FriendController extends ChangeNotifier {
   Future<List<FriendCheck>> checkFriendRelations({
     required int userId,
     required List<String> phoneNumbers,
+    bool forceRefresh = false,
   }) async {
-    _setLoading(true);
+    _beginRequest();
     _clearError();
 
     try {
       final relations = await _friendService.checkFriendRelations(
         userId: userId,
         phoneNumbers: phoneNumbers,
+        forceRefresh: forceRefresh,
       );
-      _setLoading(false);
       return relations;
     } catch (e) {
       _setError('친구 관계 확인 실패: $e');
-      _setLoading(false);
       return [];
+    } finally {
+      _endRequest();
     }
   }
 
@@ -222,7 +252,7 @@ class FriendController extends ChangeNotifier {
     required int requesterId,
     required int receiverId,
   }) async {
-    _setLoading(true);
+    _beginRequest();
     _clearError();
 
     try {
@@ -230,12 +260,35 @@ class FriendController extends ChangeNotifier {
         requesterId: requesterId,
         receiverId: receiverId,
       );
-      _setLoading(false);
+      if (result) {
+        _friendService.invalidateFriendListCache(userId: requesterId);
+        _friendService.invalidateRelationCache(userId: requesterId);
+
+        if (_cachedFriendsUserId == requesterId) {
+          final nextFriends = _cachedFriends
+              .where((user) => user.id != receiverId)
+              .toList(growable: false);
+          if (nextFriends.length != _cachedFriends.length) {
+            _cachedFriends = List<User>.unmodifiable(nextFriends);
+            _friendListSignatures[_friendSnapshotKey(
+              requesterId,
+              FriendStatus.accepted,
+            )] = _buildFriendSignature(
+              _cachedFriends,
+            );
+            _acceptedFriendsRevision++;
+          }
+        }
+
+        _blockedFriendsRevision++;
+        notifyListeners();
+      }
       return result;
     } catch (e) {
       _setError('친구 차단 실패: $e');
-      _setLoading(false);
       return false;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -254,7 +307,7 @@ class FriendController extends ChangeNotifier {
     required int requesterId,
     required int receiverId,
   }) async {
-    _setLoading(true);
+    _beginRequest();
     _clearError();
 
     try {
@@ -262,12 +315,18 @@ class FriendController extends ChangeNotifier {
         requesterId: requesterId,
         receiverId: receiverId,
       );
-      _setLoading(false);
+      if (result) {
+        _friendService.invalidateFriendListCache(userId: requesterId);
+        _friendService.invalidateRelationCache(userId: requesterId);
+        _blockedFriendsRevision++;
+        notifyListeners();
+      }
       return result;
     } catch (e) {
       _setError('차단 해제 실패: $e');
-      _setLoading(false);
       return false;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -290,7 +349,7 @@ class FriendController extends ChangeNotifier {
     required int requesterId,
     required int receiverId,
   }) async {
-    _setLoading(true);
+    _beginRequest();
     _clearError();
 
     try {
@@ -298,12 +357,33 @@ class FriendController extends ChangeNotifier {
         requesterId: requesterId,
         receiverId: receiverId,
       );
-      _setLoading(false);
+      if (result) {
+        _friendService.invalidateFriendListCache(userId: requesterId);
+        _friendService.invalidateRelationCache(userId: requesterId);
+
+        if (_cachedFriendsUserId == requesterId) {
+          final nextFriends = _cachedFriends
+              .where((user) => user.id != receiverId)
+              .toList(growable: false);
+          if (nextFriends.length != _cachedFriends.length) {
+            _cachedFriends = List<User>.unmodifiable(nextFriends);
+            _friendListSignatures[_friendSnapshotKey(
+              requesterId,
+              FriendStatus.accepted,
+            )] = _buildFriendSignature(
+              _cachedFriends,
+            );
+            _acceptedFriendsRevision++;
+            notifyListeners();
+          }
+        }
+      }
       return result;
     } catch (e) {
       _setError('친구 삭제 실패: $e');
-      _setLoading(false);
       return false;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -324,8 +404,9 @@ class FriendController extends ChangeNotifier {
     required int friendId,
     required FriendStatus status,
     int notificationId = 0,
+    int? userId,
   }) async {
-    _setLoading(true);
+    _beginRequest();
     _clearError();
 
     try {
@@ -334,13 +415,26 @@ class FriendController extends ChangeNotifier {
         status: status,
         notificationId: notificationId,
       );
-      _setLoading(false);
-      // DTO를 Friend 모델로 변환
+
+      if (userId != null) {
+        _friendService.invalidateFriendListCache(userId: userId);
+        _friendService.invalidateRelationCache(userId: userId);
+
+        if (status == FriendStatus.accepted) {
+          _acceptedFriendsRevision++;
+          notifyListeners();
+        } else if (status == FriendStatus.blocked) {
+          _blockedFriendsRevision++;
+          notifyListeners();
+        }
+      }
+
       return Friend.fromDto(result);
     } catch (e) {
       _setError('친구 상태 업데이트 실패: $e');
-      _setLoading(false);
       return null;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -353,8 +447,62 @@ class FriendController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _setLoading(bool value) {
-    _isLoading = value;
+  bool _rememberFriendSnapshot({
+    required int userId,
+    required FriendStatus status,
+    required List<User> friends,
+  }) {
+    final snapshotKey = _friendSnapshotKey(userId, status);
+    final nextSignature = _buildFriendSignature(friends);
+    final didChange = _friendListSignatures[snapshotKey] != nextSignature;
+    _friendListSignatures[snapshotKey] = nextSignature;
+
+    if (status == FriendStatus.accepted) {
+      _cachedFriendsUserId = userId;
+      _cachedFriends = List<User>.unmodifiable(friends);
+    }
+
+    if (!didChange) {
+      return false;
+    }
+
+    if (status == FriendStatus.accepted) {
+      _acceptedFriendsRevision++;
+    } else if (status == FriendStatus.blocked) {
+      _blockedFriendsRevision++;
+    }
+    notifyListeners();
+    return true;
+  }
+
+  String _friendSnapshotKey(int userId, FriendStatus status) {
+    return '$userId|${status.name}';
+  }
+
+  String _buildFriendSignature(List<User> friends) {
+    return friends.map((friend) => friend.id).join(',');
+  }
+
+  void _beginRequest() {
+    _activeRequestCount += 1;
+    if (_isLoading) {
+      return;
+    }
+    _isLoading = true;
+    notifyListeners();
+  }
+
+  void _endRequest() {
+    if (_activeRequestCount == 0) {
+      return;
+    }
+
+    _activeRequestCount -= 1;
+    if (_activeRequestCount > 0 || !_isLoading) {
+      return;
+    }
+
+    _isLoading = false;
     notifyListeners();
   }
 
