@@ -7,17 +7,71 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
 
+typedef _RequestGalleryPermission = Future<PermissionState> Function();
+typedef _GetAssetPathList =
+    Future<List<AssetPathEntity>> Function({
+      bool onlyAll,
+      RequestType type,
+      PMFilter? filterOption,
+    });
+typedef _Now = DateTime Function();
+
 /// CameraService는 카메라 기능과 관련된 모든 네이티브 통신을 담당하는 싱글톤 서비스입니다.
 class CameraService {
   static const MethodChannel _cameraChannel = MethodChannel('com.soi.camera');
   static const Duration _defaultVideoMaxDuration = Duration(seconds: 30);
 
-  CameraService._internal() {
+  CameraService._internal({
+    _RequestGalleryPermission? requestGalleryPermission,
+    _GetAssetPathList? getAssetPathList,
+    _Now? now,
+  }) : _requestGalleryPermission =
+           requestGalleryPermission ?? _defaultRequestGalleryPermission,
+       _getAssetPathList = getAssetPathList ?? _defaultGetAssetPathList,
+       _now = now ?? DateTime.now {
     _cameraChannel.setMethodCallHandler(_handleNativeMethodCall);
   }
 
   static final CameraService instance = CameraService._internal();
   static bool debugTimings = false; // 성능 타이밍 디버그 플래그
+
+  @visibleForTesting
+  factory CameraService.testable({
+    required Future<PermissionState> Function() requestGalleryPermission,
+    required Future<List<AssetPathEntity>> Function({
+      bool onlyAll,
+      RequestType type,
+      PMFilter? filterOption,
+    })
+    getAssetPathList,
+    required DateTime Function() now,
+  }) {
+    return CameraService._internal(
+      requestGalleryPermission: requestGalleryPermission,
+      getAssetPathList: getAssetPathList,
+      now: now,
+    );
+  }
+
+  static Future<PermissionState> _defaultRequestGalleryPermission() {
+    return PhotoManager.requestPermissionExtend();
+  }
+
+  static Future<List<AssetPathEntity>> _defaultGetAssetPathList({
+    bool onlyAll = false,
+    RequestType type = RequestType.common,
+    PMFilter? filterOption,
+  }) {
+    return PhotoManager.getAssetPathList(
+      onlyAll: onlyAll,
+      type: type,
+      filterOption: filterOption,
+    );
+  }
+
+  final _RequestGalleryPermission _requestGalleryPermission;
+  final _GetAssetPathList _getAssetPathList;
+  final _Now _now;
 
   // 카메라 세션 상태 추적
   bool _isSessionActive = false;
@@ -53,11 +107,13 @@ class CameraService {
   AssetEntity? _cachedFirstGalleryImage;
   DateTime? _firstGalleryImageCacheTime;
   static const Duration _galleryCacheDuration = Duration(seconds: 5);
+  Future<AssetEntity?>? _firstGalleryImageInFlight;
 
   // 권한 상태 캐싱
   PermissionState? _cachedPermissionState;
   DateTime? _permissionCacheTime;
   static const Duration _permissionCacheDuration = Duration(seconds: 10);
+  Future<PermissionState>? _galleryPermissionInFlight;
 
   // 오디오 녹음 상태 관리
   final bool _isRecording = false;
@@ -148,8 +204,9 @@ class CameraService {
     _isLoadingGalleryImage = true;
 
     try {
-      final List<AssetPathEntity> paths = await PhotoManager.getAssetPathList(
+      final List<AssetPathEntity> paths = await _getAssetPathList(
         onlyAll: true,
+        type: RequestType.common,
         filterOption: filter,
       );
 
@@ -181,57 +238,75 @@ class CameraService {
     await loadLatestGalleryImage();
   }
 
+  Future<PermissionState> getGalleryPermissionState() async {
+    final now = _now();
+    if (_cachedPermissionState != null &&
+        _permissionCacheTime != null &&
+        now.difference(_permissionCacheTime!) < _permissionCacheDuration) {
+      return _cachedPermissionState!;
+    }
+
+    final inFlight = _galleryPermissionInFlight;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _requestGalleryPermissionState();
+    _galleryPermissionInFlight = future;
+
+    try {
+      return await future;
+    } finally {
+      if (identical(_galleryPermissionInFlight, future)) {
+        _galleryPermissionInFlight = null;
+      }
+    }
+  }
+
+  Future<PermissionState> _requestGalleryPermissionState() async {
+    final permissionState = await _requestGalleryPermission();
+    _cachedPermissionState = permissionState;
+    _permissionCacheTime = _now();
+    return permissionState;
+  }
+
   // O(1) 최적화된 갤러리 첫 번째 이미지 로딩 (캐싱 적용)
   Future<AssetEntity?> getFirstGalleryImage() async {
+    final now = _now();
+    if (_cachedFirstGalleryImage != null &&
+        _firstGalleryImageCacheTime != null &&
+        now.difference(_firstGalleryImageCacheTime!) < _galleryCacheDuration) {
+      return _cachedFirstGalleryImage;
+    }
+
+    final inFlight = _firstGalleryImageInFlight;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _loadFirstGalleryImageFromGallery();
+    _firstGalleryImageInFlight = future;
+
     try {
-      // 캐시 유효성 체크 - O(1) 반환
-      if (_cachedFirstGalleryImage != null &&
-          _firstGalleryImageCacheTime != null &&
-          DateTime.now().difference(_firstGalleryImageCacheTime!) <
-              _galleryCacheDuration) {
-        return _cachedFirstGalleryImage;
+      return await future;
+    } finally {
+      if (identical(_firstGalleryImageInFlight, future)) {
+        _firstGalleryImageInFlight = null;
       }
+    }
+  }
 
+  Future<AssetEntity?> _loadFirstGalleryImageFromGallery() async {
+    try {
       // 1. 갤러리 접근 권한 체크 (캐싱 적용)
-
-      // 권한상태를 저장하는 변수
-      PermissionState permissionState;
-
-      // 권한 캐시 확인
-      // _cachedPermissionState != null: 이전에 권한 허용이 되어있는 지 확인. 권한 허용 캐시를 체크
-      // _permissionCacheTime != null: 캐시된 시간이 있는지 확인
-      // DateTime.now().difference(...) < _permissionCacheDuration: 캐시된 시간이 유효한지 확인
-      // _cachedPermissionState!.hasAccess: 캐시된 권한 상태가 실제로 접근 권한이 있는지 확인
-      if (_cachedPermissionState != null &&
-          _permissionCacheTime != null &&
-          DateTime.now().difference(_permissionCacheTime!) <
-              _permissionCacheDuration &&
-          _cachedPermissionState!.hasAccess) {
-        // 권한 캐시 히트 - O(1)
-        // 이미 권한이 허용된 상태이므로 바로 사용가능
-        permissionState = _cachedPermissionState!;
-      } else {
-        // 권한 캐시 미스 - 네이티브 호출
-        // 권한 요청 시 네이티브 호출이 발생하므로 캐싱 무효화 가능성 있음
-        permissionState = await PhotoManager.requestPermissionExtend();
-
-        // 권한이 있을 때만 캐싱 (거부 상태는 사용자가 변경할 수 있으므로 캐싱 안 함)
-        // 갤러리 권한을 가지고 있으면, 캐시를 갱신한다.
-        if (permissionState.hasAccess) {
-          _cachedPermissionState = permissionState;
-          _permissionCacheTime = DateTime.now();
-        }
-      }
-
+      final permissionState = await getGalleryPermissionState();
       if (!permissionState.hasAccess) {
         return null;
       }
 
       // 2. 갤러리 경로 가져오기 (이미지만 조회)
-      final List<AssetPathEntity> paths = await PhotoManager.getAssetPathList(
+      final List<AssetPathEntity> paths = await _getAssetPathList(
         onlyAll: true,
-
-        // 이미지만 조회하여 필터링 오버헤드 제거
         type: RequestType.image,
       );
 
@@ -251,7 +326,7 @@ class CameraService {
 
       // 결과 캐싱
       _cachedFirstGalleryImage = assets.first;
-      _firstGalleryImageCacheTime = DateTime.now();
+      _firstGalleryImageCacheTime = _now();
 
       return assets.first;
     } catch (e) {
@@ -263,7 +338,11 @@ class CameraService {
   void _invalidateGalleryCache() {
     _cachedFirstGalleryImage = null;
     _firstGalleryImageCacheTime = null;
+    _firstGalleryImageInFlight = null;
   }
+
+  @visibleForTesting
+  void invalidateGalleryCache() => _invalidateGalleryCache();
 
   // AssetEntity를 File로 변환
   Future<File?> assetToFile(AssetEntity asset) async {

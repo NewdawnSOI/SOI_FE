@@ -1,0 +1,7 @@
+{
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"/Users/minchanpark/Documents/SOI/lib/views/about_camera/camera_screen.dart\"}",
+  "error": "File content (12289 tokens) exceeds maximum allowed tokens (10000). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.",
+  "timestamp": "2026-03-21T06:28:22.746Z",
+  "retry_count": 1
+}

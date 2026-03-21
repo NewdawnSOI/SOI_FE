@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:photo_manager/photo_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import '../../api/services/camera_service.dart';
@@ -33,6 +33,7 @@ class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin, RouteAware {
   // Swift와 통신할 플랫폼 채널
   final CameraService _cameraService = CameraService.instance;
+  late final Widget _cameraPreview = _cameraService.buildCameraView();
 
   // 플래시 상태 추적
   bool isFlashOn = false;
@@ -97,7 +98,6 @@ class _CameraScreenState extends State<CameraScreen>
 
   // 최대 녹화 시간 --> 30초
   static const int _maxVideoDurationSeconds = 30;
-  bool get _hasInputText => _textModeController.text.trim().isNotEmpty;
   double get _previewWidth => 354.w;
   double get _previewHeight => 500.h;
 
@@ -111,7 +111,6 @@ class _CameraScreenState extends State<CameraScreen>
     super.initState();
 
     _setupVideoListeners();
-    _textModeController.addListener(_handleTextModeChanged);
 
     // 앱 라이프사이클 옵저버 등록
     WidgetsBinding.instance.addObserver(this);
@@ -126,11 +125,6 @@ class _CameraScreenState extends State<CameraScreen>
       // 비활성 상태에서는 세션만 준비
       unawaited(_cameraService.prepareSessionIfPermitted());
     }
-  }
-
-  void _handleTextModeChanged() {
-    if (!mounted) return;
-    setState(() {});
   }
 
   @override
@@ -234,7 +228,7 @@ class _CameraScreenState extends State<CameraScreen>
 
       // iOS에서 Photo Library 준비 시간을 고려한 지연 로드
       if (Platform.isIOS) {
-        debugPrint('[Gallery] iOS: Starting gallery load with retry logic');
+        _debugLog('[Gallery] iOS: Starting gallery load with retry logic');
 
         // 첫 시도
         unawaited(_loadFirstGalleryImage());
@@ -243,7 +237,7 @@ class _CameraScreenState extends State<CameraScreen>
         unawaited(
           Future.delayed(const Duration(milliseconds: 800), () {
             if (mounted && _firstGalleryImage == null && !_isLoadingGallery) {
-              debugPrint('[Gallery] iOS: Retry #1 (800ms)');
+              _debugLog('[Gallery] iOS: Retry #1 (800ms)');
               _loadFirstGalleryImage();
             }
           }),
@@ -253,7 +247,7 @@ class _CameraScreenState extends State<CameraScreen>
         unawaited(
           Future.delayed(const Duration(milliseconds: 2000), () {
             if (mounted && _firstGalleryImage == null && !_isLoadingGallery) {
-              debugPrint('[Gallery] iOS: Retry #2 (2000ms)');
+              _debugLog('[Gallery] iOS: Retry #2 (2000ms)');
               _loadFirstGalleryImage();
             }
           }),
@@ -389,7 +383,7 @@ class _CameraScreenState extends State<CameraScreen>
     // 비디오 녹화 중에는 갤러리 이미지 로드하지 않음
     if (_isLoadingGallery || _isVideoRecording) return;
 
-    debugPrint('[Gallery] Loading started');
+    _debugLog('[Gallery] Loading started');
     setState(() {
       _isLoadingGallery = true;
       _galleryError = null;
@@ -399,19 +393,19 @@ class _CameraScreenState extends State<CameraScreen>
       final AssetEntity? firstImage = await _cameraService
           .getFirstGalleryImage();
 
-      debugPrint('[Gallery] Got asset: ${firstImage != null}');
+      _debugLog('[Gallery] Got asset: ${firstImage != null}');
 
       if (mounted) {
         setState(() {
           _firstGalleryImage = firstImage;
           _isLoadingGallery = false;
         });
-        debugPrint(
+        _debugLog(
           '[Gallery] State updated, isLoading: false, hasImage: ${firstImage != null}',
         );
       }
     } catch (e) {
-      debugPrint('[Gallery] Error: $e');
+      _debugLog('[Gallery] Error: $e');
       if (mounted) {
         setState(() {
           _galleryError = tr('camera.gallery_access_failed', context: context);
@@ -447,7 +441,6 @@ class _CameraScreenState extends State<CameraScreen>
       appRouteObserver.unsubscribe(this);
       _subscribedRoute = null;
     }
-    _textModeController.removeListener(_handleTextModeChanged);
     _textModeController.dispose();
     _textModeFocusNode.dispose();
 
@@ -648,7 +641,7 @@ class _CameraScreenState extends State<CameraScreen>
 
       // 사진 촬영 후 갤러리 미리보기 새로고침 (백그라운드에서)
       Future.microtask(() => _loadFirstGalleryImage());
-      debugPrint(
+      _debugLog(
         'CameraScreen._takePicture end-to-end=${stopwatch.elapsedMilliseconds}ms',
       );
     } on PlatformException catch (e) {
@@ -845,7 +838,7 @@ class _CameraScreenState extends State<CameraScreen>
         });
       }
     } on PlatformException catch (e) {
-      debugPrint('Camera switch error occurred: ${e.message}');
+      _debugLog('Camera switch error occurred: ${e.message}');
     }
   }
 
@@ -879,6 +872,9 @@ class _CameraScreenState extends State<CameraScreen>
   Future<void> _setZoomLevel(double zoomValue, String zoomLabel) async {
     try {
       await _cameraService.setZoom(zoomValue);
+      if (!mounted) {
+        return;
+      }
       setState(() {
         currentZoomValue = zoomValue;
         currentZoom = zoomLabel;
@@ -993,7 +989,7 @@ class _CameraScreenState extends State<CameraScreen>
     return CameraPreviewContainer(
       initialization: _cameraInitialization,
       isLoading: _isLoading,
-      cameraView: _cameraService.buildCameraView(),
+      cameraView: _cameraPreview,
       showZoomControls: zoomLevels.isNotEmpty && !_isVideoRecording,
       zoomControls: zoomControls,
       isVideoRecording: _isVideoRecording,
@@ -1052,46 +1048,54 @@ class _CameraScreenState extends State<CameraScreen>
                   ),
                 ),
               ),
-              if (_hasInputText)
-                Positioned(
-                  top: 8.sp,
-                  left: 8.sp,
-                  right: 8.sp,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildCancelButton(),
-                      Container(
-                        width: 56.sp,
-                        height: 29.sp,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF9F9F9),
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                        child: TextButton(
-                          onPressed: _openTextEditor,
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(13),
-                            ),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _textModeController,
+                builder: (context, value, child) {
+                  if (value.text.trim().isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Positioned(
+                    top: 8.sp,
+                    left: 8.sp,
+                    right: 8.sp,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildCancelButton(),
+                        Container(
+                          width: 56.sp,
+                          height: 29.sp,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF9F9F9),
+                            borderRadius: BorderRadius.circular(13),
                           ),
-                          child: Text(
-                            tr('common.confirm', context: context),
-                            style: TextStyle(
-                              color: const Color(0xFF111111),
-                              fontSize: 15.sp,
-                              fontFamily: 'Pretendard',
-                              fontWeight: FontWeight.w600,
+                          child: TextButton(
+                            onPressed: _openTextEditor,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              tr('common.confirm', context: context),
+                              style: TextStyle(
+                                color: const Color(0xFF111111),
+                                fontSize: 15.sp,
+                                fontFamily: 'Pretendard',
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -1138,10 +1142,10 @@ class _CameraScreenState extends State<CameraScreen>
                             onTap: () async {
                               try {
                                 final stopwatch = Stopwatch()..start();
-                                debugPrint('[GalleryPick] tap');
+                                _debugLog('[GalleryPick] tap');
                                 await _cameraService.pauseCamera();
-                                final permissionState =
-                                    await PhotoManager.requestPermissionExtend();
+                                final permissionState = await _cameraService
+                                    .getGalleryPermissionState();
                                 if (!permissionState.hasAccess) {
                                   if (!context.mounted) {
                                     return;
@@ -1154,6 +1158,9 @@ class _CameraScreenState extends State<CameraScreen>
                                   );
                                   return;
                                 }
+                                if (!context.mounted) {
+                                  return;
+                                }
                                 final List<AssetEntity>? pickedAssets =
                                     await AssetPicker.pickAssets(
                                       context,
@@ -1164,14 +1171,14 @@ class _CameraScreenState extends State<CameraScreen>
                                             EnglishAssetPickerTextDelegate(),
                                       ),
                                     );
-                                debugPrint(
+                                _debugLog(
                                   '[GalleryPick] picker done: ${stopwatch.elapsedMilliseconds}ms',
                                 );
                                 // 수정: async gap 이후 context 사용(Navigator.push) 안전장치
                                 if (pickedAssets == null ||
                                     pickedAssets.isEmpty ||
                                     !context.mounted) {
-                                  debugPrint(
+                                  _debugLog(
                                     '[GalleryPick] cancelled or unmounted',
                                   );
                                   return;
@@ -1182,7 +1189,7 @@ class _CameraScreenState extends State<CameraScreen>
                                 final bool isVideo =
                                     pickedAsset.type == AssetType.video;
 
-                                debugPrint(
+                                _debugLog(
                                   '[GalleryPick] push editor (isVideo=$isVideo) at ${stopwatch.elapsedMilliseconds}ms',
                                 );
                                 Navigator.push(
@@ -1265,5 +1272,11 @@ class _CameraScreenState extends State<CameraScreen>
         ),
       ),
     );
+  }
+
+  void _debugLog(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
   }
 }

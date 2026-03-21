@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1774018318888,
+  "lastScanned": 1774072817667,
   "projectRoot": "/Users/minchanpark/Documents/SOI",
   "techStack": {
     "languages": [
@@ -59,7 +59,7 @@
       "path": "android",
       "purpose": null,
       "fileCount": 16,
-      "lastAccessed": 1774018318868,
+      "lastAccessed": 1774072817644,
       "keyFiles": [
         "Gemfile",
         "Gemfile.lock",
@@ -72,7 +72,7 @@
       "path": "api",
       "purpose": "API routes",
       "fileCount": 5,
-      "lastAccessed": 1774018318869,
+      "lastAccessed": 1774072817644,
       "keyFiles": [
         "README.md",
         "config.yaml",
@@ -84,7 +84,7 @@
       "path": "assets",
       "purpose": "Static assets",
       "fileCount": 99,
-      "lastAccessed": 1774018318869,
+      "lastAccessed": 1774072817648,
       "keyFiles": [
         "SOI.png",
         "SOI_logo.png",
@@ -97,7 +97,7 @@
       "path": "build",
       "purpose": "Build output",
       "fileCount": 1,
-      "lastAccessed": 1774018318873,
+      "lastAccessed": 1774072817649,
       "keyFiles": [
         "99111e0c5b6228829e100ef67db14ea2.cache.dill.track.dill"
       ]
@@ -106,7 +106,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 4,
-      "lastAccessed": 1774018318873,
+      "lastAccessed": 1774072817649,
       "keyFiles": [
         "AI_AGENT_PLAYBOOK.en.md",
         "AI_AGENT_PLAYBOOK.md",
@@ -117,7 +117,7 @@
       "path": "figma_assets",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1774018318873,
+      "lastAccessed": 1774072817650,
       "keyFiles": [
         "voice_icon.svg",
         "voice_profile.svg"
@@ -127,7 +127,7 @@
       "path": "functions",
       "purpose": null,
       "fileCount": 6,
-      "lastAccessed": 1774018318873,
+      "lastAccessed": 1774072817650,
       "keyFiles": [
         "index.js",
         "package-lock.json",
@@ -138,7 +138,7 @@
       "path": "ios",
       "purpose": null,
       "fileCount": 8,
-      "lastAccessed": 1774018318873,
+      "lastAccessed": 1774072817651,
       "keyFiles": [
         "ExportOptions.plist",
         "Gemfile",
@@ -151,7 +151,7 @@
       "path": "lib",
       "purpose": "Library code",
       "fileCount": 3,
-      "lastAccessed": 1774018318874,
+      "lastAccessed": 1774072817651,
       "keyFiles": [
         "firebase_options.dart",
         "main.dart"
@@ -161,7 +161,7 @@
       "path": "public",
       "purpose": "Public files",
       "fileCount": 2,
-      "lastAccessed": 1774018318874,
+      "lastAccessed": 1774072817652,
       "keyFiles": [
         "index.html"
       ]
@@ -170,14 +170,14 @@
       "path": "test",
       "purpose": "Test files",
       "fileCount": 1,
-      "lastAccessed": 1774018318874,
+      "lastAccessed": 1774072817652,
       "keyFiles": []
     },
     "android/app": {
       "path": "android/app",
       "purpose": "Application code",
       "fileCount": 3,
-      "lastAccessed": 1774018318874,
+      "lastAccessed": 1774072817652,
       "keyFiles": [
         "build.gradle.kts",
         "google-services.json",
@@ -188,14 +188,14 @@
       "path": "android/build",
       "purpose": "Build output",
       "fileCount": 0,
-      "lastAccessed": 1774018318875,
+      "lastAccessed": 1774072817653,
       "keyFiles": []
     },
     "build/app": {
       "path": "build/app",
       "purpose": "Application code",
       "fileCount": 1,
-      "lastAccessed": 1774018318875,
+      "lastAccessed": 1774072817654,
       "keyFiles": [
         "deeplink.json"
       ]
@@ -204,7 +204,7 @@
       "path": "functions/lib",
       "purpose": "Library code",
       "fileCount": 3,
-      "lastAccessed": 1774018318876,
+      "lastAccessed": 1774072817655,
       "keyFiles": [
         "cleanupDeletedPhotos.js",
         "deleteContext.js",
@@ -215,14 +215,14 @@
       "path": "functions/node_modules",
       "purpose": "Dependencies",
       "fileCount": 2,
-      "lastAccessed": 1774018318879,
+      "lastAccessed": 1774072817657,
       "keyFiles": []
     },
     "lib/api": {
       "path": "lib/api",
       "purpose": "API routes",
       "fileCount": 3,
-      "lastAccessed": 1774018318879,
+      "lastAccessed": 1774072817658,
       "keyFiles": [
         "api.dart",
         "api_client.dart",
@@ -233,7 +233,7 @@
       "path": "lib/app",
       "purpose": "Application code",
       "fileCount": 4,
-      "lastAccessed": 1774018318879,
+      "lastAccessed": 1774072817658,
       "keyFiles": [
         "app_constants.dart",
         "app_container_builder.dart",
@@ -244,7 +244,7 @@
       "path": "lib/utils",
       "purpose": "Utility functions",
       "fileCount": 10,
-      "lastAccessed": 1774018318879,
+      "lastAccessed": 1774072817658,
       "keyFiles": [
         "analytics_service.dart",
         "app_route_observer.dart",
@@ -255,7 +255,7 @@
       "path": "lib/views",
       "purpose": "View templates",
       "fileCount": 3,
-      "lastAccessed": 1774018318879,
+      "lastAccessed": 1774072817658,
       "keyFiles": [
         "home_navigator_screen.dart",
         "launch_video_screen.dart"
@@ -265,7 +265,7 @@
       "path": "public/assets",
       "purpose": "Static assets",
       "fileCount": 1,
-      "lastAccessed": 1774018318879,
+      "lastAccessed": 1774072817658,
       "keyFiles": [
         "SOI_logo.png"
       ]
@@ -274,65 +274,59 @@
       "path": "test/api",
       "purpose": "API routes",
       "fileCount": 0,
-      "lastAccessed": 1774018318880,
+      "lastAccessed": 1774072817658,
       "keyFiles": []
     },
     "test/app": {
       "path": "test/app",
       "purpose": "Application code",
       "fileCount": 0,
-      "lastAccessed": 1774018318880,
+      "lastAccessed": 1774072817659,
       "keyFiles": []
     },
     "test/views": {
       "path": "test/views",
       "purpose": "View templates",
       "fileCount": 0,
-      "lastAccessed": 1774018318880,
+      "lastAccessed": 1774072817659,
       "keyFiles": []
     }
   },
   "hotPaths": [
     {
-      "path": "lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart",
-      "accessCount": 6,
-      "lastAccessed": 1774059077838,
+      "path": "lib/api/services/camera_service.dart",
+      "accessCount": 8,
+      "lastAccessed": 1774075380427,
       "type": "file"
     },
     {
-      "path": "lib/api/controller/post_controller.dart",
-      "accessCount": 3,
-      "lastAccessed": 1774059078416,
+      "path": "test/api/services/camera_service_test.dart",
+      "accessCount": 7,
+      "lastAccessed": 1774075380765,
       "type": "file"
     },
     {
-      "path": "lib/views/about_archiving/widgets/api_photo_grid_item.dart",
+      "path": "",
       "accessCount": 2,
-      "lastAccessed": 1774059340751,
+      "lastAccessed": 1774074506715,
+      "type": "directory"
+    },
+    {
+      "path": "lib/views/about_camera/camera_screen.dart",
+      "accessCount": 2,
+      "lastAccessed": 1774074511229,
       "type": "file"
     },
     {
-      "path": "lib/views/about_archiving/screens/archive_detail/widgets/category_photos_header+body/api_category_photos_body_slivers.dart",
+      "path": "lib/views/about_camera/widgets/about_camera/gallery_thumbnail.dart",
       "accessCount": 1,
-      "lastAccessed": 1774059310416,
+      "lastAccessed": 1774074502712,
       "type": "file"
     },
     {
-      "path": "test/views/about_friends/widgets/friend_suggest_card_test.dart",
+      "path": "test/views/about_camera/widgets/gallery_thumbnail_test.dart",
       "accessCount": 1,
-      "lastAccessed": 1774059374953,
-      "type": "file"
-    },
-    {
-      "path": "lib/api/models/post.dart",
-      "accessCount": 1,
-      "lastAccessed": 1774059398021,
-      "type": "file"
-    },
-    {
-      "path": "test/views/about_archiving/widgets/api_category_photos_grid_sliver_test.dart",
-      "accessCount": 1,
-      "lastAccessed": 1774059437741,
+      "lastAccessed": 1774074510707,
       "type": "file"
     }
   ],

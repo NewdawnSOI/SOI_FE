@@ -3,8 +3,6 @@
     "context7@claude-plugins-official": true,
     "figma@claude-plugins-official": true,
     "serena@claude-plugins-official": true,
-    "code-review@claude-plugins-official": false,
-    "oh-my-claudecode@omc": true,
-    "claude-mem@thedotmack": true
+    "code-review@claude-plugins-official": false
   }
 }

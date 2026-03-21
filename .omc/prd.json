@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "task": "camera_service_test.dart에 _invalidateGalleryCache() 검증 테스트 추가",
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "CameraService에 @visibleForTesting 캐시 무효화 메서드 노출",
+      "acceptanceCriteria": [
+        "camera_service.dart에 @visibleForTesting annotated invalidateGalleryCache() 공개 메서드 존재",
+        "해당 메서드가 _invalidateGalleryCache()를 호출",
+        "dart analyze lib/api/services/camera_service.dart 에러 없음"
+      ],
+      "passes": true
+    },
+    {
+      "id": "US-002",
+      "title": "캐시 무효화 테스트 케이스 추가",
+      "acceptanceCriteria": [
+        "test/api/services/camera_service_test.dart에 'invalidates first gallery image cache so next call fetches fresh asset' 테스트 존재",
+        "테스트: getFirstGalleryImage() 1회 호출 → pathListCallCount==1",
+        "테스트: invalidateGalleryCache() 호출 후 getFirstGalleryImage() 재호출 → pathListCallCount==2, 새 에셋 반환",
+        "CameraService.testable() 팩토리 사용",
+        "기존 테스트 스타일(_FakeAssetEntity, _FakeAssetPathEntity) 일관성 유지",
+        "flutter test test/api/services/camera_service_test.dart PASS"
+      ],
+      "passes": true
+    }
+  ]
+}
