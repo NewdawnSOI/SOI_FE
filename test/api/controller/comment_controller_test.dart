@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/controller/comment_controller.dart';
 import 'package:soi/api/models/comment.dart';
@@ -24,11 +26,18 @@ typedef _CreateCommentHandler =
       CommentType? type,
     });
 
+typedef _GetCommentsHandler =
+    Future<List<Comment>> Function({required int postId});
+
 class _FakeCommentService extends CommentService {
-  _FakeCommentService({required this.onCreate, this.onGetByUserId})
-    : super(commentApi: _NoopCommentApi());
+  _FakeCommentService({
+    required this.onCreate,
+    this.onGetByUserId,
+    this.onGetComments,
+  }) : super(commentApi: _NoopCommentApi());
 
   final _CreateCommentHandler onCreate;
+  final _GetCommentsHandler? onGetComments;
   final Future<({List<Comment> comments, bool hasMore})> Function({
     required int userId,
     required int page,
@@ -66,6 +75,15 @@ class _FakeCommentService extends CommentService {
       locationY: locationY,
       type: type,
     );
+  }
+
+  @override
+  Future<List<Comment>> getComments({required int postId}) {
+    final handler = onGetComments;
+    if (handler == null) {
+      throw UnsupportedError('Should not call getComments');
+    }
+    return handler(postId: postId);
   }
 
   @override
@@ -433,5 +451,54 @@ void main() {
       expect(result.comments, hasLength(1));
       expect(result.hasMore, isTrue);
     });
+
+    test(
+      'dedupes in-flight getComments requests and keeps loading stable',
+      () async {
+        final commentsCompleter = Completer<List<Comment>>();
+        var callCount = 0;
+
+        final controller = CommentController(
+          commentService: _FakeCommentService(
+            onCreate:
+                ({
+                  required int postId,
+                  required int userId,
+                  int? emojiId,
+                  int? parentId,
+                  int? replyUserId,
+                  String? text,
+                  String? audioFileKey,
+                  String? fileKey,
+                  String? waveformData,
+                  int? duration,
+                  double? locationX,
+                  double? locationY,
+                  CommentType? type,
+                }) async => const CommentCreationResult(success: true),
+            onGetComments: ({required int postId}) {
+              callCount++;
+              return commentsCompleter.future;
+            },
+          ),
+        );
+
+        final first = controller.getComments(postId: 5);
+        final second = controller.getComments(postId: 5);
+
+        expect(controller.isLoading, isTrue);
+
+        commentsCompleter.complete([
+          const Comment(id: 1, nickname: 'n', type: CommentType.text),
+        ]);
+
+        final results = await Future.wait([first, second]);
+
+        expect(callCount, 1);
+        expect(results[0], hasLength(1));
+        expect(results[1].single.id, 1);
+        expect(controller.isLoading, isFalse);
+      },
+    );
   });
 }

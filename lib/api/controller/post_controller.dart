@@ -34,6 +34,9 @@ class PostController extends ChangeNotifier {
   static const Duration _controllerCacheTtl = Duration(hours: 1);
   final Map<String, int> _categoryMutationRevisions = {};
 
+  // in-flight dedupe: 진행 중인 API 요청 추적
+  final Map<String, Future<List<Post>>> _inFlightRequests = {};
+
   // 게시물 변경 리스너 목록
   final List<VoidCallback> _onPostsChangedListeners = [];
 
@@ -48,11 +51,20 @@ class PostController extends ChangeNotifier {
   }
 
   /// 게시물 변경 알림
-  void _notifyPostsChanged() {
-    // ✨ 캐시 무효화 (게시물 변경 시)
-    clearAllCache();
+  ///
+  /// [categoryIdsToInvalidate]가 제공되면 해당 카테고리 캐시만 무효화합니다.
+  /// null이면 전체 캐시를 초기화합니다 (카테고리 정보를 알 수 없는 경우).
+  void _notifyPostsChanged({Iterable<int>? categoryIdsToInvalidate}) {
+    if (categoryIdsToInvalidate != null && categoryIdsToInvalidate.isNotEmpty) {
+      for (final id in categoryIdsToInvalidate) {
+        invalidateCategoryCache(id);
+      }
+    } else {
+      clearAllCache();
+    }
 
-    for (final listener in _onPostsChangedListeners) {
+    // List.of()로 스냅샷 순회 → 리스너 내부에서 remove 호출해도 안전
+    for (final listener in List.of(_onPostsChangedListeners)) {
       listener();
     }
   }
@@ -164,7 +176,10 @@ class PostController extends ChangeNotifier {
         if (userId != null && categoryIds.isNotEmpty) {
           _markCategoriesUpdated(userId: userId, categoryIds: categoryIds);
         }
-        _notifyPostsChanged(); // 게시물 생성 성공 시 변경 알림 트리거
+        // 생성된 카테고리 캐시만 무효화 (다른 카테고리 캐시는 유지)
+        _notifyPostsChanged(
+          categoryIdsToInvalidate: categoryIds.isNotEmpty ? categoryIds : null,
+        );
       }
       return result;
     } catch (e) {
@@ -252,18 +267,31 @@ class PostController extends ChangeNotifier {
     }
 
     try {
-      final posts = await _postService.getPostsByCategory(
-        categoryId: categoryId,
-        userId: userId,
-        notificationId: notificationId,
-        page: page,
-      );
-
-      // 캐시 저장
-      _categoryCache[cacheKey] = _CachedCategoryPosts(
-        posts: posts,
-        cachedAt: DateTime.now(),
-      );
+      // in-flight dedupe: 동일 키로 진행 중인 요청이 있으면 재사용
+      final posts = await _inFlightRequests.putIfAbsent(cacheKey, () {
+        if (kDebugMode) {
+          debugPrint('[PostController] API 요청 시작: $cacheKey');
+        }
+        return _postService
+            .getPostsByCategory(
+              categoryId: categoryId,
+              userId: userId,
+              notificationId: notificationId,
+              page: page,
+            )
+            .then((result) {
+              _categoryCache[cacheKey] = _CachedCategoryPosts(
+                posts: result,
+                cachedAt: DateTime.now(),
+              );
+              return result;
+            })
+            // void 블록으로 명시: Map.remove()가 Future를 반환하므로
+            // 화살표 함수(=>)로 쓰면 whenComplete가 그 Future를 기다려 deadlock 발생
+            .whenComplete(() {
+              _inFlightRequests.remove(cacheKey);
+            });
+      });
 
       if (notifyLoading) {
         // 백그라운드 페이징이 아닌 경우에만 로딩 상태 업데이트
@@ -391,7 +419,12 @@ class PostController extends ChangeNotifier {
         postType: postType,
       );
       _setLoading(false);
-      if (result) _notifyPostsChanged();
+      if (result) {
+        // categoryId가 있으면 해당 카테고리만, 없으면 전체 무효화
+        _notifyPostsChanged(
+          categoryIdsToInvalidate: categoryId != null ? [categoryId] : null,
+        );
+      }
       return result;
     } catch (e) {
       _setError('게시물 수정 실패: $e');
@@ -501,7 +534,7 @@ class PostController extends ChangeNotifier {
   }
 
   void _setError(String message) {
-    debugPrint("[PostController] 에러 발생: $message");
+    if (kDebugMode) debugPrint("[PostController] 에러 발생: $message");
     _errorMessage = message;
     notifyListeners();
   }

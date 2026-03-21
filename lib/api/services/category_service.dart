@@ -58,6 +58,62 @@ class CategoryService {
   CategoryService({CategoryAPIApi? categoryApi})
     : _categoryApi = categoryApi ?? SoiApiClient.instance.categoryApi;
 
+  ///
+  /// 카테고리 목록 조회 시 요청 파라미터를 조합하여 고유 키를 생성하는 헬퍼 메서드입니다.
+  /// 중복 API 호출 방지 로직에서 사용됩니다.
+  ///
+  /// Parameters:
+  /// - [filter]: 카테고리 필터 (ALL, PUBLIC, PRIVATE)
+  /// - [page]: 페이지 번호
+  /// - [fetchAllPages]: 모든 페이지를 조회할지 여부
+  /// - [maxPages]: 최대 조회 페이지 수
+  ///
+  /// Returns
+  /// - [String]: 요청 파라미터를 조합한 고유 키 문자열
+  String _buildCategoryRequestKey({
+    required CategoryFilter filter,
+    required int page,
+    required bool fetchAllPages,
+    required int maxPages,
+  }) {
+    return '${filter.value}:$page:$fetchAllPages:$maxPages';
+  }
+
+  /// 카테고리 DTO 리스트를 도메인 모델 리스트로 변환하는 헬퍼 메서드입니다.
+  /// Parameters:
+  /// - [dtos]: 카테고리 DTO 리스트
+  ///
+  /// Returns:
+  /// - [List<Category>]: 도메인 모델 리스트
+  List<Category> _mapCategories(Iterable<CategoryRespDto> dtos) {
+    return List<Category>.unmodifiable(dtos.map(Category.fromDto));
+  }
+
+  /// 중복 ID를 체크하여 고유한 카테고리만 리스트에 추가하는 헬퍼 메서드입니다.
+  /// API에서 페이지네이션된 데이터를 가져올 때, 중복된 카테고리가 포함될 수 있으므로 이를 방지하기 위해 사용됩니다.
+  /// Parameters:
+  /// - [categories]: 고유한 카테고리를 추가할 리스트 (변경 가능)
+  /// - [dtos]: API에서 가져온 카테고리 DTO 리스트
+  /// - [seenIds]: 이미 추가된 카테고리 ID를 저장하는 집합
+  ///
+  /// Returns:
+  /// - [int]: 새로 추가된 고유 카테고리의 수
+  int _appendUniqueCategories({
+    required List<Category> categories,
+    required Iterable<CategoryRespDto> dtos,
+    required Set<int> seenIds,
+  }) {
+    var addedCount = 0;
+    for (final dto in dtos) {
+      final dtoId = dto.id;
+      if (dtoId != null && seenIds.add(dtoId)) {
+        categories.add(Category.fromDto(dto));
+        addedCount++;
+      }
+    }
+    return addedCount;
+  }
+
   // ============================================
   // 카테고리 생성
   // ============================================
@@ -158,28 +214,22 @@ class CategoryService {
     final normalizedMaxPages = maxPages < 1 ? 1 : maxPages;
 
     // 요청 파라미터를 조합하여 고유 키 생성 (중복 API 호출 방지용)
-    final requestKey = [
-      filter.value,
-      normalizedPage,
-      fetchAllPages,
-      normalizedMaxPages,
-    ].join(':');
-
-    final inFlight =
-        _inFlightCategoryQueries[requestKey]; // 동일한 요청이 이미 진행 중인지 확인
-    if (inFlight != null) {
-      return inFlight; // 진행 중인 요청이 있으면 해당 Future를 반환하여 중복 API 호출 방지
-    }
-
-    // 새로운 요청이므로 API 호출 시작
-    // API 호출을 Future로 저장하여 다른 동일 요청이 들어올 때 재사용할 수 있도록 함
-    final task = _getCategoriesInternal(
+    final requestKey = _buildCategoryRequestKey(
       filter: filter,
       page: normalizedPage,
       fetchAllPages: fetchAllPages,
       maxPages: normalizedMaxPages,
     );
-    _inFlightCategoryQueries[requestKey] = task; // 요청 키에 대한 진행 중인 작업 저장
+
+    // 중복 API 호출 방지: 동일한 요청이 이미 진행 중이면 기존 작업 반환
+    final task = _inFlightCategoryQueries.putIfAbsent(requestKey, () {
+      return _getCategoriesInternal(
+        filter: filter,
+        page: normalizedPage,
+        fetchAllPages: fetchAllPages,
+        maxPages: normalizedMaxPages,
+      );
+    });
 
     try {
       return await task;
@@ -212,11 +262,12 @@ class CategoryService {
   }) async {
     // 단일 페이지 조회
     if (!fetchAllPages) {
+      // 단일 페이지 조회: API 호출 후 바로 매핑하여 반환
       final dtos = await _fetchCategoryPage(
         filterValue: filter.value,
         page: page,
       );
-      return dtos.map((dto) => Category.fromDto(dto)).toList();
+      return _mapCategories(dtos); // 단일 페이지 결과 매핑 후 반환
     }
 
     // 전체 페이지 조회
@@ -225,6 +276,8 @@ class CategoryService {
     var currentPage = page;
     int? firstPageSize;
 
+    // API가 페이지네이션된 데이터를 반환할 때,
+    // 중복된 카테고리가 포함될 수 있으므로 이를 방지하기 위해 seenIds 집합을 사용하여 고유한 카테고리만 추가합니다.
     for (var i = 0; i < maxPages; i++) {
       final dtos = await _fetchCategoryPage(
         filterValue: filter.value,
@@ -238,14 +291,11 @@ class CategoryService {
       firstPageSize ??= dtos.length;
 
       // DTO id로 중복 체크 후 Category 객체 생성 (불필요한 객체 생성 방지)
-      var addedCount = 0;
-      for (final dto in dtos) {
-        final dtoId = dto.id;
-        if (dtoId != null && seenIds.add(dtoId)) {
-          allCategories.add(Category.fromDto(dto));
-          addedCount++;
-        }
-      }
+      final addedCount = _appendUniqueCategories(
+        categories: allCategories,
+        dtos: dtos,
+        seenIds: seenIds,
+      );
 
       // 서버가 같은 페이지를 반복 반환할 경우 무한 루프 방지
       if (addedCount == 0) break;
@@ -256,7 +306,7 @@ class CategoryService {
       currentPage++;
     }
 
-    return allCategories;
+    return List<Category>.unmodifiable(allCategories);
   }
 
   // ============================================
@@ -264,8 +314,10 @@ class CategoryService {
   // ============================================
 
   /// 카테고리 고정/고정해제 토글
+  /// [categoryId]를 고정하거나 고정 해제합니다.
   ///
-  /// [categoryId]를 [userId]에 대해 고정하거나 고정 해제합니다.
+  /// Parameters:
+  /// - [categoryId]: 고정/고정 해제할 카테고리 ID
   ///
   /// Returns:
   /// - true: 고정됨
@@ -298,8 +350,10 @@ class CategoryService {
   // ============================================
 
   /// 카테고리 알림 설정
+  /// - [categoryId]에 대한 알림 상태를 설정합니다.
   ///
-  /// [categoryId]에 대한 [userId]의 알림 상태를 설정합니다.
+  /// Parameters:
+  /// - [categoryId]: 알림 설정을 변경할 카테고리 ID
   ///
   /// Returns:
   /// - true: 알림 설정됨
@@ -334,25 +388,30 @@ class CategoryService {
   /// 카테고리에 사용자 초대
   ///
   /// 기존 카테고리에 새로운 사용자를 초대합니다.
+  /// 초대받은 사용자는 카테고리에 참여하게 되며, 초대 요청자와 초대받는 사용자 모두에게 알림이 전송됩니다.
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
   /// - [requesterId]: 초대 요청자 ID
   /// - [receiverIds]: 초대받을 사용자 ID 목록
   ///
-  /// Returns: 초대 성공 여부
+  /// Returns
+  /// - [true]: 초대 성공 여부
+  /// - [false]: 초대 실패 (예: 이미 초대된 사용자 포함)
   Future<bool> inviteUsersToCategory({
     required int categoryId,
     required int requesterId,
     required List<int> receiverIds,
   }) async {
     try {
+      // DTO 생성 - API 명세에 맞게 요청 데이터 구성
       final dto = CategoryInviteReqDto(
         categoryId: categoryId,
         requesterId: requesterId,
         receiverId: receiverIds,
       );
 
+      // API 호출 - 사용자 초대
       final response = await _categoryApi.inviteUser(dto);
 
       if (response == null) {
@@ -380,10 +439,12 @@ class CategoryService {
   ///
   /// Parameters:
   /// - [categoryId]: 카테고리 ID
-
+  /// - [responserId]: 응답자 ID (초대받은 사용자)
   /// - [status]: 응답 상태 (ACCEPTED, DECLINED 등)
   ///
-  /// Returns: 응답 처리 성공 여부
+  /// Returns
+  /// - [true]: 응답 처리 성공 여부
+  /// - [false]: 응답 처리 실패 (예: 이미 응답한 초대에 대한 중복 응답)
   Future<bool> respondToInvite({
     required int categoryId,
     required int responserId,

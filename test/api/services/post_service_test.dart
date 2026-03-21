@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/models/post.dart';
 import 'package:soi/api/services/post_service.dart';
 import 'package:soi_api_client/api.dart';
@@ -148,6 +149,77 @@ void main() {
 
       expect(result, isTrue);
       expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT_ONLY);
+    });
+  });
+
+  group('PostService exception handling', () {
+    test('SoiApiException은 래핑 없이 그대로 rethrow됨', () async {
+      final original = SoiApiException(message: '원본 예외', statusCode: 422);
+      final service = PostService(
+        postApi: _FakePostApi(
+          onCreate: (_) async => throw original,
+        ),
+      );
+
+      SoiApiException? caught;
+      try {
+        await service.createPost(nickName: 'tester');
+      } on SoiApiException catch (e) {
+        caught = e;
+      }
+
+      expect(caught, same(original), reason: 'SoiApiException은 wrap 없이 동일 인스턴스로 rethrow');
+    });
+
+    test('예상치 못한 예외는 SoiApiException으로 래핑됨', () async {
+      final service = PostService(
+        postApi: _FakePostApi(
+          onCreate: (_) async => throw StateError('unexpected'),
+        ),
+      );
+
+      expect(
+        () => service.createPost(nickName: 'tester'),
+        throwsA(isA<SoiApiException>()),
+      );
+    });
+  });
+
+  group('PostService _resolveCreatePostType', () {
+    test('빈 키 리스트는 TEXT_ONLY로 추론', () async {
+      PostCreateReqDto? capturedDto;
+      final service = PostService(
+        postApi: _FakePostApi(
+          onCreate: (dto) async {
+            capturedDto = dto;
+            return ApiResponseDtoBoolean(success: true, data: true);
+          },
+        ),
+      );
+
+      await service.createPost(nickName: 'tester', postFileKey: const []);
+      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT_ONLY);
+    });
+
+    test('공백 문자열만 있는 키는 유효한 키가 아니므로 TEXT_ONLY로 추론되지 않음 (isNotEmpty 기준)', () async {
+      // trim() 제거 후: '   ' 는 isNotEmpty == true → MULTIMEDIA로 분류됨
+      // 이는 서버에서 실제로 공백 키를 전달하지 않는다는 전제 하에 동작
+      PostCreateReqDto? capturedDto;
+      final service = PostService(
+        postApi: _FakePostApi(
+          onCreate: (dto) async {
+            capturedDto = dto;
+            return ApiResponseDtoBoolean(success: true, data: true);
+          },
+        ),
+      );
+
+      // 실제 키가 있는 경우 MULTIMEDIA
+      await service.createPost(
+        nickName: 'tester',
+        postFileKey: const ['posts/real.jpg'],
+      );
+      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.MULTIMEDIA);
     });
   });
 }

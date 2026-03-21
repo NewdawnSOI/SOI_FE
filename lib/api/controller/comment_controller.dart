@@ -24,9 +24,13 @@ import '../services/comment_service.dart';
 /// ```
 class CommentController extends ChangeNotifier {
   final CommentService _commentService;
+  final Map<int, Future<List<Comment>>> _inFlightCommentsByPost = {};
+  final Map<String, Future<({List<Comment> comments, bool hasMore})>>
+  _inFlightCommentsByUserPage = {};
 
   bool _isLoading = false;
   String? _errorMessage;
+  int _activeRequestCount = 0;
 
   /// 생성자
   ///
@@ -34,11 +38,52 @@ class CommentController extends ChangeNotifier {
   CommentController({CommentService? commentService})
     : _commentService = commentService ?? CommentService();
 
+  String _buildUserCommentsRequestKey({
+    required int userId,
+    required int page,
+  }) {
+    return '$userId:$page';
+  }
+
   /// 로딩 상태
   bool get isLoading => _isLoading;
 
   /// 에러 메시지
   String? get errorMessage => _errorMessage;
+
+  void _notifyIfChanged(bool changed) {
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  bool _setLoadingValue(bool value) {
+    if (_isLoading == value) return false;
+    _isLoading = value;
+    return true;
+  }
+
+  bool _setErrorValue(String? message) {
+    if (_errorMessage == message) return false;
+    _errorMessage = message;
+    return true;
+  }
+
+  void _beginRequest() {
+    var changed = _setErrorValue(null);
+    _activeRequestCount += 1;
+    changed = _setLoadingValue(true) || changed;
+    _notifyIfChanged(changed);
+  }
+
+  void _endRequest() {
+    if (_activeRequestCount > 0) {
+      _activeRequestCount -= 1;
+    }
+
+    final changed = _setLoadingValue(_activeRequestCount > 0);
+    _notifyIfChanged(changed);
+  }
 
   // ============================================
   // 댓글 생성
@@ -65,9 +110,7 @@ class CommentController extends ChangeNotifier {
     double? locationY,
     CommentType? type,
   }) async {
-    _setLoading(true);
-    _clearError();
-
+    _beginRequest();
     try {
       final normalizedEmojiId = emojiId ?? 0;
       final normalizedParentId = parentId ?? 0;
@@ -114,12 +157,12 @@ class CommentController extends ChangeNotifier {
         locationY: normalizedLocationY,
         type: inferredType,
       );
-      _setLoading(false);
       return result;
     } catch (e) {
       _setError('댓글 생성 실패: $e');
-      _setLoading(false);
       return const CommentCreationResult.failure();
+    } finally {
+      _endRequest();
     }
   }
 
@@ -181,33 +224,39 @@ class CommentController extends ChangeNotifier {
 
   /// 게시물의 댓글 조회
   Future<List<Comment>> getComments({required int postId}) async {
-    _setLoading(true);
-    _clearError();
+    final task = _inFlightCommentsByPost.putIfAbsent(postId, () async {
+      _beginRequest();
+      try {
+        return await _commentService.getComments(postId: postId);
+      } finally {
+        _endRequest();
+      }
+    });
 
     try {
-      final comments = await _commentService.getComments(postId: postId);
-      _setLoading(false);
-      return comments;
+      return await task;
     } catch (e) {
       _setError('댓글 조회 실패: $e');
-      _setLoading(false);
       return [];
+    } finally {
+      final registeredTask = _inFlightCommentsByPost[postId];
+      if (identical(registeredTask, task)) {
+        _inFlightCommentsByPost.remove(postId);
+      }
     }
   }
 
   /// 댓글 개수 조회
   Future<int> getCommentCount({required int postId}) async {
-    _setLoading(true);
-    _clearError();
-
+    _beginRequest();
     try {
       final count = await _commentService.getCommentCount(postId: postId);
-      _setLoading(false);
       return count;
     } catch (e) {
       _setError('댓글 개수 조회 실패: $e');
-      _setLoading(false);
       return 0;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -216,20 +265,29 @@ class CommentController extends ChangeNotifier {
     required int userId,
     int page = 0,
   }) async {
-    _setLoading(true);
-    _clearError();
+    final requestKey = _buildUserCommentsRequestKey(userId: userId, page: page);
+    final task = _inFlightCommentsByUserPage.putIfAbsent(requestKey, () async {
+      _beginRequest();
+      try {
+        return await _commentService.getCommentsByUserId(
+          userId: userId,
+          page: page,
+        );
+      } finally {
+        _endRequest();
+      }
+    });
 
     try {
-      final result = await _commentService.getCommentsByUserId(
-        userId: userId,
-        page: page,
-      );
-      _setLoading(false);
-      return result;
+      return await task;
     } catch (e) {
       _setError('사용자 댓글 조회 실패: $e');
-      _setLoading(false);
       return (comments: <Comment>[], hasMore: false);
+    } finally {
+      final registeredTask = _inFlightCommentsByUserPage[requestKey];
+      if (identical(registeredTask, task)) {
+        _inFlightCommentsByUserPage.remove(requestKey);
+      }
     }
   }
 
@@ -239,17 +297,15 @@ class CommentController extends ChangeNotifier {
 
   /// 댓글 삭제
   Future<bool> deleteComment(int commentId) async {
-    _setLoading(true);
-    _clearError();
-
+    _beginRequest();
     try {
       final result = await _commentService.deleteComment(commentId);
-      _setLoading(false);
       return result;
     } catch (e) {
       _setError('댓글 삭제 실패: $e');
-      _setLoading(false);
       return false;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -259,21 +315,12 @@ class CommentController extends ChangeNotifier {
 
   /// 에러 초기화
   void clearError() {
-    _clearError();
-    notifyListeners();
-  }
-
-  void _setLoading(bool value) {
-    _isLoading = value;
-    notifyListeners();
+    final changed = _setErrorValue(null);
+    _notifyIfChanged(changed);
   }
 
   void _setError(String message) {
-    _errorMessage = message;
-    notifyListeners();
-  }
-
-  void _clearError() {
-    _errorMessage = null;
+    final changed = _setErrorValue(message);
+    _notifyIfChanged(changed);
   }
 }

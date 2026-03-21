@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/models/comment.dart';
@@ -165,6 +167,34 @@ void main() {
   });
 
   group('CommentService getComments pagination', () {
+    test('dedupes in-flight getComments requests by postId', () async {
+      final parentCompleter = Completer<ApiResponseDtoSliceCommentRespDto?>();
+      var parentCallCount = 0;
+
+      final service = CommentService(
+        commentApi: _FakeCommentApi(
+          onGetParentComment: (postId, page) {
+            parentCallCount++;
+            return parentCompleter.future;
+          },
+          onGetChildComment: (parentCommentId, page) async => null,
+        ),
+      );
+
+      final first = service.getComments(postId: 77);
+      final second = service.getComments(postId: 77);
+
+      parentCompleter.complete(
+        _sliceResponse(content: const [], last: true, empty: true),
+      );
+
+      final results = await Future.wait([first, second]);
+
+      expect(parentCallCount, 1);
+      expect(results[0], isEmpty);
+      expect(results[1], isEmpty);
+    });
+
     test('merges parent and child comment pages', () async {
       final parentCalls = <String>[];
       final childCalls = <String>[];
@@ -231,6 +261,52 @@ void main() {
     });
 
     test(
+      'fetches child comment groups in parallel while preserving order',
+      () async {
+        final firstChildCompleter =
+            Completer<ApiResponseDtoSliceCommentRespDto?>();
+        final secondChildCompleter =
+            Completer<ApiResponseDtoSliceCommentRespDto?>();
+        final childCalls = <String>[];
+
+        final service = CommentService(
+          commentApi: _FakeCommentApi(
+            onGetParentComment: (postId, page) async {
+              if (page > 0) return null;
+              return _sliceResponse(
+                content: [_commentDto(1), _commentDto(2)],
+                last: true,
+                empty: false,
+              );
+            },
+            onGetChildComment: (parentCommentId, page) {
+              childCalls.add('$parentCommentId:$page');
+              if (parentCommentId == 1) {
+                return firstChildCompleter.future;
+              }
+              return secondChildCompleter.future;
+            },
+          ),
+        );
+
+        final request = service.getComments(postId: 55);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(childCalls, ['1:0', '2:0']);
+
+        secondChildCompleter.complete(
+          _sliceResponse(content: [_commentDto(21)], last: true, empty: false),
+        );
+        firstChildCompleter.complete(
+          _sliceResponse(content: [_commentDto(11)], last: true, empty: false),
+        );
+
+        final comments = await request;
+        expect(comments.map((comment) => comment.id), [1, 11, 2, 21]);
+      },
+    );
+
+    test(
       'throws SoiApiException when slice response reports failure',
       () async {
         final service = CommentService(
@@ -283,6 +359,35 @@ void main() {
 
       expect(result.comments.map((comment) => comment.id), [100, 101]);
       expect(result.hasMore, isTrue);
+    });
+
+    test('dedupes in-flight getCommentsByUserId requests', () async {
+      final sliceCompleter = Completer<ApiResponseDtoSliceCommentRespDto?>();
+      var callCount = 0;
+
+      final service = CommentService(
+        commentApi: _FakeCommentApi(
+          onGetParentComment: (postId, page) async => null,
+          onGetChildComment: (parentCommentId, page) async => null,
+          onGetAllCommentByUserId: (page) {
+            callCount++;
+            return sliceCompleter.future;
+          },
+        ),
+      );
+
+      final first = service.getCommentsByUserId(userId: 1, page: 2);
+      final second = service.getCommentsByUserId(userId: 1, page: 2);
+
+      sliceCompleter.complete(
+        _sliceResponse(content: [_commentDto(9)], last: true, empty: false),
+      );
+
+      final results = await Future.wait([first, second]);
+
+      expect(callCount, 1);
+      expect(results[0].comments.single.id, 9);
+      expect(results[1].hasMore, isFalse);
     });
   });
 }

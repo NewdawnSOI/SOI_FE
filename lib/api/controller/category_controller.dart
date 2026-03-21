@@ -11,8 +11,9 @@ class CategoryController extends ChangeNotifier {
 
   // 카테고리 캐시 (filter별로 관리)
   final Map<model.CategoryFilter, List<model.Category>> _categoriesCache = {};
-  int? _lastLoadedUserId;
-  DateTime? _lastLoadTime;
+  final Map<String, _CachedCategoryRequest> _requestCache = {};
+  final Map<int, model.Category> _categoryByIdCache = {};
+  int? _cachedUserId;
   static const Duration _cacheTimeout = Duration(seconds: 30);
 
   // 현재 표시 중인 카테고리 (마지막으로 로드한 filter의 데이터)
@@ -29,6 +30,91 @@ class CategoryController extends ChangeNotifier {
   /// [categoryService]를 주입받아 사용합니다. 테스트 시 MockCategoryService를 주입할 수 있습니다.
   CategoryController({CategoryService? categoryService})
     : _categoryService = categoryService ?? CategoryService();
+
+  String _buildRequestCacheKey({
+    required int userId,
+    required model.CategoryFilter filter,
+    required int page,
+    required bool fetchAllPages,
+    required int maxPages,
+  }) {
+    return '$userId:${filter.value}:$page:$fetchAllPages:$maxPages';
+  }
+
+  _CachedCategoryRequest? _getValidRequestCache(String requestKey) {
+    final cached = _requestCache[requestKey];
+    if (cached == null) return null;
+
+    if (DateTime.now().difference(cached.cachedAt) >= _cacheTimeout) {
+      _requestCache.remove(requestKey);
+      return null;
+    }
+
+    return cached;
+  }
+
+  void _storeRequestCache(String requestKey, List<model.Category> categories) {
+    _requestCache[requestKey] = _CachedCategoryRequest(
+      categories: List<model.Category>.unmodifiable(categories),
+      cachedAt: DateTime.now(),
+    );
+  }
+
+  void _storeFilterCache(
+    model.CategoryFilter filter,
+    List<model.Category> categories,
+  ) {
+    _categoriesCache[filter] = List<model.Category>.unmodifiable(categories);
+  }
+
+  void _resetCaches({bool notify = false}) {
+    _categoriesCache.clear();
+    _requestCache.clear();
+    _categoryByIdCache.clear();
+    _currentCategories = const [];
+    _cachedUserId = null;
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  void _rebuildCategoryIndex() {
+    _categoryByIdCache.clear();
+
+    for (final category in _currentCategories) {
+      _categoryByIdCache[category.id] = category;
+    }
+
+    for (final categories in _categoriesCache.values) {
+      for (final category in categories) {
+        _categoryByIdCache.putIfAbsent(category.id, () => category);
+      }
+    }
+  }
+
+  model.Category _copyCategory(
+    model.Category category, {
+    String? name,
+    String? photoUrl,
+    bool clearPhotoUrl = false,
+    bool? isNew,
+    bool? isPinned,
+    DateTime? pinnedAt,
+    bool clearPinnedAt = false,
+  }) {
+    return model.Category(
+      id: category.id,
+      name: name ?? category.name,
+      nickNames: category.nickNames,
+      photoUrl: clearPhotoUrl ? null : (photoUrl ?? category.photoUrl),
+      isNew: isNew ?? category.isNew,
+      totalUserCount: category.totalUserCount,
+      isPinned: isPinned ?? category.isPinned,
+      usersProfileKey: category.usersProfileKey,
+      pinnedAt: clearPinnedAt ? null : (pinnedAt ?? category.pinnedAt),
+      lastPhotoUploadedAt: category.lastPhotoUploadedAt,
+    );
+  }
 
   /// 로딩 상태
   bool get isLoading => _isLoading;
@@ -76,43 +162,35 @@ class CategoryController extends ChangeNotifier {
     bool fetchAllPages = true, // 페이지네이션이 필요한 경우 true로 설정 (기본값: true)
     int maxPages = 50,
   }) async {
-    final now = DateTime.now();
-    final isCacheValid =
-        _lastLoadTime != null && now.difference(_lastLoadTime!) < _cacheTimeout;
+    final normalizedPage = page < 0 ? 0 : page;
+    final normalizedMaxPages = maxPages < 1 ? 1 : maxPages;
 
-    // 캐시가 유효하고 같은 userId면 캐시된 데이터 반환
-    if (!forceReload && _lastLoadedUserId == userId && isCacheValid) {
-      // ALL 필터인 경우: ALL, PUBLIC, PRIVATE 모두 캐시되어 있어야 함
-      // ALL 필터라는 것은: 사용자가 전체 카테고리를 보고자 하는 것
-      if (filter == model.CategoryFilter.all) {
-        final hasAllCaches =
-            _categoriesCache.containsKey(model.CategoryFilter.all) &&
-            _categoriesCache.containsKey(model.CategoryFilter.public_) &&
-            _categoriesCache.containsKey(model.CategoryFilter.private_);
+    if (_cachedUserId != null && _cachedUserId != userId) {
+      _resetCaches();
+    }
 
-        if (hasAllCaches) {
-          final cached = _categoriesCache[filter]!;
-          if (!identical(_currentCategories, cached)) {
-            _currentCategories = cached;
-            notifyListeners();
-          }
-          return _currentCategories;
+    final requestKey = _buildRequestCacheKey(
+      userId: userId,
+      filter: filter,
+      page: normalizedPage,
+      fetchAllPages: fetchAllPages,
+      maxPages: normalizedMaxPages,
+    );
+
+    if (!forceReload) {
+      final cachedRequest = _getValidRequestCache(requestKey);
+      if (cachedRequest != null) {
+        if (!identical(_currentCategories, cachedRequest.categories)) {
+          _currentCategories = cachedRequest.categories;
+          _rebuildCategoryIndex();
+          notifyListeners();
+        } else if (_categoryByIdCache.isEmpty) {
+          _rebuildCategoryIndex();
         }
-      }
-      // 그 외 필터인 경우: PUBLIC 또는 PRIVATE
-      else {
-        // PUBLIC 또는 PRIVATE 필터: 해당 필터만 캐시되어 있으면 됨
-        if (_categoriesCache.containsKey(filter) &&
-            _categoriesCache[filter]!.isNotEmpty) {
-          final cached = _categoriesCache[filter]!;
-          if (!identical(_currentCategories, cached)) {
-            _currentCategories = cached;
-            notifyListeners();
-          }
-          return _currentCategories;
-        }
+        return cachedRequest.categories;
       }
     }
+
     _setLoading(true);
     _clearError();
 
@@ -123,34 +201,58 @@ class CategoryController extends ChangeNotifier {
           // 전체 카테고리를 먼저 로드
           _categoryService.getCategories(
             filter: model.CategoryFilter.all,
-            page: page,
+            page: normalizedPage,
             fetchAllPages: fetchAllPages,
-            maxPages: maxPages,
+            maxPages: normalizedMaxPages,
           ),
           // PUBLIC 카테고리를 병렬로 로드
           _categoryService.getCategories(
             filter: model.CategoryFilter.public_,
-            page: page,
+            page: normalizedPage,
             fetchAllPages: fetchAllPages,
-            maxPages: maxPages,
+            maxPages: normalizedMaxPages,
           ),
           // PRIVATE 카테고리를 병렬로 로드
           _categoryService.getCategories(
             filter: model.CategoryFilter.private_,
-            page: page,
+            page: normalizedPage,
             fetchAllPages: fetchAllPages,
-            maxPages: maxPages,
+            maxPages: normalizedMaxPages,
           ),
         ]);
 
         // 각 filter별 캐시 저장 (불변 리스트로 저장하여 getter에서 래핑 비용 제거)
-        _categoriesCache[model.CategoryFilter.all] = List.unmodifiable(
+        _storeFilterCache(model.CategoryFilter.all, results[0]);
+        _storeFilterCache(model.CategoryFilter.public_, results[1]);
+        _storeFilterCache(model.CategoryFilter.private_, results[2]);
+        _storeRequestCache(
+          _buildRequestCacheKey(
+            userId: userId,
+            filter: model.CategoryFilter.all,
+            page: normalizedPage,
+            fetchAllPages: fetchAllPages,
+            maxPages: normalizedMaxPages,
+          ),
           results[0],
         );
-        _categoriesCache[model.CategoryFilter.public_] = List.unmodifiable(
+        _storeRequestCache(
+          _buildRequestCacheKey(
+            userId: userId,
+            filter: model.CategoryFilter.public_,
+            page: normalizedPage,
+            fetchAllPages: fetchAllPages,
+            maxPages: normalizedMaxPages,
+          ),
           results[1],
         );
-        _categoriesCache[model.CategoryFilter.private_] = List.unmodifiable(
+        _storeRequestCache(
+          _buildRequestCacheKey(
+            userId: userId,
+            filter: model.CategoryFilter.private_,
+            page: normalizedPage,
+            fetchAllPages: fetchAllPages,
+            maxPages: normalizedMaxPages,
+          ),
           results[2],
         );
         _currentCategories = _categoriesCache[model.CategoryFilter.all]!;
@@ -158,17 +260,18 @@ class CategoryController extends ChangeNotifier {
         // PUBLIC 또는 PRIVATE 필터: 해당 필터만 로드
         final categories = await _categoryService.getCategories(
           filter: filter,
-          page: page,
+          page: normalizedPage,
           fetchAllPages: fetchAllPages,
-          maxPages: maxPages,
+          maxPages: normalizedMaxPages,
         );
 
-        _categoriesCache[filter] = List.unmodifiable(categories);
+        _storeFilterCache(filter, categories);
+        _storeRequestCache(requestKey, categories);
         _currentCategories = _categoriesCache[filter]!;
       }
 
-      _lastLoadedUserId = userId;
-      _lastLoadTime = DateTime.now();
+      _cachedUserId = userId;
+      _rebuildCategoryIndex();
 
       _setLoading(false);
       return _currentCategories;
@@ -182,11 +285,7 @@ class CategoryController extends ChangeNotifier {
 
   /// 캐시 무효화
   void invalidateCache() {
-    _categoriesCache.clear();
-    _currentCategories = const [];
-    _lastLoadedUserId = null;
-    _lastLoadTime = null;
-    notifyListeners();
+    _resetCaches(notify: true);
   }
 
   /// 특정 카테고리를 읽음 상태로 표시
@@ -195,29 +294,10 @@ class CategoryController extends ChangeNotifier {
   /// UI에 즉시 반영되지 않을 수 있으므로, 사용자가 카테고리를 열었을 때
   /// 로컬 캐시의 isNew를 false로 갱신한다.
   void markCategoryAsViewed(int categoryId) {
-    bool updated = false;
-
-    // 불변 리스트 대응: 원본을 수정하지 않고 새 리스트를 생성하여 반환
-    List<model.Category> updateList(List<model.Category> categories) {
-      final index = categories.indexWhere((c) => c.id == categoryId);
-      if (index == -1) return categories;
-      final target = categories[index];
-      if (!target.isNew) return categories;
-      final newList = List<model.Category>.from(categories);
-      newList[index] = target.copyWith(isNew: false);
-      updated = true;
-      return List.unmodifiable(newList);
-    }
-
-    // 현재 목록 갱신
-    _currentCategories = updateList(_currentCategories);
-
-    // 필터별 캐시 갱신
-    _categoriesCache.updateAll((key, value) => updateList(value));
-
-    if (updated) {
-      notifyListeners();
-    }
+    _updateCachedCategory(categoryId, (category) {
+      if (!category.isNew) return category;
+      return _copyCategory(category, isNew: false);
+    });
   }
 
   /// 특정 카테고리 캐시 갱신 헬퍼
@@ -239,10 +319,16 @@ class CategoryController extends ChangeNotifier {
       final index = categories.indexWhere((c) => c.id == categoryId);
       if (index == -1) return categories;
 
+      final currentCategory = categories[index];
+      final nextCategory = update(currentCategory);
+      if (identical(nextCategory, currentCategory)) {
+        return categories;
+      }
+
       final newList = List<model.Category>.from(categories);
-      newList[index] = update(newList[index]);
+      newList[index] = nextCategory;
       updated = true;
-      return List.unmodifiable(newList);
+      return List<model.Category>.unmodifiable(newList);
     }
 
     // 현재 목록 갱신
@@ -251,8 +337,19 @@ class CategoryController extends ChangeNotifier {
     // 필터별 캐시 갱신
     _categoriesCache.updateAll((key, value) => updateList(value));
 
+    _requestCache.updateAll((key, value) {
+      final updatedCategories = updateList(value.categories);
+      if (identical(updatedCategories, value.categories)) {
+        return value;
+      }
+      return value.copyWith(categories: updatedCategories);
+    });
+
     if (updated && notify) {
+      _rebuildCategoryIndex();
       notifyListeners();
+    } else if (updated) {
+      _rebuildCategoryIndex();
     }
   }
 
@@ -273,29 +370,8 @@ class CategoryController extends ChangeNotifier {
   }
 
   /// ID로 캐시된 카테고리 조회
-  model.Category? getCategoryById(int categoryId) {
-    // 1) 현재 표시 중인 목록에서 우선 검색
-    for (final c in _currentCategories) {
-      if (c.id == categoryId) return c;
-    }
-
-    // 2) ALL 캐시(전체 목록)에서 검색 (화면/필터가 바뀐 경우를 대비)
-    final allCache = _categoriesCache[model.CategoryFilter.all];
-    if (allCache != null) {
-      for (final c in allCache) {
-        if (c.id == categoryId) return c;
-      }
-    }
-
-    // 3) 기타 필터 캐시에서 검색
-    for (final list in _categoriesCache.values) {
-      for (final c in list) {
-        if (c.id == categoryId) return c;
-      }
-    }
-
-    return null;
-  }
+  model.Category? getCategoryById(int categoryId) =>
+      _categoryByIdCache[categoryId];
 
   /// 카테고리 생성
   /// Parameters:
@@ -389,6 +465,19 @@ class CategoryController extends ChangeNotifier {
       final result = await _categoryService.toggleCategoryPin(
         categoryId: categoryId,
       );
+      final cachedCategory = getCategoryById(categoryId);
+      if (cachedCategory != null && cachedCategory.isPinned != result) {
+        _updateCachedCategory(
+          categoryId,
+          (category) => _copyCategory(
+            category,
+            isPinned: result,
+            pinnedAt: result ? (category.pinnedAt ?? DateTime.now()) : null,
+            clearPinnedAt: !result,
+          ),
+          notify: false,
+        );
+      }
       _setLoading(false);
       return result;
     } catch (e) {
@@ -578,7 +667,11 @@ class CategoryController extends ChangeNotifier {
         // 카테고리 캐시 갱신
         _updateCachedCategory(
           categoryId,
-          (category) => category.copyWith(photoUrl: normalized),
+          (category) => _copyCategory(
+            category,
+            photoUrl: normalized,
+            clearPhotoUrl: normalized == null,
+          ),
         );
       }
 
@@ -627,7 +720,11 @@ class CategoryController extends ChangeNotifier {
         final normalized = _normalizeProfileImageKey(entry.value);
         _updateCachedCategory(
           entry.key,
-          (category) => category.copyWith(photoUrl: normalized),
+          (category) => _copyCategory(
+            category,
+            photoUrl: normalized,
+            clearPhotoUrl: normalized == null,
+          ),
           notify: false,
         );
         hasLocalCacheUpdate = true;
@@ -696,6 +793,7 @@ class CategoryController extends ChangeNotifier {
   }
 
   void clearError() {
+    if (_errorMessage == null) return;
     _clearError();
     notifyListeners();
   }
@@ -714,5 +812,25 @@ class CategoryController extends ChangeNotifier {
 
   void _clearError() {
     _errorMessage = null;
+  }
+}
+
+class _CachedCategoryRequest {
+  const _CachedCategoryRequest({
+    required this.categories,
+    required this.cachedAt,
+  });
+
+  final List<model.Category> categories;
+  final DateTime cachedAt;
+
+  _CachedCategoryRequest copyWith({
+    List<model.Category>? categories,
+    DateTime? cachedAt,
+  }) {
+    return _CachedCategoryRequest(
+      categories: categories ?? this.categories,
+      cachedAt: cachedAt ?? this.cachedAt,
+    );
   }
 }

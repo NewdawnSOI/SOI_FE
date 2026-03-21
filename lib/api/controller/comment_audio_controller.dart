@@ -1,23 +1,97 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'dart:collection';
+
 import 'package:audioplayers/audioplayers.dart' as ap;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:soi/utils/snackbar_utils.dart';
+
+abstract class CommentAudioPlayer {
+  Stream<Duration> get onPositionChanged;
+  Stream<Duration> get onDurationChanged;
+  Stream<ap.PlayerState> get onPlayerStateChanged;
+
+  Future<void> play(String audioUrl);
+  Future<void> pause();
+  Future<void> stop();
+  Future<void> seek(Duration position);
+  Future<void> resume();
+  Future<void> dispose();
+}
+
+typedef CommentAudioPlayerFactory = CommentAudioPlayer Function();
+
+class _AudioplayersCommentAudioPlayer implements CommentAudioPlayer {
+  _AudioplayersCommentAudioPlayer() : _player = ap.AudioPlayer();
+
+  final ap.AudioPlayer _player;
+
+  @override
+  Stream<Duration> get onPositionChanged => _player.onPositionChanged;
+
+  @override
+  Stream<Duration> get onDurationChanged => _player.onDurationChanged;
+
+  @override
+  Stream<ap.PlayerState> get onPlayerStateChanged =>
+      _player.onPlayerStateChanged;
+
+  @override
+  Future<void> play(String audioUrl) {
+    return _player.play(ap.UrlSource(audioUrl));
+  }
+
+  @override
+  Future<void> pause() {
+    return _player.pause();
+  }
+
+  @override
+  Future<void> stop() {
+    return _player.stop();
+  }
+
+  @override
+  Future<void> seek(Duration position) {
+    return _player.seek(position);
+  }
+
+  @override
+  Future<void> resume() {
+    return _player.resume();
+  }
+
+  @override
+  Future<void> dispose() {
+    return _player.dispose();
+  }
+}
 
 /// 음성 댓글 전용 오디오 컨트롤러
 ///
 /// 각 음성 댓글의 개별 재생/일시정지를 관리합니다.
 /// 기존 AudioController와 독립적으로 동작하여 댓글별 오디오 재생을 담당합니다.
 class CommentAudioController extends ChangeNotifier {
+  static const Duration _positionNotifyThreshold = Duration(milliseconds: 200);
+
+  final CommentAudioPlayerFactory _playerFactory;
+
+  CommentAudioController({CommentAudioPlayerFactory? playerFactory})
+    : _playerFactory = playerFactory ?? _AudioplayersCommentAudioPlayer.new;
+
   // ==================== 상태 관리 ====================
 
   /// 댓글 ID별 AudioPlayer 인스턴스
-  final Map<String, ap.AudioPlayer> _commentPlayers = {};
+  final Map<String, CommentAudioPlayer> _commentPlayers = {};
+  final Map<String, List<StreamSubscription<dynamic>>> _playerSubscriptions =
+      {};
 
   /// 댓글 ID별 재생 상태
   final Map<String, bool> _isPlayingStates = {};
 
   /// 댓글 ID별 현재 재생 위치
   final Map<String, Duration> _currentPositions = {};
+  final Map<String, Duration> _lastNotifiedPositions = {};
 
   /// 댓글 ID별 총 재생 시간
   final Map<String, Duration> _totalDurations = {};
@@ -33,6 +107,73 @@ class CommentAudioController extends ChangeNotifier {
 
   /// 에러 메시지
   String? _error;
+
+  void _debugLog(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
+  }
+
+  void _notifyIfChanged(bool changed) {
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  bool _setLoadingValue(bool loading) {
+    if (_isLoading == loading) return false;
+    _isLoading = loading;
+    return true;
+  }
+
+  bool _setErrorValue(String? error) {
+    if (_error == error) return false;
+    _error = error;
+    return true;
+  }
+
+  bool _setPlayingState(String commentId, bool isPlaying) {
+    final previous = _isPlayingStates[commentId] ?? false;
+    if (previous == isPlaying) return false;
+    _isPlayingStates[commentId] = isPlaying;
+    return true;
+  }
+
+  bool _setCommentPosition(
+    String commentId,
+    Duration position, {
+    bool forceNotify = false,
+  }) {
+    final previous = _currentPositions[commentId] ?? Duration.zero;
+    if (previous == position) return false;
+
+    _currentPositions[commentId] = position;
+    if (forceNotify) {
+      _lastNotifiedPositions[commentId] = position;
+      return true;
+    }
+
+    final lastNotified = _lastNotifiedPositions[commentId] ?? Duration.zero;
+    if (lastNotified == Duration.zero || position == Duration.zero) {
+      _lastNotifiedPositions[commentId] = position;
+      return true;
+    }
+
+    final shouldNotify =
+        (position.inMilliseconds - lastNotified.inMilliseconds).abs() >=
+        _positionNotifyThreshold.inMilliseconds;
+    if (shouldNotify) {
+      _lastNotifiedPositions[commentId] = position;
+    }
+    return shouldNotify;
+  }
+
+  bool _setCommentDuration(String commentId, Duration duration) {
+    final previous = _totalDurations[commentId];
+    if (previous == duration) return false;
+    _totalDurations[commentId] = duration;
+    return true;
+  }
 
   // ==================== Getters ====================
 
@@ -77,32 +218,32 @@ class CommentAudioController extends ChangeNotifier {
 
   /// 특정 댓글 재생
   Future<void> playComment(String commentId, String audioUrl) async {
-    try {
-      _setLoading(true);
-      _clearError();
+    var changed = _setLoadingValue(true);
+    changed = _setErrorValue(null) || changed;
+    _notifyIfChanged(changed);
 
-      // 다른 댓글이 재생 중이면 중지
+    try {
       if (_currentPlayingCommentId != null &&
           _currentPlayingCommentId != commentId) {
-        await _stopCurrentPlaying();
+        await _stopCurrentPlaying(notify: false);
       }
 
-      // AudioPlayer 인스턴스 생성 또는 가져오기
       final player = await _getOrCreatePlayer(commentId, audioUrl);
 
-      // 재생 시작
-      await player.play(ap.UrlSource(audioUrl));
+      await player.play(audioUrl);
 
-      // 상태 업데이트
-      _isPlayingStates[commentId] = true;
-      _currentPlayingCommentId = commentId;
+      changed = _setPlayingState(commentId, true) || changed;
+      if (_currentPlayingCommentId != commentId) {
+        _currentPlayingCommentId = commentId;
+        changed = true;
+      }
       _commentAudioUrls[commentId] = audioUrl;
     } catch (e) {
-      debugPrint('CommentAudio - 재생 오류: $e');
+      _debugLog('CommentAudio - 재생 오류: $e');
       _setError('음성 댓글을 재생할 수 없습니다: $e');
     } finally {
-      _setLoading(false);
-      notifyListeners();
+      changed = _setLoadingValue(false) || changed;
+      _notifyIfChanged(changed);
     }
   }
 
@@ -112,32 +253,20 @@ class CommentAudioController extends ChangeNotifier {
       final player = _commentPlayers[commentId];
       if (player != null) {
         await player.pause();
-        _isPlayingStates[commentId] = false;
-
-        notifyListeners();
+        final changed = _setPlayingState(commentId, false);
+        _notifyIfChanged(changed);
       }
     } catch (e) {
-      debugPrint('CommentAudio - 일시정지 오류: $e');
+      _debugLog('CommentAudio - 일시정지 오류: $e');
     }
   }
 
   /// 특정 댓글 중지
   Future<void> stopComment(String commentId) async {
     try {
-      final player = _commentPlayers[commentId];
-      if (player != null) {
-        await player.stop();
-        _isPlayingStates[commentId] = false;
-        _currentPositions[commentId] = Duration.zero;
-
-        if (_currentPlayingCommentId == commentId) {
-          _currentPlayingCommentId = null;
-        }
-
-        notifyListeners();
-      }
+      await _stopCommentInternal(commentId, notify: true);
     } catch (e) {
-      debugPrint('CommentAudio - 중지 오류: $e');
+      _debugLog('CommentAudio - 중지 오류: $e');
     }
   }
 
@@ -147,15 +276,24 @@ class CommentAudioController extends ChangeNotifier {
 
     if (isPlaying) {
       await pauseComment(commentId);
-    } else {
-      await playComment(commentId, audioUrl);
+      return;
     }
+
+    final cachedAudioUrl = _commentAudioUrls[commentId];
+    final hasCachedPlayer = _commentPlayers.containsKey(commentId);
+    final hasResumePosition = getCommentPosition(commentId) > Duration.zero;
+    if (hasCachedPlayer && cachedAudioUrl == audioUrl && hasResumePosition) {
+      await resumeComment(commentId);
+      return;
+    }
+
+    await playComment(commentId, audioUrl);
   }
 
   // ==================== Private 메서드 ====================
 
   /// AudioPlayer 인스턴스 생성 또는 가져오기
-  Future<ap.AudioPlayer> _getOrCreatePlayer(
+  Future<CommentAudioPlayer> _getOrCreatePlayer(
     String commentId,
     String audioUrl,
   ) async {
@@ -163,74 +301,75 @@ class CommentAudioController extends ChangeNotifier {
       return _commentPlayers[commentId]!;
     }
 
-    // 새 플레이어 생성
-    final player = ap.AudioPlayer();
+    final player = _playerFactory();
     _commentPlayers[commentId] = player;
-
-    // 리스너 설정
+    _commentAudioUrls[commentId] = audioUrl;
     _setupPlayerListeners(commentId, player);
 
     return player;
   }
 
   /// 플레이어 리스너 설정
-  void _setupPlayerListeners(String commentId, ap.AudioPlayer player) {
-    // 재생 위치 변화 감지
-    player.onPositionChanged.listen((Duration position) {
-      _currentPositions[commentId] = position;
-      notifyListeners();
-    });
+  void _setupPlayerListeners(String commentId, CommentAudioPlayer player) {
+    final subscriptions = <StreamSubscription<dynamic>>[];
 
-    // 재생 시간 변화 감지
-    player.onDurationChanged.listen((Duration duration) {
-      _totalDurations[commentId] = duration;
-      notifyListeners();
-    });
+    subscriptions.add(
+      player.onPositionChanged.listen((Duration position) {
+        final changed = _setCommentPosition(commentId, position);
+        _notifyIfChanged(changed);
+      }),
+    );
 
-    // 재생 상태 변화 감지
-    player.onPlayerStateChanged.listen((ap.PlayerState state) {
-      final wasPlaying = _isPlayingStates[commentId] ?? false;
-      final isNowPlaying = state == ap.PlayerState.playing;
+    subscriptions.add(
+      player.onDurationChanged.listen((Duration duration) {
+        final changed = _setCommentDuration(commentId, duration);
+        _notifyIfChanged(changed);
+      }),
+    );
 
-      _isPlayingStates[commentId] = isNowPlaying;
+    subscriptions.add(
+      player.onPlayerStateChanged.listen((ap.PlayerState state) {
+        var changed = false;
+        final isNowPlaying = state == ap.PlayerState.playing;
+        changed = _setPlayingState(commentId, isNowPlaying) || changed;
 
-      // 재생 완료 시 처리
-      if (state == ap.PlayerState.completed) {
-        _isPlayingStates[commentId] = false;
-        _currentPositions[commentId] = Duration.zero;
+        if (state == ap.PlayerState.completed) {
+          changed = _setPlayingState(commentId, false) || changed;
+          changed =
+              _setCommentPosition(
+                commentId,
+                Duration.zero,
+                forceNotify: true,
+              ) ||
+              changed;
 
-        if (_currentPlayingCommentId == commentId) {
-          _currentPlayingCommentId = null;
+          if (_currentPlayingCommentId == commentId) {
+            _currentPlayingCommentId = null;
+            changed = true;
+          }
         }
-      }
 
-      // 상태 변화가 있을 때만 알림
-      if (wasPlaying != isNowPlaying) {
-        notifyListeners();
-      }
-    });
+        _notifyIfChanged(changed);
+      }),
+    );
+
+    _playerSubscriptions[commentId] = subscriptions;
   }
 
   /// 현재 재생 중인 댓글 중지
-  Future<void> _stopCurrentPlaying() async {
+  Future<void> _stopCurrentPlaying({required bool notify}) async {
     if (_currentPlayingCommentId != null) {
-      await stopComment(_currentPlayingCommentId!);
+      await _stopCommentInternal(_currentPlayingCommentId!, notify: notify);
     }
-  }
-
-  /// 로딩 상태 설정
-  void _setLoading(bool loading) {
-    _isLoading = loading;
   }
 
   /// 에러 설정
   void _setError(String error) {
-    _error = error;
-  }
-
-  /// 에러 초기화
-  void _clearError() {
-    _error = null;
+    final changed = _setErrorValue(error);
+    if (changed) {
+      _debugLog('CommentAudio - 오류: $error');
+    }
+    _notifyIfChanged(changed);
   }
 
   // ==================== 고급 기능 메서드 ====================
@@ -241,12 +380,15 @@ class CommentAudioController extends ChangeNotifier {
       final player = _commentPlayers[commentId];
       if (player != null) {
         await player.seek(position);
-        _currentPositions[commentId] = position;
-
-        notifyListeners();
+        final changed = _setCommentPosition(
+          commentId,
+          position,
+          forceNotify: true,
+        );
+        _notifyIfChanged(changed);
       }
     } catch (e) {
-      debugPrint("CommentAudio - 위치 이동 오류: $e");
+      _debugLog('CommentAudio - 위치 이동 오류: $e');
     }
   }
 
@@ -255,20 +397,28 @@ class CommentAudioController extends ChangeNotifier {
     try {
       final player = _commentPlayers[commentId];
       if (player != null && !isCommentPlaying(commentId)) {
-        await player.resume();
-        _isPlayingStates[commentId] = true;
-        _currentPlayingCommentId = commentId;
+        if (_currentPlayingCommentId != null &&
+            _currentPlayingCommentId != commentId) {
+          await _stopCurrentPlaying(notify: false);
+        }
 
-        notifyListeners();
+        await player.resume();
+
+        var changed = _setPlayingState(commentId, true);
+        if (_currentPlayingCommentId != commentId) {
+          _currentPlayingCommentId = commentId;
+          changed = true;
+        }
+        _notifyIfChanged(changed);
       }
     } catch (e) {
-      debugPrint('CommentAudio - 재생 재개 오류: $e');
+      _debugLog('CommentAudio - 재생 재개 오류: $e');
     }
   }
 
   /// 모든 댓글의 재생 상태 정보 반환
   Map<String, bool> getAllPlayingStates() {
-    return Map.from(_isPlayingStates);
+    return UnmodifiableMapView(_isPlayingStates);
   }
 
   /// 특정 댓글의 오디오 URL 반환
@@ -283,29 +433,24 @@ class CommentAudioController extends ChangeNotifier {
 
   /// 모든 댓글 재생 중지
   Future<void> stopAllComments() async {
-    for (final commentId in _commentPlayers.keys.toList()) {
-      await stopComment(commentId);
+    var changed = false;
+    for (final commentId in _commentPlayers.keys.toList(growable: false)) {
+      changed = await _stopCommentInternal(commentId, notify: false) || changed;
     }
+    _notifyIfChanged(changed);
   }
 
   /// 특정 댓글의 플레이어 해제
   Future<void> disposeCommentPlayer(String commentId) async {
     final player = _commentPlayers[commentId];
-    if (player != null) {
-      await player.stop();
-      await player.dispose();
-      _commentPlayers.remove(commentId);
-      _isPlayingStates.remove(commentId);
-      _currentPositions.remove(commentId);
-      _totalDurations.remove(commentId);
-      _commentAudioUrls.remove(commentId);
-
-      if (_currentPlayingCommentId == commentId) {
-        _currentPlayingCommentId = null;
-      }
-
-      debugPrint('CommentAudio - 플레이어 해제: $commentId');
+    if (player == null) {
+      return;
     }
+
+    await _stopCommentInternal(commentId, notify: false);
+    await _disposePlayerResources(commentId);
+    _debugLog('CommentAudio - 플레이어 해제: $commentId');
+    notifyListeners();
   }
 
   /// 에러 상태를 사용자에게 보여주고 자동으로 클리어
@@ -316,21 +461,82 @@ class CommentAudioController extends ChangeNotifier {
         _error!,
         duration: const Duration(seconds: 3),
       );
-      _clearError();
+      final changed = _setErrorValue(null);
+      _notifyIfChanged(changed);
+    }
+  }
+
+  Future<bool> _stopCommentInternal(
+    String commentId, {
+    required bool notify,
+  }) async {
+    final player = _commentPlayers[commentId];
+    if (player == null) {
+      return false;
+    }
+
+    await player.stop();
+
+    var changed = false;
+    changed = _setPlayingState(commentId, false) || changed;
+    changed =
+        _setCommentPosition(commentId, Duration.zero, forceNotify: true) ||
+        changed;
+
+    if (_currentPlayingCommentId == commentId) {
+      _currentPlayingCommentId = null;
+      changed = true;
+    }
+
+    if (notify) {
+      _notifyIfChanged(changed);
+    }
+    return changed;
+  }
+
+  Future<void> _disposePlayerResources(String commentId) async {
+    final subscriptions = _playerSubscriptions.remove(commentId);
+    if (subscriptions != null) {
+      for (final subscription in subscriptions) {
+        await subscription.cancel();
+      }
+    }
+
+    final player = _commentPlayers.remove(commentId);
+    if (player != null) {
+      await player.dispose();
+    }
+
+    _isPlayingStates.remove(commentId);
+    _currentPositions.remove(commentId);
+    _lastNotifiedPositions.remove(commentId);
+    _totalDurations.remove(commentId);
+    _commentAudioUrls.remove(commentId);
+
+    if (_currentPlayingCommentId == commentId) {
+      _currentPlayingCommentId = null;
     }
   }
 
   @override
   void dispose() {
-    // 모든 플레이어 해제
+    for (final subscriptions in _playerSubscriptions.values) {
+      for (final subscription in subscriptions) {
+        unawaited(subscription.cancel());
+      }
+    }
+    _playerSubscriptions.clear();
+
     for (final player in _commentPlayers.values) {
-      player.dispose();
+      unawaited(player.dispose());
     }
     _commentPlayers.clear();
     _isPlayingStates.clear();
     _currentPositions.clear();
+    _lastNotifiedPositions.clear();
     _totalDurations.clear();
     _commentAudioUrls.clear();
+    _currentPlayingCommentId = null;
 
     super.dispose();
   }

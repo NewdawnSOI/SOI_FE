@@ -13,9 +13,62 @@ import '../models/category.dart';
 /// keyword가 null이거나 빈 문자열이면 전체 카테고리를 반환합니다.
 class CategorySearchService {
   final CategoryAPIApi _categoryApi;
+  final Map<String, Future<List<Category>>> _inFlightSearchQueries = {};
+  final Map<String, _CachedCategorySearchResult> _searchCache = {};
+  static const Duration _searchCacheTtl = Duration(seconds: 30);
 
   CategorySearchService({CategoryAPIApi? categoryApi})
     : _categoryApi = categoryApi ?? SoiApiClient.instance.categoryApi;
+
+  String _buildSearchRequestKey({
+    int? userId,
+    required CategoryFilter filter,
+    String? keyword,
+    required int page,
+    required bool fetchAllPages,
+    required int maxPages,
+  }) {
+    return '${userId ?? 'anonymous'}:${filter.value}:${keyword ?? ''}:$page:$fetchAllPages:$maxPages';
+  }
+
+  _CachedCategorySearchResult? _getValidCachedResult(String requestKey) {
+    final cached = _searchCache[requestKey];
+    if (cached == null) return null;
+
+    if (DateTime.now().difference(cached.cachedAt) >= _searchCacheTtl) {
+      _searchCache.remove(requestKey);
+      return null;
+    }
+
+    return cached;
+  }
+
+  void _purgeExpiredCacheEntries() {
+    final now = DateTime.now();
+    _searchCache.removeWhere(
+      (_, entry) => now.difference(entry.cachedAt) >= _searchCacheTtl,
+    );
+  }
+
+  List<Category> _mapCategories(Iterable<CategoryRespDto> dtos) {
+    return List<Category>.unmodifiable(dtos.map(Category.fromDto));
+  }
+
+  int _appendUniqueCategories({
+    required List<Category> categories,
+    required Iterable<CategoryRespDto> dtos,
+    required Set<int> seenIds,
+  }) {
+    var addedCount = 0;
+    for (final dto in dtos) {
+      final dtoId = dto.id;
+      if (dtoId != null && seenIds.add(dtoId)) {
+        categories.add(Category.fromDto(dto));
+        addedCount++;
+      }
+    }
+    return addedCount;
+  }
 
   /// 키워드로 카테고리 검색
   ///
@@ -28,6 +81,7 @@ class CategorySearchService {
   ///
   /// Returns: 검색 결과 카테고리 목록
   Future<List<Category>> searchCategories({
+    int? userId,
     CategoryFilter filter = CategoryFilter.all,
     String? keyword,
     int page = 0,
@@ -39,52 +93,38 @@ class CategorySearchService {
     final trimmedKeyword = keyword?.trim().isEmpty == true
         ? null
         : keyword?.trim();
+    final requestKey = _buildSearchRequestKey(
+      userId: userId,
+      filter: filter,
+      keyword: trimmedKeyword,
+      page: normalizedPage,
+      fetchAllPages: fetchAllPages,
+      maxPages: normalizedMaxPages,
+    );
+
+    _purgeExpiredCacheEntries();
+    final cached = _getValidCachedResult(requestKey);
+    if (cached != null) {
+      return cached.categories;
+    }
+
+    final task = _inFlightSearchQueries.putIfAbsent(requestKey, () {
+      return _searchCategoriesInternal(
+        filter: filter,
+        keyword: trimmedKeyword,
+        page: normalizedPage,
+        fetchAllPages: fetchAllPages,
+        maxPages: normalizedMaxPages,
+      );
+    });
 
     try {
-      if (!fetchAllPages) {
-        final dtos = await _fetchSearchPage(
-          filterValue: filter.value,
-
-          keyword: trimmedKeyword,
-          page: normalizedPage,
-        );
-        return dtos.map((dto) => Category.fromDto(dto)).toList();
-      }
-
-      // 전체 페이지 조회
-      final allCategories = <Category>[];
-      final seenIds = <int>{};
-      var currentPage = normalizedPage;
-      int? firstPageSize;
-
-      for (var i = 0; i < normalizedMaxPages; i++) {
-        final dtos = await _fetchSearchPage(
-          filterValue: filter.value,
-
-          keyword: trimmedKeyword,
-          page: currentPage,
-        );
-
-        if (dtos.isEmpty) break;
-
-        firstPageSize ??= dtos.length;
-
-        var addedCount = 0;
-        for (final dto in dtos) {
-          final dtoId = dto.id;
-          if (dtoId != null && seenIds.add(dtoId)) {
-            allCategories.add(Category.fromDto(dto));
-            addedCount++;
-          }
-        }
-
-        if (addedCount == 0) break;
-        if (dtos.length < firstPageSize) break;
-
-        currentPage++;
-      }
-
-      return allCategories;
+      final results = await task;
+      _searchCache[requestKey] = _CachedCategorySearchResult(
+        categories: results,
+        cachedAt: DateTime.now(),
+      );
+      return results;
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {
@@ -92,7 +132,59 @@ class CategorySearchService {
     } catch (e) {
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '카테고리 검색 실패: $e', originalException: e);
+    } finally {
+      final registeredTask = _inFlightSearchQueries[requestKey];
+      if (identical(registeredTask, task)) {
+        _inFlightSearchQueries.remove(requestKey);
+      }
     }
+  }
+
+  Future<List<Category>> _searchCategoriesInternal({
+    required CategoryFilter filter,
+    String? keyword,
+    required int page,
+    required bool fetchAllPages,
+    required int maxPages,
+  }) async {
+    if (!fetchAllPages) {
+      final dtos = await _fetchSearchPage(
+        filterValue: filter.value,
+        keyword: keyword,
+        page: page,
+      );
+      return _mapCategories(dtos);
+    }
+
+    final allCategories = <Category>[];
+    final seenIds = <int>{};
+    var currentPage = page;
+    int? firstPageSize;
+
+    for (var i = 0; i < maxPages; i++) {
+      final dtos = await _fetchSearchPage(
+        filterValue: filter.value,
+        keyword: keyword,
+        page: currentPage,
+      );
+
+      if (dtos.isEmpty) break;
+
+      firstPageSize ??= dtos.length;
+
+      final addedCount = _appendUniqueCategories(
+        categories: allCategories,
+        dtos: dtos,
+        seenIds: seenIds,
+      );
+
+      if (addedCount == 0) break;
+      if (dtos.length < firstPageSize) break;
+
+      currentPage++;
+    }
+
+    return List<Category>.unmodifiable(allCategories);
   }
 
   /// 단일 페이지 검색 API 호출 (내부 헬퍼)
@@ -154,4 +246,14 @@ class CategorySearchService {
         );
     }
   }
+}
+
+class _CachedCategorySearchResult {
+  const _CachedCategorySearchResult({
+    required this.categories,
+    required this.cachedAt,
+  });
+
+  final List<Category> categories;
+  final DateTime cachedAt;
 }

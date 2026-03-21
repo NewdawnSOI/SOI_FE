@@ -111,8 +111,9 @@ class PostService {
       throw _handleApiException(e);
     } on SocketException catch (e) {
       throw NetworkException(originalException: e);
+    } on SoiApiException {
+      rethrow;
     } catch (e) {
-      if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '게시물 생성 실패: $e', originalException: e);
     }
   }
@@ -156,8 +157,9 @@ class PostService {
       throw _handleApiException(e);
     } on SocketException catch (e) {
       throw NetworkException(originalException: e);
+    } on SoiApiException {
+      rethrow;
     } catch (e) {
-      if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '피드 조회 실패: $e', originalException: e);
     }
   }
@@ -200,8 +202,9 @@ class PostService {
       throw _handleApiException(e);
     } on SocketException catch (e) {
       throw NetworkException(originalException: e);
+    } on SoiApiException {
+      rethrow;
     } catch (e) {
-      if (e is SoiApiException) rethrow;
       throw SoiApiException(
         message: '카테고리 게시물 조회 실패: $e',
         originalException: e,
@@ -260,9 +263,10 @@ class PostService {
     int page = 0,
   }) async {
     try {
-      final postTypeStr = postType == PostType.multiMedia
-          ? 'MULTIMEDIA'
-          : 'TEXT_ONLY';
+      final postTypeStr = switch (postType) {
+        PostType.multiMedia => 'MULTIMEDIA',
+        PostType.textOnly => 'TEXT_ONLY',
+      };
       final response = await _postApi.findMediaByUserId(postTypeStr, page);
 
       if (response == null) {
@@ -285,8 +289,9 @@ class PostService {
       throw _handleApiException(e);
     } on SocketException catch (e) {
       throw NetworkException(originalException: e);
+    } on SoiApiException {
+      rethrow;
     } catch (e) {
-      if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '게시물 조회 실패: $e', originalException: e);
     }
   }
@@ -352,8 +357,9 @@ class PostService {
       throw _handleApiException(e);
     } on SocketException catch (e) {
       throw NetworkException(originalException: e);
+    } on SoiApiException {
+      rethrow;
     } catch (e) {
-      if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '게시물 수정 실패: $e', originalException: e);
     }
   }
@@ -392,8 +398,9 @@ class PostService {
       throw _handleApiException(e);
     } on SocketException catch (e) {
       throw NetworkException(originalException: e);
+    } on SoiApiException {
+      rethrow;
     } catch (e) {
-      if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '게시물 상태 변경 실패: $e', originalException: e);
     }
   }
@@ -429,8 +436,9 @@ class PostService {
       throw _handleApiException(e);
     } on SocketException catch (e) {
       throw NetworkException(originalException: e);
+    } on SoiApiException {
+      rethrow;
     } catch (e) {
-      if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '게시물 삭제 실패: $e', originalException: e);
     }
   }
@@ -440,7 +448,7 @@ class PostService {
   // ============================================
 
   SoiApiException _handleApiException(ApiException e) {
-    debugPrint('🔴 API Error [${e.code}]: ${e.message}');
+    if (kDebugMode) debugPrint('🔴 API Error [${e.code}]: ${e.message}');
 
     switch (e.code) {
       case 400:
@@ -483,7 +491,7 @@ class PostService {
     PostType? postType,
   }) {
     if (postType != null) return postType;
-    final hasMedia = postFileKeys.any((key) => key.trim().isNotEmpty);
+    final hasMedia = postFileKeys.any((key) => key.isNotEmpty);
     return hasMedia ? PostType.multiMedia : PostType.textOnly;
   }
 

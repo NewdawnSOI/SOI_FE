@@ -1,8 +1,8 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:http/http.dart' as http;
 
 import '../services/media_service.dart';
@@ -27,11 +27,15 @@ import '../services/media_service.dart';
 /// );
 /// ```
 class MediaController extends ChangeNotifier {
+  static const Duration _presignedUrlTtl = Duration(minutes: 55);
+
   final MediaService _mediaService;
+  final DateTime Function() _now;
 
   bool _isLoading = false;
   String? _errorMessage;
   double? _uploadProgress;
+  int _activeRequestCount = 0;
 
   // presigned URL은 1시간 유효하지만, 매번 새로 발급받으면 URL이 바뀌어
   // 이미지 캐시(CachedNetworkImage)가 새 이미지로 인식 → placeholder(쉬머)가 다시 보일 수 있습니다.
@@ -49,8 +53,9 @@ class MediaController extends ChangeNotifier {
   /// 생성자
   ///
   /// [mediaService]를 주입받아 사용합니다. 테스트 시 MockMediaService를 주입할 수 있습니다.
-  MediaController({MediaService? mediaService})
-    : _mediaService = mediaService ?? MediaService();
+  MediaController({MediaService? mediaService, DateTime Function()? now})
+    : _mediaService = mediaService ?? MediaService(),
+      _now = now ?? DateTime.now;
 
   /// 로딩 상태
   bool get isLoading => _isLoading;
@@ -124,32 +129,23 @@ class MediaController extends ChangeNotifier {
   /// Returns: presigned URL 목록 (List of String)
   /// - 발급 실패 시 빈 목록 반환
   Future<List<String>> getPresignedUrls(List<String> keys) async {
-    _setLoading(true);
-    _clearError();
+    if (keys.isEmpty) {
+      return const [];
+    }
 
+    final cachedUrls = _tryGetCachedPresignedUrls(keys);
+    if (cachedUrls != null) {
+      return cachedUrls;
+    }
+
+    _beginRequest();
     try {
-      final urls = await _mediaService.getPresignedUrls(
-        keys,
-      ); // API 호출하여서 presigned URL 요청
-      _setLoading(false);
-
-      // 응답이 요청 key 순서와 동일하다는 전제 하에 캐시 채우기(길이 일치할 때만)
-      if (urls.length == keys.length) {
-        final now = DateTime.now();
-        for (var i = 0; i < keys.length; i++) {
-          // 캐시 저장 (55분 후 만료)
-          _presignedUrlCache[keys[i]] = _PresignedUrlCacheEntry(
-            url: urls[i],
-            expiresAt: now.add(const Duration(minutes: 55)),
-          );
-        }
-      }
-
-      return urls;
+      return await _resolvePresignedUrls(keys);
     } catch (e) {
       _setError('URL 발급 실패: $e');
-      _setLoading(false);
       return [];
+    } finally {
+      _endRequest();
     }
   }
 
@@ -162,51 +158,37 @@ class MediaController extends ChangeNotifier {
   /// - success: presigned URL (캐시에 있고 만료되지 않은 경우)
   /// - fail: null (캐시에 없거나 만료된 경우)
   String? peekPresignedUrl(String key) {
-    final entry = _presignedUrlCache[key];
+    final normalizedKey = key.trim();
+    if (normalizedKey.isEmpty) return null;
+
+    final entry = _presignedUrlCache[normalizedKey];
     if (entry == null) return null;
-    if (entry.isExpired) {
-      _presignedUrlCache.remove(key);
+    if (entry.isExpired(referenceTime: _now())) {
+      _presignedUrlCache.remove(normalizedKey);
       return null;
     }
     return entry.url;
   }
 
   Future<String?> getPresignedUrl(String key) async {
+    final normalizedKey = key.trim();
+    if (normalizedKey.isEmpty) {
+      return null;
+    }
+
     // 캐시 hit면 네트워크 없이 즉시 반환
-    final cached = peekPresignedUrl(key); // 캐시를 확인하여서 바로 반환
+    final cached = peekPresignedUrl(normalizedKey);
     if (cached != null) return cached;
 
-    // 같은 key에 대한 동시 요청은 1번만 보내고 공유합니다.
-    final inflight = _inFlightPresignRequests[key];
-    if (inflight != null) return inflight;
-
-    _setLoading(true);
-    _clearError();
-
-    // 네트워크 요청 --> 캐시가 miss된 경우에만 호출됩니다.
+    _beginRequest();
     try {
-      final future = _mediaService.getPresignedUrl(
-        key,
-      ); // API 호출하여서 presigned URL 요청
-      _inFlightPresignRequests[key] = future; // 진행 중인 요청으로 등록
-      final url = await future; // 결과 대기
-
-      if (url != null) {
-        // MediaService 주석 기준 1시간 유효 → 55분만 캐싱(여유)
-        _presignedUrlCache[key] = _PresignedUrlCacheEntry(
-          url: url,
-          expiresAt: DateTime.now().add(const Duration(minutes: 55)),
-        );
-      }
-
-      _setLoading(false);
-      return url;
+      final urls = await _resolvePresignedUrls([normalizedKey]);
+      return urls.isNotEmpty ? urls.first : null;
     } catch (e) {
       _setError('URL 발급 실패: $e');
-      _setLoading(false);
       return null;
     } finally {
-      _inFlightPresignRequests.remove(key);
+      _endRequest();
     }
   }
 
@@ -234,12 +216,9 @@ class MediaController extends ChangeNotifier {
     required int refId,
     required int usageCount,
   }) async {
-    _setLoading(true);
-    _setUploadProgress(0.0);
-    _clearError();
+    _beginRequest(uploadProgress: 0.0);
 
     try {
-      // service 호출
       final keys = await _mediaService.uploadMedia(
         files: files,
         types: types,
@@ -249,12 +228,12 @@ class MediaController extends ChangeNotifier {
         usageCount: usageCount,
       );
       _setUploadProgress(1.0);
-      _setLoading(false);
       return keys;
     } catch (e) {
       _setError('파일 업로드 실패: $e');
-      _setLoading(false);
       return [];
+    } finally {
+      _endRequest();
     }
   }
 
@@ -270,23 +249,20 @@ class MediaController extends ChangeNotifier {
     required http.MultipartFile file,
     required int userId,
   }) async {
-    _setLoading(true);
-    _setUploadProgress(0.0);
-    _clearError();
+    _beginRequest(uploadProgress: 0.0);
 
     try {
-      // service 호출
       final key = await _mediaService.uploadProfileImage(
         file: file,
         userId: userId,
       );
-      _setUploadProgress(1.0); // 업로드률을 100%로 설정
-      _setLoading(false);
+      _setUploadProgress(1.0);
       return key;
     } catch (e) {
       _setError('프로필 이미지 업로드 실패: $e');
-      _setLoading(false);
       return null;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -304,24 +280,21 @@ class MediaController extends ChangeNotifier {
     required int userId,
     required int postId,
   }) async {
-    _setLoading(true); // 로딩 상태 설정
-    _setUploadProgress(0.0); // 업로드 진행률 초기화
-    _clearError();
+    _beginRequest(uploadProgress: 0.0);
 
     try {
-      // service 호출
       final key = await _mediaService.uploadCommentAudio(
         file: file,
         userId: userId,
         postId: postId,
       );
-      _setUploadProgress(1.0); // 업로드률을 100%로 설정
-      _setLoading(false); // 로딩 상태 해제
+      _setUploadProgress(1.0);
       return key;
     } catch (e) {
       _setError('댓글 오디오 업로드 실패: $e');
-      _setLoading(false); // 로딩 상태 해제
       return null;
+    } finally {
+      _endRequest();
     }
   }
 
@@ -348,44 +321,190 @@ class MediaController extends ChangeNotifier {
   // ============================================
 
   void clearError() {
-    if (_errorMessage == null) return;
-    _scheduleNotify(() => _errorMessage = null);
+    final changed = _setErrorValue(null);
+    _notifyIfChanged(changed);
   }
 
-  void _setLoading(bool value) {
-    if (_isLoading == value) return;
-    _scheduleNotify(() => _isLoading = value);
+  List<String>? _tryGetCachedPresignedUrls(List<String> keys) {
+    final resolvedUrls = <String>[];
+
+    for (final rawKey in keys) {
+      final normalizedKey = rawKey.trim();
+      if (normalizedKey.isEmpty) {
+        return null;
+      }
+
+      final cachedUrl = peekPresignedUrl(normalizedKey);
+      if (cachedUrl == null) {
+        return null;
+      }
+
+      resolvedUrls.add(cachedUrl);
+    }
+
+    return List<String>.unmodifiable(resolvedUrls);
+  }
+
+  Future<List<String>> _resolvePresignedUrls(List<String> keys) async {
+    final resolvedUrls = List<String?>.filled(keys.length, null);
+    final pendingCompleters = <String, Completer<String?>>{};
+    final pendingKeys = <String>[];
+    final futures = <Future<void>>[];
+
+    for (var i = 0; i < keys.length; i++) {
+      final normalizedKey = keys[i].trim();
+      if (normalizedKey.isEmpty) {
+        continue;
+      }
+
+      final cachedUrl = peekPresignedUrl(normalizedKey);
+      if (cachedUrl != null) {
+        resolvedUrls[i] = cachedUrl;
+        continue;
+      }
+
+      final inFlight = _inFlightPresignRequests[normalizedKey];
+      if (inFlight != null) {
+        futures.add(
+          inFlight.then((url) {
+            if (url != null) {
+              resolvedUrls[i] = url;
+            }
+          }),
+        );
+        continue;
+      }
+
+      final completer = pendingCompleters.putIfAbsent(normalizedKey, () {
+        final newCompleter = Completer<String?>();
+        pendingKeys.add(normalizedKey);
+        _inFlightPresignRequests[normalizedKey] = newCompleter.future;
+        return newCompleter;
+      });
+
+      futures.add(
+        completer.future.then((url) {
+          if (url != null) {
+            resolvedUrls[i] = url;
+          }
+        }),
+      );
+    }
+
+    if (pendingKeys.isNotEmpty) {
+      futures.add(_loadPendingPresignedUrls(pendingKeys, pendingCompleters));
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
+    }
+
+    return resolvedUrls.whereType<String>().toList(growable: false);
+  }
+
+  Future<void> _loadPendingPresignedUrls(
+    List<String> pendingKeys,
+    Map<String, Completer<String?>> pendingCompleters,
+  ) async {
+    try {
+      final urls = await _mediaService.getPresignedUrls(pendingKeys);
+      for (var i = 0; i < pendingKeys.length; i++) {
+        final key = pendingKeys[i];
+        final completer = pendingCompleters[key];
+        if (completer == null || completer.isCompleted) {
+          continue;
+        }
+
+        final url = i < urls.length ? urls[i] : null;
+        if (url != null) {
+          _cachePresignedUrl(key, url);
+        }
+        completer.complete(url);
+      }
+
+      for (final completer in pendingCompleters.values) {
+        if (!completer.isCompleted) {
+          completer.complete(null);
+        }
+      }
+    } catch (e, stackTrace) {
+      for (final completer in pendingCompleters.values) {
+        if (!completer.isCompleted) {
+          completer.completeError(e, stackTrace);
+        }
+      }
+      rethrow;
+    } finally {
+      for (final key in pendingKeys) {
+        final registeredTask = _inFlightPresignRequests[key];
+        final completer = pendingCompleters[key];
+        if (registeredTask != null &&
+            completer != null &&
+            identical(registeredTask, completer.future)) {
+          _inFlightPresignRequests.remove(key);
+        }
+      }
+    }
+  }
+
+  void _cachePresignedUrl(String key, String url) {
+    _presignedUrlCache[key] = _PresignedUrlCacheEntry(
+      url: url,
+      expiresAt: _now().add(_presignedUrlTtl),
+    );
+  }
+
+  void _notifyIfChanged(bool changed) {
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  bool _setLoadingValue(bool value) {
+    if (_isLoading == value) return false;
+    _isLoading = value;
+    return true;
+  }
+
+  bool _setErrorValue(String? message) {
+    if (_errorMessage == message) return false;
+    _errorMessage = message;
+    return true;
+  }
+
+  bool _setUploadProgressValue(double? value) {
+    if (_uploadProgress == value) return false;
+    _uploadProgress = value;
+    return true;
+  }
+
+  void _beginRequest({double? uploadProgress}) {
+    var changed = _setErrorValue(null);
+    _activeRequestCount += 1;
+    changed = _setLoadingValue(true) || changed;
+    if (uploadProgress != null) {
+      changed = _setUploadProgressValue(uploadProgress) || changed;
+    }
+    _notifyIfChanged(changed);
+  }
+
+  void _endRequest() {
+    if (_activeRequestCount > 0) {
+      _activeRequestCount -= 1;
+    }
+
+    final changed = _setLoadingValue(_activeRequestCount > 0);
+    _notifyIfChanged(changed);
   }
 
   void _setError(String message) {
-    if (_errorMessage == message) return;
-    _scheduleNotify(() => _errorMessage = message);
-  }
-
-  void _clearError() {
-    _errorMessage = null;
+    final changed = _setErrorValue(message);
+    _notifyIfChanged(changed);
   }
 
   void _setUploadProgress(double? value) {
-    if (_uploadProgress == value) return;
-    _scheduleNotify(() => _uploadProgress = value);
-  }
-
-  void _scheduleNotify(VoidCallback updater) {
-    void runUpdate() {
-      updater();
-      notifyListeners();
-    }
-
-    final phase = SchedulerBinding.instance.schedulerPhase;
-    if (phase == SchedulerPhase.idle ||
-        phase == SchedulerPhase.postFrameCallbacks) {
-      runUpdate();
-    } else {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        runUpdate();
-      });
-    }
+    final changed = _setUploadProgressValue(value);
+    _notifyIfChanged(changed);
   }
 }
 
@@ -401,5 +520,7 @@ class _PresignedUrlCacheEntry {
 
   const _PresignedUrlCacheEntry({required this.url, required this.expiresAt});
 
-  bool get isExpired => DateTime.now().isAfter(expiresAt);
+  bool isExpired({required DateTime referenceTime}) {
+    return referenceTime.isAfter(expiresAt);
+  }
 }

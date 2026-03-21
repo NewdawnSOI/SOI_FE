@@ -66,9 +66,53 @@ enum MediaUsageType {
 /// ```
 class MediaService {
   final APIApi _mediaApi;
+  final Map<String, Future<List<String>>> _inFlightPresignedRequests = {};
 
   MediaService({APIApi? mediaApi})
     : _mediaApi = mediaApi ?? SoiApiClient.instance.mediaApi;
+
+  void _debugLog(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
+  }
+
+  List<String> _normalizePresignedKeys(List<String> keys) {
+    return keys
+        .map((key) => key.trim())
+        .where((key) => key.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  String _buildPresignedRequestKey(List<String> keys) {
+    return keys.map((key) => '${key.length}:$key').join('|');
+  }
+
+  void _logUploadRequest({
+    required List<String> typeStrings,
+    required List<String> usageTypeStrings,
+    required int userId,
+    required int refId,
+    required List<http.MultipartFile> files,
+  }) {
+    if (!kDebugMode) return;
+
+    final buffer = StringBuffer('[MediaService] uploadMedia 호출:')
+      ..writeln()
+      ..writeln('  - types: $typeStrings')
+      ..writeln('  - usageTypes: $usageTypeStrings')
+      ..writeln('  - userId: $userId')
+      ..writeln('  - refId: $refId')
+      ..writeln('  - files: ${files.length}개');
+
+    for (final file in files) {
+      buffer.writeln(
+        '    - filename: ${file.filename}, length: ${file.length}',
+      );
+    }
+
+    _debugLog(buffer.toString().trimRight());
+  }
 
   // ============================================
   // Presigned URL
@@ -87,31 +131,53 @@ class MediaService {
   /// - [BadRequestException]: 잘못된 키 형식
   /// - [NotFoundException]: 파일을 찾을 수 없음
   Future<List<String>> getPresignedUrls(List<String> keys) async {
+    final normalizedKeys = _normalizePresignedKeys(keys);
+    if (normalizedKeys.isEmpty) {
+      return const [];
+    }
+
+    final requestKey = _buildPresignedRequestKey(normalizedKeys);
+    final task = _inFlightPresignedRequests.putIfAbsent(requestKey, () async {
+      try {
+        final response = await _mediaApi.getPresignedUrl(normalizedKeys);
+
+        if (response == null) {
+          return const <String>[];
+        }
+
+        if (response.success != true) {
+          throw SoiApiException(message: response.message ?? 'URL 발급 실패');
+        }
+
+        return List<String>.unmodifiable(response.data);
+      } on ApiException catch (e) {
+        throw _handleApiException(e);
+      } on SocketException catch (e) {
+        throw NetworkException(originalException: e);
+      } catch (e) {
+        if (e is SoiApiException) rethrow;
+        throw SoiApiException(message: 'URL 발급 실패: $e', originalException: e);
+      }
+    });
+
     try {
-      final response = await _mediaApi.getPresignedUrl(keys);
-
-      if (response == null) {
-        return [];
+      return await task;
+    } finally {
+      final registeredTask = _inFlightPresignedRequests[requestKey];
+      if (identical(registeredTask, task)) {
+        _inFlightPresignedRequests.remove(requestKey);
       }
-
-      if (response.success != true) {
-        throw SoiApiException(message: response.message ?? 'URL 발급 실패');
-      }
-
-      return response.data;
-    } on ApiException catch (e) {
-      throw _handleApiException(e);
-    } on SocketException catch (e) {
-      throw NetworkException(originalException: e);
-    } catch (e) {
-      if (e is SoiApiException) rethrow;
-      throw SoiApiException(message: 'URL 발급 실패: $e', originalException: e);
     }
   }
 
   /// 단일 파일 Presigned URL 발급 (편의 메서드)
   Future<String?> getPresignedUrl(String key) async {
-    final urls = await getPresignedUrls([key]);
+    final normalizedKey = key.trim();
+    if (normalizedKey.isEmpty) {
+      return null;
+    }
+
+    final urls = await getPresignedUrls([normalizedKey]);
     return urls.isNotEmpty ? urls.first : null;
   }
 
@@ -142,20 +208,13 @@ class MediaService {
     try {
       final typeStrings = types.map((t) => t.value).toList();
       final usageTypeStrings = usageTypes.map((t) => t.value).toList();
-
-      if (kDebugMode) {
-        debugPrint('[MediaService] uploadMedia 호출:');
-        debugPrint('  - types: $typeStrings');
-        debugPrint('  - usageTypes: $usageTypeStrings');
-        debugPrint('  - userId: $userId');
-        debugPrint('  - refId: $refId');
-        debugPrint('  - files: ${files.length}개');
-        for (final file in files) {
-          debugPrint(
-            '    - filename: ${file.filename}, length: ${file.length}',
-          );
-        }
-      }
+      _logUploadRequest(
+        typeStrings: typeStrings,
+        usageTypeStrings: usageTypeStrings,
+        userId: userId,
+        refId: refId,
+        files: files,
+      );
 
       final response = await _mediaApi.uploadMedia(
         typeStrings,
@@ -278,11 +337,9 @@ class MediaService {
     List<File> files, {
     String fieldName = 'files',
   }) async {
-    final multipartFiles = <http.MultipartFile>[];
-    for (final file in files) {
-      multipartFiles.add(await fileToMultipart(file, fieldName: fieldName));
-    }
-    return multipartFiles;
+    return Future.wait(
+      files.map((file) => fileToMultipart(file, fieldName: fieldName)),
+    );
   }
 
   // ============================================
@@ -290,7 +347,7 @@ class MediaService {
   // ============================================
 
   SoiApiException _handleApiException(ApiException e) {
-    debugPrint('🔴 API Error [${e.code}]: ${e.message}');
+    _debugLog('🔴 API Error [${e.code}]: ${e.message}');
 
     switch (e.code) {
       case 400:

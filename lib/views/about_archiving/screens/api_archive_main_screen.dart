@@ -45,14 +45,15 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   final _searchController = TextEditingController();
   final PageController _pageController = PageController(); // PageView 컨트롤러 추가
 
-  // 검색 debounce를 위한 Timer
+  // 검색 디바운스 타이머
+  // 검색어 입력이 끝난 후 일정 시간(300ms) 동안 추가 입력이 없을 때 검색을 실행하여 불필요한 API 호출 방지
   Timer? _searchDebounceTimer;
 
   // Provider 참조를 미리 저장 (dispose에서 안전하게 사용하기 위함)
   CategorySearchController? _categorySearchController;
   CategoryController? _categoryController;
-  VoidCallback? _categoryDataListener;
-
+  NotificationController? _notificationController;
+  VoidCallback? _categoryDataListener; // 카테고리 데이터가 변경될 때 프리페칭을 트리거하는 리스너
   UserController? _userController;
   MediaController? _mediaController;
 
@@ -78,11 +79,10 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   // 원본 텍스트 저장
   String _originalText = '';
 
-  // 선택된 친구들 상태 관리
-  // List<SelectedFriendModel> _selectedFriends = [];
-
   // 프로필 이미지 URL
   String? _profileImageUrl;
+  int? _notificationBadgeUserId;
+  int? _notificationBadgeLoadingUserId;
 
   // 탭 화면 목록을 동적으로 생성하는 메서드
   List<Widget> get _screens => [
@@ -158,6 +158,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
     // Provider 참조를 안전하게 저장
     _ensureCategorySearchController();
     _ensureCategoryController();
+    _ensureNotificationController(); // NotificationController도 초기화하여 알림 배지 상태 로드 준비
 
     // MediaController를 먼저 준비해야 사용자 정보 변경 시 즉시 로딩 가능
     _mediaController ??= Provider.of<MediaController>(context, listen: false);
@@ -176,6 +177,8 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       _userController?.addListener(_userListener!);
       _handleUserProfileChanged();
     }
+
+    unawaited(_loadNotificationBadgeState());
 
     // 프로필 이미지 URL은 UserController 리스너에서 관리
   }
@@ -204,6 +207,13 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       _prefetchPostsForCategories();
     };
     _categoryController?.addListener(_categoryDataListener!);
+  }
+
+  void _ensureNotificationController() {
+    _notificationController ??= Provider.of<NotificationController>(
+      context,
+      listen: false,
+    );
   }
 
   /// 카테고리 목록이 로드되면 각 카테고리의 포스트를 백그라운드에서 프리페칭
@@ -293,6 +303,11 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   /// 사용자 정보 변경 처리
   /// 프로필 이미지 키 변경 시 presigned URL 재로딩
   void _handleUserProfileChanged() {
+    final userId = _userController?.currentUser?.id;
+    if (userId != null && userId != _notificationBadgeUserId) {
+      unawaited(_loadNotificationBadgeState(forceRefresh: true));
+    }
+
     final key = _userController?.currentUser?.profileImageUrlKey;
 
     // 프로필 이미지 키가 없으면 기본 아바타로 설정
@@ -321,6 +336,33 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
 
     // 프로필 이미지 URL 재로딩
     _loadProfileImageUrl(profileImageKey: key);
+  }
+
+  Future<void> _loadNotificationBadgeState({bool forceRefresh = false}) async {
+    final notificationController = _notificationController;
+    final userId = _userController?.currentUser?.id;
+
+    if (notificationController == null || userId == null) return;
+
+    final hasCachedNotifications =
+        _notificationBadgeUserId == userId &&
+        notificationController.cachedResult != null;
+    final isLoadingSameUser = _notificationBadgeLoadingUserId == userId;
+    if (!forceRefresh && (hasCachedNotifications || isLoadingSameUser)) return;
+
+    _notificationBadgeLoadingUserId = userId;
+    try {
+      await notificationController.getAllNotifications(userId: userId);
+      if (!mounted || _userController?.currentUser?.id != userId) return;
+
+      setState(() {
+        _notificationBadgeUserId = userId;
+      });
+    } finally {
+      if (_notificationBadgeLoadingUserId == userId) {
+        _notificationBadgeLoadingUserId = null;
+      }
+    }
   }
 
   void _onSearchChanged() {
@@ -508,24 +550,39 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
               child: Center(
                 child: Consumer<NotificationController>(
                   builder: (context, _, child) {
+                    // TEMP: 배지 UI 확인용으로 알림 1개가 있다고 가정하고 항상 노출
+                    const hasUnreadNotifications = true;
+
                     return IconButton(
-                      onPressed: () =>
-                          Navigator.pushNamed(context, '/notifications'),
-                      icon: Container(
-                        width: 35,
-                        height: 35,
-                        padding: EdgeInsets.only(bottom: 3.h),
-                        alignment: Alignment.center,
-                        decoration: const BoxDecoration(
-                          color: Color(0xff1c1c1c),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.only(top: 2.h),
-                          child: Image.asset(
-                            "assets/notification.png",
-                            width: 25.sp,
-                            height: 25.sp,
+                      onPressed: () async {
+                        await Navigator.pushNamed(context, '/notifications');
+                        if (!mounted) return;
+                        unawaited(
+                          _loadNotificationBadgeState(forceRefresh: true),
+                        );
+                      },
+                      icon: Badge(
+                        isLabelVisible: hasUnreadNotifications,
+                        backgroundColor: Colors.red,
+                        smallSize: 9.r,
+                        alignment: Alignment.topRight,
+
+                        child: Container(
+                          width: 35,
+                          height: 35,
+                          padding: EdgeInsets.only(bottom: 3.h),
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Color(0xff1c1c1c),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.only(top: 2.h),
+                            child: Image.asset(
+                              "assets/notification.png",
+                              width: (15.41).sp,
+                              height: (16.39).sp,
+                            ),
                           ),
                         ),
                       ),

@@ -32,8 +32,101 @@ class CommentService {
   static const int _defaultPage = 0;
   static const int _maxSliceFetchPages = 100;
 
+  // 게시물 ID별로 진행 중인 댓글 조회 요청을 추적하여 중복 요청 방지
+  final Map<int, Future<List<Comment>>> _inFlightCommentsByPost = {};
+
+  // 사용자 ID + 페이지 번호별로 진행 중인 댓글 조회 요청을 추적하여 중복 요청 방지
+  final Map<String, Future<({List<Comment> comments, bool hasMore})>>
+  _inFlightCommentsByUserPage = {};
+
   CommentService({CommentAPIApi? commentApi})
     : _commentApi = commentApi ?? SoiApiClient.instance.commentApi;
+
+  void _debugLog(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
+  }
+
+  /// 유틸리티 메서드 - API 요청 키 생성
+  /// 사용자 ID와 페이지 번호를 조합하여 고유한 키를 생성합니다.
+  ///
+  /// Parameters:
+  /// - [userId]: 사용자 ID
+  /// - [page]: 페이지 번호
+  ///
+  /// Returns: 생성된 요청 키 (예: "123:0" - 사용자 ID 123의 페이지 0 요청)
+  /// - 이 키는 사용자별 페이지 단위 댓글 조회 요청의 중복을 방지하는 데 사용됩니다.
+  String _buildUserCommentsRequestKey({
+    required int userId,
+    required int page,
+  }) {
+    return '$userId:$page';
+  }
+
+  /// 유틸리티 메서드 - 파형 데이터 정규화
+  /// API에서 반환된 파형 데이터가 JSON 배열 형태인 경우, 이를 쉼표로 구분된 문자열로 변환합니다.
+  /// - 예시: "[0.1, 0.5, 0.3]" -> "0.1,0.5,0.3"
+  ///
+  /// Parameters:
+  /// - [waveformData]: API에서 반환된 원본 파형 데이터 문자열
+  ///
+  /// Returns: 정규화된 파형 데이터 문자열
+  String _normalizeWaveformData(String waveformData) {
+    if (waveformData.isEmpty) {
+      return waveformData;
+    }
+
+    final shouldParseJsonArray =
+        waveformData.startsWith('[') && waveformData.endsWith(']');
+    if (!shouldParseJsonArray) {
+      return waveformData;
+    }
+
+    try {
+      final parsed = jsonDecode(waveformData) as List;
+      return parsed.join(',');
+    } catch (e) {
+      _debugLog('waveformData 변환 실패, 원본 사용: $e');
+      return waveformData;
+    }
+  }
+
+  /// 유틸리티 메서드 - 댓글 생성 요청 로그
+  ///
+  /// 댓글 생성 요청 시 전달된 주요 정보를 로그로 출력합니다.
+  /// - 디버깅 목적으로 사용되며, 실제 운영 환경에서는 민감한 정보가 포함되지 않도록 주의해야 합니다.
+  /// - 로그에는 게시물 ID, 사용자 ID, 댓글 유형, 텍스트 내용, 음성 파일 키, 파형 데이터 등이 포함됩니다.
+  /// - 예시 로그:
+  ///   === 댓글 생성 요청 ===
+  ///   postId: 123, userId: 456
+  ///   commentType: TEXT
+  ///   audioFileKey: (빈 문자열)
+  ///   fileKey: (빈 문자열)
+  ///   text: "좋은 사진이네요!"
+  ///   waveformData: (빈 문자열)
+  void _logCreateCommentRequest({
+    required int postId,
+    required int userId,
+    required CommentReqDtoCommentTypeEnum commentType,
+    required String audioFileKey,
+    required String fileKey,
+    required String text,
+    required String waveformData,
+    required int parentId,
+    required int replyUserId,
+  }) {
+    if (!kDebugMode) return; // 디버그 모드에서만 로그 출력
+
+    debugPrint('=== 댓글 생성 요청 ===');
+    debugPrint('postId: $postId, userId: $userId');
+    debugPrint('commentType: ${commentType.value}');
+    debugPrint('audioFileKey: $audioFileKey');
+    debugPrint('fileKey: $fileKey');
+    debugPrint('text: $text');
+    debugPrint('waveformData: $waveformData');
+    debugPrint('parentId: $parentId, replyUserId: $replyUserId');
+  }
 
   // ============================================
   // 댓글 생성
@@ -90,22 +183,18 @@ class CommentService {
           normalizedParentId > 0 ||
           normalizedReplyUserId > 0 ||
           type == CommentType.reply;
+
+      // dto의 위치 정보는 대댓글이 아닌 경우에만 포함합니다.
+      // 대댓글인 경우 API가 null/0 처리에 민감할 수 있어 명시적으로 null로 설정합니다.
+      // normalizedLocationX: 대댓글이 아닌, 댓글의 위치 X (0.0으로 기본값)
+      // normalizedLocationY: 대댓글이 아닌, 댓글의 위치 Y (0.0으로 기본값)
       final dtoLocationX = isReply ? null : normalizedLocationX;
       final dtoLocationY = isReply ? null : normalizedLocationY;
 
-      // waveformData 변환: "[0.0275,...]" → "0.0275,..."
-      var processedWaveformData = normalizedWaveform;
-      if (normalizedWaveform.isNotEmpty) {
-        try {
-          // JSON 배열 문자열을 파싱하여 콤마로 구분된 문자열로 변환
-          final parsed = jsonDecode(normalizedWaveform) as List;
-          processedWaveformData = parsed.join(',');
-        } catch (e) {
-          debugPrint('waveformData 변환 실패, 원본 사용: $e');
-          // 변환 실패 시 원본 그대로 사용
-        }
-      }
+      // 파형 데이터 정규화 - API에서 JSON 배열 형태로 반환되는 경우 쉼표로 구분된 문자열로 변환
+      final processedWaveformData = _normalizeWaveformData(normalizedWaveform);
 
+      // DTO 생성 - API 명세에 맞게 요청 데이터 구성
       final dto = CommentReqDto(
         postId: postId,
         userId: userId,
@@ -122,14 +211,22 @@ class CommentService {
         commentType: commentTypeEnum,
       );
 
-      debugPrint('=== 댓글 생성 요청 ===');
-      debugPrint('postId: $postId, userId: $userId');
-      debugPrint('commentType: ${commentTypeEnum.value}');
-      debugPrint('audioFileKey: $normalizedAudioKey');
-      debugPrint('text: $normalizedText');
-      debugPrint('waveformData: $processedWaveformData');
+      // 요청 로그 출력
+      if (kDebugMode) {
+        _logCreateCommentRequest(
+          postId: postId,
+          userId: userId,
+          commentType: commentTypeEnum,
+          audioFileKey: normalizedAudioKey,
+          fileKey: normalizedFileKey,
+          text: normalizedText,
+          waveformData: processedWaveformData,
+          parentId: normalizedParentId,
+          replyUserId: normalizedReplyUserId,
+        );
+      }
 
-      // 자동 생성된 API 클라이언트 사용
+      // API 호출 - 댓글 생성
       final response = await _commentApi.create3(dto);
 
       if (response == null) {
@@ -208,7 +305,7 @@ class CommentService {
   Comment? _parseCommentFromResponse(ApiResponseDtoObject response) {
     final data = response.data;
     if (data == null) {
-      debugPrint('댓글 생성 응답에 data가 없습니다.');
+      _debugLog('댓글 생성 응답에 data가 없습니다.');
       return null;
     }
 
@@ -233,7 +330,7 @@ class CommentService {
       }
     }
 
-    debugPrint('댓글 생성 응답 data 파싱 실패: ${data.runtimeType}');
+    _debugLog('댓글 생성 응답 data 파싱 실패: ${data.runtimeType}');
     return null;
   }
 
@@ -250,32 +347,13 @@ class CommentService {
   /// Throws:
   /// - [NotFoundException]: 게시물을 찾을 수 없음
   Future<List<Comment>> getComments({required int postId}) async {
+    final task = _inFlightCommentsByPost.putIfAbsent(
+      postId,
+      () => _getCommentsInternal(postId: postId),
+    );
+
     try {
-      final parentComments = await _fetchAllSliceComments(
-        fetchPage: (page) => _commentApi.getParentComment(postId, page),
-        errorMessage: '댓글 조회 실패',
-      );
-
-      if (parentComments.isEmpty) {
-        return [];
-      }
-
-      final merged = <Comment>[];
-      for (final parent in parentComments) {
-        merged.add(Comment.fromDto(parent));
-        final parentId = parent.id;
-        if (parentId == null) {
-          continue;
-        }
-
-        final childComments = await _fetchAllSliceComments(
-          fetchPage: (page) => _commentApi.getChildComment(parentId, page),
-          errorMessage: '대댓글 조회 실패',
-        );
-        merged.addAll(childComments.map(Comment.fromDto));
-      }
-
-      return merged;
+      return await task;
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {
@@ -283,7 +361,80 @@ class CommentService {
     } catch (e) {
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '댓글 조회 실패: $e', originalException: e);
+    } finally {
+      final registeredTask = _inFlightCommentsByPost[postId];
+      if (identical(registeredTask, task)) {
+        _inFlightCommentsByPost.remove(postId);
+      }
     }
+  }
+
+  /// 게시물의 댓글 조회 내부 구현
+  ///
+  /// [postId]에 해당하는 게시물의 모든 댓글을 조회합니다.
+  /// 원댓글과 대댓글을 모두 조회하여 계층 구조로 병합한 후 반환합니다.
+  ///
+  /// Parameters:
+  /// - [postId]: 게시물 ID
+  ///
+  /// Returns: 댓글 목록 (`List<Comment>`)
+  /// - 원댓글과 대댓글이 계층 구조로 병합된 형태로 반환됩니다.
+  /// - 예시: 원댓글 A, 원댓글 B, 대댓글 A-1(원댓글 A의 대댓글), 대댓글 B-1(원댓글 B의 대댓글) -> 반환 형태: [A, A-1, B, B-1]
+  ///
+  /// Throws:
+  /// - [NotFoundException]: 게시물을 찾을 수 없음
+  Future<List<Comment>> _getCommentsInternal({required int postId}) async {
+    // 원댓글 조회
+    final parentComments = await _fetchAllSliceComments(
+      fetchPage: (page) => _commentApi.getParentComment(postId, page),
+      errorMessage: '댓글 조회 실패',
+    );
+
+    if (parentComments.isEmpty) {
+      return const <Comment>[];
+    }
+
+    // 각 원댓글에 대해 대댓글을 병렬로 조회하여 병합되지 않은 형태로 반환합니다.
+    final childCommentGroups = await Future.wait(
+      parentComments.map(_fetchChildCommentsForParent),
+    );
+
+    final merged = <Comment>[]; // 원댓글과 대댓글을 계층 구조로 병합하여 반환할 리스트
+
+    // 원댓글과 해당 원댓글의 대댓글 그룹을 순회하며 병합된 형태로 리스트에 추가합니다.
+    for (var i = 0; i < parentComments.length; i++) {
+      merged.add(Comment.fromDto(parentComments[i]));
+      merged.addAll(childCommentGroups[i].map(Comment.fromDto));
+    }
+
+    return List<Comment>.unmodifiable(merged); // 병합된 댓글 리스트를 반환합니다.
+  }
+
+  /// 특정 원댓글의 대댓글 조회
+  ///
+  /// [parent]에 해당하는 원댓글의 모든 대댓글을 조회합니다.
+  ///
+  /// Parameters:
+  /// - [parent]: 원댓글 객체
+  ///
+  /// Returns: 대댓글 목록 (`List<CommentRespDto>`)
+  /// - 대댓글은 원댓글과 계층 구조로 병합되지 않은 평탄한 리스트 형태로 반환됩니다.
+  /// - 예시: 원댓글 A, 대댓글 A-1, 대댓글 A-2 -> 반환 형태: [A-1, A-2]
+  ///
+  /// Throws:
+  /// - [NotFoundException]: 원댓글을 찾을 수 없음
+  Future<List<CommentRespDto>> _fetchChildCommentsForParent(
+    CommentRespDto parent,
+  ) async {
+    final parentId = parent.id;
+    if (parentId == null) {
+      return const <CommentRespDto>[];
+    }
+
+    return _fetchAllSliceComments(
+      fetchPage: (page) => _commentApi.getChildComment(parentId, page),
+      errorMessage: '대댓글 조회 실패',
+    );
   }
 
   /// 댓글 개수 조회 (편의 메서드)
@@ -303,25 +454,14 @@ class CommentService {
     required int userId,
     int page = _defaultPage,
   }) async {
+    final requestKey = _buildUserCommentsRequestKey(userId: userId, page: page);
+    final task = _inFlightCommentsByUserPage.putIfAbsent(
+      requestKey,
+      () => _getCommentsByUserIdInternal(page: page),
+    );
+
     try {
-      final response = await _commentApi.getAllCommentByUserId(page);
-
-      if (response == null) {
-        return (comments: <Comment>[], hasMore: false);
-      }
-
-      if (response.success != true) {
-        throw SoiApiException(message: response.message ?? '댓글 조회 실패');
-      }
-
-      final slice = response.data;
-      if (slice == null) {
-        return (comments: <Comment>[], hasMore: false);
-      }
-
-      final comments = slice.content.map(Comment.fromDto).toList();
-      final hasMore = slice.last == false;
-      return (comments: comments, hasMore: hasMore);
+      return await task;
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {
@@ -329,7 +469,36 @@ class CommentService {
     } catch (e) {
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '댓글 조회 실패: $e', originalException: e);
+    } finally {
+      final registeredTask = _inFlightCommentsByUserPage[requestKey];
+      if (identical(registeredTask, task)) {
+        _inFlightCommentsByUserPage.remove(requestKey);
+      }
     }
+  }
+
+  Future<({List<Comment> comments, bool hasMore})>
+  _getCommentsByUserIdInternal({required int page}) async {
+    final response = await _commentApi.getAllCommentByUserId(page);
+
+    if (response == null) {
+      return (comments: <Comment>[], hasMore: false);
+    }
+
+    if (response.success != true) {
+      throw SoiApiException(message: response.message ?? '댓글 조회 실패');
+    }
+
+    final slice = response.data;
+    if (slice == null) {
+      return (comments: <Comment>[], hasMore: false);
+    }
+
+    final comments = List<Comment>.unmodifiable(
+      slice.content.map(Comment.fromDto),
+    );
+    final hasMore = slice.last == false;
+    return (comments: comments, hasMore: hasMore);
   }
 
   Future<List<CommentRespDto>> _fetchAllSliceComments({
@@ -369,7 +538,7 @@ class CommentService {
       page += 1;
     }
 
-    debugPrint('[CommentService] 댓글 페이지 조회 제한($_maxSliceFetchPages) 도달');
+    _debugLog('[CommentService] 댓글 페이지 조회 제한($_maxSliceFetchPages) 도달');
     return result;
   }
 
@@ -431,7 +600,7 @@ class CommentService {
   }
 
   SoiApiException _handleApiException(ApiException e) {
-    debugPrint('API Error [${e.code}]: ${e.message}');
+    _debugLog('API Error [${e.code}]: ${e.message}');
 
     switch (e.code) {
       case 400:

@@ -12,6 +12,10 @@ class CategorySearchController extends ChangeNotifier {
   String _searchQuery = ''; // 현재 검색어
   CategoryFilter _activeFilter = CategoryFilter.all; // 현재 활성화된 필터
   bool _isSearchLoading = false; // 검색 API 호출 중인지 여부
+  int? _lastSearchUserId;
+  int _searchGeneration = 0;
+  int _nextRequestToken = 0;
+  final Map<CategoryFilter, int> _latestRequestTokenByFilter = {};
 
   /// 필터별 검색 결과 캐시
   final Map<CategoryFilter, List<Category>> _resultsByFilter = {};
@@ -27,7 +31,20 @@ class CategorySearchController extends ChangeNotifier {
   ///
   /// 해당 필터로 아직 검색한 적 없으면 빈 리스트를 반환한다.
   List<Category> filteredCategoriesFor(CategoryFilter filter) =>
-      List.unmodifiable(_resultsByFilter[filter] ?? const []);
+      _resultsByFilter[filter] ?? const [];
+
+  bool _isLatestRequest({
+    required int userId,
+    required String query,
+    required CategoryFilter filter,
+    required int generation,
+    required int requestToken,
+  }) {
+    return _searchGeneration == generation &&
+        _lastSearchUserId == userId &&
+        _searchQuery == query &&
+        _latestRequestTokenByFilter[filter] == requestToken;
+  }
 
   // ============================================
   // API 기반 검색
@@ -48,41 +65,122 @@ class CategorySearchController extends ChangeNotifier {
     CategoryFilter filter = CategoryFilter.all,
   }) async {
     final trimmedQuery = query.trim();
-    _searchQuery = trimmedQuery;
-    _activeFilter = filter;
+    final didUserChange =
+        _lastSearchUserId != null && _lastSearchUserId != userId;
+    var shouldNotify = false;
+
+    if (didUserChange) {
+      _searchGeneration++;
+      if (_resultsByFilter.isNotEmpty) {
+        _resultsByFilter.clear();
+        shouldNotify = true;
+      }
+      if (_isSearchLoading) {
+        _isSearchLoading = false;
+        shouldNotify = true;
+      }
+    }
+
+    _lastSearchUserId = userId;
+
+    if (_searchQuery != trimmedQuery) {
+      _searchQuery = trimmedQuery;
+      shouldNotify = true;
+    }
+    if (_activeFilter != filter) {
+      _activeFilter = filter;
+      shouldNotify = true;
+    }
 
     if (trimmedQuery.isEmpty) {
-      _resultsByFilter.clear();
-      notifyListeners();
+      _searchGeneration++;
+      _latestRequestTokenByFilter.clear();
+      if (_resultsByFilter.isNotEmpty) {
+        _resultsByFilter.clear();
+        shouldNotify = true;
+      }
+      if (_isSearchLoading) {
+        _isSearchLoading = false;
+        shouldNotify = true;
+      }
+      if (shouldNotify) {
+        notifyListeners();
+      }
       return;
     }
 
-    _isSearchLoading = true;
-    notifyListeners();
+    final requestGeneration = _searchGeneration;
+    final requestToken = ++_nextRequestToken;
+    _latestRequestTokenByFilter[filter] = requestToken;
+
+    if (!_isSearchLoading) {
+      _isSearchLoading = true;
+      shouldNotify = true;
+    }
+    if (shouldNotify) {
+      notifyListeners();
+    }
 
     try {
       // Service 레이어에서 API 호출 및 결과 매핑을 담당한다.
       final results = await _searchService.searchCategories(
+        userId: userId,
         filter: filter,
         keyword: trimmedQuery,
       );
 
-      _resultsByFilter[filter] = results; // 필터별 결과 업데이트
+      if (!_isLatestRequest(
+        userId: userId,
+        query: trimmedQuery,
+        filter: filter,
+        generation: requestGeneration,
+        requestToken: requestToken,
+      )) {
+        return;
+      }
+
+      _resultsByFilter[filter] = List<Category>.unmodifiable(results);
     } catch (_) {
+      if (!_isLatestRequest(
+        userId: userId,
+        query: trimmedQuery,
+        filter: filter,
+        generation: requestGeneration,
+        requestToken: requestToken,
+      )) {
+        return;
+      }
+
       _resultsByFilter[filter] = const []; // 실패 시 해당 필터 결과는 빈 리스트로 설정
     } finally {
-      _isSearchLoading = false; // 로딩 상태 해제
-      notifyListeners();
+      if (_isLatestRequest(
+        userId: userId,
+        query: trimmedQuery,
+        filter: filter,
+        generation: requestGeneration,
+        requestToken: requestToken,
+      )) {
+        _isSearchLoading = false; // 로딩 상태 해제
+        notifyListeners();
+      }
     }
   }
 
   /// 검색 상태를 초기화한다.
   void clearSearch({bool notify = true}) {
+    final hadState =
+        _searchQuery.isNotEmpty ||
+        _activeFilter != CategoryFilter.all ||
+        _isSearchLoading ||
+        _resultsByFilter.isNotEmpty;
+    _searchGeneration++;
     _searchQuery = '';
     _activeFilter = CategoryFilter.all;
     _isSearchLoading = false;
+    _lastSearchUserId = null;
+    _latestRequestTokenByFilter.clear();
     _resultsByFilter.clear();
-    if (notify) {
+    if (notify && hadState) {
       notifyListeners();
     }
   }
