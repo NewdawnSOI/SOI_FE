@@ -292,6 +292,49 @@
       "keyFiles": []
     }
   },
-  "hotPaths": [],
+  "hotPaths": [
+    {
+      "path": "lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart",
+      "accessCount": 6,
+      "lastAccessed": 1774059077838,
+      "type": "file"
+    },
+    {
+      "path": "lib/api/controller/post_controller.dart",
+      "accessCount": 3,
+      "lastAccessed": 1774059078416,
+      "type": "file"
+    },
+    {
+      "path": "lib/views/about_archiving/widgets/api_photo_grid_item.dart",
+      "accessCount": 2,
+      "lastAccessed": 1774059340751,
+      "type": "file"
+    },
+    {
+      "path": "lib/views/about_archiving/screens/archive_detail/widgets/category_photos_header+body/api_category_photos_body_slivers.dart",
+      "accessCount": 1,
+      "lastAccessed": 1774059310416,
+      "type": "file"
+    },
+    {
+      "path": "test/views/about_friends/widgets/friend_suggest_card_test.dart",
+      "accessCount": 1,
+      "lastAccessed": 1774059374953,
+      "type": "file"
+    },
+    {
+      "path": "lib/api/models/post.dart",
+      "accessCount": 1,
+      "lastAccessed": 1774059398021,
+      "type": "file"
+    },
+    {
+      "path": "test/views/about_archiving/widgets/api_category_photos_grid_sliver_test.dart",
+      "accessCount": 1,
+      "lastAccessed": 1774059437741,
+      "type": "file"
+    }
+  ],
   "userDirectives": []
 }

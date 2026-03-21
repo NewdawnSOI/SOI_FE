@@ -46,6 +46,19 @@ class CategorySearchController extends ChangeNotifier {
         _latestRequestTokenByFilter[filter] == requestToken;
   }
 
+  /// 캐시된 검색 결과를 재사용할 수 있는지 여부를 판단한다.
+  /// - 동일한 사용자 ID, 검색어, 필터에 대해서는 API를 재호출하지 않고 캐시된 결과를 재사용할 수 있다.
+  /// - 검색어가 빈 문자열인 경우는 검색 결과가 없으므로 캐시 재사용이 불가능하다.
+  bool _canReuseCachedResults({
+    required int userId,
+    required String query,
+    required CategoryFilter filter,
+  }) {
+    return _lastSearchUserId == userId &&
+        _searchQuery == query &&
+        _resultsByFilter.containsKey(filter);
+  }
+
   // ============================================
   // API 기반 검색
   // ============================================
@@ -104,6 +117,24 @@ class CategorySearchController extends ChangeNotifier {
         shouldNotify = true;
       }
       if (shouldNotify) {
+        notifyListeners();
+      }
+      return;
+    }
+
+    // 캐시된 결과를 재사용할 수 있으면 API 호출 없이 캐시된 결과를 사용한다.
+    if (_canReuseCachedResults(
+      userId: userId,
+      query: trimmedQuery,
+      filter: filter,
+    )) {
+      if (_isSearchLoading) {
+        // API 호출이 진행 중이었지만, 캐시된 결과를 재사용할 수 있으므로 로딩 상태를 해제한다.
+        _isSearchLoading = false;
+        shouldNotify = true;
+      }
+      if (shouldNotify) {
+        // 캐시된 결과로 화면을 업데이트한다.
         notifyListeners();
       }
       return;

@@ -63,7 +63,18 @@ class ApiArchiveCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return isListView ? _buildListLayout(context) : _buildGridLayout(context);
+    return Selector<CategoryController, ArchiveCardViewData>(
+      selector: (_, controller) {
+        final latest = controller.getCategoryById(category.id) ?? category;
+        return ArchiveCardViewData.fromCategory(latest);
+      },
+      builder: (context, cardData, _) {
+        final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+        return isListView
+            ? _buildListLayout(context, cardData, devicePixelRatio)
+            : _buildGridLayout(context, cardData, devicePixelRatio);
+      },
+    );
   }
 
   /// 이미지의 URL 주소에서 불필요한 부분(쿼리 파라미터와 프래그먼트)을 제거하는 함수입니다.
@@ -159,7 +170,11 @@ class ApiArchiveCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildGridLayout(BuildContext context) {
+  Widget _buildGridLayout(
+    BuildContext context,
+    ArchiveCardViewData cardData,
+    double devicePixelRatio,
+  ) {
     return InkWell(
       onTap: isEditMode ? null : () => _handleTap(context),
       child: Stack(
@@ -169,6 +184,8 @@ class ApiArchiveCardWidget extends StatelessWidget {
             width: 170.sp,
             height: 204.sp,
             borderRadius: _kGridCardBorderRadius,
+            photoUrl: cardData.photoUrl,
+            devicePixelRatio: devicePixelRatio,
           ),
 
           // 고정 배지
@@ -176,12 +193,16 @@ class ApiArchiveCardWidget extends StatelessWidget {
           //_buildPinnedBadge(top: 5.sp, left: 5.sp),
 
           // 신규 배지
-          _buildNewBadge(top: 16.sp, left: (140.39).sp),
+          _buildNewBadge(top: 16.sp, left: (140.39).sp, isNew: cardData.isNew),
 
           // 카테고리 제목: 왼쪽 위
           Padding(
             padding: EdgeInsets.only(left: 15.sp, top: 15.sp),
-            child: _buildTitleWidget(context, fontSize: 16.sp),
+            child: _buildTitleWidget(
+              context,
+              fontSize: 16.sp,
+              name: cardData.name,
+            ),
           ),
 
           // 프로필 Row: 오른쪽 아래
@@ -189,22 +210,9 @@ class ApiArchiveCardWidget extends StatelessWidget {
             padding: EdgeInsets.only(right: (8.39).sp, bottom: 9.sp),
             child: Align(
               alignment: Alignment.bottomRight,
-              child: Selector<CategoryController, CategoryProfileRowData>(
-                selector: (_, controller) {
-                  final latest = controller.getCategoryById(category.id);
-                  return CategoryProfileRowData(
-                    profileUrlKeys:
-                        latest?.usersProfileKey ?? category.usersProfileKey,
-                    totalUserCount:
-                        latest?.totalUserCount ?? category.totalUserCount,
-                  );
-                },
-                builder: (context, data, _) {
-                  return ApiArchiveProfileRowWidget(
-                    profileUrlKeys: data.profileUrlKeys,
-                    totalUserCount: data.totalUserCount,
-                  );
-                },
+              child: _buildProfileRow(
+                profileRowData: cardData.profileRowData,
+                isListStyle: false,
               ),
             ),
           ),
@@ -213,7 +221,11 @@ class ApiArchiveCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildListLayout(BuildContext context) {
+  Widget _buildListLayout(
+    BuildContext context,
+    ArchiveCardViewData cardData,
+    double devicePixelRatio,
+  ) {
     return InkWell(
       onTap: isEditMode ? null : () => _handleTap(context),
       borderRadius: BorderRadius.circular(_kListCardBorderRadius),
@@ -244,6 +256,8 @@ class ApiArchiveCardWidget extends StatelessWidget {
                         borderRadius: BorderRadius.all(
                           Radius.circular(_kListCardBorderRadius),
                         ),
+                        photoUrl: cardData.photoUrl,
+                        devicePixelRatio: devicePixelRatio,
                       ),
                       Expanded(
                         child: Padding(
@@ -263,19 +277,26 @@ class ApiArchiveCardWidget extends StatelessWidget {
                                     child: _buildTitleWidget(
                                       context,
                                       fontSize: 14.sp,
+                                      name: cardData.name,
                                       fontWeight: FontWeight.w600,
                                       fontFamily: 'Pretendard Variable',
                                       maxLines: 2,
                                     ),
                                   ),
                                   SizedBox(width: 8.w),
-                                  _buildNewBadgeContent(size: 15.sp),
+                                  _buildNewBadgeContent(
+                                    size: 15.sp,
+                                    isNew: cardData.isNew,
+                                  ),
                                 ],
                               ),
                               const Spacer(),
                               Align(
                                 alignment: Alignment.bottomRight,
-                                child: _buildProfileRow(isListStyle: true),
+                                child: _buildProfileRow(
+                                  profileRowData: cardData.profileRowData,
+                                  isListStyle: true,
+                                ),
                               ),
                             ],
                           ),
@@ -296,6 +317,7 @@ class ApiArchiveCardWidget extends StatelessWidget {
   Widget _buildTitleWidget(
     BuildContext context, {
     required double fontSize,
+    required String name,
     FontWeight fontWeight = FontWeight.bold,
     String fontFamily = 'Pretendard',
     int maxLines = 1,
@@ -325,23 +347,17 @@ class ApiArchiveCardWidget extends StatelessWidget {
       );
     }
 
-    return Selector<CategoryController, String>(
-      selector: (_, controller) =>
-          controller.getCategoryById(category.id)?.name ?? category.name,
-      builder: (context, name, _) {
-        return Text(
-          name,
-          style: TextStyle(
-            color: const Color(0xFFF9F9F9),
-            fontSize: fontSize,
-            fontWeight: fontWeight,
-            fontFamily: fontFamily,
-            letterSpacing: -0.4,
-          ),
-          maxLines: maxLines,
-          overflow: TextOverflow.ellipsis,
-        );
-      },
+    return Text(
+      name,
+      style: TextStyle(
+        color: const Color(0xFFF9F9F9),
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        fontFamily: fontFamily,
+        letterSpacing: -0.4,
+      ),
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
     );
   }
 
@@ -350,6 +366,8 @@ class ApiArchiveCardWidget extends StatelessWidget {
     required double width,
     required double height,
     required double borderRadius,
+    required String? photoUrl,
+    required double devicePixelRatio,
   }) {
     return Container(
       width: width,
@@ -362,6 +380,8 @@ class ApiArchiveCardWidget extends StatelessWidget {
         width: width,
         height: height,
         borderRadius: BorderRadius.circular(borderRadius),
+        photoUrl: photoUrl,
+        devicePixelRatio: devicePixelRatio,
       ),
     );
   }
@@ -370,65 +390,56 @@ class ApiArchiveCardWidget extends StatelessWidget {
     required double width,
     required double height,
     required BorderRadius borderRadius,
+    required String? photoUrl,
+    required double devicePixelRatio,
   }) {
-    return Selector<CategoryController, String?>(
-      selector: (_, controller) =>
-          controller.getCategoryById(category.id)?.photoUrl ??
-          category.photoUrl,
-      builder: (context, photoUrl, _) {
-        final emptyBackgroundColor = isListView
-            ? _kListEmptyCategoryBackgroundColor
-            : _kEmptyCategoryBackgroundColor;
-        final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
-        if (hasPhoto) {
-          return ClipRRect(
-            borderRadius: borderRadius,
-            child: CachedNetworkImage(
-              key: ValueKey('category_image_${category.id}'),
-              imageUrl: photoUrl,
-              cacheKey: _buildCategoryImageCacheKey(category.id, photoUrl),
-              fadeInDuration: Duration.zero,
-              fadeOutDuration: Duration.zero,
-              useOldImageOnUrlChange: true,
-              width: width,
-              height: height,
-
-              color: Colors.white.withValues(alpha: 0.8),
-              colorBlendMode: BlendMode.modulate,
-              memCacheWidth:
-                  (width * MediaQuery.of(context).devicePixelRatio * 1.5)
-                      .round(),
-              maxWidthDiskCache:
-                  (width * MediaQuery.of(context).devicePixelRatio * 1.5)
-                      .round(),
-              fit: BoxFit.cover,
-              placeholder: (context, url) => ShimmerOnceThenFallbackIcon(
-                key: ValueKey('ph_${category.id}'),
-                width: width,
-                height: height,
-                borderRadius: borderRadius.topLeft.x,
-              ),
-              errorWidget: (context, url, error) => Container(
-                width: width,
-                height: height,
-                decoration: BoxDecoration(
-                  color: emptyBackgroundColor,
-                  borderRadius: borderRadius,
-                ),
-              ),
-            ),
-          );
-        }
-
-        return ClipRRect(
-          borderRadius: borderRadius,
-          child: Container(
+    final emptyBackgroundColor = isListView
+        ? _kListEmptyCategoryBackgroundColor
+        : _kEmptyCategoryBackgroundColor;
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+    if (hasPhoto) {
+      final targetCacheWidth = (width * devicePixelRatio * 1.5).round();
+      return ClipRRect(
+        borderRadius: borderRadius,
+        child: CachedNetworkImage(
+          key: ValueKey('category_image_${category.id}'),
+          imageUrl: photoUrl,
+          cacheKey: _buildCategoryImageCacheKey(category.id, photoUrl),
+          fadeInDuration: Duration.zero,
+          fadeOutDuration: Duration.zero,
+          useOldImageOnUrlChange: true,
+          width: width,
+          height: height,
+          color: Colors.white.withValues(alpha: 0.8),
+          colorBlendMode: BlendMode.modulate,
+          memCacheWidth: targetCacheWidth,
+          maxWidthDiskCache: targetCacheWidth,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => ShimmerOnceThenFallbackIcon(
+            key: ValueKey('ph_${category.id}'),
             width: width,
             height: height,
-            color: emptyBackgroundColor,
+            borderRadius: borderRadius.topLeft.x,
           ),
-        );
-      },
+          errorWidget: (context, url, error) => Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: emptyBackgroundColor,
+              borderRadius: borderRadius,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Container(
+        width: width,
+        height: height,
+        color: emptyBackgroundColor,
+      ),
     );
   }
 
@@ -461,63 +472,48 @@ class ApiArchiveCardWidget extends StatelessWidget {
   }*/
 
   /// 신규 배지 위젯 빌드
-  Widget _buildNewBadge({double? top, double? left, double? right}) {
-    return Selector<CategoryController, bool>(
-      selector: (_, controller) =>
-          controller.getCategoryById(category.id)?.isNew ?? category.isNew,
-      builder: (context, isNew, _) {
-        if (!isNew) {
-          return const SizedBox.shrink();
-        }
+  Widget _buildNewBadge({
+    double? top,
+    double? left,
+    double? right,
+    required bool isNew,
+  }) {
+    if (!isNew) {
+      return const SizedBox.shrink();
+    }
 
-        return Positioned(
-          top: top,
-          left: left,
-          right: right,
-          child: _buildNewBadgeContent(size: 15.sp),
-        );
-      },
+    return Positioned(
+      top: top,
+      left: left,
+      right: right,
+      child: _buildNewBadgeContent(size: 15.sp, isNew: isNew),
     );
   }
 
-  Widget _buildNewBadgeContent({required double size}) {
-    return Selector<CategoryController, bool>(
-      selector: (_, controller) =>
-          controller.getCategoryById(category.id)?.isNew ?? category.isNew,
-      builder: (context, isNew, _) {
-        if (!isNew) {
-          return const SizedBox.shrink();
-        }
+  Widget _buildNewBadgeContent({required double size, required bool isNew}) {
+    if (!isNew) {
+      return const SizedBox.shrink();
+    }
 
-        return Image.asset('assets/new_icon.png', width: size, height: size);
-      },
-    );
+    return Image.asset('assets/new_icon.png', width: size, height: size);
   }
 
   // 프로필 Row 위젯 빌드 (리스트 스타일과 그리드 스타일 모두에서 사용)
-  Widget _buildProfileRow({required bool isListStyle}) {
-    return Selector<CategoryController, CategoryProfileRowData>(
-      selector: (_, controller) {
-        final latest = controller.getCategoryById(category.id);
-        return CategoryProfileRowData(
-          profileUrlKeys: latest?.usersProfileKey ?? category.usersProfileKey,
-          totalUserCount: latest?.totalUserCount ?? category.totalUserCount,
-        );
-      },
-      builder: (context, data, _) {
-        final profileRow = ApiArchiveProfileRowWidget(
-          profileUrlKeys: data.profileUrlKeys,
-          totalUserCount: data.totalUserCount,
-          avatarSize: isListStyle ? 19.84.sp : 23.44.sp,
-        );
-
-        if (!isListStyle) {
-          return profileRow;
-        }
-
-        return profileRow;
-      },
+  Widget _buildProfileRow({
+    required CategoryProfileRowData profileRowData,
+    required bool isListStyle,
+  }) {
+    final profileRow = ApiArchiveProfileRowWidget(
+      profileUrlKeys: profileRowData.profileUrlKeys,
+      totalUserCount: profileRowData.totalUserCount,
+      avatarSize: isListStyle ? 19.84.sp : 23.44.sp,
     );
+
+    if (!isListStyle) {
+      return profileRow;
+    }
+
+    return profileRow;
   }
 
   /// 카테고리 데이터 프리페칭

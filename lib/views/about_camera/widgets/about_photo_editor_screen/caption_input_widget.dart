@@ -11,15 +11,11 @@ import 'package:easy_localization/easy_localization.dart';
 /// - [controller]: 텍스트 필드의 입력을 제어하는 TextEditingController입니다.
 /// - [isCaptionEmpty]: 캡션이 비어있는지 여부를 나타내는 불리언 값입니다.
 /// - [onMicTap]: 음성 입력 버튼이 탭될 때 호출되는 콜백 함수입니다.
-/// - [isKeyboardVisible]: 키보드가 보이는지 여부를 나타내는 불리언 값입니다.
-/// - [keyboardHeight]: 키보드의 높이를 나타내는 double 값입니다.
 /// - [focusNode]: 텍스트 필드의 포커스를 제어하는 FocusNode입니다.
 class CaptionInputWidget extends StatelessWidget {
   final TextEditingController controller;
   final bool isCaptionEmpty;
   final VoidCallback onMicTap;
-  final bool isKeyboardVisible;
-  final double keyboardHeight;
   final FocusNode focusNode;
 
   const CaptionInputWidget({
@@ -27,8 +23,6 @@ class CaptionInputWidget extends StatelessWidget {
     required this.controller,
     required this.isCaptionEmpty,
     required this.onMicTap,
-    required this.isKeyboardVisible,
-    required this.keyboardHeight,
     required this.focusNode,
   });
 
@@ -39,7 +33,7 @@ class CaptionInputWidget extends StatelessWidget {
       child: SizedBox(
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: const Color(0xFF373737).withOpacity(0.66),
+            color: const Color(0xFF373737).withValues(alpha: 0.66),
             borderRadius: BorderRadius.circular(21.5),
           ),
           child: Padding(

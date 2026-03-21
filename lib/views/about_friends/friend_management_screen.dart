@@ -24,7 +24,7 @@ class _FriendManagementScreenState extends State<FriendManagementScreen>
     with AutomaticKeepAliveClientMixin {
   List<Contact> _contacts = [];
 
-  // ✅ 백그라운드 로딩을 위한 상태 변수들 추가
+  // 백그라운드 로딩을 위한 상태 변수들 추가
   bool _isInitializing = false;
   bool _hasInitialized = false;
 
@@ -112,10 +112,10 @@ class _FriendManagementScreenState extends State<FriendManagementScreen>
     try {
       if (!mounted || _contactController == null) return;
 
-      // ✅ 1단계: 권한 확인 (빠른 처리)
+      // 1단계: 권한 확인 (빠른 처리)
       final result = await _contactController!.initializeContactPermission();
 
-      // ✅ 2단계: 권한이 허용된 경우에만 연락처 로드 (느린 처리)
+      // 2단계: 권한이 허용된 경우에만 연락처 로드 (느린 처리)
       if (result.isEnabled &&
           mounted &&
           _contactController!.isActivelySyncing) {
@@ -132,7 +132,7 @@ class _FriendManagementScreenState extends State<FriendManagementScreen>
         }
       }
 
-      // ✅ 3단계: 초기화 완료 및 메시지 표시
+      // 3단계: 초기화 완료 및 메시지 표시
       if (mounted) {
         setState(() {
           _isInitializing = false;
@@ -343,7 +343,7 @@ class _FriendManagementScreenState extends State<FriendManagementScreen>
                   isInitializing: _isInitializing,
                   contacts: _contacts,
                 ),
-                SizedBox(height: 134.h),
+                //SizedBox(height: 134.h),
               ],
             ),
           );

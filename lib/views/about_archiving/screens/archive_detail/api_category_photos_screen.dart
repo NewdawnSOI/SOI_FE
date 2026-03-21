@@ -26,27 +26,31 @@ import 'widgets/category_photos_header+body/api_category_photos_header.dart';
 
 import 'package:flutter/foundation.dart' as foundation show kDebugMode;
 
-/// 카테고리 사진 화면
-/// 카테고리에 속한 사진(포스트)을 그리드 형태로 보여주는 화면입니다.
-/// 사용자는 이 화면에서 카테고리 멤버를 확인하고, 카테고리를 편집할 수 있습니다.
-///
-/// 주요 기능:
-/// - 카테고리에 속한 사진(포스트) 목록을 로드하여 그리드로 표시
-/// - 로딩, 에러, 빈 상태에 따른 UI 표시
-/// - 당겨서 새로고침 기능
-/// - 카테고리 멤버 확인 및 친구 추가 기능
-/// - 카테고리 편집 화면으로 이동 기능
-///
-/// Parameters:
-/// - [category]: 사진을 보여줄 카테고리 정보
-///
-/// Returns:
-/// - [ApiCategoryPhotosScreen]: 카테고리에 속한 사진 그리드 화면을 표시하는 StatefulWidget
 class ApiCategoryPhotosScreen extends StatefulWidget {
   final Category category;
   final CategoryHeaderImagePrefetch? prefetchedHeaderImage;
   final int? initialPostId;
 
+  ///
+  /// 카테고리 사진 화면
+  /// 카테고리에 속한 사진(포스트)을 그리드 형태로 보여주는 화면입니다.
+  /// 사용자는 이 화면에서 카테고리 멤버를 확인하고, 카테고리를 편집할 수 있습니다.
+  ///
+  /// 주요 기능:
+  /// - 카테고리에 속한 사진(포스트) 목록을 로드하여 그리드로 표시
+  /// - 로딩, 에러, 빈 상태에 따른 UI 표시
+  /// - 당겨서 새로고침 기능
+  /// - 카테고리 멤버 확인 및 친구 추가 기능
+  /// - 카테고리 편집 화면으로 이동 기능
+  ///
+  /// fields:
+  /// - [category]: 현재 카테고리 정보를 담고 있는 Category 객체입니다.
+  /// - [prefetchedHeaderImage]: 카테고리 헤더 이미지 프리페치 페이로드로, 초기 렌더링 시 헤더 이미지를 빠르게 표시하는 데 사용됩니다.
+  /// - [initialPostId]: (선택적) 초기 딥링크된 포스트 ID로, 이 값이 제공되면 해당 포스트를 상세 화면으로 바로 엽니다.
+  ///
+  /// Returns:
+  /// - [ApiCategoryPhotosScreen]: 카테고리에 속한 사진 그리드 화면을 표시하는 StatefulWidget
+  ///
   const ApiCategoryPhotosScreen({
     super.key,
     required this.category,

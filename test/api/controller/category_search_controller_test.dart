@@ -123,5 +123,43 @@ void main() {
       );
       expect(controller.searchQuery, 'album');
     });
+
+    test('reuses cached results for the same user query and filter', () async {
+      var callCount = 0;
+      final controller = CategorySearchController(
+        searchService: _FakeCategorySearchService(
+          onSearch:
+              ({
+                int? userId,
+                required CategoryFilter filter,
+                String? keyword,
+                int page = 0,
+                bool fetchAllPages = true,
+                int maxPages = 50,
+              }) async {
+                callCount++;
+                return [Category(id: callCount, name: '$keyword-$callCount')];
+              },
+        ),
+      );
+
+      await controller.searchCategoriesFromApi(
+        userId: 1,
+        query: 'album',
+        filter: CategoryFilter.public_,
+      );
+      await controller.searchCategoriesFromApi(
+        userId: 1,
+        query: 'album',
+        filter: CategoryFilter.public_,
+      );
+
+      expect(callCount, 1);
+      expect(controller.activeFilter, CategoryFilter.public_);
+      expect(
+        controller.filteredCategoriesFor(CategoryFilter.public_).single.name,
+        'album-1',
+      );
+    });
   });
 }

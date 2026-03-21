@@ -28,9 +28,9 @@ class ContactRepository {
   }
 
   /// 연락처 권한 요청
-  Future<bool> requestContactPermission() async {
+  Future<bool> requestContactPermission({bool readonly = true}) async {
     try {
-      return await FlutterContacts.requestPermission();
+      return await FlutterContacts.requestPermission(readonly: readonly);
     } catch (e) {
       debugPrint('연락처 권한 요청 실패: $e');
       return false;
@@ -40,7 +40,7 @@ class ContactRepository {
   /// 연락처 목록 가져오기
   Future<List<Contact>> getContacts() async {
     try {
-      if (await FlutterContacts.requestPermission()) {
+      if (await requestContactPermission()) {
         // withProperties를 사용해서 전화번호와 이메일을 포함
         return await FlutterContacts.getContacts(
           withProperties: true,
@@ -58,7 +58,7 @@ class ContactRepository {
   /// 특정 연락처 정보 가져오기
   Future<Contact?> getContact(String id) async {
     try {
-      if (await FlutterContacts.requestPermission()) {
+      if (await requestContactPermission()) {
         return await FlutterContacts.getContact(id);
       } else {
         throw Exception('연락처 권한이 없습니다');
@@ -72,22 +72,25 @@ class ContactRepository {
   /// 연락처 검색
   Future<List<Contact>> searchContacts(String query) async {
     try {
-      if (await FlutterContacts.requestPermission()) {
-        final contacts = await FlutterContacts.getContacts(
-          withProperties: true,
-          withPhoto: false,
-        );
-        return contacts.where((contact) {
-          final name = contact.name.first;
-          final phones = contact.phones.map((p) => p.number).join(' ');
-          return name.toLowerCase().contains(query.toLowerCase()) ||
-              phones.contains(query);
-        }).toList();
-      } else {
-        throw Exception('연락처 권한이 없습니다');
+      final contacts = await getContacts();
+      final normalizedQuery = query.trim().toLowerCase();
+
+      if (normalizedQuery.isEmpty) {
+        return contacts;
       }
+
+      return contacts
+          .where((contact) {
+            final name = contact.name.first.toLowerCase();
+            final phones = contact.phones.map((p) => p.number).join(' ');
+            return name.contains(normalizedQuery) || phones.contains(query);
+          })
+          .toList(growable: false);
     } catch (e) {
       debugPrint('연락처 검색 실패: $e');
+      if (e.toString().contains('연락처 권한이 없습니다')) {
+        throw Exception('연락처 권한이 없습니다');
+      }
       throw Exception('연락처 검색에 실패했습니다: $e');
     }
   }

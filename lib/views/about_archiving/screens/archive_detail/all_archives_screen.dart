@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -10,10 +9,8 @@ import '../../../../api/models/category.dart';
 import '../../../../theme/theme.dart';
 import '../../widgets/archive_card_widget/api_archive_card_widget.dart';
 import '../../../../api/controller/category_search_controller.dart';
+import 'archive_category_view_state.dart';
 
-// 전체 아카이브 화면
-// 모든 사용자의 아카이브 목록을 표시
-// 아카이브를 클릭하면 아카이브 상세 화면으로 이동
 class AllArchivesScreen extends StatefulWidget {
   final bool isListView; // 그리드 뷰와 리스트 뷰를 전환하는 플래그
   final bool isEditMode; // 편집 모드 여부 (편집 모드에서는 카테고리 이름 수정 UI가 활성화됨)
@@ -21,6 +18,26 @@ class AllArchivesScreen extends StatefulWidget {
   final TextEditingController? editingController;
   final Function(String categoryId, String currentName)? onStartEdit;
   final ScrollController? scrollController; // 외부에서 스크롤 컨트롤러를 주입받도록 변경
+
+  // 초기 로드를 부모에게 위임할지 여부 (기본값: false)
+  // - true로 설정하면, AllArchivesScreen이 처음 빌드될 때 데이터를 로드하지 않고, 부모 위젯이 명시적으로 loadData()를 호출할 때 로드하도록 합니다.
+  // - false로 설정하면, AllArchivesScreen이 처음 빌드될 때 자동으로 데이터를 로드합니다.
+  final bool deferInitialLoadToParent;
+
+  ///
+  /// 전체 아카이브 화면
+  /// 모든 사용자의 아카이브 목록을 표시
+  /// 아카이브를 클릭하면 아카이브 상세 화면으로 이동
+  ///
+  /// fields:
+  /// - [isListView]: 그리드를 리스트 뷰로 표시할지 여부 (기본값: false)
+  /// - [isEditMode]: 편집 모드 여부 (편집 모드에서는 카테고리 이름 수정 UI가 활성화됨)
+  /// - [editingCategoryId]: 편집 중인 카테고리 ID (편집 모드에서만 사용)
+  /// - [editingController]: 편집 중인 카테고리 이름을 제어하는 TextEditingController (편집 모드에서만 사용)
+  /// - [onStartEdit]: 카테고리 편집을 시작할 때 호출되는 콜백 함수 (편집 모드에서만 사용)
+  /// - [scrollController]: 외부에서 스크롤 컨트롤러를 주입받아, 부모 위젯에서 스크롤 위치를 제어할 수 있도록 함
+  /// - [deferInitialLoadToParent]: 초기 로드를 부모에게 위임할지 여부 (기본값: false)
+  ///
 
   const AllArchivesScreen({
     super.key,
@@ -30,42 +47,17 @@ class AllArchivesScreen extends StatefulWidget {
     this.editingController,
     this.onStartEdit,
     this.scrollController,
+    this.deferInitialLoadToParent = false,
   });
 
   @override
   State<AllArchivesScreen> createState() => _AllArchivesScreenState();
 }
 
-class _AllArchivesCategoryViewState {
-  final List<int> categoryIds;
-  final bool isInitialLoading;
-  final String? fatalErrorMessage;
-
-  const _AllArchivesCategoryViewState({
-    required this.categoryIds,
-    required this.isInitialLoading,
-    required this.fatalErrorMessage,
-  });
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is _AllArchivesCategoryViewState &&
-          runtimeType == other.runtimeType &&
-          isInitialLoading == other.isInitialLoading &&
-          fatalErrorMessage == other.fatalErrorMessage &&
-          listEquals(categoryIds, other.categoryIds);
-
-  @override
-  int get hashCode => Object.hash(
-    isInitialLoading,
-    fatalErrorMessage,
-    Object.hashAll(categoryIds),
-  );
-}
-
 class _AllArchivesScreenState extends State<AllArchivesScreen>
     with AutomaticKeepAliveClientMixin {
+  static const int _kInitialLoadMaxPages = 2;
+
   int? _userId;
 
   // API 컨트롤러들
@@ -74,14 +66,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
 
   /// 초기 로드 상태
   bool _isInitialLoad = true;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
-    });
-  }
+  int? _initializedUserId;
 
   @override
   void didChangeDependencies() {
@@ -91,6 +76,46 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
       context,
       listen: false,
     );
+    _ensureInitialLoadState(); // 초기 로드 상태 확인 및 필요 시 데이터 로드
+  }
+
+  // 초기 로드 상태를 확인하고, 필요하면 데이터를 로드합니다.
+  // - 로그인한 사용자가 변경되었거나, 초기 로드 상태가 아직 결정되지 않은 경우에만 로드 수행
+  void _ensureInitialLoadState() {
+    final currentUser = _userController?.currentUser;
+    final currentUserId = currentUser?.id;
+
+    if (_initializedUserId == currentUserId) {
+      return;
+    }
+
+    _initializedUserId = currentUserId;
+    _userId = currentUserId;
+
+    if (currentUserId == null) {
+      _isInitialLoad = false;
+      return;
+    }
+
+    final hasFreshCache =
+        _categoryController?.hasFreshRequest(
+          userId: currentUserId,
+          filter: CategoryFilter.all,
+          fetchAllPages: true,
+          maxPages: _kInitialLoadMaxPages,
+        ) ??
+        false;
+
+    if (widget.deferInitialLoadToParent || hasFreshCache) {
+      _isInitialLoad = false;
+      return;
+    }
+
+    _isInitialLoad = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadData();
+    });
   }
 
   /// 데이터 로드
@@ -109,7 +134,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
         currentUser.id,
         forceReload: false, // 강제 새로고침 없이 캐시 활용
         fetchAllPages: true, // 모든 페이지를 로드하여 완전한 목록 확보
-        maxPages: 2, // 처음 로드 시 최대 2페이지만 로드
+        maxPages: _kInitialLoadMaxPages, // 처음 로드 시 최대 2페이지만 로드
       );
       if (mounted) {
         setState(() {
@@ -154,7 +179,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
 
       // 카테고리 목록
       // Selector로 부분 갱신이 되도록 함.
-      body: Selector<CategoryController, _AllArchivesCategoryViewState>(
+      body: Selector<CategoryController, ArchiveCategoryViewState>(
         selector: (context, categoryController) {
           final categoryIds = categoryController.allCategories
               .map((c) => c.id)
@@ -167,7 +192,7 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
               ? categoryController.errorMessage
               : null;
 
-          return _AllArchivesCategoryViewState(
+          return ArchiveCategoryViewState(
             categoryIds: categoryIds,
             isInitialLoading: isInitialLoading,
             fatalErrorMessage: fatalErrorMessage,
@@ -252,14 +277,8 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
             color: Colors.white,
             backgroundColor: const Color(0xFF1C1C1C),
             child: widget.isListView
-                ? _buildListView(
-                    displayCategoryIds,
-                    searchController.searchQuery,
-                  )
-                : _buildGridView(
-                    displayCategoryIds,
-                    searchController.searchQuery,
-                  ),
+                ? _buildListView(displayCategoryIds)
+                : _buildGridView(displayCategoryIds),
           );
         },
       ),
@@ -267,9 +286,9 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
   }
 
   /// 그리드 뷰 빌드
-  Widget _buildGridView(List<int> categoryIds, String searchQuery) {
+  Widget _buildGridView(List<int> categoryIds) {
+    final categoryController = context.read<CategoryController>();
     return GridView.builder(
-      key: ValueKey('grid_${categoryIds.length}_$searchQuery'),
       controller: widget.scrollController, // 외부에서 주입받은 스크롤 컨트롤러 사용
       padding: EdgeInsets.only(left: 20.w, right: 22.w, bottom: 20.h),
       physics: const AlwaysScrollableScrollPhysics(),
@@ -282,7 +301,6 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
       itemCount: categoryIds.length,
       itemBuilder: (context, index) {
         final categoryId = categoryIds[index];
-        final categoryController = context.read<CategoryController>();
         final category = categoryController.getCategoryById(categoryId);
         if (category == null) return const SizedBox.shrink();
 
@@ -312,9 +330,9 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
     );
   }
 
-  Widget _buildListView(List<int> categoryIds, String searchQuery) {
+  Widget _buildListView(List<int> categoryIds) {
+    final categoryController = context.read<CategoryController>();
     return ListView.separated(
-      key: ValueKey('list_${categoryIds.length}_$searchQuery'),
       controller: widget.scrollController, // 외부에서 주입받은 스크롤 컨트롤러 사용
       padding: EdgeInsets.only(left: 20.w, right: 20.w, bottom: 20.h),
       physics: const AlwaysScrollableScrollPhysics(),
@@ -322,7 +340,6 @@ class _AllArchivesScreenState extends State<AllArchivesScreen>
       separatorBuilder: (_, __) => SizedBox(height: 10.h),
       itemBuilder: (context, index) {
         final categoryId = categoryIds[index];
-        final categoryController = context.read<CategoryController>();
         final category = categoryController.getCategoryById(categoryId);
         if (category == null) return const SizedBox.shrink();
 

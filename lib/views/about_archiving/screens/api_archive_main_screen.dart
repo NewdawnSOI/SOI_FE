@@ -31,6 +31,8 @@ class APIArchiveMainScreen extends StatefulWidget {
 }
 
 class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
+  static const int _kInitialCategoryLoadMaxPages = 2;
+
   int _selectedIndex = 0;
   bool _isListView = false;
 
@@ -60,7 +62,9 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   // 프리페칭 관련
   PostController? _postController;
   FriendController? _friendController;
-  bool _hasPrefetchedPosts = false;
+  String? _prefetchedPostsSignature;
+  int? _categoryWarmupUserId;
+  bool _isCategoryWarmupInFlight = false;
 
   // UserController 리스너 참조 저장 --> 프로필 이미지 변경 감지 및 처리
   VoidCallback? _userListener;
@@ -93,6 +97,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
       onStartEdit: startEditMode,
+      deferInitialLoadToParent: true,
     ),
     SharedArchivesScreen(
       scrollController: _archiveScrollControllers[1],
@@ -101,6 +106,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
       onStartEdit: startEditMode,
+      deferInitialLoadToParent: true,
     ),
     MyArchivesScreen(
       scrollController: _archiveScrollControllers[2],
@@ -109,6 +115,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       editingCategoryId: _editingCategoryId,
       editingController: _editingNameController,
       onStartEdit: startEditMode,
+      deferInitialLoadToParent: true,
     ),
   ];
 
@@ -178,6 +185,8 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       _handleUserProfileChanged();
     }
 
+    _ensureArchiveCategoriesWarm();
+
     unawaited(_loadNotificationBadgeState());
 
     // 프로필 이미지 URL은 UserController 리스너에서 관리
@@ -221,18 +230,18 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   /// 사용자가 카테고리를 탭하기 전에 데이터를 미리 로드하여
   /// 카테고리 진입 시 즉시 표시되도록 합니다.
   void _prefetchPostsForCategories() {
-    if (_hasPrefetchedPosts) return;
-
     final categories = _categoryController?.allCategories;
     if (categories == null || categories.isEmpty) return;
 
     final userId = _userController?.currentUser?.id;
     if (userId == null) return;
 
-    _hasPrefetchedPosts = true;
-
     // 처음 6개 카테고리만 프리페칭 (그리드 뷰에 보이는 수)
-    final categoriesToFetch = categories.take(6).toList();
+    final categoriesToFetch = categories.take(6).toList(growable: false);
+    final nextSignature =
+        '$userId:${categoriesToFetch.map((category) => category.id).join(',')}';
+    if (_prefetchedPostsSignature == nextSignature) return;
+    _prefetchedPostsSignature = nextSignature;
 
     if (kDebugMode) {
       debugPrint('[ArchiveMain] ${categoriesToFetch.length}개 카테고리 포스트 프리페칭 시작');
@@ -267,6 +276,46 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
     _friendController?.getAllFriends(
       userId: userId,
       status: FriendStatus.blocked,
+    );
+  }
+
+  void _ensureArchiveCategoriesWarm() {
+    final categoryController = _categoryController;
+    final userId = _userController?.currentUser?.id;
+
+    if (categoryController == null || userId == null) return;
+
+    final hasFreshCache = categoryController.hasFreshRequest(
+      userId: userId,
+      filter: CategoryFilter.all,
+      fetchAllPages: true,
+      maxPages: _kInitialCategoryLoadMaxPages,
+    );
+    if (hasFreshCache) {
+      _categoryWarmupUserId = userId;
+      _isCategoryWarmupInFlight = false;
+      return;
+    }
+
+    if (_isCategoryWarmupInFlight && _categoryWarmupUserId == userId) {
+      return;
+    }
+
+    _categoryWarmupUserId = userId;
+    _isCategoryWarmupInFlight = true;
+    unawaited(
+      categoryController
+          .loadCategories(
+            userId,
+            forceReload: false,
+            fetchAllPages: true,
+            maxPages: _kInitialCategoryLoadMaxPages,
+          )
+          .whenComplete(() {
+            if (_categoryWarmupUserId == userId) {
+              _isCategoryWarmupInFlight = false;
+            }
+          }),
     );
   }
 
@@ -549,9 +598,11 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
               padding: EdgeInsets.only(right: 32.w),
               child: Center(
                 child: Consumer<NotificationController>(
-                  builder: (context, _, child) {
-                    // TEMP: 배지 UI 확인용으로 알림 1개가 있다고 가정하고 항상 노출
-                    const hasUnreadNotifications = true;
+                  builder: (context, notificationController, child) {
+                    final currentUserId = _userController?.currentUser?.id;
+                    final hasUnreadNotifications =
+                        _notificationBadgeUserId == currentUserId &&
+                        notificationController.hasUnreadNotifications;
 
                     return IconButton(
                       onPressed: () async {
@@ -561,21 +612,21 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
                           _loadNotificationBadgeState(forceRefresh: true),
                         );
                       },
-                      icon: Badge(
-                        isLabelVisible: hasUnreadNotifications,
-                        backgroundColor: Colors.red,
-                        smallSize: 9.r,
-                        alignment: Alignment.topRight,
+                      icon: Container(
+                        width: 35,
+                        height: 35,
+                        padding: EdgeInsets.only(bottom: 3.h),
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0xff1c1c1c),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Badge(
+                          isLabelVisible: hasUnreadNotifications,
+                          backgroundColor: Colors.red,
+                          smallSize: 9.r,
+                          alignment: Alignment.topRight,
 
-                        child: Container(
-                          width: 35,
-                          height: 35,
-                          padding: EdgeInsets.only(bottom: 3.h),
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: Color(0xff1c1c1c),
-                            shape: BoxShape.circle,
-                          ),
                           child: Padding(
                             padding: EdgeInsets.only(top: 2.h),
                             child: Image.asset(
@@ -796,7 +847,6 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
           duration: Duration(milliseconds: 100),
           curve: Curves.easeInOut,
         );
-        _applySearch();
       },
       child: Container(
         height: 34.h,

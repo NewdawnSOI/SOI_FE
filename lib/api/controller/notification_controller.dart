@@ -31,6 +31,10 @@ class NotificationController extends ChangeNotifier {
   /// 캐시된 알림 결과
   NotificationGetAllResult? get cachedResult => _cachedResult;
 
+  /// 읽지 않은 알림 또는 친구 요청 존재 여부
+  bool get hasUnreadNotifications =>
+      _cachedResult?.hasUnreadNotifications ?? false;
+
   /// 캐시된 친구 알림
   List<AppNotification>? get cachedFriendNotifications =>
       _cachedFriendNotifications;

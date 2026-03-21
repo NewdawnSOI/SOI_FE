@@ -134,6 +134,31 @@ class CategoryController extends ChangeNotifier {
     return _categoriesCache[filter] ?? const [];
   }
 
+  /// 요청 형태에 맞는 카테고리 캐시가 아직 유효한지 확인합니다.
+  bool hasFreshRequest({
+    required int userId,
+    model.CategoryFilter filter = model.CategoryFilter.all,
+    int page = 0,
+    bool fetchAllPages = true,
+    int maxPages = 50,
+  }) {
+    if (_cachedUserId != null && _cachedUserId != userId) {
+      return false;
+    }
+
+    final normalizedPage = page < 0 ? 0 : page;
+    final normalizedMaxPages = maxPages < 1 ? 1 : maxPages;
+    final requestKey = _buildRequestCacheKey(
+      userId: userId,
+      filter: filter,
+      page: normalizedPage,
+      fetchAllPages: fetchAllPages,
+      maxPages: normalizedMaxPages,
+    );
+
+    return _getValidRequestCache(requestKey) != null;
+  }
+
   /// 전체 카테고리 (ALL filter)
   List<model.Category> get allCategories =>
       getCategoriesByFilter(model.CategoryFilter.all);

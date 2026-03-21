@@ -97,10 +97,11 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     super.initState();
     _commentCount = widget.initialCommentCount;
     _loadVideoThumbnailIfNeeded();
-    // 빌드 완료 후 프로필 이미지 로드 (notifyListeners 충돌 방지)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadProfileImage(widget.post.userProfileImageKey);
-    });
+    // URL은 post 모델에 이미 있으므로 postFrameCallback 없이 직접 초기화
+    // → 첫 프레임부터 shimmer 없이 프로필 이미지 표시
+    final url = widget.post.userProfileImageUrl;
+    _profileImageUrl = (url != null && url.isNotEmpty) ? url : null;
+    _isLoadingProfile = false;
   }
 
   @override
@@ -180,8 +181,11 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   void _loadProfileImage(String? profileKey) {
     if (!mounted) return;
     final url = widget.post.userProfileImageUrl;
+    final newUrl = (url != null && url.isNotEmpty) ? url : null;
+    // 값이 동일하면 불필요한 rebuild 생략
+    if (newUrl == _profileImageUrl && !_isLoadingProfile) return;
     setState(() {
-      _profileImageUrl = (url != null && url.isNotEmpty) ? url : null;
+      _profileImageUrl = newUrl;
       _isLoadingProfile = false;
     });
   }

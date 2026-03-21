@@ -1,14 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:soi/api/services/contact_repository.dart';
 
 /// 연락처 관련 비즈니스 로직을 담당하는 서비스 클래스
 class ContactService {
-  final ContactRepository _repository = ContactRepository();
+  final ContactRepository _repository;
 
   /// 싱글톤 인스턴스
   static final ContactService _instance = ContactService._internal();
-  factory ContactService() => _instance;
-  ContactService._internal();
+
+  factory ContactService({ContactRepository? repository}) {
+    if (repository == null) {
+      return _instance;
+    }
+
+    return ContactService._(repository: repository);
+  }
+
+  ContactService._internal() : _repository = ContactRepository();
+
+  ContactService._({required ContactRepository repository})
+    : _repository = repository;
 
   /// 연락처 동기화 상태
   bool _contactSyncEnabled = false;
@@ -22,9 +35,9 @@ class ContactService {
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
-  // ContactService에 캐싱 추가
   List<Contact>? _cachedContacts;
-  DateTime? _lastFetchTime;
+  Future<List<Contact>>? _contactsLoadFuture;
+  Map<Contact, String>? _cachedSearchIndex;
 
   /// 초기화 (앱 시작 시 호출)
   Future<void> initialize() async {
@@ -61,6 +74,7 @@ class ContactService {
       } else {
         // 권한이 거부된 경우
         _contactSyncEnabled = false;
+        _clearContactsCache();
         await _saveContactSyncSetting(false);
 
         return ContactInitResult.failure(
@@ -96,6 +110,9 @@ class ContactService {
     try {
       final hasPermission = await _repository.requestContactPermission();
       _contactSyncEnabled = hasPermission;
+      if (!hasPermission) {
+        _clearContactsCache();
+      }
       await _saveContactSyncSetting(hasPermission);
 
       return ContactToggleResult.success(
@@ -136,6 +153,7 @@ class ContactService {
           isEnabled: true,
         );
       } else {
+        _clearContactsCache();
         return ContactToggleResult.failure(
           message: '연락처 권한이 필요합니다',
           isEnabled: false,
@@ -162,18 +180,31 @@ class ContactService {
       throw Exception('연락처 동기화가 비활성화되어 있습니다');
     }
 
-    // 가져온 데이터가 있으면 캐시 사용
-    if (!forceRefresh && _cachedContacts != null && _lastFetchTime != null) {
-      return _cachedContacts!;
+    if (forceRefresh) {
+      _clearContactsCache();
     }
 
+    final cachedContacts = _cachedContacts;
+    if (cachedContacts != null) {
+      return cachedContacts;
+    }
+
+    final inFlight = _contactsLoadFuture;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _fetchAndCacheContacts();
+    _contactsLoadFuture = future;
+
     try {
-      // 새로 가져오기
-      _cachedContacts = await _repository.getContacts();
-      _lastFetchTime = DateTime.now();
-      return _cachedContacts!;
+      return await future;
     } catch (e) {
       throw Exception('연락처 목록을 가져오는데 실패했습니다: $e');
+    } finally {
+      if (identical(_contactsLoadFuture, future)) {
+        _contactsLoadFuture = null;
+      }
     }
   }
 
@@ -197,10 +228,84 @@ class ContactService {
     }
 
     try {
-      return await _repository.searchContacts(query);
+      final trimmedQuery = query.trim();
+      final contacts = await getContacts();
+      if (trimmedQuery.isEmpty) {
+        return contacts;
+      }
+
+      final normalizedQuery = trimmedQuery.toLowerCase();
+      final searchIndex = _cachedSearchIndex ??= _buildSearchIndex(contacts);
+
+      return contacts
+          .where((contact) {
+            return (searchIndex[contact] ?? '').contains(normalizedQuery);
+          })
+          .toList(growable: false);
     } catch (e) {
       throw Exception('연락처 검색에 실패했습니다: $e');
     }
+  }
+
+  Future<List<Contact>> _fetchAndCacheContacts() async {
+    final contacts = await _repository.getContacts();
+    final cachedContacts = List<Contact>.from(contacts);
+    _cachedContacts = cachedContacts;
+    _cachedSearchIndex = null;
+    return cachedContacts;
+  }
+
+  Map<Contact, String> _buildSearchIndex(List<Contact> contacts) {
+    final index = <Contact, String>{};
+    for (final contact in contacts) {
+      index[contact] = _buildSearchableText(contact);
+    }
+    return index;
+  }
+
+  String _buildSearchableText(Contact contact) {
+    final buffer = StringBuffer();
+
+    void appendToken(String value) {
+      final trimmedValue = value.trim();
+      if (trimmedValue.isEmpty) {
+        return;
+      }
+
+      final loweredValue = trimmedValue.toLowerCase();
+      buffer
+        ..write(' ')
+        ..write(loweredValue);
+
+      final compactValue = _compactSearchToken(loweredValue);
+      if (compactValue.isNotEmpty && compactValue != loweredValue) {
+        buffer
+          ..write(' ')
+          ..write(compactValue);
+      }
+    }
+
+    appendToken(contact.displayName);
+    appendToken(contact.name.first);
+    appendToken(contact.name.middle);
+    appendToken(contact.name.last);
+
+    for (final phone in contact.phones) {
+      appendToken(phone.number);
+      appendToken(phone.normalizedNumber);
+    }
+
+    return buffer.toString();
+  }
+
+  String _compactSearchToken(String value) {
+    return value.replaceAll(RegExp(r'[^\d+]'), '');
+  }
+
+  void _clearContactsCache() {
+    _cachedContacts = null;
+    _contactsLoadFuture = null;
+    _cachedSearchIndex = null;
   }
 }
 

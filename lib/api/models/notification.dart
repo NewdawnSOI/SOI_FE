@@ -317,6 +317,11 @@ class NotificationGetAllResult {
   /// 친구 요청이 있는지 확인
   bool get hasFriendRequests => friendRequestCount > 0;
 
+  /// 읽지 않은 알림 또는 처리되지 않은 친구 요청이 있는지 확인
+  bool get hasUnreadNotifications =>
+      hasFriendRequests ||
+      notifications.any((notification) => notification.isRead != true);
+
   /// 전체 알림 개수
   int get totalCount => notifications.length;
 

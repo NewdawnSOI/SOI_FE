@@ -151,6 +151,80 @@ void main() {
       );
     });
 
+    test('reuses filter caches populated by an all-category warmup', () async {
+      final calls = <CategoryFilter>[];
+      final controller = CategoryController(
+        categoryService: _FakeCategoryService(
+          onGetCategories:
+              ({
+                required CategoryFilter filter,
+                int page = 0,
+                bool fetchAllPages = true,
+                int maxPages = 50,
+              }) async {
+                calls.add(filter);
+                return [
+                  Category(
+                    id: filter.index + 1,
+                    name: filter.value.toLowerCase(),
+                  ),
+                ];
+              },
+        ),
+      );
+
+      await controller.loadCategories(
+        1,
+        filter: CategoryFilter.all,
+        forceReload: false,
+        fetchAllPages: true,
+        maxPages: 2,
+      );
+
+      expect(
+        controller.hasFreshRequest(
+          userId: 1,
+          filter: CategoryFilter.all,
+          fetchAllPages: true,
+          maxPages: 2,
+        ),
+        isTrue,
+      );
+      expect(
+        controller.hasFreshRequest(
+          userId: 1,
+          filter: CategoryFilter.public_,
+          fetchAllPages: true,
+          maxPages: 2,
+        ),
+        isTrue,
+      );
+      expect(
+        controller.hasFreshRequest(
+          userId: 1,
+          filter: CategoryFilter.private_,
+          fetchAllPages: true,
+          maxPages: 2,
+        ),
+        isTrue,
+      );
+
+      final publicCategories = await controller.loadCategories(
+        1,
+        filter: CategoryFilter.public_,
+        forceReload: false,
+        fetchAllPages: true,
+        maxPages: 2,
+      );
+
+      expect(calls, [
+        CategoryFilter.all,
+        CategoryFilter.public_,
+        CategoryFilter.private_,
+      ]);
+      expect(publicCategories.single.name, 'public');
+    });
+
     test(
       'clears cached profile image when custom profile is removed',
       () async {

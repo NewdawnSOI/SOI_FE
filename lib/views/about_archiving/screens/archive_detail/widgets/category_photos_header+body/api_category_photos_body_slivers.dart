@@ -141,30 +141,31 @@ class ApiCategoryPhotosEmptySliver extends StatelessWidget {
   }
 }
 
-/// 카테고리 사진 화면에서 "실제 사진 그리드를 보여주는" 슬리버 위젯
-///
-/// Parameters:
-///   - [posts]: 그리드에 표시할 포스트 목록
-///   - [categoryName]: 현재 카테고리의 이름 (포스트 상세 화면에서 사용)
-///   - [categoryId]: 현재 카테고리의 ID (포스트 상세 화면에서 사용)
-///   - [padding]: 그리드 주변에 적용할 패딩
-///   - [crossAxisCount]: 가로 열 개수
-///   - [mainAxisSpacing]: 세로 간격
-///   - [crossAxisSpacing]: 가로 간격
-///   - [onPostsDeleted]: 포스트가 삭제되었을 때 호출되는 콜백 함수, 삭제된 포스트의 ID 목록을 인자로 받음
-///
-/// Returns:
-///   - SliverPadding과 SliverMasonryGrid를 사용하여, 빈 공간 없이 포스트를 표시.
-///     각 그리드 아이템은 ApiPhotoGridItem 위젯
-class ApiCategoryPhotosGridSliver extends StatelessWidget {
+class ApiCategoryPhotosGridSliver extends StatefulWidget {
   final List<Post> posts;
   final String categoryName;
   final int categoryId;
   final EdgeInsets padding;
-  final int crossAxisCount; // 그리드의 열 개수
-  final double mainAxisSpacing; // 그리드의 행 간격
-  final double crossAxisSpacing; // 그리드의 열 간격
+  final int crossAxisCount;
+  final double mainAxisSpacing;
+  final double crossAxisSpacing;
   final ValueChanged<List<int>> onPostsDeleted;
+
+  /// 카테고리 사진 화면에서 "실제 사진 그리드를 보여주는" 슬리버 위젯
+  ///
+  /// fields:
+  /// - [posts]: 그리드에 표시할 포스트 목록
+  /// - [categoryName]: 현재 카테고리의 이름 (포스트 상세 화면에서 사용)
+  /// - [categoryId]: 현재 카테고리의 ID (포스트 상세 화면에서 사용)
+  /// - [padding]: 그리드 주변에 적용할 패딩
+  /// - [crossAxisCount]: 가로 열 개수
+  /// - [mainAxisSpacing]: 세로 간격
+  /// - [crossAxisSpacing]: 가로 간격
+  /// - [onPostsDeleted]: 포스트가 삭제되었을 때 호출되는 콜백 함수, 삭제된 포스트의 ID 목록을 인자로 받음
+  ///
+  /// Returns:
+  /// - SliverPadding과 SliverMasonryGrid를 사용하여, 포스트 목록을 시간순으로 정렬하여 그리드 형태로 표시.
+  /// - 각 그리드 아이템은 ApiPhotoGridItem 위젯으로 구성되며, 포스트 상세 화면으로 이동할 때 카테고리 이름과 ID를 전달.
 
   const ApiCategoryPhotosGridSliver({
     super.key,
@@ -179,62 +180,76 @@ class ApiCategoryPhotosGridSliver extends StatelessWidget {
   });
 
   @override
+  State<ApiCategoryPhotosGridSliver> createState() =>
+      _ApiCategoryPhotosGridSliverState();
+}
+
+class _ApiCategoryPhotosGridSliverState
+    extends State<ApiCategoryPhotosGridSliver> {
+  // posts 참조가 바뀔 때만 재정렬 (O(n log n) → O(1) on cache hit)
+
+  /// 정렬된 포스트 목록을 캐싱하여, 동일한 리스트에 대해서는 재정렬을 방지합니다.
+  List<Post>? _sortedPosts;
+
+  /// 마지막으로 정렬에 사용된 원본 포스트 리스트를 참조하여, 동일한 리스트에 대해서는 재정렬을 방지합니다.
+  List<Post>? _lastSourcePosts;
+
+  /// 정렬 comparator를 static으로 추출하여 매 build마다 클로저 할당 방지
+  /// - 최신순 정렬: createdAt이 최신인 순서대로 (null은 가장 오래된 것으로 간주)
+  static int _compareByTime(Post a, Post b) {
+    final aTime = a.createdAt;
+    final bTime = b.createdAt;
+    if (aTime != null && bTime != null) {
+      final cmp = bTime.compareTo(aTime);
+      if (cmp != 0) return cmp;
+    } else if (aTime != null) {
+      return -1;
+    } else if (bTime != null) {
+      return 1;
+    }
+    return b.id.compareTo(a.id);
+  }
+
+  /// 원본 포스트 리스트가 변경되었을 때만 정렬을 수행하여, 동일한 리스트에 대해서는 캐시된 정렬 결과를 반환합니다.
+  /// - 동일한 리스트에 대해서는 O(1)로 정렬된 결과를 반환하여 성능 최적화
+  List<Post> _getOrComputeSortedPosts() {
+    // identical()로 참조 동일성 비교 → 같은 리스트면 재정렬 생략
+    if (!identical(_lastSourcePosts, widget.posts)) {
+      _lastSourcePosts = widget.posts;
+      _sortedPosts = List<Post>.from(widget.posts)..sort(_compareByTime);
+    }
+    return _sortedPosts!;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 최소 2열을 유지하도록 설정, 필요에 따라 조정 가능
     const minimumCrossAxisCount = 2;
-
-    // crossAxisCount가 minimumCrossAxisCount보다 작은 경우,
-    // minimumCrossAxisCount로 설정하여 그리드가 너무 적은 열로 표시되는 것을 방지
-    final effectiveCrossAxisCount = crossAxisCount < minimumCrossAxisCount
+    final effectiveCrossAxisCount =
+        widget.crossAxisCount < minimumCrossAxisCount
         ? minimumCrossAxisCount
-        : crossAxisCount;
+        : widget.crossAxisCount;
 
-    // 포스트를 최신순으로 정렬하는 로직 추가
-    // (createdAt이 null인 경우 ID로 대체하여 내림차순 정렬)
-    final sortedPosts = List<Post>.from(posts)
-      ..sort((a, b) {
-        final aTime = a.createdAt; // a의 생성 시간
-        final bTime = b.createdAt; // b의 생성 시간
-
-        // 둘 다 createdAt이 존재하는 경우, createdAt으로 비교
-        if (aTime != null && bTime != null) {
-          final cmp = bTime.compareTo(aTime); // 최신순으로 정렬
-          if (cmp != 0) return cmp; // createdAt이 다른 경우, 그 결과를 반환
-        }
-        // aTime(createdAt)이 존재하는 경우, a가 더 최신으로 간주
-        else if (aTime != null) {
-          return -1;
-        }
-        // bTime(createdAt)이 존재하는 경우, b가 더 최신으로 간주
-        else if (bTime != null) {
-          return 1;
-        }
-
-        // ID로 내림차순 (최신순)
-        return b.id.compareTo(a.id);
-      });
+    final sortedPosts = _getOrComputeSortedPosts();
 
     return SliverPadding(
-      padding: padding,
+      padding: widget.padding,
       sliver: SliverMasonryGrid.count(
-        crossAxisCount: effectiveCrossAxisCount, // 최소 열 개수 적용 -> Row 수 조정
-        mainAxisSpacing: mainAxisSpacing, // 행 간격 적용 -> Column 간격 조정
-        crossAxisSpacing: crossAxisSpacing, // 열 간격 적용 -> Row 간격 조정
-        childCount: sortedPosts.length, // 그리드에 표시할 아이템 수 -> 포스트 수에 따라 동적으로 결정
+        crossAxisCount: effectiveCrossAxisCount,
+        mainAxisSpacing: widget.mainAxisSpacing,
+        crossAxisSpacing: widget.crossAxisSpacing,
+        childCount: sortedPosts.length,
         itemBuilder: (context, index) {
-          final post = sortedPosts[index]; // 정렬된 포스트 목록에서 현재 인덱스에 해당하는 포스트 가져오기
+          final post = sortedPosts[index];
           return ApiPhotoGridItem(
-            key: ValueKey(
-              'grid_${categoryId}_${post.id}',
-            ), // 고유한 키 생성 (카테고리 ID와 포스트 ID를 조합하여 생성)
+            key: ValueKey('grid_${widget.categoryId}_${post.id}'),
             post: post,
             postUrl: post.postFileUrl ?? '',
             allPosts: sortedPosts,
             currentIndex: index,
-            categoryName: categoryName,
-            categoryId: categoryId,
+            categoryName: widget.categoryName,
+            categoryId: widget.categoryId,
             initialCommentCount: post.commentCount ?? 0,
-            onPostsDeleted: onPostsDeleted,
+            onPostsDeleted: widget.onPostsDeleted,
           );
         },
       ),

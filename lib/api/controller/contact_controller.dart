@@ -11,7 +11,10 @@ export '../services/contact_service.dart'
 
 /// 연락처 관련 UI 상태 관리를 담당하는 Controller
 class ContactController extends ChangeNotifier {
-  final ContactService _contactService = ContactService();
+  ContactController({ContactService? contactService})
+    : _contactService = contactService ?? ContactService();
+
+  final ContactService _contactService;
 
   // 상태 변수들
   bool _contactSyncEnabled = false;
