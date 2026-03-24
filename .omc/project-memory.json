@@ -1,0 +1,286 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1774256612214,
+  "projectRoot": "/Users/minchanpark/Documents/SOI",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "esbuild",
+        "version": "0.25.9",
+        "category": "build"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "npm test",
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "assets",
+      "docs",
+      "lib",
+      "public",
+      "test"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "android": {
+      "path": "android",
+      "purpose": null,
+      "fileCount": 16,
+      "lastAccessed": 1774256611964,
+      "keyFiles": [
+        "Gemfile",
+        "Gemfile.lock",
+        "build.gradle.kts",
+        "flutter_application_1_android.iml",
+        "gradle.properties"
+      ]
+    },
+    "api": {
+      "path": "api",
+      "purpose": "API routes",
+      "fileCount": 5,
+      "lastAccessed": 1774256611972,
+      "keyFiles": [
+        "README.md",
+        "config.yaml",
+        "openapi.yaml",
+        "patch_generated.sh"
+      ]
+    },
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 99,
+      "lastAccessed": 1774256611974,
+      "keyFiles": [
+        "SOI.png",
+        "SOI_logo.png",
+        "add_navi.svg",
+        "archive.png",
+        "archive_icon.svg"
+      ]
+    },
+    "build": {
+      "path": "build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1774256611977,
+      "keyFiles": []
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 4,
+      "lastAccessed": 1774256611980,
+      "keyFiles": [
+        "AI_AGENT_PLAYBOOK.en.md",
+        "AI_AGENT_PLAYBOOK.md",
+        "JWT + FCM Frontend Integration Guide.md"
+      ]
+    },
+    "figma_assets": {
+      "path": "figma_assets",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1774256611983,
+      "keyFiles": [
+        "voice_icon.svg",
+        "voice_profile.svg"
+      ]
+    },
+    "functions": {
+      "path": "functions",
+      "purpose": null,
+      "fileCount": 6,
+      "lastAccessed": 1774256611985,
+      "keyFiles": [
+        "index.js",
+        "package-lock.json",
+        "package.json"
+      ]
+    },
+    "ios": {
+      "path": "ios",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1774256611988,
+      "keyFiles": [
+        "ExportOptions.plist",
+        "Gemfile",
+        "Gemfile.lock",
+        "Podfile",
+        "Podfile.lock"
+      ]
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 3,
+      "lastAccessed": 1774256611989,
+      "keyFiles": [
+        "firebase_options.dart",
+        "main.dart"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 2,
+      "lastAccessed": 1774256611991,
+      "keyFiles": [
+        "index.html"
+      ]
+    },
+    "test": {
+      "path": "test",
+      "purpose": "Test files",
+      "fileCount": 1,
+      "lastAccessed": 1774256611991,
+      "keyFiles": []
+    },
+    "android/app": {
+      "path": "android/app",
+      "purpose": "Application code",
+      "fileCount": 3,
+      "lastAccessed": 1774256611997,
+      "keyFiles": [
+        "build.gradle.kts",
+        "google-services.json",
+        "soi-release-key.jks"
+      ]
+    },
+    "android/build": {
+      "path": "android/build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1774256612054,
+      "keyFiles": []
+    },
+    "functions/lib": {
+      "path": "functions/lib",
+      "purpose": "Library code",
+      "fileCount": 3,
+      "lastAccessed": 1774256612183,
+      "keyFiles": [
+        "cleanupDeletedPhotos.js",
+        "deleteContext.js",
+        "image-generator.js"
+      ]
+    },
+    "functions/node_modules": {
+      "path": "functions/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 2,
+      "lastAccessed": 1774256612204,
+      "keyFiles": []
+    },
+    "lib/api": {
+      "path": "lib/api",
+      "purpose": "API routes",
+      "fileCount": 3,
+      "lastAccessed": 1774256612209,
+      "keyFiles": [
+        "api.dart",
+        "api_client.dart",
+        "api_exception.dart"
+      ]
+    },
+    "lib/app": {
+      "path": "lib/app",
+      "purpose": "Application code",
+      "fileCount": 4,
+      "lastAccessed": 1774256612210,
+      "keyFiles": [
+        "app_constants.dart",
+        "app_container_builder.dart",
+        "app_providers.dart"
+      ]
+    },
+    "lib/utils": {
+      "path": "lib/utils",
+      "purpose": "Utility functions",
+      "fileCount": 10,
+      "lastAccessed": 1774256612210,
+      "keyFiles": [
+        "analytics_service.dart",
+        "app_route_observer.dart",
+        "format_utils.dart"
+      ]
+    },
+    "lib/views": {
+      "path": "lib/views",
+      "purpose": "View templates",
+      "fileCount": 3,
+      "lastAccessed": 1774256612211,
+      "keyFiles": [
+        "home_navigator_screen.dart",
+        "launch_video_screen.dart"
+      ]
+    },
+    "public/assets": {
+      "path": "public/assets",
+      "purpose": "Static assets",
+      "fileCount": 1,
+      "lastAccessed": 1774256612211,
+      "keyFiles": [
+        "SOI_logo.png"
+      ]
+    },
+    "test/api": {
+      "path": "test/api",
+      "purpose": "API routes",
+      "fileCount": 0,
+      "lastAccessed": 1774256612212,
+      "keyFiles": []
+    },
+    "test/app": {
+      "path": "test/app",
+      "purpose": "Application code",
+      "fileCount": 0,
+      "lastAccessed": 1774256612213,
+      "keyFiles": []
+    },
+    "test/views": {
+      "path": "test/views",
+      "purpose": "View templates",
+      "fileCount": 0,
+      "lastAccessed": 1774256612214,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

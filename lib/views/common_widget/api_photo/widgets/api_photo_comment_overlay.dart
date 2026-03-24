@@ -128,22 +128,36 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
     });
   }
 
+  /// pending 댓글 마커로 사용할 원형 아바타 위젯을 빌드하는 함수입니다.
+  /// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
+  /// - 댓글 작성이 완료되면, 부모 위젯에 댓글 저장 진행 상황과 결과를 전달하는 역할도 수행합니다.
+  ///
+  /// parameters:
+  /// - [marker]: 댓글 작성 중인 위치에 표시할 마커 정보입니다. 포인터 끝점 기준 상대 좌표와 프로필 이미지 URL 키, 음성 댓글 녹음 진행률 등을 포함합니다.
+  ///
+  /// returns:
+  /// - [Widget]: 댓글 작성 중인 위치에 표시할 원형 아바타 위젯
   Widget _buildPendingMarker(PendingApiCommentMarker marker) {
+    // 마커의 상대 좌표를 이미지 크기에 맞게 절대 좌표로 변환합니다.
     final absolute = PositionConverter.toAbsolutePosition(
       marker.relativePosition,
       imageSize,
     );
+    // 마커의 절대 좌표를 이미지 크기와 아바타 크기에 맞게 클램핑하여, 화면 밖으로 벗어나지 않도록 합니다.
     final clamped = ApiPhotoTagGeometryService.clampTagAnchor(
       absolute,
       imageSize,
       avatarSize,
     );
+
+    // 태그의 원형 부분의 중심에서 포인터의 끝까지의 오프셋을 계산하여, 마커가 가리키는 위치에 원형 아바타가 정확히 배치되도록 합니다.
     final tipOffset = TagBubble.pointerTipOffset(contentSize: avatarSize);
 
     return Positioned(
       left: clamped.dx - tipOffset.dx,
       top: clamped.dy - tipOffset.dy,
       child: IgnorePointer(
+        // 진행률 표시 원형 프로그레스 인디케이터와 프로필 이미지 아바타가 겹쳐진 형태로, 진행률이 표시된 원형 아바타를 보여줍니다.
         child: ApiPhotoPendingProgressAvatar(
           imageUrl: marker.profileImageUrlKey,
           cacheKey: _normalizeKey(marker.profileImageUrlKey),

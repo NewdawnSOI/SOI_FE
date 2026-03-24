@@ -8,6 +8,17 @@ import 'package:video_player/video_player.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 
+/// 댓글에 첨부된 사진이나 영상의 미리보기를 보여주는 위젯입니다.
+/// - 사진은 원본 비율로 보여주며, 영상은 1:1 비율로 보여줍니다.
+/// - 영상은 자동 재생되며, 소리 재생 여부는 playWithSound 플래그에 따라 결정됩니다.
+/// - 미디어 소스는 comment의 fileUrl 또는 fileKey를 통해 결정되며, fileKey가 presigned URL로 변환될 수 있습니다.
+/// - 미디어 로딩 중에는 사용자 프로필 사진을 보여주며, 로딩 실패 시에는 기본 이미지 또는 비디오 아이콘을 보여줍니다.
+///
+/// fields:
+/// - [comment]: 미디어 태그가 포함된 댓글 객체입니다. fileUrl, fileKey, userProfileUrl 등의 정보를 포함합니다.
+/// - [size]: 미리보기 위젯의 가로세로 크기를 결정하는 값입니다. 사진은 이 크기에 맞춰 원본 비율로 보여지고, 영상은 이 크기에 맞춰 1:1 비율로 보여집니다.
+/// - [autoplayVideo]: 영상 미리보기에서 영상을 자동으로 재생할지 여부를 결정하는 플래그입니다. 기본값은 true입니다.
+/// - [playWithSound]: 영상 미리보기에서 소리를 재생할지 여부를 결정하는 플래그입니다. 기본값은 true입니다.
 class CommentMediaTagPreviewWidget extends StatefulWidget {
   final Comment comment;
   final double size;

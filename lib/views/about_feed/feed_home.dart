@@ -378,6 +378,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         centerTitle: true,
         leadingWidth: 90.w,

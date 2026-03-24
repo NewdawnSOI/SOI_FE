@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"flutter test test/views/about_camera/services/photo_editor_category_flow_service_test.dart test/views/about_camera/services/photo_editor_screen_init_service_test.dart 2>&1\",\"timeout\":12000...",
-  "error": "Exit code 1\n00:00 +0: loading /Users/minchanpark/Documents/SOI/test/views/about_camera/services/photo_editor_category_flow_service_test.dart\n00:00 +0 -1: loading /Users/minchanpark/Documents/SOI/test/views/about_camera/services/photo_editor_category_flow_service_test.dart [E]\n  Failed to load \"/Users/minchanpark/Documents/SOI/test/views/about_camera/services/photo_editor_category_flow_service_test.dart\":\n  Failed to find \"/Users/minchanpark/Documents/flutter/bin/cache/artifacts/engine/darwin-x64...",
-  "timestamp": "2026-03-21T08:27:56.107Z",
-  "retry_count": 1
-}

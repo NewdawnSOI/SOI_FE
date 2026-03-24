@@ -22,7 +22,10 @@ import '../../../../api/controller/audio_controller.dart';
 import '../../../../utils/position_converter.dart';
 import '../../../../utils/snackbar_utils.dart';
 import '../../../common_widget/api_photo/api_photo_card_widget.dart';
+import '../../../common_widget/api_photo/api_user_info_widget.dart';
 import '../../../common_widget/about_comment/pending_api_voice_comment.dart';
+import '../../../common_widget/about_comment/comment_composer_v2_widget.dart';
+import '../../../common_widget/about_comment/api_voice_comment_list_sheet.dart';
 import '../../../../api/models/friend.dart';
 
 /// API 기반 사진 상세 화면
@@ -80,6 +83,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   final Map<int, PendingApiCommentDraft> _pendingCommentDrafts = {};
   final Map<int, PendingApiCommentMarker> _pendingCommentMarkers = {};
   final Map<int, String> _resolvedAudioUrls = {};
+  bool _isTextFieldFocused = false;
 
   String? _emojiFromId(int? emojiId) {
     switch (emojiId) {
@@ -230,6 +234,10 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final isKeyboardVisible = _isTextFieldFocused || keyboardInset > 0;
+    final composerBottomInset = isKeyboardVisible ? keyboardInset + 10.0 : 55.0;
+
     final platform = Theme.of(context).platform;
     final allowSystemGesturePopWithDeletion =
         platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
@@ -249,7 +257,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
         },
         child: Scaffold(
           backgroundColor: Colors.black,
-          resizeToAvoidBottomInset: true,
+          resizeToAvoidBottomInset: false,
           appBar: AppBar(
             iconTheme: const IconThemeData(color: Colors.white),
             backgroundColor: Colors.black,
@@ -278,60 +286,147 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                 ),
             ],
           ),
-          body: PageView.builder(
-            controller: _pageController,
-            itemCount: _posts.length,
-            scrollDirection: Axis.vertical,
+          body: Stack(
             clipBehavior: Clip.none,
-            onPageChanged: _onPageChanged,
-            itemBuilder: (context, index) {
-              final post = _posts[index];
-              final currentUserId = _userController?.currentUser?.userId;
-              final isOwner = currentUserId == post.nickName;
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // 사진/영상 부분만 위아래로 스크롤
+                  SizedBox(
+                    height: 500.h,
+                    child: PageView.builder(
+                      controller: _pageController,
+                      itemCount: _posts.length,
+                      scrollDirection: Axis.vertical,
+                      clipBehavior: Clip.hardEdge,
+                      onPageChanged: _onPageChanged,
+                      itemBuilder: (context, index) {
+                        final post = _posts[index];
+                        final currentUserId =
+                            _userController?.currentUser?.userId;
+                        final isOwner = currentUserId == post.nickName;
 
-              // 사용자 캐시 채우기
-              if (!_userProfileImages.containsKey(post.nickName)) {
-                _userProfileImages[post.nickName] = _userProfileImageUrl;
-                _profileLoadingStates[post.nickName] = _isLoadingProfile;
-                _userNames[post.nickName] = _userName;
-              }
+                        // 사용자 캐시 채우기
+                        if (!_userProfileImages.containsKey(post.nickName)) {
+                          _userProfileImages[post.nickName] =
+                              _userProfileImageUrl;
+                          _profileLoadingStates[post.nickName] =
+                              _isLoadingProfile;
+                          _userNames[post.nickName] = _userName;
+                        }
 
-              // post 사진 카드 위젯 반환
-              // post 사진, 카테고리 이름, 카테고리 ID 등 전달
-              return ApiPhotoCardWidget(
-                post: post,
+                        return ApiPhotoCardWidget(
+                          key: ValueKey(post.id),
+                          post: post,
+                          categoryName: widget.categoryName,
+                          categoryId: widget.categoryId,
+                          index: index,
+                          isOwner: isOwner,
+                          isArchive: true,
+                          isCategory: true,
+                          displayOnly: true,
+                          selectedEmoji: _selectedEmojisByPostId[post.id],
+                          onEmojiSelected: (emoji) =>
+                              _setSelectedEmoji(post.id, emoji),
+                          postComments: _postComments,
+                          pendingCommentDrafts: _pendingCommentDrafts,
+                          pendingVoiceComments: _pendingCommentMarkers,
+                          onToggleAudio: _toggleAudio,
+                          onProfileImageDragged: (postId, absolutePosition) {
+                            _onProfileImageDragged(postId, absolutePosition);
+                          },
+                          onCommentsReloadRequested: _loadCommentsForPost,
+                        );
+                      },
+                    ),
+                  ),
 
-                // APICategoryPhotosScreen에서 받아온 categoryName을 전달합니다.
-                categoryName: widget.categoryName,
+                  // 현재 게시물의 작성자 정보 (화면에 고정)
+                  if (_posts.isNotEmpty && _currentIndex < _posts.length) ...[
+                    SizedBox(height: 12.h),
+                    Builder(
+                      builder: (context) {
+                        final post = _posts[_currentIndex];
+                        final currentUserId =
+                            _userController?.currentUser?.userId;
+                        final isOwner = currentUserId == post.nickName;
+                        return ApiUserInfoWidget(
+                          post: post,
+                          isCurrentUserPost: isOwner,
+                          onDeletePressed: () => _deletePost(post),
+                          onCommentPressed: () {
+                            final comments = _postComments[post.id] ?? const [];
+                            showModalBottomSheet<void>(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (ctx) {
+                                return ChangeNotifierProvider(
+                                  create: (_) => AudioController(),
+                                  child: ApiVoiceCommentListSheet(
+                                    postId: post.id,
+                                    comments: comments,
+                                    onCommentsUpdated: (updatedComments) {
+                                      if (!mounted) return;
+                                      setState(() {
+                                        _postComments[post.id] =
+                                            updatedComments;
+                                      });
+                                    },
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    SizedBox(height: 10.h),
+                    // 댓글 입력창 공간 확보
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      height: isKeyboardVisible ? 0 : 90.h,
+                    ),
+                  ],
+                ],
+              ),
 
-                // APICategoryPhotosScreen에서 받아온 categoryId를 전달합니다.
-                categoryId: widget.categoryId,
-                index: index,
-                isOwner: isOwner,
-                isArchive: true,
-                isCategory: true,
-                selectedEmoji:
-                    _selectedEmojisByPostId[post.id], // postId별 선택값 표시
-                onEmojiSelected: (emoji) => _setSelectedEmoji(post.id, emoji),
-                postComments: _postComments,
-                pendingCommentDrafts: _pendingCommentDrafts,
-                pendingVoiceComments: _pendingCommentMarkers,
-                onToggleAudio: _toggleAudio,
-                onTextCommentCompleted: (postId, text) async {
-                  await _onTextCommentCreated(postId, text);
-                },
-                onAudioCommentCompleted: _onAudioCommentCompleted,
-                onMediaCommentCompleted: _onMediaCommentCompleted,
-                onProfileImageDragged: (postId, absolutePosition) {
-                  _onProfileImageDragged(postId, absolutePosition);
-                },
-                onCommentSaveProgress: _onCommentSaveProgress,
-                onCommentSaveSuccess: _onCommentSaveSuccess,
-                onCommentSaveFailure: _onCommentSaveFailure,
-                onDeletePressed: () => _deletePost(post),
-                onCommentsReloadRequested: _loadCommentsForPost,
-              );
-            },
+              // 댓글 입력창 (화면에 고정)
+              // 키보드가 올라오면 viewInsets.bottom 만큼 위로 올라가고,
+              // 키보드가 없으면 탭바 위 55px에 위치합니다.
+              if (_posts.isNotEmpty && _currentIndex < _posts.length)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: AnimatedPadding(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    padding: EdgeInsets.only(bottom: composerBottomInset),
+                    child: CommentComposerV2Widget(
+                      postId: _posts[_currentIndex].id,
+                      pendingCommentDrafts: _pendingCommentDrafts,
+                      onTextCommentCompleted: (postId, text) async {
+                        await _onTextCommentCreated(postId, text);
+                      },
+                      onAudioCommentCompleted: _onAudioCommentCompleted,
+                      onMediaCommentCompleted: _onMediaCommentCompleted,
+                      resolveDropRelativePosition: (postId) =>
+                          _pendingCommentMarkers[postId]?.relativePosition,
+                      onCommentSaveProgress: _onCommentSaveProgress,
+                      onCommentSaveSuccess: _onCommentSaveSuccess,
+                      onCommentSaveFailure: _onCommentSaveFailure,
+                      onTextFieldFocusChanged: (isFocused) {
+                        setState(() {
+                          _isTextFieldFocused = isFocused;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

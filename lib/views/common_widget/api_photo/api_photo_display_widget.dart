@@ -701,6 +701,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                   )
                 : mediaFrame;
 
+            // 드래그 앤 드롭을 위한 DragTarget으로 전체 영역을 감싸서, 프로필 태그가 드롭될 때 위치 정보를 받을 수 있도록 합니다.
             return DragTarget<String>(
               onWillAcceptWithDetails: (details) => details.data.isNotEmpty,
               onAcceptWithDetails: (details) {

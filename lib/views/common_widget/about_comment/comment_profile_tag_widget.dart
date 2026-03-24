@@ -17,6 +17,16 @@ import 'comment_save_payload.dart';
 /// - 댓글 작성자의 프로필 이미지를 원형으로 보여주는 태그입니다.
 /// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
 /// - 댓글 작성이 완료되면, 부모 위젯에 댓글 저장 진행 상황과 결과를 전달하는 역할도 수행합니다.
+///
+/// fields:
+/// - [payload]: 댓글 저장에 필요한 정보를 담고 있는 객체입니다. 텍스트 댓글, 음성 댓글, 미디어 댓글 등 다양한 유형의 댓글 저장에 필요한 정보를 포함합니다.
+/// - [resolveDropRelativePosition]: 드래그가 완료된 후, 댓글이 작성될 위치의 상대 좌표를 비동기로 조회하는 함수입니다. 댓글이 작성될 위치를 결정하는 데 사용됩니다.
+/// - [onSaveProgress]: 댓글 저장 진행 상황이 업데이트될 때 호출되는 콜백 함수입니다. 진행 상황을 0.0 ~ 1.0 사이의 값으로 전달하여, 부모 위젯에서 프로그레스 표시 등에 활용할 수 있도록 합니다.
+/// - [onSaveSuccess]: 댓글 저장이 성공적으로 완료되었을 때 호출되는 콜백 함수입니다. 저장된 댓글 객체를 인자로 전달하여, 부모 위젯에서 저장된 댓글 정보를 활용할 수 있도록 합니다.
+/// - [onSaveFailure]: 댓글 저장이 실패했을 때 호출되는 콜백 함수입니다. 발생한 오류 객체를 인자로 전달하여, 부모 위젯에서 오류 처리 등을 할 수 있도록 합니다.
+/// - [onDropCancelled]: 드래그가 취소되었을 때 호출되는 콜백 함수입니다. 댓글 작성이 취소되었음을 부모 위젯에 알리는 역할을 합니다.
+/// - [dragData]: 드래그할 때 전달되는 데이터입니다. 기본값은 'profile_image'입니다.
+/// - [avatarSize]: 프로필 태그의 원형 부분의 크기를 결정하는 값입니다. 기본값은 27입니다.
 class CommentProfileTagWidget extends StatefulWidget {
   final CommentSavePayload payload;
   final FutureOr<Offset?> Function() resolveDropRelativePosition;

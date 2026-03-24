@@ -9,6 +9,18 @@ class CommentTextInputWidget extends StatefulWidget {
   final String initialText;
   final bool autoFocus;
 
+  /// 댓글 입력창 위젯입니다.
+  /// - 텍스트 입력과 제출 기능을 제공합니다.
+  /// - 제출 중에는 입력과 제출 버튼이 비활성화됩니다.
+  ///
+  /// fields:
+  /// - [onSubmitText]: 텍스트 제출 시 호출되는 콜백 함수입니다. 비동기 함수로, 텍스트를 인자로 받아 처리합니다.
+  /// - [onFocusChanged]: 입력창의 포커스 상태가 변경될 때 호출되는 콜백 함수입니다. 포커스 상태를 bool 값으로 전달합니다.
+  /// - [onEditingCancelled]: 입력창이 포커스를 잃고 텍스트가 비어 있을 때 호출되는 콜백 함수입니다. 편집이 취소되었음을 알립니다.
+  /// - [hintText]: 입력창에 표시되는 힌트 텍스트입니다. 기본값은 '댓글 추가...'입니다.
+  /// - [initialText]: 입력창이 처음 렌더링될 때 설정되는 초기 텍스트입니다. 기본값은 빈 문자열입니다.
+  /// - [autoFocus]: 위젯이 렌더링될 때 자동으로 포커스를 받을지 여부를 결정하는 플래그입니다. 기본값은 true입니다.
+
   const CommentTextInputWidget({
     super.key,
     required this.onSubmitText,

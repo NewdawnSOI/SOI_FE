@@ -19,10 +19,10 @@ import '../about_comment/pending_api_voice_comment.dart';
 import '../report/report_bottom_sheet.dart';
 import 'tag_pointer.dart';
 
-/// 사진 카드 위젯
-/// 사진과 관련된 정보(작성자, 작성 날짜 등)를 표시하고, 댓글 작성과 댓글 태그 기능을 포함하는 위젯입니다.
-/// 댓글 태그가 확장될 때, 해당 태그의 내용을 보여주는 오버레이를 관리하는 기능도 포함합니다.
-/// 사진 카드 위젯은 피드 페이지, 아카이브 상세 페이지, 카테고리 페이지 등에서 사용될 수 있다.
+/// 사진 카드 위젯.
+/// 사진과 작성자 정보를 보여주고, 댓글 작성과 댓글 태그 기능을 제공합니다.
+/// 댓글 태그를 탭하면 내용을 크게 보여주는 팝업도 관리합니다.
+/// 피드, 아카이브 상세, 카테고리 페이지 등에서 사용됩니다.
 ///
 /// Parameters:
 /// - [post]: 표시할 게시물 데이터
@@ -59,6 +59,10 @@ class ApiPhotoCardWidget extends StatefulWidget {
   final bool isCategory;
   final bool isFromCamera;
 
+  /// true이면 사진/영상 부분만 표시하고, 작성자 정보와 댓글 입력창은 표시하지 않습니다.
+  /// 피드에서 사진 영역만 스크롤할 때 사용합니다.
+  final bool displayOnly;
+
   // postId별 선택된 이모지 (부모가 관리)
   final String? selectedEmoji;
   final ValueChanged<String?>? onEmojiSelected; // 부모 캐시 갱신 콜백
@@ -72,21 +76,21 @@ class ApiPhotoCardWidget extends StatefulWidget {
 
   // 콜백 함수들
   final Function(Post) onToggleAudio;
-  final Function(int, String) onTextCommentCompleted;
+  final Function(int, String)? onTextCommentCompleted;
   final Future<void> Function(
     int postId,
     String audioPath,
     List<double> waveformData,
     int durationMs,
-  )
+  )?
   onAudioCommentCompleted;
-  final Future<void> Function(int postId, String localFilePath, bool isVideo)
+  final Future<void> Function(int postId, String localFilePath, bool isVideo)?
   onMediaCommentCompleted;
   final Function(int, Offset) onProfileImageDragged;
-  final void Function(int, double) onCommentSaveProgress;
-  final void Function(int, Comment) onCommentSaveSuccess;
-  final void Function(int, Object) onCommentSaveFailure;
-  final VoidCallback onDeletePressed;
+  final void Function(int, double)? onCommentSaveProgress;
+  final void Function(int, Comment)? onCommentSaveSuccess;
+  final void Function(int, Object)? onCommentSaveFailure;
+  final VoidCallback? onDeletePressed;
   final Future<void> Function(int postId)? onCommentsReloadRequested;
 
   const ApiPhotoCardWidget({
@@ -99,6 +103,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
     this.isArchive = false,
     this.isCategory = false,
     this.isFromCamera = false,
+    this.displayOnly = false,
     this.selectedEmoji,
     this.onEmojiSelected,
     this.onReportSubmitted,
@@ -106,14 +111,14 @@ class ApiPhotoCardWidget extends StatefulWidget {
     required this.pendingCommentDrafts,
     this.pendingVoiceComments = const {},
     required this.onToggleAudio,
-    required this.onTextCommentCompleted,
-    required this.onAudioCommentCompleted,
-    required this.onMediaCommentCompleted,
+    this.onTextCommentCompleted,
+    this.onAudioCommentCompleted,
+    this.onMediaCommentCompleted,
     required this.onProfileImageDragged,
-    required this.onCommentSaveProgress,
-    required this.onCommentSaveSuccess,
-    required this.onCommentSaveFailure,
-    required this.onDeletePressed,
+    this.onCommentSaveProgress,
+    this.onCommentSaveSuccess,
+    this.onCommentSaveFailure,
+    this.onDeletePressed,
     this.onCommentsReloadRequested,
   });
 
@@ -121,6 +126,9 @@ class ApiPhotoCardWidget extends StatefulWidget {
   State<ApiPhotoCardWidget> createState() => _ApiPhotoCardWidgetState();
 }
 
+/// ApiPhotoCardWidget의 상태 관리 클래스.
+/// 댓글 태그를 탭했을 때 나타나는 팝업 애니메이션을 관리합니다.
+/// displayOnly 모드에서도 팝업 관련 기능은 그대로 동작합니다.
 class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     with SingleTickerProviderStateMixin {
   static const Duration _kOverlayExpandDuration = Duration(milliseconds: 220);
@@ -132,10 +140,12 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   late final AnimationController _overlayExpandController;
   late final Animation<double> _overlayExpandAnimation;
 
+  /// 텍스트 댓글 작성이 완료되면 부모 위젯에 알립니다.
   Future<void> _handleTextCommentCreated(String text) async {
-    await widget.onTextCommentCompleted(widget.post.id, text);
+    await widget.onTextCommentCompleted?.call(widget.post.id, text);
   }
 
+  /// 작성 중인 댓글의 종류를 반환합니다. 통계 기록에 사용됩니다.
   String _currentTagContentType() {
     final draft = widget.pendingCommentDrafts[widget.post.id];
     if (draft == null) {
@@ -157,12 +167,17 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     return 'unknown';
   }
 
+  /// 댓글 태그가 사진에 저장됐을 때 통계 이벤트를 전송합니다.
+  /// 어느 화면인지, 댓글 종류, 기존 태그 수 등의 정보를 함께 보냅니다.
   Future<void> _trackCommentTagSaved({
     required Comment comment,
     required int existingTagCountBefore,
   }) async {
     try {
+      // AnalyticsService 인스턴스를 가지고 옵니다.
       final analytics = context.read<AnalyticsService>();
+
+      // 이벤트 속성을 설정합니다.
       final properties = <String, dynamic>{
         'post_id': widget.post.id,
         'category_id': widget.categoryId,
@@ -172,11 +187,16 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
         'existing_tag_count_after': existingTagCountBefore + 1,
       };
 
+      // comment.id가 null이 아닐 때만 comment_id 속성을 추가합니다.
       if (comment.id != null) {
         properties['comment_id'] = comment.id;
       }
 
+      // Mixpanel에 이벤트를 전송합니다.
       await analytics.track('comment_tag_saved', properties: properties);
+
+      // 디버그 모드에서는 이벤트가 즉시 전송되도록 flush를 호출합니다.
+      // release 모드에서는 Mixpanel SDK가 자체적으로 최적화된 타이밍에 이벤트를 전송하므로 flush를 호출하지 않습니다.
       if (kDebugMode) {
         analytics.flush();
       }
@@ -185,6 +205,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     }
   }
 
+  /// 음성 댓글을 드래그해서 사진에 태그할 때의 위치를 반환합니다.
   Offset? _resolveDropRelativePosition(int postId) {
     return widget.pendingVoiceComments[postId]?.relativePosition;
   }
@@ -205,6 +226,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   @override
   void didUpdateWidget(covariant ApiPhotoCardWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 보여주는 게시물이 바뀌면 이전 팝업을 닫습니다.
     if (oldWidget.post.id != widget.post.id) {
       _removeExpandedMediaOverlay();
     }
@@ -212,18 +234,20 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
 
   @override
   void deactivate() {
+    // 화면에서 사라질 때(페이지 이동 등) 팝업을 닫습니다.
     _removeExpandedMediaOverlay();
     super.deactivate();
   }
 
   @override
   void dispose() {
+    // 위젯이 완전히 제거될 때 팝업과 애니메이션을 정리합니다.
     _removeExpandedMediaOverlay();
     _overlayExpandController.dispose();
     super.dispose();
   }
 
-  // 미디어 댓글이 확장 가능한지 여부를 판단하는 메서드
+  /// 현재 열려 있는 댓글 태그 팝업을 닫고 애니메이션을 초기화합니다.
   void _removeExpandedMediaOverlay() {
     _overlayExpandController.stop();
     _overlayExpandController.reset();
@@ -232,7 +256,8 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     _expandedOverlayData = null;
   }
 
-  // 미디어 댓글이 확장 가능한지 여부를 판단하는 메서드
+  /// 사진에서 댓글 태그를 탭했을 때 호출됩니다.
+  /// data가 null이면 팝업을 닫고, 값이 있으면 팝업을 열거나 내용을 업데이트합니다.
   void _handleExpandedMediaOverlayChanged(ExpandedMediaTagOverlayData? data) {
     if (!mounted) return;
     if (data == null) {
@@ -254,6 +279,8 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     _overlayExpandController.forward(from: 0.0);
   }
 
+  /// 댓글 태그 팝업 위젯을 만듭니다.
+  /// 화면 밖으로 넘어가지 않도록 위치를 조정하고, 열릴 때 크기가 커지는 애니메이션을 적용합니다.
   Widget _buildExpandedMediaOverlayEntry(BuildContext overlayContext) {
     final data = _expandedOverlayData;
     if (data == null) return const SizedBox.shrink();
@@ -330,11 +357,43 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     );
   }
 
+  /// 카드 레이아웃을 구성합니다.
+  ///
+  /// - displayOnly가 true이면: 사진/영상만 보여줍니다 (피드 스크롤 화면에서 사용).
+  /// - displayOnly가 false이면: 사진 + 작성자 정보 + 댓글 입력창을 모두 보여줍니다
+  ///   (아카이브, 카테고리 상세 화면에서 사용).
   @override
   Widget build(BuildContext context) {
-    final isKeyboardVisible = _isTextFieldFocused;
-    final bottomPadding = isKeyboardVisible
-        ? 10.0
+    // displayOnly 모드: ApiPhotoDisplayWidget만 렌더링 (UserInfo, Composer 제외)
+    if (widget.displayOnly) {
+      return VisibilityDetector(
+        key: ValueKey('api_photo_card_${widget.post.id}'),
+        onVisibilityChanged: (info) {
+          if (info.visibleFraction < 0.55 && _expandedOverlayEntry != null) {
+            _removeExpandedMediaOverlay();
+          }
+        },
+        child: ApiPhotoDisplayWidget(
+          key: ValueKey(widget.post.id),
+          post: widget.post,
+          categoryId: widget.categoryId,
+          categoryName: widget.categoryName,
+          isArchive: widget.isArchive,
+          isFromCamera: widget.isFromCamera,
+          postComments: widget.postComments,
+          onProfileImageDragged: widget.onProfileImageDragged,
+          onToggleAudio: widget.onToggleAudio,
+          pendingVoiceComments: widget.pendingVoiceComments,
+          onCommentsReloadRequested: widget.onCommentsReloadRequested,
+          onExpandedMediaOverlayChanged: _handleExpandedMediaOverlayChanged,
+        ),
+      );
+    }
+
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final isKeyboardVisible = _isTextFieldFocused || keyboardInset > 0;
+    final composerBottomInset = isKeyboardVisible
+        ? keyboardInset + 10.0
         : (widget.isCategory ? 55.0 : 10.0);
 
     return VisibilityDetector(
@@ -413,7 +472,11 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                 SizedBox(height: 10.h),
 
                 // 음성 녹음 위젯을 위한 공간 확보
-                SizedBox(height: 90.h),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  height: isKeyboardVisible ? 0 : 90.h,
+                ),
               ],
             ),
           ),
@@ -422,51 +485,58 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
           Positioned(
             left: 0,
             right: 0,
-            bottom: bottomPadding,
-            child: CommentComposerV2Widget(
-              postId: widget.post.id,
-              pendingCommentDrafts: widget.pendingCommentDrafts,
-              onTextCommentCompleted: (postId, text) =>
-                  _handleTextCommentCreated(text),
-              onAudioCommentCompleted:
-                  (postId, audioPath, waveformData, durationMs) =>
-                      widget.onAudioCommentCompleted(
-                        postId,
-                        audioPath,
-                        waveformData,
-                        durationMs,
-                      ),
-              onMediaCommentCompleted: (postId, localFilePath, isVideo) =>
-                  widget.onMediaCommentCompleted(
-                    postId,
-                    localFilePath,
-                    isVideo,
-                  ),
-              resolveDropRelativePosition: _resolveDropRelativePosition,
-              onCommentSaveProgress: widget.onCommentSaveProgress,
-              onCommentSaveSuccess: (postId, comment) {
-                final existingTagCountBefore =
-                    (widget.postComments[widget.post.id] ?? const <Comment>[])
-                        .where((existingComment) => existingComment.hasLocation)
-                        .length;
-
-                if (comment.hasLocation) {
-                  unawaited(
-                    _trackCommentTagSaved(
-                      comment: comment,
-                      existingTagCountBefore: existingTagCountBefore,
+            bottom: 0,
+            child: AnimatedPadding(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.only(bottom: composerBottomInset),
+              child: CommentComposerV2Widget(
+                postId: widget.post.id,
+                pendingCommentDrafts: widget.pendingCommentDrafts,
+                onTextCommentCompleted: (postId, text) =>
+                    _handleTextCommentCreated(text),
+                onAudioCommentCompleted:
+                    (postId, audioPath, waveformData, durationMs) =>
+                        widget.onAudioCommentCompleted!(
+                          postId,
+                          audioPath,
+                          waveformData,
+                          durationMs,
+                        ),
+                onMediaCommentCompleted: (postId, localFilePath, isVideo) =>
+                    widget.onMediaCommentCompleted!(
+                      postId,
+                      localFilePath,
+                      isVideo,
                     ),
-                  );
-                }
+                resolveDropRelativePosition: _resolveDropRelativePosition,
+                onCommentSaveProgress: widget.onCommentSaveProgress!,
+                onCommentSaveSuccess: (postId, comment) {
+                  final existingTagCountBefore =
+                      (widget.postComments[widget.post.id] ?? const <Comment>[])
+                          .where(
+                            (existingComment) => existingComment.hasLocation,
+                          )
+                          .length;
 
-                widget.onCommentSaveSuccess(postId, comment);
-              },
-              onCommentSaveFailure: widget.onCommentSaveFailure,
-              onTextFieldFocusChanged: (isFocused) {
-                setState(() {
-                  _isTextFieldFocused = isFocused;
-                });
-              },
+                  if (comment.hasLocation) {
+                    unawaited(
+                      _trackCommentTagSaved(
+                        comment: comment,
+                        existingTagCountBefore: existingTagCountBefore,
+                      ),
+                    );
+                  }
+
+                  widget.onCommentSaveSuccess!(postId, comment);
+                },
+                onCommentSaveFailure: widget.onCommentSaveFailure!,
+                onTextFieldFocusChanged: (isFocused) {
+                  setState(() {
+                    _isTextFieldFocused = isFocused;
+                  });
+                },
+              ),
             ),
           ),
         ],
