@@ -163,6 +163,8 @@ extension AppDelegate {
       recorder.checkMicrophonePermission(result: result)
     case "requestMicrophonePermission":
       recorder.requestMicrophonePermission(result: result)
+    case "prepareRecorder":
+      recorder.prepareRecorder(result: result)
     case "startRecording":
       if let args = call.arguments as? [String: Any],
          let filePath = args["filePath"] as? String {

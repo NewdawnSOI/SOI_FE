@@ -146,10 +146,7 @@ rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/commo
 - 한국어 상세: `docs/AI_AGENT_PLAYBOOK.md`
 - 영어 상세: `docs/AI_AGENT_PLAYBOOK.en.md`
 
-## 12. Skill 라우팅 강제 규칙 (Claude Code 전용)
-- 모든 사용자 프롬프트는 구현/분석/실행 전에 반드시 `prompt-json-first` 스킬을 먼저 적용한다.
-- 다른 스킬이 함께 필요한 경우에도 순서는 항상 `prompt-json-first` -> 대상 스킬 순서를 유지한다.
-- 사용자가 특정 스킬만 명시했더라도, 충돌 지시가 없는 한 `prompt-json-first`를 선행 적용한다.
+## 12. Skill/도구 라우팅 규칙 (Claude Code 전용)
 - 코드베이스 탐색 시 Serena(`mcp__plugin_serena_serena__*`) 도구를 우선 사용하고, 단순 경로 검색만 필요하면 Glob/Grep을 직접 사용한다.
 
 ## 13. 앱 초기화 순서 (Boot Sequence)

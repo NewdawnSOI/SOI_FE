@@ -90,6 +90,7 @@ class CameraManager(
             "prepareCamera" -> {
                 ensureCameraProvider { result.success(null) }
             }
+            "prepareCaptureResources" -> prepareCaptureResources(result)
             "initCamera" -> {
                 ensureCameraProvider {
                     val ok = bindUseCases()
@@ -199,6 +200,14 @@ class CameraManager(
             },
             mainExecutor,
         )
+    }
+
+    // prepareCaptureResources는 앱 시작 시 camera provider를 먼저 확보해
+    // 첫 카메라 탭 진입 전에 기본 카메라 리소스 준비 비용을 앞당깁니다.
+    private fun prepareCaptureResources(result: MethodChannel.Result) {
+        ensureCameraProvider {
+            result.success(true)
+        }
     }
 
     private fun bindUseCases(): Boolean {

@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart' as ap;
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+typedef _PermissionStatusLoader = Future<PermissionStatus> Function();
+typedef _PrimeRecorderResources = Future<void> Function();
 
 /// API 기반 음성 댓글 오디오 컨트롤러
 ///
@@ -16,6 +20,26 @@ class AudioController extends ChangeNotifier {
   static const MethodChannel _recorderChannel = MethodChannel(
     'native_recorder',
   );
+
+  AudioController({
+    Future<PermissionStatus> Function()? loadMicrophonePermissionStatus,
+    Future<void> Function()? primeRecorderResources,
+  }) : _loadMicrophonePermissionStatus =
+           loadMicrophonePermissionStatus ??
+           _defaultLoadMicrophonePermissionStatus,
+       _primeRecorderResources =
+           primeRecorderResources ?? _defaultPrimeRecorderResources;
+
+  static Future<PermissionStatus> _defaultLoadMicrophonePermissionStatus() {
+    return Permission.microphone.status;
+  }
+
+  static Future<void> _defaultPrimeRecorderResources() async {
+    await _recorderChannel.invokeMethod('prepareRecorder');
+  }
+
+  final _PermissionStatusLoader _loadMicrophonePermissionStatus;
+  final _PrimeRecorderResources _primeRecorderResources;
 
   // ==================== 상태 관리 ====================
 
@@ -58,6 +82,14 @@ class AudioController extends ChangeNotifier {
 
   /// 녹음 시간 측정을 위한 타이머
   Timer? _recordingTimer;
+
+  /// 녹음기 리소스가 선초기화되었는지 여부
+  /// true: 권한이 허용된 상태에서 워밍업이 완료되어 첫 녹음 시 네이티브 준비 지연이 없습니다.
+  /// false: 권한이 없거나 아직 워밍업되지 않아 첫 녹음 시 네이티브 준비 지연이 발생할 수 있습니다.
+  bool _hasPrimedRecorderResources = false;
+
+  /// 녹음기 워밍업이 진행 중인 경우 해당 Future를 참조하여 중복 워밍업을 방지합니다.
+  Future<void>? _recorderWarmupInFlight;
 
   // ==================== Getters ====================
 
@@ -248,7 +280,7 @@ class AudioController extends ChangeNotifier {
 
   void _setError(String message) {
     _error = message;
-    debugPrint('🔴 ApiCommentAudioController Error: $message');
+    debugPrint('ApiCommentAudioController Error: $message');
     notifyListeners();
   }
 
@@ -257,6 +289,50 @@ class AudioController extends ChangeNotifier {
   }
 
   // ==================== 녹음 관련 메서드 (photo_editor_screen 호환성) ====================
+
+  /// primeRecorderIfPermitted는 앱 진입 시 녹음 권한이 허용된 경우 녹음기 리소스를 선초기화하여
+  /// 첫 녹음 시 네이티브 준비 지연이 없도록 보장합니다. 권한이 없거나 이미 워밍업된 경우에는 빠르게 반환합니다.
+  Future<void> primeRecorderIfPermitted() async {
+    final microphoneStatus = await _loadMicrophonePermissionStatus();
+    if (!microphoneStatus.isGranted || _hasPrimedRecorderResources) {
+      return;
+    }
+
+    // 이미 워밍업이 진행 중인 경우 해당 Future를 반환하여 중복 워밍업을 방지합니다.
+    final inFlight = _recorderWarmupInFlight;
+
+    //
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    // 실제 워밍업 작업을 시작하고 상태를 추적합니다.
+    final future = _primeRecorderResourcesIfNeeded();
+    _recorderWarmupInFlight = future;
+
+    try {
+      await future;
+    } finally {
+      if (identical(_recorderWarmupInFlight, future)) {
+        _recorderWarmupInFlight = null;
+      }
+    }
+  }
+
+  /// _primeRecorderResourcesIfNeeded는 플랫폼별 녹음기 준비를 호출하고
+  /// 앱 세션 동안 한 번만 워밍업되도록 상태를 캐시합니다.
+  Future<void> _primeRecorderResourcesIfNeeded() async {
+    try {
+      await _primeRecorderResources(); // 플랫폼별 녹음기 준비 호출
+      _hasPrimedRecorderResources = true; // 워밍업 완료 상태 캐시
+    } on PlatformException catch (e) {
+      if (e.code != 'unimplemented') {
+        debugPrint('녹음기 선초기화 실패: ${e.message}');
+      }
+    } catch (e) {
+      debugPrint('녹음기 선초기화 실패: $e');
+    }
+  }
 
   /// 네이티브 녹음 시작
   Future<void> startRecording() async {
@@ -326,13 +402,10 @@ class AudioController extends ChangeNotifier {
     }
   }
 
-  /// Controller 초기화
-  ///
-  /// photo_editor_screen과의 호환성을 위해 추가된 메서드
-  /// 실제 초기화 로직은 필요하지 않음 (재생만 사용)
+  /// initialize는 편집 화면이 붙기 전에 녹음기 워밍업을 재사용하거나 보완해
+  /// 첫 오디오 녹음 시 네이티브 준비 지연이 남지 않도록 보장합니다.
   Future<void> initialize() async {
-    // API 버전에서는 별도 초기화가 필요하지 않음
-    // Firebase 버전과의 호환성을 위해 메서드만 제공
+    await primeRecorderIfPermitted();
     debugPrint('✅ API AudioController 초기화 완료');
   }
 

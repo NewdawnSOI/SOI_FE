@@ -15,6 +15,9 @@ typedef _GetAssetPathList =
       PMFilter? filterOption,
     });
 typedef _Now = DateTime Function();
+typedef _PermissionStatusLoader = Future<PermissionStatus> Function();
+typedef _PrepareCaptureResources =
+    Future<void> Function({required bool prepareRecording});
 
 /// CameraService는 카메라 기능과 관련된 모든 네이티브 통신을 담당하는 싱글톤 서비스입니다.
 class CameraService {
@@ -25,10 +28,20 @@ class CameraService {
     _RequestGalleryPermission? requestGalleryPermission,
     _GetAssetPathList? getAssetPathList,
     _Now? now,
+    _PermissionStatusLoader? loadCameraPermissionStatus,
+    _PermissionStatusLoader? loadMicrophonePermissionStatus,
+    _PrepareCaptureResources? prepareCaptureResources,
   }) : _requestGalleryPermission =
            requestGalleryPermission ?? _defaultRequestGalleryPermission,
        _getAssetPathList = getAssetPathList ?? _defaultGetAssetPathList,
-       _now = now ?? DateTime.now {
+       _now = now ?? DateTime.now,
+       _loadCameraPermissionStatus =
+           loadCameraPermissionStatus ?? _defaultLoadCameraPermissionStatus,
+       _loadMicrophonePermissionStatus =
+           loadMicrophonePermissionStatus ??
+           _defaultLoadMicrophonePermissionStatus,
+       _prepareCaptureResources =
+           prepareCaptureResources ?? _defaultPrepareCaptureResources {
     _cameraChannel.setMethodCallHandler(_handleNativeMethodCall);
   }
 
@@ -45,11 +58,18 @@ class CameraService {
     })
     getAssetPathList,
     required DateTime Function() now,
+    Future<PermissionStatus> Function()? loadCameraPermissionStatus,
+    Future<PermissionStatus> Function()? loadMicrophonePermissionStatus,
+    Future<void> Function({required bool prepareRecording})?
+    prepareCaptureResources,
   }) {
     return CameraService._internal(
       requestGalleryPermission: requestGalleryPermission,
       getAssetPathList: getAssetPathList,
       now: now,
+      loadCameraPermissionStatus: loadCameraPermissionStatus,
+      loadMicrophonePermissionStatus: loadMicrophonePermissionStatus,
+      prepareCaptureResources: prepareCaptureResources,
     );
   }
 
@@ -69,9 +89,35 @@ class CameraService {
     );
   }
 
+  static Future<PermissionStatus> _defaultLoadCameraPermissionStatus() {
+    return Permission.camera.status;
+  }
+
+  static Future<PermissionStatus> _defaultLoadMicrophonePermissionStatus() {
+    return Permission.microphone.status;
+  }
+
+  static Future<void> _defaultPrepareCaptureResources({
+    required bool prepareRecording,
+  }) async {
+    try {
+      await _cameraChannel.invokeMethod('prepareCaptureResources', {
+        'prepareRecording': prepareRecording,
+      });
+    } on PlatformException catch (e) {
+      if (e.code != 'unimplemented') {
+        rethrow;
+      }
+      await _cameraChannel.invokeMethod('prepareCamera');
+    }
+  }
+
   final _RequestGalleryPermission _requestGalleryPermission;
   final _GetAssetPathList _getAssetPathList;
   final _Now _now;
+  final _PermissionStatusLoader _loadCameraPermissionStatus;
+  final _PermissionStatusLoader _loadMicrophonePermissionStatus;
+  final _PrepareCaptureResources _prepareCaptureResources;
 
   // 카메라 세션 상태 추적
   bool _isSessionActive = false;
@@ -115,6 +161,11 @@ class CameraService {
   static const Duration _permissionCacheDuration = Duration(seconds: 10);
   Future<PermissionState>? _galleryPermissionInFlight;
 
+  // 앱 진입 직후 캡처 리소스 선초기화 상태 추적
+  bool _hasPreparedCaptureResources = false;
+  bool _hasPreparedRecordingResources = false;
+  Future<void>? _captureWarmupInFlight;
+
   // 오디오 녹음 상태 관리
   final bool _isRecording = false;
   String? _currentRecordingPath;
@@ -139,16 +190,52 @@ class CameraService {
   Stream<String> get onVideoRecorded => _videoRecordedController.stream;
   Stream<String> get onVideoError => _videoErrorController.stream;
 
-  /// 카메라 세션 준비 (권한 확인 포함)
+  /// prepareSessionIfPermitted는 권한이 이미 허용된 카메라/녹화 리소스를 선초기화해
+  /// 첫 카메라 진입과 첫 녹화 시작 시의 네이티브 준비 비용을 앞당깁니다.
   Future<void> prepareSessionIfPermitted() async {
-    final status = await Permission.camera.status; // 카메라 권한 상태 확인
-    if (!status.isGranted) {
+    final cameraStatus = await _loadCameraPermissionStatus();
+    if (!cameraStatus.isGranted) {
       return;
     }
 
+    final microphoneStatus = await _loadMicrophonePermissionStatus();
+    final shouldPrepareRecording = microphoneStatus.isGranted;
+
+    if (_hasPreparedCaptureResources &&
+        (!shouldPrepareRecording || _hasPreparedRecordingResources)) {
+      return;
+    }
+
+    final inFlight = _captureWarmupInFlight;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _prepareCaptureResourcesIfNeeded(
+      prepareRecording: shouldPrepareRecording,
+    );
+    _captureWarmupInFlight = future;
+
     try {
-      // 네이티브 메서드 호출로 카메라 세션 준비
-      await _cameraChannel.invokeMethod('prepareCamera');
+      await future;
+    } finally {
+      if (identical(_captureWarmupInFlight, future)) {
+        _captureWarmupInFlight = null;
+      }
+    }
+  }
+
+  /// _prepareCaptureResourcesIfNeeded는 플랫폼별 워밍업 채널을 호출해
+  /// 카메라 세션과 선택적 녹화 파이프라인 준비 상태를 캐시합니다.
+  Future<void> _prepareCaptureResourcesIfNeeded({
+    required bool prepareRecording,
+  }) async {
+    try {
+      await _prepareCaptureResources(prepareRecording: prepareRecording);
+      _hasPreparedCaptureResources = true;
+      if (prepareRecording) {
+        _hasPreparedRecordingResources = true;
+      }
     } on PlatformException {
       return;
     }

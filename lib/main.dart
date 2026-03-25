@@ -16,6 +16,7 @@ import 'package:kakao_flutter_sdk_share/kakao_flutter_sdk_share.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soi/api/controller/audio_controller.dart';
 import 'package:soi/api/controller/friend_controller.dart' as api_friend;
 import 'package:soi/api/controller/user_controller.dart';
 
@@ -32,7 +33,7 @@ import 'utils/app_route_observer.dart';
 void main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  await _lockPortraitOrientation();
+  await _lockPortraitOrientation(); // 앱 전체를 세로 모드로 고정합니다.
   final initialLocale = resolveSupportedLocale(
     PlatformDispatcher.instance.locale,
   );
@@ -65,6 +66,7 @@ void main() async {
   final analyticsService = await _createAnalyticsService();
 
   final userController = UserController();
+  final audioController = AudioController();
   final didAutoLogin = await userController.tryAutoLogin();
   if (didAutoLogin) {
     await userController.refreshCurrentUser();
@@ -84,12 +86,14 @@ void main() async {
       child: MyApp(
         hasSeenLaunchVideo: hasSeenLaunchVideo,
         preloadedUserController: userController,
+        preloadedAudioController: audioController,
         analyticsService: analyticsService,
       ),
     ),
   );
 }
 
+/// 지원되는 날짜 형식을 초기화하는 함수입니다.
 Future<void> _initializeSupportedDateFormatting() async {
   await Future.wait(
     supportedDateFormattingLocales.map(
@@ -109,22 +113,31 @@ Future<AnalyticsService> _createAnalyticsService() async {
 
 /// 앱 전체에서 사용되는 이미지 캐시 설정을 구성하는 함수입니다.
 void _configureImageCache() {
+  // Flutter의 전역 이미지 캐시 인스턴스입니다.
   final cache = PaintingBinding.instance.imageCache;
+
+  // 디버그 모드에서는 더 많은 이미지를 캐시하도록 설정해서 개발 중에 이미지 로딩이 더 원활하게 느껴지도록 합니다.
+  // 릴리즈 모드에서는 메모리 사용을 줄이기 위해 캐시 크기를 제한합니다.
   const maxItems = kDebugMode
       ? AppConstant.imageCacheMaxItemsDebug
       : AppConstant.imageCacheMaxItemsRelease;
+
+  // 최대 캐시 크기를 MB 단위로 계산합니다.
   const maxBytes = maxItems * AppConstant.bytesPerMb;
 
-  cache.maximumSize = maxItems;
-  cache.maximumSizeBytes = maxBytes;
+  cache.maximumSize = maxItems; // 캐시할 최대 이미지 수를 설정합니다.
+  cache.maximumSizeBytes = maxBytes; // 캐시할 최대 이미지 크기를 바이트 단위로 설정합니다.
 }
 
 /// 앱의 에러 핸들링을 구성하는 함수입니다.
+/// FlutterError.onError와 PlatformDispatcher.instance.onError를 설정해서,
+/// Flutter 프레임워크와 플랫폼 레벨에서 발생하는 에러를 처리할 수 있도록 합니다.
 void _configureErrorHandling() {
   FlutterError.onError = FlutterError.presentError;
   PlatformDispatcher.instance.onError = (error, stack) => true;
 }
 
+/// 앱 전체를 세로 모드로 고정하는 함수입니다.
 Future<void> _lockPortraitOrientation() {
   return SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 }
@@ -132,6 +145,7 @@ Future<void> _lockPortraitOrientation() {
 class MyApp extends StatefulWidget {
   final bool hasSeenLaunchVideo;
   final UserController preloadedUserController;
+  final AudioController? preloadedAudioController;
 
   // AnalyticsService 인스턴스를 MyApp의 생성자로 전달받아서 멤버 변수로 저장합니다.
   final AnalyticsService analyticsService;
@@ -140,6 +154,7 @@ class MyApp extends StatefulWidget {
     super.key,
     required this.hasSeenLaunchVideo,
     required this.preloadedUserController,
+    required this.preloadedAudioController,
     required this.analyticsService,
   });
 
@@ -150,6 +165,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final _navigatorKey = GlobalKey<NavigatorState>();
   final _appLinks = AppLinks();
+  late final AudioController _audioController;
 
   /// 앱 푸시 코디네이터 인스턴스를 멤버 변수로 저장합니다.
   /// 이렇게 하면 앱 전체에서 푸시 코디네이터의 상태를 유지할 수 있고, 필요할 때마다 접근할 수 있습니다.
@@ -168,6 +184,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _audioController = widget.preloadedAudioController ?? AudioController();
 
     // UserController의 상태가 변경될 때마다
     // _syncAnalyticsIdentity를 호출해서 AnalyticsService의 사용자 식별 정보를 최신 상태로 유지합니다.
@@ -176,8 +193,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // UserController의 상태가 변경될 때마다 _syncPushIdentity를 호출해서 AppPushCoordinator의 사용자 인증 상태를 최신 상태로 유지합니다.
     widget.preloadedUserController.addListener(_syncPushIdentity);
 
-    // 앱이 시작될 때 사진 라이브러리 권한을 미리 요청해서, 사용자가 사진 관련 기능을 사용할 때 원활하게 권한이 처리되도록 합니다.
-    _primePhotoLibraryPermission();
+    // 앱 시작 직후 권한이 이미 허용된 미디어 입력 리소스를 데워
+    // 첫 카메라/녹음 진입 때의 네이티브 준비 지연을 줄입니다.
+    _primeMediaInputResources();
     _linkSubscription = _appLinks.uriLinkStream.listen(
       _handleIncomingUri,
       onError: (error) => debugPrint('딥링크 수신 실패: $error'),
@@ -194,6 +212,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     widget.preloadedUserController.removeListener(_syncPushIdentity);
     _linkSubscription?.cancel();
     unawaited(_pushCoordinator.dispose());
+    _audioController.dispose();
     super.dispose();
   }
 
@@ -204,13 +223,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  void _primePhotoLibraryPermission() {
+  /// _primeMediaInputResources는 사진 라이브러리 권한 프리패치와 녹음기 워밍업을 순차로 걸어
+  /// 앱 부트 직후 첫 미디어 입력 지연을 줄이되 새 권한 팝업 타이밍은 바꾸지 않습니다.
+  void _primeMediaInputResources() {
     Future.microtask(() async {
       try {
         await PhotoManager.requestPermissionExtend();
       } catch (e) {
         debugPrint('Photo permission prefetch failed: $e');
       }
+
+      await _audioController.primeRecorderIfPermitted();
     });
   }
 
@@ -341,6 +364,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       providers: buildAppProviders(
         widget.preloadedUserController,
         widget.analyticsService,
+        _audioController,
       ),
       child: ScreenUtilInit(
         designSize: const Size(393, 852),

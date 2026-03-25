@@ -134,35 +134,76 @@ class NativeAudioRecorder: NSObject, AVAudioRecorderDelegate {
         }
     }
 
+    /// prepareRecorder는 앱 시작 직후 녹음기를 선초기화해
+    /// 첫 녹음 시작 전에 오디오 세션과 AVAudioRecorder 준비 비용을 앞당깁니다.
+    func prepareRecorder(result: @escaping FlutterResult) {
+        let warmupURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("audio_recorder_warmup.m4a")
+
+        do {
+            try configureAudioSession()
+            try prepareDirectoryIfNeeded(for: warmupURL)
+
+            let recorder = try buildPreparedRecorder(url: warmupURL)
+            recorder.deleteRecording()
+            audioRecorder = nil
+
+            print("✅ [Native] 녹음기 선초기화 완료")
+            result(true)
+        } catch {
+            print("❌ [Native] 녹음기 선초기화 실패: \(error.localizedDescription)")
+            result(
+                FlutterError(
+                    code: "PREPARE_RECORDER_ERROR",
+                    message: "Failed to prepare recorder",
+                    details: error.localizedDescription
+                )
+            )
+        }
+    }
+
     // MARK: - Private Helper Methods
+
+    /// configureAudioSession은 녹음에 필요한 AVAudioSession 카테고리와 활성 상태를 설정합니다.
+    private func configureAudioSession() throws {
+        let audioSession = AVAudioSession.sharedInstance()
+
+        if audioSession.isOtherAudioPlaying {
+            print("ℹ️ [Native] 다른 오디오가 재생 중 - 세션 설정 진행")
+        }
+
+        try audioSession.setCategory(
+            .playAndRecord,
+            mode: .default,
+            options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
+        )
+        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        print("✅ [Native] 오디오 세션 활성화 성공")
+    }
     
     /// 오디오 세션을 설정하고 활성화합니다.
     /// - Parameter result: 실패 시 FlutterError를 전달하기 위한 콜백입니다.
     /// - Returns: 성공 시 true, 실패 시 false를 반환합니다.
     private func setupAudioSession(result: @escaping FlutterResult) -> Bool {
-        let audioSession = AVAudioSession.sharedInstance()
         do {
-            // ✅ 기존 세션이 활성화되어 있다면 먼저 비활성화
-            // Xcode 업데이트 후 세션 충돌 방지
-            if audioSession.isOtherAudioPlaying {
-                print("ℹ️ [Native] 다른 오디오가 재생 중 - 세션 설정 진행")
-            }
-            
-            // 카테고리 설정 - mixWithOthers 옵션 추가로 다른 오디오와 공존 가능
-            try audioSession.setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
-            )
-            
-            // 세션 활성화 - notifyOthersOnDeactivation 옵션으로 상태 변경 알림
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-            print("✅ [Native] 오디오 세션 활성화 성공")
+            try configureAudioSession()
             return true
         } catch {
             print("❌ [Native] 오디오 세션 설정 실패: \(error.localizedDescription)")
             result(FlutterError(code: "SESSION_ERROR", message: "Audio session setup failed", details: error.localizedDescription))
             return false
+        }
+    }
+
+    /// prepareDirectoryIfNeeded는 녹음용 임시 파일 디렉토리가 존재하도록 보장합니다.
+    private func prepareDirectoryIfNeeded(for url: URL) throws {
+        let parentDirectory = url.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: parentDirectory.path) {
+            try FileManager.default.createDirectory(
+                at: parentDirectory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
         }
     }
     
@@ -175,18 +216,42 @@ class NativeAudioRecorder: NSObject, AVAudioRecorderDelegate {
         let parentDirectory = url.deletingLastPathComponent()
         print("📁 [Native] 파일 저장 디렉토리: \(parentDirectory.path)")
         
-        if !FileManager.default.fileExists(atPath: parentDirectory.path) {
-            do {
-                try FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true, attributes: nil)
-                print("✅ [Native] 디렉토리 생성 성공")
-                return true
-            } catch {
-                print("❌ [Native] 디렉토리 생성 실패: \(error.localizedDescription)")
-                result(FlutterError(code: "DIRECTORY_ERROR", message: "Failed to create directory", details: error.localizedDescription))
-                return false
-            }
+        do {
+            try prepareDirectoryIfNeeded(for: url)
+            print("✅ [Native] 디렉토리 생성 성공")
+            return true
+        } catch {
+            print("❌ [Native] 디렉토리 생성 실패: \(error.localizedDescription)")
+            result(FlutterError(code: "DIRECTORY_ERROR", message: "Failed to create directory", details: error.localizedDescription))
+            return false
         }
-        return true
+    }
+
+    /// buildPreparedRecorder는 공통 녹음 설정으로 AVAudioRecorder를 생성하고 prepareToRecord까지 완료합니다.
+    private func buildPreparedRecorder(url: URL) throws -> AVAudioRecorder {
+        let recorder = try AVAudioRecorder(url: url, settings: recorderSettings)
+        recorder.delegate = self
+        recorder.isMeteringEnabled = true
+
+        guard recorder.prepareToRecord() else {
+            throw NSError(
+                domain: "NativeAudioRecorder",
+                code: 1001,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to prepare recording"]
+            )
+        }
+
+        return recorder
+    }
+
+    private var recorderSettings: [String: Any] {
+        [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: 22050,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderBitRateKey: 64000,
+            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue
+        ]
     }
     
     /// 오디오 설정을 정의하고, AVAudioRecorder 인스턴스를 생성 및 준비합니다.
@@ -195,30 +260,12 @@ class NativeAudioRecorder: NSObject, AVAudioRecorderDelegate {
     ///   - result: 실패 시 FlutterError를 전달하기 위한 콜백입니다.
     /// - Returns: 성공 시 준비된 AVAudioRecorder 인스턴스, 실패 시 nil을 반환합니다.
     private func createAndPrepareRecorder(url: URL, result: @escaping FlutterResult) -> AVAudioRecorder? {
-        // 녹음 파일의 오디오 포맷, 샘플링 레이트, 품질 등을 설정합니다.
-        let settings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,      // 포맷: AAC
-            AVSampleRateKey: 22050,                   // 샘플링 레이트: 22.05kHz (음성에 적합)
-            AVNumberOfChannelsKey: 1,                 // 채널: 모노
-            AVEncoderBitRateKey: 64000,               // 비트레이트: 64kbps
-            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue // 품질: 중간
-        ]
-        print("🎛️ [Native] 오디오 설정: \(settings)")
+        print("🎛️ [Native] 오디오 설정: \(recorderSettings)")
 
         do {
-            let recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder.delegate = self
-            recorder.isMeteringEnabled = true // 오디오 레벨 미터링 활성화
-            
-            // 녹음을 위한 리소스를 미리 할당하고 준비합니다.
-            if recorder.prepareToRecord() {
-                print("✅ [Native] AVAudioRecorder 준비 성공")
-                return recorder
-            } else {
-                print("❌ [Native] AVAudioRecorder 준비 실패")
-                result(FlutterError(code: "RECORDING_ERROR", message: "Failed to prepare recording", details: nil))
-                return nil
-            }
+            let recorder = try buildPreparedRecorder(url: url)
+            print("✅ [Native] AVAudioRecorder 준비 성공")
+            return recorder
         } catch {
             print("❌ [Native] AVAudioRecorder 생성 실패: \(error.localizedDescription)")
             result(FlutterError(code: "RECORDING_ERROR", message: "Failed to create recorder", details: error.localizedDescription))

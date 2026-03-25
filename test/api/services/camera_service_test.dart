@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:soi/api/services/camera_service.dart';
@@ -168,14 +169,15 @@ void main() {
 
         final service = CameraService.testable(
           requestGalleryPermission: () async => PermissionState.authorized,
-          getAssetPathList: ({
-            bool onlyAll = false,
-            RequestType type = RequestType.common,
-            PMFilter? filterOption,
-          }) async {
-            pathListCallCount++;
-            return [pathEntities[pathListCallCount - 1]];
-          },
+          getAssetPathList:
+              ({
+                bool onlyAll = false,
+                RequestType type = RequestType.common,
+                PMFilter? filterOption,
+              }) async {
+                pathListCallCount++;
+                return [pathEntities[pathListCallCount - 1]];
+              },
           now: () => now,
         );
 
@@ -190,5 +192,76 @@ void main() {
         expect(pathListCallCount, 2);
       },
     );
+
+    test(
+      'prepareSessionIfPermitted warms camera first and upgrades recording warmup when microphone becomes granted',
+      () async {
+        var microphoneGranted = false;
+        final preparedRecordingFlags = <bool>[];
+
+        final service = CameraService.testable(
+          requestGalleryPermission: () async => PermissionState.authorized,
+          getAssetPathList:
+              ({
+                bool onlyAll = false,
+                RequestType type = RequestType.common,
+                PMFilter? filterOption,
+              }) async => const [],
+          now: () => DateTime(2026, 3, 21, 9, 0, 0),
+          loadCameraPermissionStatus: () async => PermissionStatus.granted,
+          loadMicrophonePermissionStatus: () async {
+            return microphoneGranted
+                ? PermissionStatus.granted
+                : PermissionStatus.denied;
+          },
+          prepareCaptureResources: ({required bool prepareRecording}) async {
+            preparedRecordingFlags.add(prepareRecording);
+          },
+        );
+
+        await service.prepareSessionIfPermitted();
+        await service.prepareSessionIfPermitted();
+
+        microphoneGranted = true;
+
+        await service.prepareSessionIfPermitted();
+        await service.prepareSessionIfPermitted();
+
+        expect(preparedRecordingFlags, [false, true]);
+      },
+    );
+
+    test('prepareSessionIfPermitted dedupes in-flight warmup calls', () async {
+      final warmupCompleter = Completer<void>();
+      var warmupCallCount = 0;
+
+      final service = CameraService.testable(
+        requestGalleryPermission: () async => PermissionState.authorized,
+        getAssetPathList:
+            ({
+              bool onlyAll = false,
+              RequestType type = RequestType.common,
+              PMFilter? filterOption,
+            }) async => const [],
+        now: () => DateTime(2026, 3, 21, 9, 0, 0),
+        loadCameraPermissionStatus: () async => PermissionStatus.granted,
+        loadMicrophonePermissionStatus: () async => PermissionStatus.granted,
+        prepareCaptureResources: ({required bool prepareRecording}) {
+          warmupCallCount++;
+          return warmupCompleter.future;
+        },
+      );
+
+      final first = service.prepareSessionIfPermitted();
+      final second = service.prepareSessionIfPermitted();
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(warmupCallCount, 1);
+
+      warmupCompleter.complete();
+
+      await Future.wait([first, second]);
+    });
   });
 }

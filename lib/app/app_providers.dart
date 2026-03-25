@@ -18,9 +18,12 @@ import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/utils/analytics_service.dart';
 import 'package:soi/views/about_feed/manager/feed_data_manager.dart';
 
+/// buildAppProviders는 앱 전역 ChangeNotifier와 서비스 인스턴스를 조립하고
+/// 앱 루트에서 미리 만든 싱글턴 성격의 컨트롤러를 그대로 주입합니다.
 List<SingleChildWidget> buildAppProviders(
   UserController userController,
   AnalyticsService analyticsService,
+  AudioController audioController,
 ) {
   return [
     // AnalyticsService는 앱 전체에서 공유되는 서비스이므로 Provider.value를 사용해서 인스턴스를 전달합니다.
@@ -54,13 +57,11 @@ List<SingleChildWidget> buildAppProviders(
     ChangeNotifierProvider<api_notification.NotificationController>(
       create: (_) => api_notification.NotificationController(),
     ),
-    ChangeNotifierProvider<ReportController>(
-      create: (_) => ReportController(),
-    ),
+    ChangeNotifierProvider<ReportController>(create: (_) => ReportController()),
     ChangeNotifierProvider<ContactController>(
       create: (_) => ContactController(),
     ),
-    ChangeNotifierProvider<AudioController>(create: (_) => AudioController()),
+    ChangeNotifierProvider<AudioController>.value(value: audioController),
     ChangeNotifierProvider<CommentAudioController>(
       create: (_) => CommentAudioController(),
     ),

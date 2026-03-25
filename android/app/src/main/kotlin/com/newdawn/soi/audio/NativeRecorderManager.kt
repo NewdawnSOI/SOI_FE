@@ -28,6 +28,7 @@ class NativeRecorderManager(
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "requestMicrophonePermission" -> requestMicrophonePermission(result)
+            "prepareRecorder" -> prepareRecorder(result)
             "startRecording" -> startRecording(call, result)
             "stopRecording" -> stopRecording(result)
             else -> result.notImplemented()
@@ -65,6 +66,49 @@ class NativeRecorderManager(
             arrayOf(Manifest.permission.RECORD_AUDIO),
             REQUEST_CODE_MIC,
         )
+    }
+
+    // prepareRecorder는 앱 시작 시 MediaRecorder 구성을 한 번 미리 태워
+    // 첫 녹음 시작 전에 클래스 로딩과 recorder prepare 비용을 앞당깁니다.
+    private fun prepareRecorder(result: MethodChannel.Result) {
+        val granted =
+            ContextCompat.checkSelfPermission(
+                activity,
+                Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            result.success(false)
+            return
+        }
+
+        val warmupFile = File(activity.cacheDir, "audio_recorder_warmup.m4a")
+
+        var mediaRecorder: MediaRecorder? = null
+
+        try {
+            if (warmupFile.parentFile != null && !warmupFile.parentFile!!.exists()) {
+                warmupFile.parentFile!!.mkdirs()
+            }
+
+            mediaRecorder = MediaRecorder()
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            mediaRecorder.setAudioSamplingRate(44100)
+            mediaRecorder.setAudioEncodingBitRate(128000)
+            mediaRecorder.setOutputFile(warmupFile.absolutePath)
+            mediaRecorder.prepare()
+            mediaRecorder.release()
+            warmupFile.delete()
+            result.success(true)
+        } catch (e: Exception) {
+            try {
+                mediaRecorder?.release()
+            } catch (_: Exception) {
+            }
+            warmupFile.delete()
+            result.error("prepare_failed", "Failed to prepare recorder: ${e.message}", null)
+        }
     }
 
     private fun startRecording(call: MethodCall, result: MethodChannel.Result) {

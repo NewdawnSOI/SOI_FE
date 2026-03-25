@@ -55,6 +55,19 @@ public final class SwiftCameraPlugin: NSObject, FlutterPlugin {
                 }
             }
 
+        case "prepareCaptureResources":
+            let prepareRecording = (call.arguments as? [String: Any])?["prepareRecording"] as? Bool ?? false
+            sessionManager.prepareCaptureResources(prepareRecording: prepareRecording) { outcome in
+                DispatchQueue.main.async {
+                    switch outcome {
+                    case .success:
+                        result(true)
+                    case .failure(let error):
+                        result(FlutterError(code: "PREPARE_CAPTURE_ERROR", message: error.localizedDescription, details: nil))
+                    }
+                }
+            }
+
         case "isSessionActive":
             result(sessionManager.isSessionRunning)
 
@@ -342,6 +355,32 @@ fileprivate final class CameraSessionManager: NSObject, AVCapturePhotoCaptureDel
 
     func prepareSession(completion: @escaping (Result<Void, Error>) -> Void) {
         ensureConfigured(startRunning: false, completion: completion)
+    }
+
+    /// prepareCaptureResources는 앱 진입 직후 카메라 세션과 선택적 녹화 파이프라인을 선준비해
+    /// 첫 카메라 탭 전환과 첫 녹화 시작 시의 setup 비용을 줄입니다.
+    func prepareCaptureResources(prepareRecording: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
+        ensureConfigured(startRunning: false) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success:
+                guard prepareRecording else {
+                    completion(.success(()))
+                    return
+                }
+
+                self.sessionQueue.async {
+                    do {
+                        try self.configureRecordingPipelineIfNeeded()
+                        completion(.success(()))
+                    } catch {
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
     }
 
     func ensureConfigured(startRunning: Bool = true, waitForStart: Bool = true, settleDelayMs: Int = 100, completion: @escaping (Result<Void, Error>) -> Void) {

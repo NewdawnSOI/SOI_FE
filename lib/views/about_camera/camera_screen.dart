@@ -105,7 +105,8 @@ class _CameraScreenState extends State<CameraScreen>
   @override
   bool get wantKeepAlive => true;
 
-  // 개선: 지연 초기화로 성능 향상
+  /// initState는 화면이 텍스트 모드로 시작해도 선초기화를 먼저 걸어
+  /// 첫 카메라 진입과 첫 녹화 전환의 지연을 줄입니다.
   @override
   void initState() {
     super.initState();
@@ -115,15 +116,15 @@ class _CameraScreenState extends State<CameraScreen>
     // 앱 라이프사이클 옵저버 등록
     WidgetsBinding.instance.addObserver(this);
 
+    // 카메라 권한이 이미 허용된 경우 세션 준비를 선초기화하여 첫 진입과 녹화 전환 시 레이턴시를 줄입니다.
+    unawaited(_cameraService.prepareSessionIfPermitted());
+
     if (widget.isActive && !isTextMode) {
       // iOS 플랫폼뷰가 붙기 전에 초기화를 시작하면 레이스가 발생할 수 있어
       // 첫 프레임 이후로 초기화 타이밍을 지연합니다.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _cameraInitialization ??= _initializeCameraAsync();
       });
-    } else if (!widget.isActive && !isTextMode) {
-      // 비활성 상태에서는 세션만 준비
-      unawaited(_cameraService.prepareSessionIfPermitted());
     }
   }
 
