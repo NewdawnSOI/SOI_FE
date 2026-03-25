@@ -1,5 +1,11 @@
 import 'dart:ui';
 
+const double kPendingCommentTagSize = 53.0;
+const double kPendingCommentTagPadding = 4.82;
+const Color kPendingCommentTagBackgroundColor = Color(0xFF595959);
+const double kPendingCommentAvatarSize =
+    kPendingCommentTagSize - (kPendingCommentTagPadding * 2);
+
 /// API 버전 pending 댓글 UI 마커 정보
 /// - 음성 댓글 녹음 중이거나 텍스트 댓글 입력 중인 상태에서, 댓글이 작성 중인 위치에 표시할 마커 정보
 /// - UI에서 마커 위치는 포인터 끝점 기준 상대 좌표로 관리하며, 프로필 이미지 URL 키와 음성 댓글 녹음 진행률도 포함

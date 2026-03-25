@@ -37,10 +37,11 @@ The core principle is simple: code is the source of truth, and all changes must 
 
 ## 1. Project Snapshot (Folder Structure Based)
 ### Rules
-- SOI is a Flutter client with REST/OpenAPI backend integration.
-- App bootstrap responsibilities are split across `lib/main.dart` and `lib/app/*`.
+- SOI combines a Flutter client, a local OpenAPI/generated workspace, and Firebase Functions.
+- App bootstrap responsibilities are split across `lib/main.dart`, `lib/app/*`, and `lib/app/push/*`.
 - Keep generated API client (`api/generated`) and app wrapper (`lib/api`) responsibilities separated.
-- Maintain the snapshot as tracked project folder structure, excluding generated runtime outputs such as `build/`, `Pods/`, and `.dart_tool/`.
+- Validate the snapshot against the current workspace, excluding transient outputs such as `build/`, `.dart_tool/`, `ios/Pods/`, and `functions/node_modules/`.
+- Some directories such as `api/` can exist in the workspace even when tracked-tree-only commands do not surface them, so prefer `find`/`rg --files` for structure verification.
 
 ### Evidence Files
 - Entry/bootstrap: `lib/main.dart`
@@ -51,11 +52,18 @@ The core principle is simple: code is the source of truth, and all changes must 
 - Dependencies: `pubspec.yaml`
 - Generated client package: `api/generated/pubspec.yaml`
 
-### Structure (Current Project Folder Tree)
+### Structure (Current Workspace Folder Tree)
 ```text
 SOI/
+├─ .claude/
+│  └─ skills/
 ├─ .codex/
 │  └─ skills/
+├─ .omc/
+│  └─ sessions/
+├─ .serena/
+│  ├─ cache/
+│  └─ memories/
 ├─ .vscode/
 ├─ android/
 │  ├─ app/
@@ -75,7 +83,6 @@ SOI/
 │  ├─ icon/
 │  └─ translations/
 ├─ docs/
-│  └─ dev/
 ├─ figma_assets/
 ├─ functions/
 │  └─ lib/
@@ -85,9 +92,6 @@ SOI/
 │  ├─ Runner.xcodeproj/
 │  ├─ Runner.xcworkspace/
 │  ├─ RunnerTests/
-│  ├─ SOI/
-│  ├─ SOITests/
-│  ├─ SOIUITests/
 │  └─ fastlane/
 ├─ lib/
 │  ├─ api/
@@ -95,25 +99,17 @@ SOI/
 │  │  ├─ models/
 │  │  └─ services/
 │  ├─ app/
+│  │  └─ push/
 │  ├─ theme/
 │  ├─ utils/
 │  └─ views/
 │     ├─ about_archiving/
 │     │  ├─ screens/
-│     │  │  ├─ archive_detail/
-│     │  │  │  └─ widgets/
-│     │  │  │     └─ category_photos_header+body/
-│     │  │  └─ category_edit/
 │     │  └─ widgets/
-│     │     ├─ archive_card_widget/
-│     │     ├─ category_edit_widget/
-│     │     └─ wave_form_widget/
 │     ├─ about_camera/
 │     │  ├─ models/
 │     │  ├─ services/
 │     │  └─ widgets/
-│     │     ├─ about_camera/
-│     │     └─ about_photo_editor_screen/
 │     ├─ about_feed/
 │     │  ├─ manager/
 │     │  └─ widgets/
@@ -122,60 +118,51 @@ SOI/
 │     │  └─ widgets/
 │     ├─ about_login/
 │     │  └─ widgets/
-│     │     ├─ common/
-│     │     └─ pages/
 │     ├─ about_notification/
+│     │  ├─ services/
 │     │  └─ widgets/
 │     ├─ about_onboarding/
 │     ├─ about_profile/
+│     │  ├─ services/
+│     │  └─ widgets/
 │     ├─ about_setting/
 │     └─ common_widget/
 │        ├─ about_comment/
-│        │  └─ widget/
-│        │     └─ about_comment_list_sheet/
 │        ├─ about_more_menu/
 │        ├─ api_photo/
-│        │  └─ extension/
+│        │  ├─ services/
+│        │  └─ widgets/
 │        └─ report/
-├─ linux/
-│  ├─ flutter/
-│  └─ runner/
-├─ macos/
-│  ├─ Flutter/
-│  ├─ Runner/
-│  ├─ Runner.xcodeproj/
-│  ├─ Runner.xcworkspace/
-│  └─ RunnerTests/
 ├─ public/
 │  ├─ .well-known/
 │  └─ assets/
-├─ test/
-│  ├─ api/
-│  │  ├─ controller/
-│  │  ├─ models/
-│  │  └─ services/
-│  └─ views/
-│     ├─ about_feed/
-│     │  └─ manager/
-│     └─ common_widget/
-│        └─ api_photo/
-├─ web/
-│  ├─ icons/
-│  └─ splash/
-└─ windows/
-   ├─ flutter/
-   └─ runner/
+└─ test/
+   ├─ api/
+   │  ├─ controller/
+   │  ├─ models/
+   │  └─ services/
+   ├─ app/
+   │  └─ push/
+   └─ views/
+      ├─ about_archiving/
+      ├─ about_camera/
+      ├─ about_feed/
+      ├─ about_friends/
+      ├─ about_login/
+      ├─ about_notification/
+      ├─ about_profile/
+      └─ common_widget/
 ```
 
 ### Risks If Ignored
 - Mixing generated/client and wrapper responsibilities causes large breakage on regeneration.
-- Missing the `lib/app` split can send edits to the wrong bootstrap/locale/provider/route layer.
+- Missing the `lib/app`/`lib/app/push` split can send edits to the wrong bootstrap/locale/provider/push/route layer.
 - Misunderstanding bootstrap order can break login/deep-link/cache behavior.
 
 ### Verification
-- `git ls-tree -d --name-only HEAD | sort`
-- `git ls-tree -d -r --name-only HEAD lib/api lib/views test | sort`
-- `git ls-tree -r --name-only HEAD lib/app assets/translations test | sort`
+- `find . -maxdepth 2 -type d \( -path './.git' -o -path './build' -o -path './.dart_tool' -o -path './ios/Pods' -o -path './api/generated/.dart_tool' \) -prune -o -maxdepth 2 -type d | sort`
+- `find lib -maxdepth 3 -type d | sort`
+- `find test -maxdepth 3 -type d | sort`
 
 ## 2. API Integration Rules (api-lib-sync Embedded)
 ### Rules
@@ -222,13 +209,14 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 - The baseline state stack is `provider ^6.1.5 + ChangeNotifier`.
 - Global Provider-owned objects are lifecycle-owned by the app root (`lib/main.dart` + `lib/app/app_providers.dart`); never dispose them in screens.
 - `UserController` is injected inside `buildAppProviders()` via `ChangeNotifierProvider.value` with a preloaded instance.
+- `AnalyticsService` is injected as a shared app-wide `Provider.value`; do not recreate it in screens.
 - Global registered controllers:
 - `UserController`
 - `CategoryController`, `CategorySearchController`
 - `PostController`, `FeedDataManager`
 - `FriendController`, `CommentController`, `MediaController`
 - `NotificationController`, `ContactController`
-- `AudioController`, `CommentAudioController`
+- `ReportController`, `AudioController`, `CommentAudioController`
 - `FeedDataManager` is global cache owner; in `feed_home`, call only `detachFromPostController()`.
 - For frame-phase conflict zones, schedule state updates post-frame (`MediaController._scheduleNotify`).
 - After async gaps, check `mounted` and visibility (`TickerMode`, `RouteAware`) before reusing context.
@@ -271,10 +259,10 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 ### Evidence Files
 - Image cache config: `lib/main.dart`
 - Image/video compression constants: `lib/views/about_camera/services/photo_editor_media_processing_service.dart`
-- Upload pipeline/cache evict: `lib/views/about_camera/photo_editor_screen.dart`, `lib/views/about_camera/photo_editor_screen_upload.dart`
+- Upload pipeline/cache evict: `lib/views/about_camera/photo_editor_screen.dart`, `lib/views/about_camera/services/photo_editor_upload_flow_service.dart`, `lib/views/about_camera/services/photo_editor_upload_service.dart`
 - Camera recording default duration: `lib/api/services/camera_service.dart`
 - 3-tier thumbnail cache: `lib/utils/video_thumbnail_cache.dart`
-- Visibility threshold/flicker mitigation: `lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart`
+- Visibility threshold/flicker mitigation: `lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart`, `lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart`
 - Archive prefetch cap: `lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart`
 
 ### Risks If Ignored
@@ -286,7 +274,7 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 ### Verification
 - `rg -n "maximumSize|maximumSizeBytes" lib/main.dart`
 - `rg -n "_maxImageSizeBytes|_maxVideoSizeBytes|_initialCompressionQuality|_fallbackCompressionQuality" lib/views/about_camera/services/photo_editor_media_processing_service.dart`
-- `rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey|useOldImageOnUrlChange" lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart`
+- `rg -n "visibleFraction >= 0.6|cacheKey: postFileKey|useOldImageOnUrlChange" lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart`
 - `rg -n "_maxEntries|_maxBytes|take\(4\)" lib/utils/video_thumbnail_cache.dart lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart`
 
 ## 5. Caching Strategy Matrix (Current Code)
@@ -351,13 +339,13 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 flutter test test/api/services/user_service_test.dart test/api/controller/user_controller_test.dart
 ```
 
-## 7. Localization Policy (`ko/es` Active Locale Baseline)
+## 7. Localization Policy (Current Active Locale Baseline)
 ### Rules
-- Active locale policy baseline is `ko`, `es`.
+- Active locale policy baseline is `ko`, `ja`, `zh`, `es`, `en`.
 - The single source of truth for `supportedLocales` is `lib/app/app_constants.dart`, and `lib/main.dart` passes it into `EasyLocalization`.
-- Keep `fallbackLocale` as `ko`, and map `startLocale` to Spanish only when device language is `es`; otherwise default to Korean.
-- For user-facing text changes, update at least `ko/es` keys together.
-- `en/ja/zh` exist as auxiliary translation assets and are not part of `supportedLocales` on the current branch. If you touch shared keys, sync them too or explicitly document why they were skipped.
+- Keep `fallbackLocale` as `en`, and let `resolveSupportedLocale()` map system language to `ko/ja/zh/es`; otherwise default to English.
+- For user-facing text changes, update all five active locale bundles (`ko/ja/zh/es/en`) together.
+- If one locale is intentionally deferred, document the reason explicitly in the result.
 - Preserve key namespaces (`common.*`, `camera.editor.*`).
 
 ### Evidence Files
@@ -365,14 +353,14 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - Translation files: `assets/translations/ko.json`, `assets/translations/es.json`, `assets/translations/en.json`, `assets/translations/ja.json`, `assets/translations/zh.json`
 
 ### Risks If Ignored
-- `en.json` existing does not mean English UI is active on the current branch.
+- If you read only `supportedLocales` without `resolveSupportedLocale()`, you can misunderstand the real startup locale policy.
 - Mismatched policy vs translation files causes late-stage release localization bugs.
 - Hardcoded strings increase i18n regression cost.
 
 ### Verification
 - `ls -1 assets/translations`
-- `rg -n "supportedLocales|fallbackLocale|startLocale|spanishLanguageCode|koreanLocale|spanishLocale" lib/main.dart lib/app/app_constants.dart`
-- Manual check: verify Spanish startup for device language `es`, and Korean fallback startup for `en` or any non-`es` device language
+- `rg -n "supportedLocales|resolveSupportedLocale|fallbackLocale|startLocale|englishLocale|koreanLocale|japaneseLocale|chineseLocale|spanishLocale" lib/main.dart lib/app/app_constants.dart`
+- Manual check: verify `ko/ja/zh/es` startup for matching device languages, and `en` fallback for all other languages
 
 ## 8. High-Risk Files & Review Scenarios (Detailed Current Analysis)
 ### Rules
@@ -382,12 +370,13 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 ### High-Risk File Matrix
 | File | Risk Focus | Mandatory Checkpoints |
 |---|---|---|
-| `lib/main.dart` + `lib/app/app_constants.dart` + `lib/app/app_providers.dart` + `lib/app/app_routes.dart` + `lib/app/app_container_builder.dart` | bootstrap order, active locale policy, global Provider lifecycle, route wiring, wide-layout container | `supportedLocales=[ko, es]`, `buildAppProviders`, `buildAppRoutes`, `buildAppContainer`, `_configureImageCache`, URI dedupe (3s) |
+| `lib/main.dart` + `lib/app/app_constants.dart` + `lib/app/app_providers.dart` + `lib/app/app_routes.dart` + `lib/app/app_container_builder.dart` | bootstrap order, active locale policy, global Provider lifecycle, route wiring, wide-layout container | `supportedLocales=[ko, ja, zh, es, en]`, `resolveSupportedLocale`, `fallbackLocale=en`, `buildAppProviders`, `buildAppRoutes`, `buildAppContainer`, `_configureImageCache`, URI dedupe (3s) |
 | `lib/views/about_feed/manager/feed_data_manager.dart` + `lib/views/about_feed/feed_home.dart` | global feed cache ownership/user switching/tab visibility | only `detachFromPostController`, `_lastUserId` switch reset, `_pendingPostRefresh` resume refresh |
-| `lib/views/about_camera/photo_editor_screen.dart` + `photo_editor_screen_upload.dart` + `services/photo_editor_media_processing_service.dart` | background upload pipeline, compression thresholds, temp-file/cache cleanup | 1MB/50MB guards, `VideoCompress.deleteAllCache()` after upload, `_evictCurrentImageFromCache`, fallback-to-original on compression failures |
-| `lib/views/common_widget/api_photo/api_photo_display_widget.dart` + `extension/api_photo_display_widget_media.dart` + `extension/api_photo_display_widget_video.dart` | video lifecycle/visibility playback, image-flicker regressions | `visibleFraction >= 0.6`, lifecycle pause, `cacheKey + useOldImageOnUrlChange` |
+| `lib/views/about_camera/photo_editor_screen.dart` + `services/photo_editor_upload_flow_service.dart` + `services/photo_editor_upload_service.dart` + `services/photo_editor_media_processing_service.dart` | editor/compression/upload flow composition, temp-file/cache cleanup, category-cover propagation | 1MB/50MB guards, `VideoCompress.deleteAllCache()`, `_evictCurrentImageFromCache`, fallback-to-original on compression failures, text-only path split |
+| `lib/views/common_widget/api_photo/api_photo_display_widget.dart` + `widgets/api_photo_media_content.dart` + `widgets/api_photo_comment_overlay.dart` + `widgets/api_photo_circle_avatar.dart` | video lifecycle/visibility playback, image/avatar flicker regressions, pending comment tag alignment | `visibleFraction >= 0.6`, `cacheKey=postFileKey`, `useOldImageOnUrlChange`, tag geometry clamp |
 | `lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart` | stale cache display + background paging concurrency | `_cacheTtl=30m`, `allowExpired` behavior, `generation` guard, posts-changed cache removal |
 | `lib/api/controller/media_controller.dart` + `lib/utils/video_thumbnail_cache.dart` | presigned cache expiry/dupe requests/thumbnail LRU | presigned `55m`, in-flight dedupe, thumbnail LRU(100), 3-tier limits |
+| `lib/app/push/app_push_coordinator.dart` + `lib/views/about_notification/services/notification_navigation_handler.dart` | FCM/bootstrap, local-notification payload decode, authenticated-user sync, push-route resolution | `supportsFirebaseMessaging`, pending launch payload precedence, payload dedupe (5s), `PushNavigationAction` coverage, category/post route completeness |
 | `lib/api/services/post_service.dart` + `comment_service.dart` + `user_service.dart` | DTO/enum/nullability mapping and exception classification | `postType/commentType` mapping, `404` policy, `SocketException -> NetworkException` |
 | `lib/api/models/post.dart` + `comment.dart` + `notification.dart` | generated DTO to domain-model sync | `PostType`, `CommentType`, `AppNotificationType`, `savedAspectRatio/isFromGallery/parentId/replyUserId/fileKey` |
 
@@ -401,10 +390,12 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - Verify archive screen shows stale cache immediately then replaces it after background refresh.
 - Verify no image flicker when presigned URL rotates for the same `postFileKey`.
 - Verify UI branching for `PHOTO/REPLY` comments and `COMMENT_REPLY_ADDED` notifications.
+- Verify background data-only pushes display local notifications only when visible content exists.
+- Verify push taps enter category/detail flow only when `categoryId/postId` are complete, and otherwise fall back safely to notifications/root.
 
 ### Verification
-- `rg -n "supportedLocales|buildAppProviders|buildAppRoutes|buildAppContainer|deepLinkDuplicationWindowSeconds" lib/main.dart lib/app`
-- `rg -n "_cacheTtl|allowExpired|generation|visibleFraction >= 0.6|cacheKey: widget.post.postFileKey|_lastUserId|_pendingPostRefresh" lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart lib/views/about_feed/manager/feed_data_manager.dart`
+- `rg -n "supportedLocales|resolveSupportedLocale|fallbackLocale|buildAppProviders|buildAppRoutes|buildAppContainer|deepLinkDuplicationWindowSeconds" lib/main.dart lib/app`
+- `rg -n "_cacheTtl|allowExpired|generation|visibleFraction >= 0.6|cacheKey: postFileKey|_lastUserId|_pendingPostRefresh" lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart lib/views/about_feed/manager/feed_data_manager.dart`
 
 ## 9. Test/Validation Section (Current Test Set)
 ### Rules
@@ -418,15 +409,25 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - `test/api/services/post_service_test.dart`
 - `test/api/services/comment_service_test.dart`
 - `test/api/services/notification_service_test.dart`
+- `test/api/services/camera_service_test.dart`
 - Controller tests:
 - `test/api/controller/user_controller_test.dart`
 - `test/api/controller/post_controller_test.dart`
 - `test/api/controller/comment_controller_test.dart`
+- `test/api/controller/notification_controller_test.dart`
+- `test/api/controller/media_controller_test.dart`
 - Model tests:
 - `test/api/models/comment_post_model_test.dart`
+- App/push tests:
+- `test/app/push/app_push_coordinator_test.dart`
 - View/widget tests:
 - `test/views/about_feed/manager/feed_data_manager_test.dart`
 - `test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart`
+- `test/views/about_camera/services/photo_editor_screen_init_service_test.dart`
+- `test/views/about_camera/services/photo_editor_category_flow_service_test.dart`
+- `test/views/about_camera/widgets/gallery_thumbnail_test.dart`
+- `test/views/about_notification/services/notification_navigation_handler_test.dart`
+- `test/views/about_profile/profile_tabs_test.dart`
 - Critical change files:
 - `lib/main.dart`
 - `lib/app/**`
@@ -458,7 +459,16 @@ flutter test \
 flutter test \
   test/api/models/comment_post_model_test.dart \
   test/views/about_feed/manager/feed_data_manager_test.dart \
-  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart
+  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart \
+  test/api/controller/notification_controller_test.dart \
+  test/api/controller/media_controller_test.dart \
+  test/api/services/camera_service_test.dart \
+  test/app/push/app_push_coordinator_test.dart \
+  test/views/about_camera/services/photo_editor_screen_init_service_test.dart \
+  test/views/about_camera/services/photo_editor_category_flow_service_test.dart \
+  test/views/about_camera/widgets/gallery_thumbnail_test.dart \
+  test/views/about_notification/services/notification_navigation_handler_test.dart \
+  test/views/about_profile/profile_tabs_test.dart
 ```
 - Static analysis:
 ```bash
@@ -467,13 +477,14 @@ dart analyze lib/main.dart lib/app lib/api lib/views/about_feed lib/views/about_
 - Change-point grep:
 ```bash
 rg -n "TEXT_ONLY|MULTIMEDIA|PHOTO|REPLY|COMMENT_REPLY_ADDED|savedAspectRatio|isFromGallery" lib/api
-rg -n "supportedLocales|koreanLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
-rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
+rg -n "supportedLocales|resolveSupportedLocale|englishLocale|koreanLocale|japaneseLocale|chineseLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
+rg -n "visibleFraction >= 0.6|cacheKey: postFileKey|useOldImageOnUrlChange" lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart
 ```
 - Manual regression:
 - switch user and verify feed/category isolation
 - upload large video and verify thumbnail generation/cache behavior
-- verify Spanish startup for device language `es`, and Korean fallback for `en` or any non-`es` device language
+- verify matching startup for device languages `ko/ja/zh/es`, and `en` fallback for all other languages
+- verify data-only/background push display conditions and push-tap route fallback
 
 ## 10. Shared API/Interface/Type Change Response Rules (Current Contract)
 ### Rules
@@ -531,8 +542,10 @@ rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/commo
 ## 11. Agent Workflow
 ### Rules
 - Follow this sequence for every task.
-- Restate goal/scope -> inspect impacted files -> implement minimal change -> run validation -> report outcomes/risks
+- Restate goal/scope -> inspect impacted files -> implement minimal change -> review function/class role comments -> run validation -> report outcomes/risks
 - Large refactors are not allowed unless explicitly requested.
+- When editing comment-capable source files, add or refresh a 1-2 line role/responsibility comment above the owning function/class/widget declaration (`AGENTS.md §2A`).
+- Skip generated/comment-free formats and document the skip reason in the final result.
 
 ### Evidence Files
 - This full document
@@ -546,14 +559,16 @@ rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/commo
 - modified files
 - major diffs
 - validation commands/results
+- skipped role-comment files/reasons (when applicable)
 - remaining risks
 
 ## 12. Assumptions & Defaults
 ### Rules
-- v2 is maintained with `docs/AI_AGENT_PLAYBOOK.md` as primary source.
+- `AGENTS.md` is the compressed always-on rule set, and this document is the detailed v2 reference playbook.
 - The English document (`docs/AI_AGENT_PLAYBOOK.en.md`) must stay section-by-section aligned with the Korean document.
 - Keep style execution-checklist oriented.
 - Prefer quantitative values for performance/cache policies.
+- Prefer partial section reads when possible; re-read the full document only when editing the playbook itself or checking for structural drift.
 
 ### Evidence Files
 - `docs/AI_AGENT_PLAYBOOK.md`

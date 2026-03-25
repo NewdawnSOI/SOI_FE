@@ -11,6 +11,7 @@ import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import '../api_photo/tag_pointer.dart';
+import 'pending_api_voice_comment.dart';
 import 'comment_save_payload.dart';
 
 /// 댓글 프로필 태그 위젯
@@ -127,7 +128,10 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
     BuildContext context,
     Offset position,
   ) {
-    return TagBubble.pointerTipOffset(contentSize: widget.avatarSize);
+    return TagBubble.pointerTipOffset(
+      contentSize: widget.avatarSize,
+      padding: kPendingCommentTagPadding,
+    );
   }
 
   /// 댓글 저장 진행 상황 업데이트 메서드입니다.
@@ -545,6 +549,8 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
         final imageUrl = snapshot.data ?? widget.payload.profileImageUrlKey;
         return TagBubble(
           contentSize: widget.avatarSize,
+          padding: kPendingCommentTagPadding,
+          backgroundColor: kPendingCommentTagBackgroundColor,
           child: _buildAvatar(imageUrl),
         );
       },

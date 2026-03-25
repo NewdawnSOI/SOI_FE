@@ -1,6 +1,6 @@
 ---
 name: soi-playbook-autoload
-description: Load and apply `AGENTS.md` as the primary always-on rule set for SOI work, and read `docs/AI_AGENT_PLAYBOOK.md` only when deep detail is required.
+description: Load and apply `AGENTS.md` as the primary always-on rule set for SOI work, use the KR/EN playbooks as detailed references only when needed, and keep those rule docs aligned when maintaining project guidance.
 ---
 
 # SOI Rules Autoload (Token-Efficient)
@@ -8,7 +8,7 @@ description: Load and apply `AGENTS.md` as the primary always-on rule set for SO
 ## Overview
 
 Use `AGENTS.md` as the default rule source for SOI tasks.
-Only read detailed playbook sections when the task actually needs them.
+Use `docs/AI_AGENT_PLAYBOOK.md` and `docs/AI_AGENT_PLAYBOOK.en.md` as detailed references only when the task actually needs deeper semantics or when documentation/rule maintenance is requested.
 
 ## Workflow
 
@@ -41,23 +41,30 @@ shasum AGENTS.md
 
 4. Conditional deep-read policy for playbook docs.
 
-Read `docs/AI_AGENT_PLAYBOOK.md` (partial section read, not full-file by default) only when task requires detailed contract/guardrail semantics:
+Read `docs/AI_AGENT_PLAYBOOK.md` / `docs/AI_AGENT_PLAYBOOK.en.md` (partial section read, not full-file by default) only when the task requires detailed contract/guardrail semantics:
 
 - OpenAPI/DTO contract or regeneration work
 - Media compression/cache/performance tuning
 - Caching policy matrix reconciliation
 - Localization policy changes
+- Push/deep-link/notification navigation work
 - High-risk release review scenarios
+- Documentation/rule maintenance touching `AGENTS.md`, either playbook, or this skill itself
 
 Guideline:
 - Use targeted section reads (e.g., `rg`, `sed -n` around specific headings).
+- When verifying structure, prefer current workspace commands such as `find` and `rg --files` over tracked-tree-only commands.
+- If the task edits guidance docs, keep `AGENTS.md`, the Korean playbook, the English playbook, and this skill aligned in the same turn.
 - Avoid full-file playbook reads unless absolutely necessary.
 
 5. Build and keep a short execution checklist from AGENTS.
 
 - Branch/source-of-truth checks (`git branch`, `git status`)
+- Role/responsibility comment rule for edited declarations (`AGENTS.md` §2A)
 - API boundary rules (`api/generated` read-only, wrapper sync boundaries)
 - Provider ownership/dispose rules for global controllers
+- Current locale policy (`ko/ja/zh/es/en`, `fallbackLocale=en`, `resolveSupportedLocale()`)
+- Push/deep-link guardrails and route fallback checks
 - Media/caching guardrails and validation baseline
 
 6. Execute the user request under the checklist.
@@ -69,5 +76,5 @@ Guideline:
 ## Fallback behavior
 
 If `AGENTS.md` does not exist:
-- Use `docs/AI_AGENT_PLAYBOOK.md` as the temporary source.
+- Use `docs/AI_AGENT_PLAYBOOK.md` as the temporary source, and consult the English playbook only when a second-language cross-check is needed.
 - Recommend creating/updating `AGENTS.md` for token-efficient operation.

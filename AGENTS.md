@@ -25,8 +25,28 @@
 - 목표/범위를 1-3줄로 명확화.
 - 영향 파일만 탐색.
 - 최소 변경으로 구현.
+- 코드 수정 후, 수정한 함수/클래스/위젯 선언 바로 위에 1-2줄 역할 설명 주석을 추가하거나 기존 주석을 갱신한다.
 - 관련 검증 명령 실행.
 - 결과 보고(변경 파일, 검증 결과, 잔여 리스크).
+
+## 2A. 역할 설명 주석 규칙 (항상 준수)
+- 적용 대상: comment를 지원하는 사람이 읽는 source file에서 수정한 함수, 클래스, 위젯, 서비스, 또는 역할 단위 declaration.
+- 기본 규칙: 수정이 끝난 뒤, 수정을 포함한 declaration 바로 위에 짧은 역할 설명 주석을 추가하거나 기존 주석을 최신 상태로 갱신한다.
+- 길이: 1-2줄.
+- 내용: 이 declaration이 무엇을 담당하는지, 어떤 책임/계약/행동을 소유하는지 설명한다.
+- 우선순위: 무엇을 수정했는지 설명하는 diff 요약보다, 이 코드가 왜 존재하고 어떤 역할을 맡는지 설명을 우선한다.
+- 위치: inner hunk 바로 위가 아니라, 해당 변경을 소유하는 함수/클래스/위젯 선언 바로 위에 둔다.
+- 형식: 파일의 기존 주석 문법(`//`, `/* */`, `#` 등)을 따른다.
+- 금지:
+  - 문법만 반복하는 설명
+  - `코드 수정`, `로직 변경`, `여기서 처리`처럼 의미 없는 일반론
+  - diff 설명만 적고 역할 설명이 없는 주석
+  - 한 함수/클래스 내부에 같은 의미의 중복 주석 누적
+  - 기존 주석과 충돌하는 stale 설명 방치
+- 예외:
+  - 기존 역할 주석이 이미 정확하면 중복 추가하지 않고, 역할이 바뀌었을 때만 갱신한다.
+  - 생성 코드, 번역 JSON, lockfile, snapshot, comment-free 규칙이 있는 파일에는 추가하지 않는다.
+  - 주석을 넣을 수 없는 포맷은 건너뛰고, 결과 보고에 제외 이유를 남긴다.
 
 ## 3. 아키텍처 경계 (항상 준수)
 - `api/generated/**`는 생성 코드이므로 수동 수정 금지.
@@ -78,14 +98,14 @@
 - 사용자 전환 이벤트와 TTL 만료 이벤트를 분리 처리한다.
 
 ## 7. 로컬라이제이션 정책 (Always-Known)
-- 활성 locale 정책 기준: `ko`, `es`.
-- locale 부트스트랩 소스는 `lib/app/app_constants.dart`의 `supportedLocales`이며, `lib/main.dart`에서 소비한다.
-- `fallbackLocale`은 `ko`를 유지하고, `startLocale`은 기기 언어가 `es`일 때만 `es`, 그 외는 `ko`다.
-- 사용자 노출 문자열 변경 시 `ko/es` 동시 반영.
-- `en/ja/zh` 번역 파일은 현재 비활성 보조 자산이다. 관련 키를 건드리면 함께 동기화하거나, 제외 이유를 결과에 명시한다.
+- 활성 locale 정책 기준: `ko`, `ja`, `zh`, `es`, `en`.
+- locale 부트스트랩 소스는 `lib/app/app_constants.dart`의 `supportedLocales` + `resolveSupportedLocale()`이며, `lib/main.dart`에서 소비한다.
+- `fallbackLocale`은 `en`을 유지하고, `startLocale`은 시스템 언어가 `ko/ja/zh/es`면 해당 locale, 그 외는 `en`이다.
+- 사용자 노출 문자열 변경 시 활성 locale 5종(`ko/ja/zh/es/en`)을 같은 턴에서 함께 반영한다.
+- 일부 locale을 의도적으로 제외하면 제외 이유를 결과에 명시한다.
 - 키 네임스페이스 유지: `common.*`, `camera.editor.*` 등 기존 패턴.
 - `Text`/`RichText` 등 사용자 노출 문자열을 새로 만들거나 변경할 때 하드코딩 금지, 반드시 로컬라이제이션 키(`tr()`)를 사용한다.
-- 로컬라이즈 키를 추가/수정한 경우 `ko/es` 리소스를 같은 턴에서 함께 갱신한다.
+- 로컬라이즈 키를 추가/수정한 경우 활성 locale 리소스를 같은 턴에서 함께 갱신한다.
 
 ## 8. 고위험 파일 (수정 시 강화 점검)
 - `lib/main.dart`
@@ -93,14 +113,19 @@
 - `lib/app/app_container_builder.dart`
 - `lib/app/app_providers.dart`
 - `lib/app/app_routes.dart`
+- `lib/app/push/app_push_coordinator.dart`
 - `lib/views/about_feed/manager/feed_data_manager.dart`
 - `lib/views/about_feed/feed_home.dart`
 - `lib/views/about_camera/photo_editor_screen.dart`
-- `lib/views/about_camera/photo_editor_screen_upload.dart`
+- `lib/views/about_camera/services/photo_editor_upload_flow_service.dart`
+- `lib/views/about_camera/services/photo_editor_upload_service.dart`
 - `lib/views/about_camera/services/photo_editor_media_processing_service.dart`
 - `lib/views/common_widget/api_photo/api_photo_display_widget.dart`
-- `lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart`
+- `lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart`
+- `lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart`
+- `lib/views/common_widget/api_photo/widgets/api_photo_comment_overlay.dart`
 - `lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart`
+- `lib/views/about_notification/services/notification_navigation_handler.dart`
 - `lib/api/services/*.dart`, `lib/api/models/*.dart`, `lib/api/controller/media_controller.dart`
 
 고위험 파일 변경 시 필수:
@@ -128,6 +153,7 @@ flutter test \
   test/api/controller/comment_controller_test.dart
 
 dart analyze lib/main.dart lib/app lib/api lib/views/about_feed lib/views/about_camera lib/views/about_archiving lib/views/common_widget
+dart analyze lib/views/about_notification
 ```
 
 필요 시 추가 점검:
@@ -135,11 +161,15 @@ dart analyze lib/main.dart lib/app lib/api lib/views/about_feed lib/views/about_
 flutter test \
   test/api/models/comment_post_model_test.dart \
   test/views/about_feed/manager/feed_data_manager_test.dart \
-  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart
+  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart \
+  test/api/controller/notification_controller_test.dart \
+  test/api/services/camera_service_test.dart \
+  test/app/push/app_push_coordinator_test.dart \
+  test/views/about_notification/services/notification_navigation_handler_test.dart
 
 rg -n "TEXT_ONLY|MULTIMEDIA|PHOTO|REPLY|COMMENT_REPLY_ADDED|savedAspectRatio|isFromGallery" lib/api
-rg -n "supportedLocales|koreanLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
-rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
+rg -n "supportedLocales|resolveSupportedLocale|englishLocale|koreanLocale|japaneseLocale|chineseLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
+rg -n "visibleFraction >= 0.6|cacheKey: postFileKey|useOldImageOnUrlChange" lib/views/common_widget/api_photo/api_photo_display_widget.dart lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart
 ```
 
 ## 11. 상세 문서 참조 위치
@@ -153,31 +183,40 @@ rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/commo
 3. 고위험 파일(§8) 해당 여부 확인 → 해당 시 무엇이 깨질 수 있는지 먼저 명시.
 4. API 계약 변경 포함 여부 확인 → 포함 시 §3 처리 순서 따름.
 5. 사용자 노출 문자열 변경 포함 여부 확인 → 포함 시 §7 로컬라이제이션 정책 따름.
-6. 최소 변경으로 구현 후 §10 검증 명령 실행.
+6. 코드 수정 포함 시 §2A 역할 설명 주석 규칙 적용 여부 확인.
+7. 최소 변경으로 구현 후 §10 검증 명령 실행.
 
 ## 13. 앱 초기화 순서 (Boot Sequence)
 `main()`의 초기화는 의존 순서가 있으므로 변경 시 주의:
-1. `WidgetsFlutterBinding` + `EasyLocalization.ensureInitialized()`
-2. `SharedPreferences` 로드 → 런치 비디오 표시 여부 결정
-3. `.env` 로드 → `SoiApiClient.instance.initialize()`
-4. `Firebase.initializeApp()` + FCM background handler 등록 (`supportsFirebaseMessaging` 조건부 — web/linux 제외)
+1. `WidgetsFlutterBinding` + `EasyLocalization.ensureInitialized()` + portrait orientation lock
+2. `SharedPreferences` 로드 → 런치 비디오 표시 여부 결정 → splash preserve/remove 분기
+3. `.env` 로드 → date formatting 초기화 → image cache/error handling 구성 → `SoiApiClient.instance.initialize()`
+4. `Firebase.initializeApp()` + FCM background handler 등록 (`supportsFirebaseMessaging` 조건부)
 5. `KakaoSdk.init()` → `AnalyticsService.create()` (Mixpanel)
 6. `UserController().tryAutoLogin()` → 성공 시 `refreshCurrentUser()`
-7. `FlutterNativeSplash.remove()` → `runApp()` → `buildAppProviders()` → `buildAppContainer()` → `buildAppRoutes()`
-8. `_MyAppState.initState()` → `AppPushCoordinator.initialize()` (navigatorKey 전달)
+7. `runApp()` → `EasyLocalization(supportedLocales, fallbackLocale=en, startLocale=resolveSupportedLocale(...))`
+8. `_MyAppState.initState()` → photo permission prefetch + deep link subscription + analytics/push identity binding + `AppPushCoordinator.initialize()` (navigatorKey 전달)
 
 규칙:
 - 3번과 4번 사이에 Firebase 없이 API 호출이 가능한 이유: `SoiApiClient`는 Supabase 기반이며 Firebase 독립적.
 - `FlutterNativeSplash`: `hasSeenLaunchVideo=true`면 auto-login 완료까지 스플래시 유지 후 제거.
 
 ## 14. 코드 분리 패턴
-**Extension 파일 패턴**: 대형 화면은 `extension/` 디렉토리에 기능별로 분리.
-- 예: `photo_editor_screen.dart` ← `extension/photo_editor_screen_view.dart` / `_init.dart` / `_upload_flow.dart` / `_category_flow.dart` / `_helpers.dart`
-- 화면 수정 시 반드시 관련 `extension/` 파일 전체 확인 후 작업.
+**PhotoEditorScreen 조립 패턴**:
+- `photo_editor_screen.dart`는 lifecycle/flow 조립만 담당하고, UI는 `widgets/about_photo_editor_screen/`, 초기화/카테고리/업로드는 `services/`로 분리한다.
+- `photo_editor_screen.dart` 수정 시 관련 `services/`와 `widgets/about_photo_editor_screen/`를 함께 확인한다.
+
+**API photo 조립 패턴**:
+- `api_photo_display_widget.dart`가 상위 orchestration을 맡고, 실제 미디어 렌더링/가시성은 `widgets/api_photo_media_content.dart`, 태그/오버레이는 `widgets/api_photo_comment_overlay.dart`, geometry 계산은 `services/api_photo_tag_geometry_service.dart`로 분리한다.
+- `api_photo_display_widget.dart` 수정 시 관련 `widgets/`와 `services/` 파일을 함께 확인한다.
 
 **카메라 서비스 두 계층** (혼용 금지):
 - `lib/api/services/camera_service.dart` → 갤러리 접근/권한 (캐시: 갤러리 첫 이미지 5s, 권한 상태 10s)
 - `lib/views/about_camera/services/` → 뷰 레이어 서비스 (업로드/미디어 처리)
+
+**Push navigation 분리 패턴**:
+- `lib/app/push/app_push_coordinator.dart` → FCM, local notification, payload dedupe, authenticated user sync
+- `lib/views/about_notification/services/notification_navigation_handler.dart` → 알림/푸시 payload를 실제 화면 이동으로 해석
 
 **buildAppContainer** (`lib/app/app_container_builder.dart`):
 - 전역 레이아웃 래퍼. textScaler 클램핑(`textScaleMin`/`textScaleMax`) + wide layout 대응.

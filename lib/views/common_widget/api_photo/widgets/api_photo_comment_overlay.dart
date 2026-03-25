@@ -21,6 +21,12 @@ typedef ApiPhotoCommentLongPressCallback =
       required Offset position,
     });
 
+/// 이미지/비디오 위에 댓글 작성자 프로필 사진을 원형 아바타로 보여주는 오버레이 위젯입니다.
+/// - 댓글 작성자의 프로필 이미지를 원형으로 보여주는 태그입니다.
+/// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
+/// - 댓글 작성이 완료되면, 부모 위젯에 댓글 저장 진행 상황과 결과를 전달하는 역할도 수행합니다.
+/// - 또한, 댓글이 작성 중인 위치에 표시할 수 있는 pending 댓글 마커도 포함하고 있습니다.
+///   pending 댓글 마커는 음성 댓글 녹음 중이거나 텍스트 댓글 입력 중인 상태에서, 댓글이 작성 중인 위치에 표시할 마커 정보입니다
 class ApiPhotoCommentOverlay extends StatelessWidget {
   const ApiPhotoCommentOverlay({
     super.key,
@@ -143,27 +149,37 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
       marker.relativePosition,
       imageSize,
     );
-    // 마커의 절대 좌표를 이미지 크기와 아바타 크기에 맞게 클램핑하여, 화면 밖으로 벗어나지 않도록 합니다.
-    final clamped = ApiPhotoTagGeometryService.clampTagAnchor(
-      absolute,
-      imageSize,
-      avatarSize,
+    final pendingTipOffset = TagBubble.pointerTipOffset(
+      contentSize: kPendingCommentAvatarSize,
+      padding: kPendingCommentTagPadding,
+    );
+    final pendingDiameter = TagBubble.diameterForContent(
+      contentSize: kPendingCommentAvatarSize,
+      padding: kPendingCommentTagPadding,
+    );
+    // 마커의 절대 좌표를 pending 태그 외곽 크기에 맞게 클램핑하여, 화면 밖으로 벗어나지 않도록 합니다.
+    final clamped = Offset(
+      absolute.dx.clamp(
+        pendingDiameter / 2,
+        imageSize.width - (pendingDiameter / 2),
+      ),
+      absolute.dy.clamp(pendingTipOffset.dy, imageSize.height),
     );
 
     // 태그의 원형 부분의 중심에서 포인터의 끝까지의 오프셋을 계산하여, 마커가 가리키는 위치에 원형 아바타가 정확히 배치되도록 합니다.
-    final tipOffset = TagBubble.pointerTipOffset(contentSize: avatarSize);
-
     return Positioned(
-      left: clamped.dx - tipOffset.dx,
-      top: clamped.dy - tipOffset.dy,
+      left: clamped.dx - pendingTipOffset.dx,
+      top: clamped.dy - pendingTipOffset.dy,
       child: IgnorePointer(
         // 진행률 표시 원형 프로그레스 인디케이터와 프로필 이미지 아바타가 겹쳐진 형태로, 진행률이 표시된 원형 아바타를 보여줍니다.
         child: ApiPhotoPendingProgressAvatar(
           imageUrl: marker.profileImageUrlKey,
           cacheKey: _normalizeKey(marker.profileImageUrlKey),
-          size: avatarSize,
+          size: kPendingCommentAvatarSize,
           progress: marker.progress,
           opacity: 0.85,
+          tagPadding: kPendingCommentTagPadding,
+          tagBackgroundColor: kPendingCommentTagBackgroundColor,
         ),
       ),
     );

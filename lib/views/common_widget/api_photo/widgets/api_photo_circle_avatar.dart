@@ -157,6 +157,8 @@ class ApiPhotoPendingProgressAvatar extends StatelessWidget {
     required this.progress,
     this.opacity = 1,
     this.cacheKey,
+    this.tagPadding = kTagPadding,
+    this.tagBackgroundColor = const Color(0xFF959595),
   });
 
   final String? imageUrl;
@@ -164,11 +166,15 @@ class ApiPhotoPendingProgressAvatar extends StatelessWidget {
   final double? progress;
   final double opacity;
   final String? cacheKey;
+  final double tagPadding;
+  final Color tagBackgroundColor;
 
   @override
   Widget build(BuildContext context) {
     return TagBubble(
       contentSize: size,
+      padding: tagPadding,
+      backgroundColor: tagBackgroundColor,
       child: SizedBox(
         width: size,
         height: size,

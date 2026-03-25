@@ -37,10 +37,11 @@
 
 ## 1. Project Snapshot (폴더 구조 기준)
 ### 규칙
-- SOI는 Flutter 클라이언트 + REST/OpenAPI 기반 구조다.
-- 앱 부트스트랩 책임은 `lib/main.dart`와 `lib/app/*`로 분리되어 있다.
+- SOI는 Flutter 클라이언트 + 로컬 OpenAPI/generated workspace + Firebase Functions를 함께 운용하는 구조다.
+- 앱 부트스트랩 책임은 `lib/main.dart`, `lib/app/*`, `lib/app/push/*`로 분리되어 있다.
 - API 생성 클라이언트(`api/generated`)와 앱 래퍼(`lib/api`)를 분리해 유지한다.
-- 구조 스냅샷은 파일 개수 대신 "tracked 프로젝트 폴더 구조"로 관리하고, `build/`, `Pods/`, `.dart_tool/` 같은 산출물은 제외한다.
+- 구조 스냅샷은 현재 workspace 기준으로 확인하고, `build/`, `.dart_tool/`, `ios/Pods/`, `functions/node_modules/` 같은 산출물은 제외한다.
+- `api/`처럼 workspace에는 존재하지만 tracked-tree-only 명령에 항상 보이지 않는 디렉토리가 있으므로, 구조 검증은 `find`/`rg --files`를 우선 사용한다.
 
 ### 근거 파일
 - 엔트리/초기화: `lib/main.dart`
@@ -51,11 +52,18 @@
 - 의존성: `pubspec.yaml`
 - API 생성 패키지: `api/generated/pubspec.yaml`
 
-### 구조(현재 프로젝트 폴더 트리)
+### 구조(현재 workspace 폴더 트리)
 ```text
 SOI/
+├─ .claude/
+│  └─ skills/
 ├─ .codex/
 │  └─ skills/
+├─ .omc/
+│  └─ sessions/
+├─ .serena/
+│  ├─ cache/
+│  └─ memories/
 ├─ .vscode/
 ├─ android/
 │  ├─ app/
@@ -75,7 +83,6 @@ SOI/
 │  ├─ icon/
 │  └─ translations/
 ├─ docs/
-│  └─ dev/
 ├─ figma_assets/
 ├─ functions/
 │  └─ lib/
@@ -85,9 +92,6 @@ SOI/
 │  ├─ Runner.xcodeproj/
 │  ├─ Runner.xcworkspace/
 │  ├─ RunnerTests/
-│  ├─ SOI/
-│  ├─ SOITests/
-│  ├─ SOIUITests/
 │  └─ fastlane/
 ├─ lib/
 │  ├─ api/
@@ -95,25 +99,17 @@ SOI/
 │  │  ├─ models/
 │  │  └─ services/
 │  ├─ app/
+│  │  └─ push/
 │  ├─ theme/
 │  ├─ utils/
 │  └─ views/
 │     ├─ about_archiving/
 │     │  ├─ screens/
-│     │  │  ├─ archive_detail/
-│     │  │  │  └─ widgets/
-│     │  │  │     └─ category_photos_header+body/
-│     │  │  └─ category_edit/
 │     │  └─ widgets/
-│     │     ├─ archive_card_widget/
-│     │     ├─ category_edit_widget/
-│     │     └─ wave_form_widget/
 │     ├─ about_camera/
 │     │  ├─ models/
 │     │  ├─ services/
 │     │  └─ widgets/
-│     │     ├─ about_camera/
-│     │     └─ about_photo_editor_screen/
 │     ├─ about_feed/
 │     │  ├─ manager/
 │     │  └─ widgets/
@@ -122,60 +118,51 @@ SOI/
 │     │  └─ widgets/
 │     ├─ about_login/
 │     │  └─ widgets/
-│     │     ├─ common/
-│     │     └─ pages/
 │     ├─ about_notification/
+│     │  ├─ services/
 │     │  └─ widgets/
 │     ├─ about_onboarding/
 │     ├─ about_profile/
+│     │  ├─ services/
+│     │  └─ widgets/
 │     ├─ about_setting/
 │     └─ common_widget/
 │        ├─ about_comment/
-│        │  └─ widget/
-│        │     └─ about_comment_list_sheet/
 │        ├─ about_more_menu/
 │        ├─ api_photo/
-│        │  └─ extension/
+│        │  ├─ services/
+│        │  └─ widgets/
 │        └─ report/
-├─ linux/
-│  ├─ flutter/
-│  └─ runner/
-├─ macos/
-│  ├─ Flutter/
-│  ├─ Runner/
-│  ├─ Runner.xcodeproj/
-│  ├─ Runner.xcworkspace/
-│  └─ RunnerTests/
 ├─ public/
 │  ├─ .well-known/
 │  └─ assets/
-├─ test/
-│  ├─ api/
-│  │  ├─ controller/
-│  │  ├─ models/
-│  │  └─ services/
-│  └─ views/
-│     ├─ about_feed/
-│     │  └─ manager/
-│     └─ common_widget/
-│        └─ api_photo/
-├─ web/
-│  ├─ icons/
-│  └─ splash/
-└─ windows/
-   ├─ flutter/
-   └─ runner/
+└─ test/
+   ├─ api/
+   │  ├─ controller/
+   │  ├─ models/
+   │  └─ services/
+   ├─ app/
+   │  └─ push/
+   └─ views/
+      ├─ about_archiving/
+      ├─ about_camera/
+      ├─ about_feed/
+      ├─ about_friends/
+      ├─ about_login/
+      ├─ about_notification/
+      ├─ about_profile/
+      └─ common_widget/
 ```
 
 ### 실패 시 리스크
 - generated/client와 wrapper 책임이 섞이면 재생성 시 대량 파손이 발생한다.
-- `lib/app` 분리 구조를 놓치면 locale/provider/route/layout 변경 지점을 잘못 수정할 수 있다.
+- `lib/app`/`lib/app/push` 분리 구조를 놓치면 locale/provider/route/push/layout 변경 지점을 잘못 수정할 수 있다.
 - 엔트리 초기화 순서 오해 시 로그인/딥링크/캐시 동작이 깨진다.
 
 ### 검증 방법
-- `git ls-tree -d --name-only HEAD | sort`
-- `git ls-tree -d -r --name-only HEAD lib/api lib/views test | sort`
-- `git ls-tree -r --name-only HEAD lib/app assets/translations test | sort`
+- `find . -maxdepth 2 -type d \( -path './.git' -o -path './build' -o -path './.dart_tool' -o -path './ios/Pods' -o -path './api/generated/.dart_tool' \) -prune -o -maxdepth 2 -type d | sort`
+- `find lib -maxdepth 3 -type d | sort`
+- `find test -maxdepth 3 -type d | sort`
 
 ## 2. API 연동 운영 규칙 (api-lib-sync 내재화)
 ### 규칙
@@ -222,13 +209,14 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 - 기본 상태관리 스택은 `provider ^6.1.5 + ChangeNotifier`다.
 - 전역 Provider 소유 객체는 앱 루트(`lib/main.dart` + `lib/app/app_providers.dart`)가 lifecycle owner이며, 화면에서 dispose하지 않는다.
 - `UserController`는 preloaded 인스턴스를 `buildAppProviders()` 내부에서 `ChangeNotifierProvider.value`로 주입한다.
+- `AnalyticsService`는 앱 전체에서 공유되는 `Provider.value` 인스턴스로 주입하며, 화면에서 재생성하지 않는다.
 - 전역 등록 컨트롤러:
 - `UserController`
 - `CategoryController`, `CategorySearchController`
 - `PostController`, `FeedDataManager`
 - `FriendController`, `CommentController`, `MediaController`
 - `NotificationController`, `ContactController`
-- `AudioController`, `CommentAudioController`
+- `ReportController`, `AudioController`, `CommentAudioController`
 - `FeedDataManager`는 전역 캐시 유지 목적이므로 화면(`feed_home`)에서는 `detachFromPostController()`만 호출한다.
 - build 프레임 중 상태 갱신 충돌 가능 구간은 post-frame 스케줄링으로 처리한다(`MediaController._scheduleNotify`).
 - async gap 이후 `BuildContext` 재사용은 `mounted`/가시성(`TickerMode`, `RouteAware`)을 확인한다.
@@ -271,10 +259,10 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 ### 근거 파일
 - 이미지 캐시 설정: `lib/main.dart`
 - 이미지/비디오 압축 상수: `lib/views/about_camera/services/photo_editor_media_processing_service.dart`
-- 업로드 파이프라인/캐시 evict: `lib/views/about_camera/photo_editor_screen.dart`, `lib/views/about_camera/photo_editor_screen_upload.dart`
+- 업로드 파이프라인/캐시 evict: `lib/views/about_camera/photo_editor_screen.dart`, `lib/views/about_camera/services/photo_editor_upload_flow_service.dart`, `lib/views/about_camera/services/photo_editor_upload_service.dart`
 - 카메라 녹화 기본 길이: `lib/api/services/camera_service.dart`
 - 3-tier 썸네일 캐시: `lib/utils/video_thumbnail_cache.dart`
-- 비디오 노출 임계값/이미지 깜빡임 완화: `lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart`
+- 비디오 노출 임계값/이미지 깜빡임 완화: `lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart`, `lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart`
 - 아카이브 썸네일 프리페치 상한: `lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart`
 
 ### 실패 시 리스크
@@ -286,7 +274,7 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 ### 검증 방법
 - `rg -n "maximumSize|maximumSizeBytes" lib/main.dart`
 - `rg -n "_maxImageSizeBytes|_maxVideoSizeBytes|_initialCompressionQuality|_fallbackCompressionQuality" lib/views/about_camera/services/photo_editor_media_processing_service.dart`
-- `rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey|useOldImageOnUrlChange" lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart`
+- `rg -n "visibleFraction >= 0.6|cacheKey: postFileKey|useOldImageOnUrlChange" lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart`
 - `rg -n "_maxEntries|_maxBytes|take\(4\)" lib/utils/video_thumbnail_cache.dart lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart`
 
 ## 5. 캐싱 전략 매트릭스 (현재 코드 반영)
@@ -351,13 +339,13 @@ dart analyze lib/api/models lib/api/services lib/api/controller
 flutter test test/api/services/user_service_test.dart test/api/controller/user_controller_test.dart
 ```
 
-## 7. 로컬라이제이션 정책 (ko/es 활성 locale 기준)
+## 7. 로컬라이제이션 정책 (현재 활성 locale 기준)
 ### 규칙
-- 활성 locale 정책 기준은 `ko`, `es`다.
+- 활성 locale 정책 기준은 `ko`, `ja`, `zh`, `es`, `en`이다.
 - `supportedLocales` 단일 진실 소스는 `lib/app/app_constants.dart`이며, `lib/main.dart`가 이를 `EasyLocalization`에 주입한다.
-- `fallbackLocale`은 `ko`를 유지하고, `startLocale`은 기기 언어가 `es`일 때만 `es`, 그 외는 `ko`로 시작한다.
-- 사용자 노출 문자열 변경 시 최소 `ko/es` 2개 번역 키를 동시에 반영한다.
-- `en/ja/zh`는 현재 브랜치에서 `supportedLocales`에 포함되지 않는 보조 번역 자산이다. 기존 공용 키를 건드리면 함께 동기화하거나 제외 이유를 결과에 남긴다.
+- `fallbackLocale`은 `en`이고, `startLocale`은 `resolveSupportedLocale()`이 시스템 언어를 `ko/ja/zh/es`로 매핑하면 해당 locale, 그 외는 `en`으로 시작한다.
+- 사용자 노출 문자열 변경 시 활성 locale 5종(`ko/ja/zh/es/en`) 번역 키를 함께 반영한다.
+- 특정 locale을 의도적으로 제외하면 제외 이유를 결과에 남긴다.
 - 키 네임스페이스는 기존 패턴(`common.*`, `camera.editor.*`)을 유지한다.
 
 ### 근거 파일
@@ -365,14 +353,14 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - 번역 파일: `assets/translations/ko.json`, `assets/translations/es.json`, `assets/translations/en.json`, `assets/translations/ja.json`, `assets/translations/zh.json`
 
 ### 실패 시 리스크
-- 현재 브랜치에서 `en.json`이 존재한다고 해서 영어 UI가 자동 활성화되는 것은 아니다.
+- `supportedLocales`와 `resolveSupportedLocale()`를 함께 보지 않으면 실제 시작 locale 정책을 잘못 이해할 수 있다.
 - 활성 locale 정책과 번역 파일 정책이 불일치하면 릴리즈 직전에 누락이 발견된다.
 - 하드코딩 문자열 증가로 다국어 회귀 비용이 커진다.
 
 ### 검증 방법
 - `ls -1 assets/translations`
-- `rg -n "supportedLocales|fallbackLocale|startLocale|spanishLanguageCode|koreanLocale|spanishLocale" lib/main.dart lib/app/app_constants.dart`
-- 수동 검증: 기기 언어 `es`에서 스페인어 시작, `en` 등 비-`es` 언어에서 한국어 fallback 시작 여부 확인
+- `rg -n "supportedLocales|resolveSupportedLocale|fallbackLocale|startLocale|englishLocale|koreanLocale|japaneseLocale|chineseLocale|spanishLocale" lib/main.dart lib/app/app_constants.dart`
+- 수동 검증: 기기 언어 `ko/ja/zh/es`에서 각각 해당 locale로 시작하고, 그 외 언어에서는 `en` fallback 시작 여부 확인
 
 ## 8. 고위험 파일 및 점검 시나리오 (현 프로젝트 상세 분석)
 ### 규칙
@@ -382,12 +370,13 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 ### 고위험 파일 매트릭스
 | 파일 | 위험 포인트 | 필수 체크포인트 |
 |---|---|---|
-| `lib/main.dart` + `lib/app/app_constants.dart` + `lib/app/app_providers.dart` + `lib/app/app_routes.dart` + `lib/app/app_container_builder.dart` | 앱 부트스트랩 순서, 활성 locale 정책, 전역 Provider 생명주기, route wiring, 와이드 레이아웃 컨테이너 | `supportedLocales=[ko, es]`, `buildAppProviders`, `buildAppRoutes`, `buildAppContainer`, `_configureImageCache`, URI 중복 방지(3초) |
+| `lib/main.dart` + `lib/app/app_constants.dart` + `lib/app/app_providers.dart` + `lib/app/app_routes.dart` + `lib/app/app_container_builder.dart` | 앱 부트스트랩 순서, 활성 locale 정책, 전역 Provider 생명주기, route wiring, 와이드 레이아웃 컨테이너 | `supportedLocales=[ko, ja, zh, es, en]`, `resolveSupportedLocale`, `fallbackLocale=en`, `buildAppProviders`, `buildAppRoutes`, `buildAppContainer`, `_configureImageCache`, URI 중복 방지(3초) |
 | `lib/views/about_feed/manager/feed_data_manager.dart` + `lib/views/about_feed/feed_home.dart` | 전역 피드 캐시 소유권/사용자 전환/탭 가시성 | `detachFromPostController`만 호출, `_lastUserId` 전환 리셋, `_pendingPostRefresh` 복귀 갱신 |
-| `lib/views/about_camera/photo_editor_screen.dart` + `photo_editor_screen_upload.dart` + `services/photo_editor_media_processing_service.dart` | 백그라운드 업로드 파이프라인, 압축 수치, 임시파일/캐시 정리 | 1MB/50MB 가드, 업로드 후 `VideoCompress.deleteAllCache()`, `_evictCurrentImageFromCache`, 실패 시 원본 fallback |
-| `lib/views/common_widget/api_photo/api_photo_display_widget.dart` + `extension/api_photo_display_widget_media.dart` + `extension/api_photo_display_widget_video.dart` | 비디오 lifecycle/가시성 기반 재생, 이미지 깜빡임 회귀 | `visibleFraction >= 0.6`, lifecycle pause, `cacheKey + useOldImageOnUrlChange` |
+| `lib/views/about_camera/photo_editor_screen.dart` + `services/photo_editor_upload_flow_service.dart` + `services/photo_editor_upload_service.dart` + `services/photo_editor_media_processing_service.dart` | 편집/압축/업로드 흐름 조립, 임시파일/캐시 정리, 카테고리 커버 반영 | 1MB/50MB 가드, `VideoCompress.deleteAllCache()`, `_evictCurrentImageFromCache`, 실패 시 원본 fallback, text-only 경로 분기 |
+| `lib/views/common_widget/api_photo/api_photo_display_widget.dart` + `widgets/api_photo_media_content.dart` + `widgets/api_photo_comment_overlay.dart` + `widgets/api_photo_circle_avatar.dart` | 비디오 lifecycle/가시성 기반 재생, 이미지/아바타 깜빡임 회귀, pending comment tag 정렬 | `visibleFraction >= 0.6`, `cacheKey=postFileKey`, `useOldImageOnUrlChange`, tag geometry clamp |
 | `lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart` | stale 캐시 표시 + 백그라운드 페이징 동시성 | `_cacheTtl=30m`, `allowExpired` 동작, `generation` 가드, posts-changed 캐시 제거 |
 | `lib/api/controller/media_controller.dart` + `lib/utils/video_thumbnail_cache.dart` | presigned URL 캐시 만료/중복요청/썸네일 LRU | presigned `55m`, in-flight dedupe, thumbnail LRU(100), 3-tier 캐시 상한 |
+| `lib/app/push/app_push_coordinator.dart` + `lib/views/about_notification/services/notification_navigation_handler.dart` | FCM/bootstrap, 로컬 알림 payload decode, 인증 상태 동기화, 푸시 route 해석 | `supportsFirebaseMessaging`, pending launch payload 우선순위, payload dedupe(5s), `PushNavigationAction` 분기, category/post route completeness |
 | `lib/api/services/post_service.dart` + `comment_service.dart` + `user_service.dart` | DTO/enum/nullability 매핑 및 예외 분류 | `postType/commentType` 매핑, `404` 처리 정책, `SocketException -> NetworkException` |
 | `lib/api/models/post.dart` + `comment.dart` + `notification.dart` | generated DTO ↔ 도메인 모델 필드/enum 동기화 | `PostType`, `CommentType`, `AppNotificationType`, `savedAspectRatio/isFromGallery/parentId/replyUserId/fileKey` |
 
@@ -401,10 +390,12 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - 아카이브 진입 시 만료 캐시 즉시 표시 후 백그라운드 갱신으로 리스트가 교체되는지 확인.
 - presigned URL 재발급 후에도 동일 `postFileKey`에서는 이미지 깜빡임이 없는지 확인.
 - 댓글 타입(`PHOTO/REPLY`) 및 알림 타입(`COMMENT_REPLY_ADDED`)이 UI 분기에서 정상 처리되는지 확인.
+- background data-only push는 visible content가 있을 때만 로컬 알림을 표시하는지 확인.
+- push tap에서 `categoryId/postId` 조합이 완전할 때만 category/detail flow로 이동하고, 불완전 payload는 notifications/root로 안전하게 fallback하는지 확인.
 
 ### 검증 방법
-- `rg -n "supportedLocales|buildAppProviders|buildAppRoutes|buildAppContainer|deepLinkDuplicationWindowSeconds" lib/main.dart lib/app`
-- `rg -n "_cacheTtl|allowExpired|generation|visibleFraction >= 0.6|cacheKey: widget.post.postFileKey|_lastUserId|_pendingPostRefresh" lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart lib/views/about_feed/manager/feed_data_manager.dart`
+- `rg -n "supportedLocales|resolveSupportedLocale|fallbackLocale|buildAppProviders|buildAppRoutes|buildAppContainer|deepLinkDuplicationWindowSeconds" lib/main.dart lib/app`
+- `rg -n "_cacheTtl|allowExpired|generation|visibleFraction >= 0.6|cacheKey: postFileKey|_lastUserId|_pendingPostRefresh" lib/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart lib/views/about_feed/manager/feed_data_manager.dart`
 
 ## 9. 테스트/검증 섹션 (현행 테스트셋 반영)
 ### 규칙
@@ -418,15 +409,25 @@ flutter test test/api/services/user_service_test.dart test/api/controller/user_c
 - `test/api/services/post_service_test.dart`
 - `test/api/services/comment_service_test.dart`
 - `test/api/services/notification_service_test.dart`
+- `test/api/services/camera_service_test.dart`
 - 컨트롤러 테스트:
 - `test/api/controller/user_controller_test.dart`
 - `test/api/controller/post_controller_test.dart`
 - `test/api/controller/comment_controller_test.dart`
+- `test/api/controller/notification_controller_test.dart`
+- `test/api/controller/media_controller_test.dart`
 - 모델 테스트:
 - `test/api/models/comment_post_model_test.dart`
+- 앱/푸시 테스트:
+- `test/app/push/app_push_coordinator_test.dart`
 - 화면/위젯 테스트:
 - `test/views/about_feed/manager/feed_data_manager_test.dart`
 - `test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart`
+- `test/views/about_camera/services/photo_editor_screen_init_service_test.dart`
+- `test/views/about_camera/services/photo_editor_category_flow_service_test.dart`
+- `test/views/about_camera/widgets/gallery_thumbnail_test.dart`
+- `test/views/about_notification/services/notification_navigation_handler_test.dart`
+- `test/views/about_profile/profile_tabs_test.dart`
 - 핵심 변경 파일:
 - `lib/main.dart`
 - `lib/app/**`
@@ -458,7 +459,16 @@ flutter test \
 flutter test \
   test/api/models/comment_post_model_test.dart \
   test/views/about_feed/manager/feed_data_manager_test.dart \
-  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart
+  test/views/common_widget/api_photo/api_photo_tag_overlay_test.dart \
+  test/api/controller/notification_controller_test.dart \
+  test/api/controller/media_controller_test.dart \
+  test/api/services/camera_service_test.dart \
+  test/app/push/app_push_coordinator_test.dart \
+  test/views/about_camera/services/photo_editor_screen_init_service_test.dart \
+  test/views/about_camera/services/photo_editor_category_flow_service_test.dart \
+  test/views/about_camera/widgets/gallery_thumbnail_test.dart \
+  test/views/about_notification/services/notification_navigation_handler_test.dart \
+  test/views/about_profile/profile_tabs_test.dart
 ```
 - 정적 분석:
 ```bash
@@ -467,13 +477,14 @@ dart analyze lib/main.dart lib/app lib/api lib/views/about_feed lib/views/about_
 - 변경 포인트 grep:
 ```bash
 rg -n "TEXT_ONLY|MULTIMEDIA|PHOTO|REPLY|COMMENT_REPLY_ADDED|savedAspectRatio|isFromGallery" lib/api
-rg -n "supportedLocales|koreanLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
-rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/common_widget/api_photo/extension/api_photo_display_widget_media.dart
+rg -n "supportedLocales|resolveSupportedLocale|englishLocale|koreanLocale|japaneseLocale|chineseLocale|spanishLocale|buildAppProviders|buildAppRoutes|buildAppContainer" lib/main.dart lib/app
+rg -n "visibleFraction >= 0.6|cacheKey: postFileKey|useOldImageOnUrlChange" lib/views/common_widget/api_photo/widgets/api_photo_media_content.dart lib/views/common_widget/api_photo/widgets/api_photo_circle_avatar.dart
 ```
 - 수동 회귀:
 - 사용자 전환 후 피드/카테고리 분리 확인
 - 대용량 비디오 업로드 및 썸네일 생성/캐시 확인
-- `es` 기기 언어에서 스페인어 시작, `en` 등 비-`es` 기기 언어에서 한국어 fallback 확인
+- `ko/ja/zh/es` 기기 언어에서 해당 locale 시작, 그 외 언어에서 `en` fallback 확인
+- data-only/background push 표시 조건 및 push tap route fallback 확인
 
 ## 10. 공용 API/인터페이스/타입 변경 대응 규칙 (현행 계약 반영)
 ### 규칙
@@ -531,8 +542,10 @@ rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/commo
 ## 11. 작업 절차(Agent Workflow)
 ### 규칙
 - 모든 작업은 아래 순서를 따른다.
-- 목표/범위 재확인 -> 영향 파일 탐색 -> 최소 변경 구현 -> 검증 실행 -> 결과/리스크 보고
+- 목표/범위 재확인 -> 영향 파일 탐색 -> 최소 변경 구현 -> 수정한 함수/클래스 역할 주석 점검 -> 검증 실행 -> 결과/리스크 보고
 - 대규모 리팩터링은 사용자 명시 요청이 없으면 금지한다.
+- comment를 지원하는 source file을 수정했다면, 수정을 소유하는 함수/클래스/위젯 선언 바로 위에 1-2줄 역할 설명 주석을 추가하거나 기존 주석을 갱신한다(`AGENTS.md §2A`).
+- generated/comment-free 파일처럼 주석을 넣지 않아야 하는 포맷은 제외하고, 제외 이유를 최종 결과에 남긴다.
 
 ### 근거 파일
 - 본 문서 전체
@@ -546,14 +559,16 @@ rg -n "visibleFraction >= 0.6|cacheKey: widget.post.postFileKey" lib/views/commo
 - 수정 파일 목록
 - 주요 변경점
 - 실행한 검증 명령과 결과
+- 역할 주석 생략 파일/사유(해당 시)
 - 남은 리스크
 
 ## 12. 가정 및 기본값
 ### 규칙
-- 본 v2 문서는 `docs/AI_AGENT_PLAYBOOK.md` 단일 파일 기준으로 유지한다.
+- `AGENTS.md`는 항상 적용되는 압축 규칙이고, 본 문서는 상세 참조용 v2 플레이북이다.
 - 영어 문서(`docs/AI_AGENT_PLAYBOOK.en.md`)는 섹션 번호/규칙을 한국어 문서와 동기화한다.
 - 문체는 실행 체크리스트 중심으로 유지한다.
 - 성능/캐싱 정책은 정량 수치를 우선 반영한다.
+- 부분 조회가 가능할 때는 필요한 섹션만 읽고, 전체 재독은 문서 자체를 수정하거나 구조 드리프트를 점검할 때만 수행한다.
 
 ### 근거 파일
 - `docs/AI_AGENT_PLAYBOOK.md`

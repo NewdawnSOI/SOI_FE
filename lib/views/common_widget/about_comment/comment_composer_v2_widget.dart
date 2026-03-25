@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../api/models/comment.dart';
 import 'pending_api_voice_comment.dart';
@@ -249,7 +248,7 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
       alignment: Alignment.center,
       child: CommentProfileTagWidget(
         payload: payload,
-        avatarSize: 53.sp,
+        avatarSize: kPendingCommentAvatarSize,
         resolveDropRelativePosition: _resolveDropPosition,
         onSaveProgress: (progress) {
           widget.onCommentSaveProgress(widget.postId, progress);

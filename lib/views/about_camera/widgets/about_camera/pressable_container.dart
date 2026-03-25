@@ -7,6 +7,9 @@ class PressableContainer extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final GestureLongPressStartCallback? onLongPressStart;
+  final GestureLongPressEndCallback? onLongPressEnd;
+  final VoidCallback? onLongPressCancel;
 
   final EdgeInsets padding;
   final BorderRadius borderRadius;
@@ -26,6 +29,9 @@ class PressableContainer extends StatefulWidget {
     required this.child,
     this.onTap,
     this.onLongPress,
+    this.onLongPressStart,
+    this.onLongPressEnd,
+    this.onLongPressCancel,
     this.padding = const EdgeInsets.all(14),
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
     this.color = const Color(0xFF111111),
@@ -92,9 +98,18 @@ class _PressableContainerState extends State<PressableContainer>
       onTapUp: (_) => _release(),
       onTapCancel: () => _release(),
       onTap: widget.onTap,
-      onLongPressStart: (_) => _press(),
-      onLongPressEnd: (_) => _release(),
-      onLongPressCancel: () => _release(),
+      onLongPressStart: (details) {
+        _press();
+        widget.onLongPressStart?.call(details);
+      },
+      onLongPressEnd: (details) {
+        _release();
+        widget.onLongPressEnd?.call(details);
+      },
+      onLongPressCancel: () {
+        _release();
+        widget.onLongPressCancel?.call();
+      },
       onLongPress: widget.onLongPress,
       child: AnimatedBuilder(
         animation: _controller,
