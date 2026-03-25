@@ -31,6 +31,11 @@ class PhotoEditorCategorySheetController {
   }
 }
 
+/// 사진 편집 화면에서 카테고리를 선택하는 바텀시트 위젯입니다.
+/// - 카테고리가 선택되지 않은 초기 상태에서는 시트가 낮은 위치에서 시작하며, 카테고리가 선택되면 시트가 확장됩니다.
+/// - 사용자가 시트를 드래그하여 확장하거나 축소할 수 있으며, 선택된 카테고리가 없을 때 시트가 너무 낮게 내려가지 않도록 잠금 기능이 있습니다.
+/// - 시트가 숨겨지는 경우에는 완전히 사라지며, 다시 나타날 때는 선택된 카테고리에 따라 적절한 위치에서 시작합니다.
+/// - 시트의 높이 변화는 선택된 카테고리의 유무와 시트의 현재 상태에 따라 자동으로 조정됩니다.
 class PhotoEditorCategorySheet extends StatefulWidget {
   const PhotoEditorCategorySheet({
     super.key,
@@ -61,6 +66,7 @@ class PhotoEditorCategorySheet extends StatefulWidget {
       _PhotoEditorCategorySheetState();
 }
 
+/// 카테고리 선택 여부와 시트 extent를 동기화해 편집 화면의 바텀시트 동작을 유지합니다.
 class _PhotoEditorCategorySheetState extends State<PhotoEditorCategorySheet> {
   final DraggableScrollableController _draggableScrollController =
       DraggableScrollableController();
@@ -70,37 +76,39 @@ class _PhotoEditorCategorySheetState extends State<PhotoEditorCategorySheet> {
   bool _hasLockedSheetExtent = false;
   bool _isAnimatingSheet = false;
   bool _hasAutoOpened = false;
+  bool _hadSelection = false;
 
   @override
   void initState() {
     super.initState();
     widget.controller._attach(this);
+    _hadSelection = widget.selectedCategoryIds.isNotEmpty;
     _ensureLockedOpen();
   }
 
+  /// 선택 여부 변화와 숨김 해제를 감지해 시트 높이를 적절한 extent로 맞춥니다.
   @override
   void didUpdateWidget(PhotoEditorCategorySheet oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final hasSelection = widget.selectedCategoryIds.isNotEmpty;
 
     if (!oldWidget.shouldAutoOpen && widget.shouldAutoOpen) {
       _ensureLockedOpen();
     }
 
-    if (oldWidget.selectedCategoryIds.isEmpty &&
-        widget.selectedCategoryIds.isNotEmpty) {
+    if (!_hadSelection && hasSelection) {
       _animateSheetToIfNeeded(PhotoEditorCategorySheet.expandedSheetExtent);
     }
 
-    if (oldWidget.selectedCategoryIds.isNotEmpty &&
-        widget.selectedCategoryIds.isEmpty) {
+    if (_hadSelection && !hasSelection) {
       _animateSheetTo(PhotoEditorCategorySheet.lockedSheetExtent);
     }
 
-    if (oldWidget.isHidden &&
-        !widget.isHidden &&
-        widget.selectedCategoryIds.isNotEmpty) {
+    if (oldWidget.isHidden && !widget.isHidden && hasSelection) {
       _animateSheetToIfNeeded(PhotoEditorCategorySheet.expandedSheetExtent);
     }
+
+    _hadSelection = hasSelection;
   }
 
   @override
@@ -293,6 +301,7 @@ class _PhotoEditorCategorySheetState extends State<PhotoEditorCategorySheet> {
                         ),
                       ),
                       SizedBox(height: spacing),
+                      // 카테고리 리스트 시트 위젯입니다. 스크롤 가능한 영역을 제공하며, 카테고리 선택과 추가, 선택 완료 등의 기능을 전달받은 콜백으로 처리합니다.
                       SizedBox(
                         height: contentHeight,
                         child: CategoryListWidget(
