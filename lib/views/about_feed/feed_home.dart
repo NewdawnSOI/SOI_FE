@@ -77,7 +77,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       });
 
       _userController = Provider.of<UserController>(context, listen: false);
-      _lastProfileImageKey = _userController?.currentUser?.profileImageUrlKey;
+      _lastProfileImageKey = _userController?.currentUser?.profileImageKey;
       _userControllerListener ??= _handleUserProfileChanged;
       _userController?.addListener(_userControllerListener!);
 
@@ -308,7 +308,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   /// 프로필 이미지 변경 감지 및 피드 새로고침
   void _handleUserProfileChanged() {
     // 현재 프로필 이미지 키 가져오기
-    final newKey = _userController?.currentUser?.profileImageUrlKey;
+    final newKey = _userController?.currentUser?.profileImageKey;
 
     // 프로필 이미지 키가 변경되지 않았으면 종료
     if (newKey == _lastProfileImageKey) {

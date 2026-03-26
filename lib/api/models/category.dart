@@ -29,6 +29,7 @@ class Category {
   final int totalUserCount; // 카테고리 참여자 수
   final bool isPinned; // 카테고리 고정 여부
   final List<String> usersProfileKey; // 사용자 프로필 키 목록
+  final List<String> usersProfileUrl; // 사용자 프로필 URL 목록
   final DateTime? pinnedAt; // 고정된 날짜
   final DateTime? lastPhotoUploadedAt; // 마지막 사진 업로드 날짜
 
@@ -41,6 +42,7 @@ class Category {
     this.totalUserCount = 0,
     this.isPinned = false,
     this.usersProfileKey = const [],
+    this.usersProfileUrl = const [],
     this.pinnedAt,
     this.lastPhotoUploadedAt,
   });
@@ -57,6 +59,7 @@ class Category {
       totalUserCount: dto.totalUserNum ?? 0,
       isPinned: dto.isPinned ?? false,
       usersProfileKey: dto.usersProfileKey,
+      usersProfileUrl: dto.usersProfileUrl,
       pinnedAt: dto.pinnedAt,
       lastPhotoUploadedAt: dto.lastPhotoUploadedAt,
     );
@@ -90,6 +93,14 @@ class Category {
               ?.map((e) => e as String)
               .toList() ??
           [],
+      usersProfileUrl:
+          (json['usersProfileUrl'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          (json['usersProfileUrls'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       pinnedAt: json['pinnedAt'] != null
           ? DateTime.tryParse(json['pinnedAt'] as String)
           : null,
@@ -110,6 +121,7 @@ class Category {
       'totalUserNum': totalUserCount,
       'isPinned': isPinned,
       'usersProfileKey': usersProfileKey,
+      'usersProfileUrl': usersProfileUrl,
       'pinnedAt': pinnedAt?.toIso8601String(),
       'lastPhotoUploadedAt': lastPhotoUploadedAt?.toIso8601String(),
     };
@@ -128,6 +140,7 @@ class Category {
     int? totalUserCount,
     bool? isPinned,
     List<String>? usersProfileKey,
+    List<String>? usersProfileUrl,
     DateTime? pinnedAt,
     DateTime? lastPhotoUploadedAt,
   }) {
@@ -140,6 +153,7 @@ class Category {
       totalUserCount: totalUserCount ?? this.totalUserCount,
       isPinned: isPinned ?? this.isPinned,
       usersProfileKey: usersProfileKey ?? this.usersProfileKey,
+      usersProfileUrl: usersProfileUrl ?? this.usersProfileUrl,
       pinnedAt: pinnedAt ?? this.pinnedAt,
       lastPhotoUploadedAt: lastPhotoUploadedAt ?? this.lastPhotoUploadedAt,
     );

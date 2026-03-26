@@ -325,7 +325,7 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
     final usersToResolve = users
         .where(
           (user) =>
-              user.profileImageUrlKey?.isNotEmpty == true &&
+              user.profileImageKey?.isNotEmpty == true &&
               !_profileUrlCache.containsKey(user.id),
         )
         .toList(growable: false);
@@ -338,7 +338,7 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
       usersToResolve.map((user) async {
         try {
           final url = await mediaController.getPresignedUrl(
-            user.profileImageUrlKey!,
+            user.profileImageKey!,
           );
           return MapEntry<int, String?>(user.id, url);
         } catch (e) {

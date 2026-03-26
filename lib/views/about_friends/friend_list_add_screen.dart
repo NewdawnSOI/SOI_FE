@@ -223,7 +223,7 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
     for (final friendId in _selectedFriendIds) {
       final friend = _findFriendById(friendId);
       final friendName = friend?.name ?? tr('common.unknown', context: context);
-      final profileUrl = friend?.profileImageUrlKey;
+      final profileUrl = friend?.profileImageKey;
 
       selectedFriends.add(
         SelectedFriendModel(
@@ -473,7 +473,7 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
     required bool isAlreadyMember,
     required VoidCallback onTap,
   }) {
-    final profileUrl = friend.profileImageUrlKey;
+    final profileUrl = friend.profileImageKey;
     final hasProfileImage = profileUrl != null && profileUrl.isNotEmpty;
 
     return GestureDetector(

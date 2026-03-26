@@ -219,7 +219,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
         _selectedFriendsById[friend.id] = SelectedFriendModel(
           uid: friend.id.toString(),
           name: friend.name,
-          profileImageUrl: friend.profileImageUrlKey,
+          profileImageUrl: friend.profileImageKey,
         );
       }
     });
@@ -408,7 +408,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
   }
 
   Widget _buildFriendAvatar(User friend) {
-    final profileUrl = friend.profileImageUrlKey;
+    final profileUrl = friend.profileImageKey;
     final hasProfileImage = profileUrl != null && profileUrl.isNotEmpty;
 
     if (hasProfileImage) {

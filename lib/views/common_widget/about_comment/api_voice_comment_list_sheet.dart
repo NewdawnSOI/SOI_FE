@@ -563,7 +563,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _insertSavedComment(
         savedComment,
         replyTarget: replyTarget,
-        currentUserProfileKey: currentUser.profileImageUrlKey,
+        currentUserProfileKey: currentUser.profileImageKey,
       );
     } catch (_) {
       if (mounted) {
@@ -747,7 +747,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _insertSavedComment(
         savedComment,
         replyTarget: replyTarget,
-        currentUserProfileKey: currentUser.profileImageUrlKey,
+        currentUserProfileKey: currentUser.profileImageKey,
       );
     } catch (_) {
       if (mounted) {
@@ -838,7 +838,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _insertSavedComment(
         savedComment,
         replyTarget: replyTarget,
-        currentUserProfileKey: currentUser.profileImageUrlKey,
+        currentUserProfileKey: currentUser.profileImageKey,
       );
     } catch (_) {
       if (mounted) {

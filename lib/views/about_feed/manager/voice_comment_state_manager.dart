@@ -354,7 +354,7 @@ class VoiceCommentStateManager {
       waveformData: null,
       duration: null,
       recorderUserId: currentUser.id,
-      profileImageUrlKey: currentUser.profileImageUrlKey,
+      profileImageUrlKey: currentUser.profileImageKey,
     );
 
     // 텍스트 댓글 대기 상태 설정
@@ -395,7 +395,7 @@ class VoiceCommentStateManager {
       waveformData: waveformData,
       duration: duration,
       recorderUserId: currentUser.id,
-      profileImageUrlKey: currentUser.profileImageUrlKey,
+      profileImageUrlKey: currentUser.profileImageKey,
     );
 
     // 저장된 댓글 상태 업데이트
@@ -435,7 +435,7 @@ class VoiceCommentStateManager {
       waveformData: null,
       duration: null,
       recorderUserId: currentUser.id,
-      profileImageUrlKey: currentUser.profileImageUrlKey,
+      profileImageUrlKey: currentUser.profileImageKey,
     );
 
     _pendingTextComments.remove(postId);

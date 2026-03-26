@@ -307,7 +307,7 @@ class _FriendListScreenState extends State<FriendListScreen> {
     required VoidCallback onTap,
   }) {
     // profileImageUrlKey는 이미 완전한 URL
-    final profileUrl = friend.profileImageUrlKey;
+    final profileUrl = friend.profileImageKey;
     final hasProfileImage = profileUrl != null && profileUrl.isNotEmpty;
 
     return Column(
@@ -417,11 +417,7 @@ class _FriendListScreenState extends State<FriendListScreen> {
                         );
                       },
                   menuChildren: [
-                    _menuItem(
-                      friend.id,
-                      friend.profileImageUrlKey,
-                      friend.name,
-                    ),
+                    _menuItem(friend.id, friend.profileImageKey, friend.name),
                   ],
                 ),
               ],

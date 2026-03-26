@@ -164,11 +164,11 @@ class _FriendListCardState extends State<FriendListCard> {
                                   ),
                                   child: ClipOval(
                                     child:
-                                        friend.profileImageUrlKey == null ||
-                                            friend.profileImageUrlKey!.isEmpty
+                                        friend.profileImageKey == null ||
+                                            friend.profileImageKey!.isEmpty
                                         ? _buildInitialOrIcon(friend)
                                         : Image.network(
-                                            friend.profileImageUrlKey!,
+                                            friend.profileImageKey!,
                                             cacheWidth: (44 * 4).round(),
                                             cacheHeight: (44 * 4).round(),
                                             fit: BoxFit.cover,

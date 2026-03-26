@@ -329,10 +329,10 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       return;
     }
 
-    final resolvedKey = profileImageKey ?? user.profileImageUrlKey;
+    final resolvedKey = profileImageKey ?? user.profileImageKey;
 
     if (resolvedKey == null || resolvedKey.isEmpty) {
-      debugPrint('[ArchiveMainScreen] profileImageUrlKey가 비어있음 - 기본 아바타 표시');
+      debugPrint('[ArchiveMainScreen] profileImageKey가 비어있음 - 기본 아바타 표시');
       return;
     }
 
@@ -357,7 +357,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       unawaited(_loadNotificationBadgeState(forceRefresh: true));
     }
 
-    final key = _userController?.currentUser?.profileImageUrlKey;
+    final key = _userController?.currentUser?.profileImageKey;
 
     // 프로필 이미지 키가 없으면 기본 아바타로 설정
     if (key == null || key.isEmpty) {

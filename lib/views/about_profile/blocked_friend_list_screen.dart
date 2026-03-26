@@ -159,7 +159,7 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
     final keyByUserId = <int, String>{};
 
     for (final user in users) {
-      final keyOrUrl = user.profileImageUrlKey;
+      final keyOrUrl = user.profileImageKey;
       if (keyOrUrl == null || keyOrUrl.isEmpty) continue;
 
       final uri = Uri.tryParse(keyOrUrl);
@@ -438,7 +438,7 @@ class _BlockedUserItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profileUrl = profileImageUrl ?? user.profileImageUrlKey ?? '';
+    final profileUrl = profileImageUrl ?? user.profileImageKey ?? '';
 
     return Row(
       children: [

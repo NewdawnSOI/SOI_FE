@@ -15,7 +15,7 @@ class User {
   final String name;
 
   // 프로필 이미지 URL
-  final String? profileImageUrlKey;
+  final String? profileImageKey;
 
   // 생년월일 (YYYY-MM-DD 형식)
   final String? birthDate;
@@ -30,7 +30,7 @@ class User {
     required this.id,
     required this.userId,
     required this.name,
-    this.profileImageUrlKey,
+    this.profileImageKey,
     this.birthDate,
     required this.phoneNumber,
     this.active = false,
@@ -42,7 +42,7 @@ class User {
       id: dto.id ?? 0,
       userId: dto.nickname ?? '',
       name: dto.name ?? '',
-      profileImageUrlKey: dto.profileImageKey,
+      profileImageKey: dto.profileImageKey,
       birthDate: dto.birthDate,
       phoneNumber: dto.phoneNum ?? '',
     );
@@ -57,7 +57,7 @@ class User {
       id: dto.id ?? 0,
       userId: dto.nickname ?? '',
       name: dto.name ?? '',
-      profileImageUrlKey: dto.profileImageKey,
+      profileImageKey: dto.profileImageKey,
       birthDate: null,
       phoneNumber: '',
       active: dto.active ?? false,
@@ -70,7 +70,7 @@ class User {
       id: json['id'] as int? ?? 0,
       userId: json['userId'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      profileImageUrlKey: json['profileImageUrl'] as String?,
+      profileImageKey: json['profileImageKey'] as String?,
       birthDate: json['birthDate'] as String?,
       phoneNumber: json['phoneNum'] as String? ?? '',
     );
@@ -82,22 +82,22 @@ class User {
       'id': id,
       'userId': userId,
       'name': name,
-      'profileImageUrl': profileImageUrlKey,
+      'profileImageKey': profileImageKey,
       'birthDate': birthDate,
       'phoneNum': phoneNumber,
     };
   }
 
   /// 프로필 이미지 유무 확인
-  bool get hasProfileImageUrl =>
-      profileImageUrlKey != null && profileImageUrlKey!.isNotEmpty;
+  bool get hasProfileImage =>
+      profileImageKey != null && profileImageKey!.isNotEmpty;
 
   /// copyWith 메서드
   User copyWith({
     int? id,
     String? userId,
     String? name,
-    String? profileImageUrl,
+    String? profileImageKey,
     String? birthDate,
     String? phoneNumber,
   }) {
@@ -105,7 +105,7 @@ class User {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       name: name ?? this.name,
-      profileImageUrlKey: profileImageUrlKey,
+      profileImageKey: profileImageKey,
       birthDate: birthDate ?? this.birthDate,
       phoneNumber: phoneNumber ?? this.phoneNumber,
     );

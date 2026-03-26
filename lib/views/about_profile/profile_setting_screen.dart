@@ -76,14 +76,15 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     // 커버 이미지 초기 로드
     final coverImageKey = userController.coverImageUrlKey?.trim() ?? '';
     if (coverImageKey.isNotEmpty) {
-      _coverImageUrl =
-          mediaController.peekPresignedUrl(coverImageKey)?.trim();
+      _coverImageUrl = mediaController.peekPresignedUrl(coverImageKey)?.trim();
       if (_coverImageUrl == null || _coverImageUrl!.isEmpty) {
         _coverImageUrl = null;
-        unawaited(_prefetchCoverImageUrl(
-          coverImageKey: coverImageKey,
-          mediaController: mediaController,
-        ));
+        unawaited(
+          _prefetchCoverImageUrl(
+            coverImageKey: coverImageKey,
+            mediaController: mediaController,
+          ),
+        );
       }
     }
 
@@ -113,7 +114,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     required User? user,
     required MediaController mediaController,
   }) {
-    final profileImageKey = user?.profileImageUrlKey?.trim() ?? '';
+    final profileImageKey = user?.profileImageKey?.trim() ?? '';
     if (profileImageKey.isEmpty) return null;
 
     final cachedUrl = mediaController.peekPresignedUrl(profileImageKey)?.trim();
@@ -129,7 +130,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
   }) async {
     if (!mounted) return;
 
-    final profileImageKey = user?.profileImageUrlKey?.trim() ?? '';
+    final profileImageKey = user?.profileImageKey?.trim() ?? '';
     if (profileImageKey.isEmpty ||
         (_profileImageUrl?.trim().isNotEmpty ?? false)) {
       return;
@@ -142,7 +143,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     if (trimmedUrl.isEmpty) return;
 
     final activeProfileImageKey =
-        (_userInfo ?? user)?.profileImageUrlKey?.trim() ?? '';
+        (_userInfo ?? user)?.profileImageKey?.trim() ?? '';
     if (activeProfileImageKey != profileImageKey) return;
 
     setState(() {
@@ -157,7 +158,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     required String? nextUrl,
     required MediaController mediaController,
   }) {
-    final nextProfileImageKey = nextUser?.profileImageUrlKey?.trim() ?? '';
+    final nextProfileImageKey = nextUser?.profileImageKey?.trim() ?? '';
     if (nextProfileImageKey.isEmpty) return null;
 
     final resolvedNextUrl = nextUrl?.trim() ?? '';
@@ -172,8 +173,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
       return cachedUrl;
     }
 
-    final previousProfileImageKey =
-        previousUser?.profileImageUrlKey?.trim() ?? '';
+    final previousProfileImageKey = previousUser?.profileImageKey?.trim() ?? '';
     final resolvedPreviousUrl = previousUrl?.trim() ?? '';
     if (previousProfileImageKey == nextProfileImageKey &&
         resolvedPreviousUrl.isNotEmpty) {
@@ -913,13 +913,12 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
               ProfileMainHeader(
                 nickname: displayUser?.userId,
                 profileImageUrl: displayProfileImageUrl,
-                profileImageKey: displayUser?.profileImageUrlKey,
+                profileImageKey: displayUser?.profileImageKey,
                 friendCount: _friendCount,
                 onMenuTap: _closeSettings,
                 onProfileImageTap: _showProfileImageActionSheet,
                 coverImageUrl: _coverImageUrl,
-                coverImageKey:
-                    context.read<UserController>().coverImageUrlKey,
+                coverImageKey: context.read<UserController>().coverImageUrlKey,
                 onCoverImageTap: _showCoverImageActionSheet,
               ),
               Expanded(

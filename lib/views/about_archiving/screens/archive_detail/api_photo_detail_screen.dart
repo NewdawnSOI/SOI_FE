@@ -561,7 +561,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
       // 임시 댓글 데이터에 추가
       final currentUserProfileImageUrl =
-          _userController?.currentUser?.profileImageUrlKey;
+          _userController?.currentUser?.profileImageKey;
 
       _pendingCommentDrafts[postId] = (
         isTextComment: true,
@@ -594,7 +594,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       if (userId == null) return;
 
       final currentUserProfileImageUrl =
-          _userController?.currentUser?.profileImageUrlKey;
+          _userController?.currentUser?.profileImageKey;
 
       _pendingCommentDrafts[postId] = (
         isTextComment: false,
@@ -626,7 +626,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       if (userId == null) return;
 
       final currentUserProfileImageUrl =
-          _userController?.currentUser?.profileImageUrlKey;
+          _userController?.currentUser?.profileImageKey;
 
       _pendingCommentDrafts[postId] = (
         isTextComment: false,
