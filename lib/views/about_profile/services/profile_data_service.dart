@@ -53,6 +53,37 @@ class ProfileImageUploadResult {
     : this._(status: ProfileImageUploadStatus.failed);
 }
 
+/// 커버 이미지 업로드 결과 상태
+enum CoverImageUploadStatus { success, uploadFailed, failed }
+
+/// 커버 이미지 업로드 결과
+class CoverImageUploadResult {
+  final CoverImageUploadStatus status;
+  final String? coverImageKey;
+  final String? coverImageUrl;
+
+  const CoverImageUploadResult._({
+    required this.status,
+    this.coverImageKey,
+    this.coverImageUrl,
+  });
+
+  const CoverImageUploadResult.success({
+    required String? coverImageKey,
+    required String? coverImageUrl,
+  }) : this._(
+         status: CoverImageUploadStatus.success,
+         coverImageKey: coverImageKey,
+         coverImageUrl: coverImageUrl,
+       );
+
+  const CoverImageUploadResult.uploadFailed()
+    : this._(status: CoverImageUploadStatus.uploadFailed);
+
+  const CoverImageUploadResult.failed()
+    : this._(status: CoverImageUploadStatus.failed);
+}
+
 /// 이 도우미는 프로필 사진과 사용자 정보를 챙겨와요.
 /// 화면 대신 바깥일을 맡아서 코드를 더 깔끔하게 해줘요.
 class ProfileDataService {
@@ -177,6 +208,44 @@ class ProfileDataService {
     } catch (error) {
       debugPrint('프로필 이미지 업데이트 오류: $error');
       return const ProfileImageUploadResult.failed();
+    }
+  }
+
+  /// 커버 이미지를 서버에 올리고 새 커버로 업데이트하는 메서드
+  Future<CoverImageUploadResult> uploadCoverImage({
+    required File file,
+    required int userId,
+    required UserController userController,
+    required MediaController mediaController,
+  }) async {
+    try {
+      final multipartFile = await mediaController.fileToMultipart(file);
+      final coverKey = await mediaController.uploadProfileImage(
+        file: multipartFile,
+        userId: userId,
+      );
+
+      if (coverKey == null) {
+        return const CoverImageUploadResult.uploadFailed();
+      }
+
+      final success = await userController.updateCoverImageUrl(
+        userId: userId,
+        coverImageKey: coverKey,
+      );
+
+      if (!success) {
+        return const CoverImageUploadResult.failed();
+      }
+
+      final coverImageUrl = await mediaController.getPresignedUrl(coverKey);
+      return CoverImageUploadResult.success(
+        coverImageKey: coverKey,
+        coverImageUrl: coverImageUrl,
+      );
+    } catch (error) {
+      debugPrint('커버 이미지 업데이트 오류: $error');
+      return const CoverImageUploadResult.failed();
     }
   }
 }

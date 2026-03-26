@@ -41,6 +41,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   User? _userInfo;
   String? _profileImageUrl;
+  String? _coverImageUrl;
   int _friendCount = 0;
   _ProfileTab _selectedTab = _ProfileTab.media;
 
@@ -55,7 +56,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _primeInitialHeaderState() {
-    final currentUser = context.read<UserController>().currentUser;
+    final userController = context.read<UserController>();
+    final currentUser = userController.currentUser;
     final friendController = context.read<FriendController>();
     final mediaController = context.read<MediaController>();
     if (currentUser == null) return;
@@ -71,12 +73,40 @@ class _ProfilePageState extends State<ProfilePage> {
         mediaController: mediaController,
       ),
     );
+
+    // 커버 이미지 초기 로드
+    final coverImageKey = userController.coverImageUrlKey?.trim() ?? '';
+    if (coverImageKey.isNotEmpty) {
+      _coverImageUrl = mediaController.peekPresignedUrl(coverImageKey)?.trim();
+      if (_coverImageUrl == null || _coverImageUrl!.isEmpty) {
+        _coverImageUrl = null;
+        unawaited(_prefetchCoverImageUrl(
+          coverImageKey: coverImageKey,
+          mediaController: mediaController,
+        ));
+      }
+    }
+
     final cachedFriendCount = friendController.peekCachedFriendCount(
       userId: currentUser.id,
     );
     if (cachedFriendCount != null) {
       _friendCount = cachedFriendCount;
     }
+  }
+
+  Future<void> _prefetchCoverImageUrl({
+    required String coverImageKey,
+    required MediaController mediaController,
+  }) async {
+    if (!mounted) return;
+    final resolvedUrl = await mediaController.getPresignedUrl(coverImageKey);
+    if (!mounted) return;
+    final trimmed = resolvedUrl?.trim() ?? '';
+    if (trimmed.isEmpty) return;
+    setState(() {
+      _coverImageUrl = trimmed;
+    });
   }
 
   String? _peekProfileImageUrl({
@@ -261,6 +291,8 @@ class _ProfilePageState extends State<ProfilePage> {
             profileImageKey: displayUser?.profileImageUrlKey,
             friendCount: _friendCount,
             onMenuTap: _openProfileSettings,
+            coverImageUrl: _coverImageUrl,
+            coverImageKey: context.read<UserController>().coverImageUrlKey,
           ),
           // 프로필 페이지의 탭 바를 구성하는 _ProfileTabBar 위젯입니다.
           // 탭 바는 미디어, 텍스트, 댓글 탭을 표시하고, 선택된 탭을 강조합니다.

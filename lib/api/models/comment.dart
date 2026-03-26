@@ -1,5 +1,7 @@
 import 'package:soi_api_client/api.dart';
 
+import '../../utils/format_utils.dart';
+
 /// 댓글 유형
 enum CommentType {
   text, // 텍스트 댓글
@@ -15,6 +17,10 @@ enum CommentType {
 class Comment {
   /// 댓글 고유 ID
   final int? id;
+
+  /// 댓글이 속한 원댓글 스레드 ID입니다.
+  /// 원댓글이면 자신의 ID, 대댓글이면 소속 원댓글 ID를 저장합니다.
+  final int? threadParentId;
 
   /// 작성자 사용자 ID
   final int? userId;
@@ -70,6 +76,7 @@ class Comment {
 
   const Comment({
     this.id,
+    this.threadParentId,
     this.userId,
     this.nickname,
     this.replyUserName,
@@ -93,6 +100,9 @@ class Comment {
   factory Comment.fromDto(CommentRespDto dto) {
     return Comment(
       id: dto.id,
+      threadParentId: dto.commentType == CommentRespDtoCommentTypeEnum.REPLY
+          ? null
+          : dto.id,
       userId: dto.userId,
       nickname: dto.nickname,
       replyUserName: dto.replyUserName,
@@ -100,7 +110,7 @@ class Comment {
       userProfileKey: dto.userProfileKey,
       fileKey: dto.fileKey,
       fileUrl: dto.fileUrl,
-      createdAt: dto.createdAt,
+      createdAt: FormatUtils.normalizeServerDateTime(dto.createdAt),
       replyCommentCount: dto.replyCommentCount,
       text: dto.text,
       emojiId: dto.emojiId,
@@ -135,6 +145,8 @@ class Comment {
   factory Comment.fromJson(Map<String, dynamic> json) {
     return Comment(
       id: json['id'] as int?,
+      threadParentId:
+          json['threadParentId'] as int? ?? json['parentId'] as int?,
       userId: json['userId'] as int?,
       nickname: json['nickname'] as String?,
       replyUserName: json['replyUserName'] as String?,
@@ -144,7 +156,7 @@ class Comment {
       userProfileKey: json['userProfileKey'] as String?,
       fileKey: json['fileKey'] as String?,
       fileUrl: json['fileUrl'] as String?,
-      createdAt: _dateTimeFromJson(json['createdAt']),
+      createdAt: FormatUtils.parseServerDateTime(json['createdAt']),
       replyCommentCount: json['replyCommentCount'] as int?,
       text: json['text'] as String?,
       emojiId: json['emojiId'] as int?,
@@ -181,16 +193,6 @@ class Comment {
         json['waveformdata'] as String?;
   }
 
-  static DateTime? _dateTimeFromJson(dynamic raw) {
-    if (raw is DateTime) {
-      return raw;
-    }
-    if (raw is String && raw.isNotEmpty) {
-      return DateTime.tryParse(raw);
-    }
-    return null;
-  }
-
   static CommentType _typeFromJsonValue(dynamic raw) {
     if (raw is CommentRespDtoCommentTypeEnum) {
       return _typeFromDto(raw);
@@ -223,6 +225,7 @@ class Comment {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'threadParentId': threadParentId,
       'userId': userId,
       'nickname': nickname,
       'replyUserName': replyUserName,
@@ -230,7 +233,7 @@ class Comment {
       'userProfileKey': userProfileKey,
       'fileUrl': fileUrl,
       'fileKey': fileKey,
-      'createdAt': createdAt?.toIso8601String(),
+      'createdAt': FormatUtils.serializeServerDateTime(createdAt),
       'replyCommentCount': replyCommentCount,
       'text': text,
       'emojiId': emojiId,
@@ -268,6 +271,7 @@ class Comment {
   /// copyWith 메서드
   Comment copyWith({
     int? id,
+    int? threadParentId,
     int? userId,
     String? nickname,
     String? userProfileUrl,
@@ -288,6 +292,7 @@ class Comment {
   }) {
     return Comment(
       id: id ?? this.id,
+      threadParentId: threadParentId ?? this.threadParentId,
       userId: userId ?? this.userId,
       nickname: nickname ?? this.nickname,
       replyUserName: replyUserName ?? this.replyUserName,
@@ -310,6 +315,6 @@ class Comment {
 
   @override
   String toString() {
-    return 'Comment{id: $id, userId: $userId, nickname: $nickname, replyUserName: $replyUserName, fileUrl: $fileUrl, fileKey: $fileKey, createdAt: $createdAt, replyCommentCount: $replyCommentCount, type: $type, text: $text, emojiId: $emojiId}';
+    return 'Comment{id: $id, threadParentId: $threadParentId, userId: $userId, nickname: $nickname, replyUserName: $replyUserName, fileUrl: $fileUrl, fileKey: $fileKey, createdAt: $createdAt, replyCommentCount: $replyCommentCount, type: $type, text: $text, emojiId: $emojiId}';
   }
 }

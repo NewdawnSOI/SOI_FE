@@ -36,20 +36,27 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
 
   User? _userInfo;
   String? _profileImageUrl;
+  String? _coverImageUrl;
   int _friendCount = 0;
 
   bool _isLoading = true;
   bool _isUpdatingProfileImage = false;
+  bool _isUpdatingCoverImage = false;
 
+  /// 설정 화면의 초기 헤더는 즉시 채우고, Provider를 건드리는 상세 로드는 첫 프레임 뒤에 시작합니다.
   @override
   void initState() {
     super.initState();
     _primeInitialHeaderState();
-    _loadUserData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_loadUserData());
+    });
   }
 
   void _primeInitialHeaderState() {
-    final currentUser = context.read<UserController>().currentUser;
+    final userController = context.read<UserController>();
+    final currentUser = userController.currentUser;
     final friendController = context.read<FriendController>();
     final mediaController = context.read<MediaController>();
     if (currentUser == null) return;
@@ -65,12 +72,41 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
         mediaController: mediaController,
       ),
     );
+
+    // 커버 이미지 초기 로드
+    final coverImageKey = userController.coverImageUrlKey?.trim() ?? '';
+    if (coverImageKey.isNotEmpty) {
+      _coverImageUrl =
+          mediaController.peekPresignedUrl(coverImageKey)?.trim();
+      if (_coverImageUrl == null || _coverImageUrl!.isEmpty) {
+        _coverImageUrl = null;
+        unawaited(_prefetchCoverImageUrl(
+          coverImageKey: coverImageKey,
+          mediaController: mediaController,
+        ));
+      }
+    }
+
     final cachedFriendCount = friendController.peekCachedFriendCount(
       userId: currentUser.id,
     );
     if (cachedFriendCount != null) {
       _friendCount = cachedFriendCount;
     }
+  }
+
+  Future<void> _prefetchCoverImageUrl({
+    required String coverImageKey,
+    required MediaController mediaController,
+  }) async {
+    if (!mounted) return;
+    final resolvedUrl = await mediaController.getPresignedUrl(coverImageKey);
+    if (!mounted) return;
+    final trimmed = resolvedUrl?.trim() ?? '';
+    if (trimmed.isEmpty) return;
+    setState(() {
+      _coverImageUrl = trimmed;
+    });
   }
 
   String? _peekProfileImageUrl({
@@ -334,6 +370,185 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
         );
       },
     );
+  }
+
+  /// 커버 이미지 선택 바텀 시트를 띄웁니다.
+  void _showCoverImageActionSheet() {
+    if (_isUpdatingCoverImage) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1C),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20.r),
+              topRight: Radius.circular(20.r),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: EdgeInsets.only(top: 12.h),
+                width: 56.w,
+                height: 3.h,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCCCCCC),
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
+              ),
+              SizedBox(height: 12.h),
+              Text(
+                tr('profile.cover_sheet.title', context: context),
+                style: TextStyle(
+                  color: const Color(0xFFF8F8F8),
+                  fontSize: 18.sp,
+                  fontFamily: 'Pretendard Variable',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Divider(color: Color(0xFF5A5A5A)),
+              ListTile(
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16.w,
+                  vertical: 0.h,
+                ),
+                leading: Image.asset(
+                  'assets/camera_archive_edit.png',
+                  width: 24.w,
+                  height: 24.h,
+                ),
+                title: Text(
+                  'category.cover.select_take_photo',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: 'Pretendard Variable',
+                  ),
+                ).tr(),
+                onTap: () {
+                  Navigator.of(bottomSheetContext).pop();
+                  unawaited(_selectCoverImage(ImageSource.camera));
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16.w,
+                  vertical: 0.h,
+                ),
+                leading: Image.asset(
+                  'assets/library_archive_edit.png',
+                  width: 24.w,
+                  height: 24.h,
+                ),
+                title: Text(
+                  'category.cover.select_from_library',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w500,
+                    fontFamily: 'Pretendard Variable',
+                  ),
+                ).tr(),
+                onTap: () {
+                  Navigator.of(bottomSheetContext).pop();
+                  unawaited(_selectCoverImage(ImageSource.gallery));
+                },
+              ),
+              SizedBox(height: 24.h),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _selectCoverImage(ImageSource source) async {
+    if (_isUpdatingCoverImage) return;
+
+    final userController = context.read<UserController>();
+    final mediaController = context.read<MediaController>();
+    final currentUser = userController.currentUser;
+
+    if (currentUser == null) {
+      SnackBarUtils.showSnackBar(
+        context,
+        tr('profile.snackbar.login_required', context: context),
+      );
+      return;
+    }
+
+    try {
+      final selectedFile = await _profileDataService.pickProfileImage(
+        source: source,
+      );
+      if (!mounted || selectedFile == null) return;
+
+      if (!selectedFile.existsSync()) {
+        SnackBarUtils.showSnackBar(
+          context,
+          tr('profile.snackbar.image_not_found', context: context),
+        );
+        return;
+      }
+
+      setState(() {
+        _isUpdatingCoverImage = true;
+      });
+
+      final File uploadFile = await _profileDataService.compressProfileImage(
+        selectedFile,
+      );
+      if (!mounted) return;
+
+      final uploadResult = await _profileDataService.uploadCoverImage(
+        file: uploadFile,
+        userId: currentUser.id,
+        userController: userController,
+        mediaController: mediaController,
+      );
+      if (!mounted) return;
+
+      switch (uploadResult.status) {
+        case CoverImageUploadStatus.success:
+          setState(() {
+            _coverImageUrl = uploadResult.coverImageUrl;
+          });
+          SnackBarUtils.showSnackBar(
+            context,
+            tr('profile.snackbar.cover_updated', context: context),
+          );
+          break;
+        case CoverImageUploadStatus.uploadFailed:
+          SnackBarUtils.showSnackBar(
+            context,
+            tr('profile.snackbar.upload_failed', context: context),
+          );
+          break;
+        case CoverImageUploadStatus.failed:
+          SnackBarUtils.showSnackBar(
+            context,
+            tr('profile.snackbar.cover_update_failed', context: context),
+          );
+          break;
+      }
+    } catch (_) {
+      if (!mounted) return;
+      final errorKey = source == ImageSource.camera
+          ? 'profile.snackbar.camera_error'
+          : 'profile.snackbar.gallery_error';
+      SnackBarUtils.showSnackBar(context, tr(errorKey, context: context));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingCoverImage = false;
+        });
+      }
+    }
   }
 
   Future<void> _selectProfileImage(ImageSource source) async {
@@ -702,6 +917,10 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
                 friendCount: _friendCount,
                 onMenuTap: _closeSettings,
                 onProfileImageTap: _showProfileImageActionSheet,
+                coverImageUrl: _coverImageUrl,
+                coverImageKey:
+                    context.read<UserController>().coverImageUrlKey,
+                onCoverImageTap: _showCoverImageActionSheet,
               ),
               Expanded(
                 child: _isLoading
@@ -728,9 +947,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
               ),
             ],
           ),
-          if (_isUpdatingProfileImage)
-            // 프로필 이미지 업데이트 중임을 나타내는 오버레이를 화면에 표시합니다.
-            // 로딩 인디케이터와 함께 "잠시만 기다려주세요" 메시지를 보여줍니다.
+          if (_isUpdatingProfileImage || _isUpdatingCoverImage)
             Positioned.fill(
               child: ColoredBox(
                 color: Colors.black54,

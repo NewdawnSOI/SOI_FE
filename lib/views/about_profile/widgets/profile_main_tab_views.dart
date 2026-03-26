@@ -11,13 +11,13 @@ import '../../../api/models/comment.dart';
 import '../../../api/models/post.dart';
 import '../../about_archiving/widgets/api_photo_grid_item.dart';
 import '../../about_archiving/widgets/archive_card_widget/archive_card_placeholders.dart';
-import '../../common_widget/about_comment/widget/about_comment_list_sheet/api_comment_row.dart';
+import 'threaded_comment_row.dart';
 
 class ProfilePostTabView extends StatefulWidget {
   ///
   /// 프로필 메인 탭의 게시물과 댓글 뷰
   /// - 게시물 탭은 ApiPhotoGridItem을 사용하여 사진과 동영상 게시물을 표시합니다.
-  /// - 댓글 탭은 ApiCommentRow를 사용하여 사용자가 작성한 댓글을 표시합니다.
+  /// - 댓글 탭은 ThreadedCommentRow를 사용하여 사용자가 작성한 댓글 스레드를 표시합니다.
   /// - 두 탭 모두 초기 로딩, 오류 상태, 빈 상태를 처리하며, 스크롤 위치에 따라 추가 데이터를 로드하는 무한 스크롤을 구현합니다.
   ///
   /// Parameters:
@@ -503,10 +503,13 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     );
   }
 
+  /// 댓글의 스레드 관계와 실제 댓글 ID를 함께 반영한 고유 키를 생성합니다.
   String _commentIdentity(Comment comment) {
-    final id = comment.id;
-    if (id != null) {
-      return 'id:$id';
+    final commentId = comment.id;
+    if (commentId != null) {
+      final parentId = comment.threadParentId?.toString() ?? 'none';
+      final prefix = comment.isReply ? 'reply' : 'parent';
+      return '$prefix:$parentId:$commentId';
     }
 
     return [
@@ -525,8 +528,11 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     required List<Comment> sourceComments,
   }) async {
     final parentsToLoad = sourceComments
-        .where((comment) => !comment.isReply && comment.id != null)
-        .where((comment) => !_childCommentsByParentId.containsKey(comment.id))
+        .where((comment) => !comment.isReply && comment.threadParentId != null)
+        .where(
+          (comment) =>
+              !_childCommentsByParentId.containsKey(comment.threadParentId),
+        )
         .toList(growable: false);
 
     if (parentsToLoad.isEmpty) {
@@ -535,7 +541,7 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
 
     final loadedChildEntries = await Future.wait(
       parentsToLoad.map((parentComment) async {
-        final parentId = parentComment.id!;
+        final parentId = parentComment.threadParentId!;
         final result = await commentController.getChildComments(
           parentCommentId: parentId,
           page: 0,
@@ -549,37 +555,41 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     }
   }
 
-  /// 원댓글과 대댓글을 부모-자식 스레드 구조로 묶어 댓글 탭이 바로 렌더링할 수 있게 변환합니다.
+  /// 원댓글이 확인된 경우에만 부모-자식 스레드를 구성해, 고아 대댓글은 부모가 도착할 때까지 숨깁니다.
   List<Map<Comment, List<Comment>>> _buildCommentThreads(
     List<Comment> sourceComments,
   ) {
-    final renderedChildIdentities = <String>{
-      for (final childComments in _childCommentsByParentId.values)
-        for (final childComment in childComments)
-          _commentIdentity(childComment),
-    };
+    final sourceChildCommentsByParentId = <int, List<Comment>>{};
+    for (final comment in sourceComments) {
+      final parentId = comment.threadParentId;
+      if (!comment.isReply || parentId == null) {
+        continue;
+      }
+      sourceChildCommentsByParentId
+          .putIfAbsent(parentId, () => <Comment>[])
+          .add(comment);
+    }
 
     final threads = <Map<Comment, List<Comment>>>[];
     for (final comment in sourceComments) {
       if (comment.isReply) {
-        if (renderedChildIdentities.contains(_commentIdentity(comment))) {
-          continue;
-        }
-        threads.add({comment: const <Comment>[]});
         continue;
       }
 
-      final parentId = comment.id;
+      final parentId = comment.threadParentId;
       final childComments = parentId == null
           ? const <Comment>[]
-          : _childCommentsByParentId[parentId] ?? const <Comment>[];
+          : _copyComments([
+              ...?_childCommentsByParentId[parentId],
+              ...?sourceChildCommentsByParentId[parentId],
+            ]);
       threads.add({comment: childComments});
     }
 
     return List<Map<Comment, List<Comment>>>.unmodifiable(threads);
   }
 
-  /// 한 스레드의 부모 댓글과 대댓글 묶음을 하나의 리스트 아이템으로 그립니다.
+  /// 한 스레드의 부모 댓글과 대댓글 묶음을 프로필 전용 댓글 행으로 그립니다.
   Widget _buildCommentThreadItem(Map<Comment, List<Comment>> commentThread) {
     final threadEntry = commentThread.entries.single;
     final parentComment = threadEntry.key;
@@ -588,10 +598,10 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ApiCommentRow(comment: parentComment),
+        ThreadedCommentRow(comment: parentComment),
         for (final childComment in childComments) ...[
           SizedBox(height: 15.sp),
-          ApiCommentRow(comment: childComment),
+          ThreadedCommentRow(comment: childComment),
         ],
       ],
     );
@@ -697,6 +707,10 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     await _loadInitial();
   }
 
+  /// 댓글 탭은 실제로 렌더링 가능한 부모 중심 스레드가 있을 때만 목록 상태를 노출합니다.
+  bool get _hasRenderableCommentThreads => _commentThreads.isNotEmpty;
+
+  /// 렌더링 가능한 스레드 수를 기준으로 로딩/빈 상태를 결정해 고아 대댓글 단독 노출을 막습니다.
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -705,11 +719,11 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
       return const ColoredBox(color: Colors.black);
     }
 
-    if (_isInitialLoading && _comments.isEmpty) {
+    if (_isInitialLoading && !_hasRenderableCommentThreads) {
       return const _ProfileCommentsLoadingView();
     }
 
-    if (_hasLoadError && _comments.isEmpty) {
+    if (_hasLoadError && !_hasRenderableCommentThreads) {
       return _ProfileRefreshableStatusView(
         onRefresh: _refresh,
         child: _ProfileTabStatusContent(
@@ -720,7 +734,7 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
       );
     }
 
-    if (_comments.isEmpty) {
+    if (!_hasRenderableCommentThreads) {
       return _ProfileRefreshableStatusView(
         onRefresh: _refresh,
         child: _ProfileTabStatusContent(messageKey: widget.emptyMessageKey),

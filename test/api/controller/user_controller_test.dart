@@ -11,6 +11,7 @@ class _NoopAuthApi extends AuthControllerApi {}
 
 class _NoopUserApi extends UserAPIApi {}
 
+/// 컨트롤러가 의존하는 사용자 서비스 호출을 주입형 테스트 더블로 대체합니다.
 class _FakeUserService extends UserService {
   _FakeUserService({
     this.onSendSmsVerification,
@@ -18,6 +19,7 @@ class _FakeUserService extends UserService {
     this.onLogin,
     this.onGetCurrentUser,
     this.onCreateUser,
+    this.onUpdateCoverImage,
     this.onDeleteUser,
   }) : super(
          authApi: _NoopAuthApi(),
@@ -41,6 +43,11 @@ class _FakeUserService extends UserService {
     bool marketingAgreed,
   })?
   onCreateUser;
+  final Future<User> Function({
+    required int userId,
+    required String coverImageKey,
+  })?
+  onUpdateCoverImage;
   final Future<User> Function(int id)? onDeleteUser;
 
   @override
@@ -104,6 +111,18 @@ class _FakeUserService extends UserService {
       privacyPolicyAgreed: privacyPolicyAgreed,
       marketingAgreed: marketingAgreed,
     );
+  }
+
+  @override
+  Future<User> updateCoverImage({
+    required int userId,
+    required String coverImageKey,
+  }) async {
+    final handler = onUpdateCoverImage;
+    if (handler == null) {
+      throw UnimplementedError('onUpdateCoverImage is not configured');
+    }
+    return handler(userId: userId, coverImageKey: coverImageKey);
   }
 
   @override
@@ -229,6 +248,7 @@ void main() {
         'api_user_id': 1,
         'api_phone_number': '01012345678',
         'api_access_token': 'jwt-token',
+        'api_cover_image_key': 'saved-cover-key',
       });
 
       final controller = UserController(
@@ -247,6 +267,7 @@ void main() {
       expect(result, isTrue);
       expect(SoiApiClient.instance.authToken, 'jwt-token');
       expect(controller.currentUser?.id, 1);
+      expect(controller.coverImageUrlKey, 'saved-cover-key');
     });
 
     test('blocks signup completion when JWT login is not issued', () async {
@@ -288,12 +309,41 @@ void main() {
       expect(controller.errorMessage, contains('사용자 생성 실패'));
     });
 
+    test('stores cover image key after updateCoverImageUrl succeeds', () async {
+      final controller = UserController(
+        userService: _FakeUserService(
+          onUpdateCoverImage:
+              ({required int userId, required String coverImageKey}) async {
+                expect(userId, 1);
+                expect(coverImageKey, 'cover-key');
+                return const User(
+                  id: 1,
+                  userId: 'minchan',
+                  name: '민찬',
+                  phoneNumber: '01012345678',
+                );
+              },
+        ),
+      );
+
+      final result = await controller.updateCoverImageUrl(
+        userId: 1,
+        coverImageKey: 'cover-key',
+      );
+      final prefs = await SharedPreferences.getInstance();
+
+      expect(result, isTrue);
+      expect(controller.coverImageUrlKey, 'cover-key');
+      expect(prefs.getString('api_cover_image_key'), 'cover-key');
+    });
+
     test('clears local session after account deletion succeeds', () async {
       SharedPreferences.setMockInitialValues({
         'api_is_logged_in': true,
         'api_user_id': 1,
         'api_phone_number': '01012345678',
         'api_access_token': 'jwt-token',
+        'api_cover_image_key': 'cover-key',
       });
       SoiApiClient.instance.setAuthToken('jwt-token');
 
@@ -327,6 +377,7 @@ void main() {
       expect(SoiApiClient.instance.authToken, isNull);
       expect(prefs.getString('api_access_token'), isNull);
       expect(prefs.getInt('api_user_id'), isNull);
+      expect(prefs.getString('api_cover_image_key'), isNull);
     });
   });
 }

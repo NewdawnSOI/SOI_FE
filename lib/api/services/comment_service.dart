@@ -261,7 +261,10 @@ class CommentService {
         throw SoiApiException(message: response.message ?? '댓글 생성 실패');
       }
 
-      final parsedComment = _parseCommentFromResponse(response);
+      final parsedComment = _parseCommentFromResponse(
+        response,
+        requestedParentId: isReply ? normalizedParentId : null,
+      );
       return CommentCreationResult(success: true, comment: parsedComment);
     } on ApiException catch (e) {
       throw _handleApiException(e);
@@ -323,34 +326,46 @@ class CommentService {
   /// 댓글 생성 응답에서 Comment 객체 파싱
   ///
   /// Parameters:
-  ///   - [response]: API 응답 객체
+  /// - [response]: API 응답 객체
+  /// - [requestedParentId]: 대댓글인 경우, 요청 시 사용된 부모 댓글 ID (선택)
   ///
   /// Returns: 파싱된 Comment 객체 (없을 경우 null)
-  Comment? _parseCommentFromResponse(ApiResponseDtoObject response) {
-    final data = response.data;
+  Comment? _parseCommentFromResponse(
+    ApiResponseDtoObject response, {
+    int? requestedParentId,
+  }) {
+    final data = response.data; // API응답(response)에서 data 필드 추출 (댓글 정보가 담긴 부분)
     if (data == null) {
       _debugLog('댓글 생성 응답에 data가 없습니다.');
       return null;
     }
 
+    // data가 CommentRespDto 형태인 경우 직접 Comment 모델로 변환하여 반환합니다.
     if (data is CommentRespDto) {
-      return Comment.fromDto(data);
+      return _normalizeCommentDto(data, parentCommentId: requestedParentId);
     }
 
-    if (data is Map<String, dynamic>) {
-      final dto = CommentRespDto.fromJson(data);
-      if (dto != null) return Comment.fromDto(dto);
-    }
-
+    // data가 Map 형태인 경우, CommentRespDto로 파싱하여 Comment 모델로 변환합니다.
     if (data is Map) {
+      // CommentRespDto로 파싱합니다.
       final dto = CommentRespDto.fromJson(Map<String, dynamic>.from(data));
-      if (dto != null) return Comment.fromDto(dto);
+
+      // data가 null이 아니면, CommentRespDto에서 Comment 모델로 변환하여 반환합니다.
+      if (dto != null) {
+        return _normalizeCommentDto(dto, parentCommentId: requestedParentId);
+      }
     }
 
+    // data가 List 형태인 경우, 첫 번째 요소를 CommentRespDto로 파싱하여 Comment 모델로 변환합니다.
+    // 왜 첫 번째 요소를 시용?
+    // - API 응답이 단일 댓글 객체 대신 댓글 리스트 형태로 반환되는 경우가 있기 때문입니다.
     if (data is List) {
       final list = CommentRespDto.listFromJson(data);
       if (list.isNotEmpty) {
-        return Comment.fromDto(list.first);
+        return _normalizeCommentDto(
+          list.first,
+          parentCommentId: requestedParentId,
+        );
       }
     }
 
@@ -411,6 +426,8 @@ class CommentService {
   /// - [NotFoundException]: 게시물을 찾을 수 없음
   Future<List<Comment>> _getCommentsInternal({required int postId}) async {
     // 원댓글 조회
+    // [postId]에 해당하는 게시물의 원댓글을 페이지 단위로 조회하여 전체 원댓글 리스트를 가져옵니다.
+    // parentComments는 CommentRespDto 리스트 형태로 반환됩니다.
     final parentComments = await _fetchAllSliceComments(
       fetchPage: (page) => _commentApi.getParentComment(postId, page),
       errorMessage: '댓글 조회 실패',
@@ -429,8 +446,22 @@ class CommentService {
 
     // 원댓글과 해당 원댓글의 대댓글 그룹을 순회하며 병합된 형태로 리스트에 추가합니다.
     for (var i = 0; i < parentComments.length; i++) {
-      merged.add(Comment.fromDto(parentComments[i]));
-      merged.addAll(childCommentGroups[i].map(Comment.fromDto));
+      final parentDto = parentComments[i]; // 단일 원댓글 DTO를 추출
+
+      // 원댓글 DTO를 Comment 모델로 변환
+      final parentComment = _normalizeCommentDto(parentDto);
+
+      // 원댓글을 먼저 merged에 추가
+      merged.add(parentComment);
+
+      final parentId = parentComment.threadParentId ?? parentDto.id;
+
+      // 해당 원댓글의 대댓글 그룹을 순회하며 각 대댓글 DTO를 Comment 모델로 변환하여 merged에 추가
+      merged.addAll(
+        childCommentGroups[i].map(
+          (dto) => _normalizeCommentDto(dto, parentCommentId: parentId),
+        ),
+      );
     }
 
     return List<Comment>.unmodifiable(merged); // 병합된 댓글 리스트를 반환합니다.
@@ -519,6 +550,7 @@ class CommentService {
       () => _fetchCommentSlice(
         request: () => _commentApi.getChildComment(parentCommentId, page),
         errorMessage: '대댓글 조회 실패',
+        parentCommentId: parentCommentId,
       ),
     );
 
@@ -579,10 +611,27 @@ class CommentService {
     );
   }
 
+  /// 엔드포인트 문맥에 맞춰 스레드 관계 ID를 채운 댓글 모델을 생성합니다.
+  Comment _normalizeCommentDto(CommentRespDto dto, {int? parentCommentId}) {
+    final comment = Comment.fromDto(dto);
+    if (parentCommentId != null) {
+      return comment.copyWith(threadParentId: parentCommentId);
+    }
+
+    if (comment.isReply) {
+      return comment;
+    }
+
+    return comment.copyWith(
+      threadParentId: comment.threadParentId ?? comment.id,
+    );
+  }
+
   /// Slice 기반 댓글 응답을 앱 전용 `Comment` 목록과 다음 페이지 정보로 변환합니다.
   Future<({List<Comment> comments, bool hasMore})> _fetchCommentSlice({
     required Future<ApiResponseDtoSliceCommentRespDto?> Function() request,
     required String errorMessage,
+    int? parentCommentId,
   }) async {
     final response = await request();
 
@@ -600,7 +649,9 @@ class CommentService {
     }
 
     final comments = List<Comment>.unmodifiable(
-      slice.content.map(Comment.fromDto),
+      slice.content.map(
+        (dto) => _normalizeCommentDto(dto, parentCommentId: parentCommentId),
+      ),
     );
     final hasMore = slice.last == false;
     return (comments: comments, hasMore: hasMore);

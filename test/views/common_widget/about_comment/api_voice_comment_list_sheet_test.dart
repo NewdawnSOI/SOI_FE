@@ -174,6 +174,7 @@ void main() {
       );
       final replyComment = Comment(
         id: 200,
+        threadParentId: 100,
         userId: 50,
         nickname: 'me',
         replyUserName: 'me',
@@ -201,7 +202,7 @@ void main() {
           child: ApiVoiceCommentListSheet(
             postId: 77,
             comments: [parentComment, replyComment],
-            selectedCommentId: 'reply_${replyComment.hashCode}',
+            selectedCommentId: 'comment_${replyComment.id}',
             onCommentsUpdated: (comments) => updatedComments = comments,
           ),
         ),
@@ -231,6 +232,8 @@ void main() {
       expect(updatedComments, isNotNull);
       expect(updatedComments!.map((comment) => comment.id), [100, 200, 300]);
       expect(updatedComments![2].text, '대댓글의 답글');
+      expect(updatedComments![2].threadParentId, parentComment.id);
+      expect(updatedComments![2].id, 300);
       expect(find.text('대댓글의 답글'), findsOneWidget);
     },
   );

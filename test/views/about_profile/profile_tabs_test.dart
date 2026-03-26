@@ -23,7 +23,10 @@ import 'package:soi/api/services/post_service.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi/views/about_feed/manager/feed_data_manager.dart';
 import 'package:soi/views/about_profile/profile_page.dart';
+import 'package:soi/views/about_profile/widgets/profile_main_header.dart';
 import 'package:soi/views/about_profile/widgets/profile_main_tab_views.dart';
+import 'package:soi/views/about_profile/widgets/threaded_comment_row.dart';
+import 'package:soi/views/common_widget/about_comment/widget/about_comment_list_sheet/api_comment_row.dart';
 import 'package:soi_api_client/api.dart';
 
 class _InMemoryAssetLoader extends AssetLoader {
@@ -109,6 +112,17 @@ class _FakeCommentController extends CommentController {
   final Map<int, List<Comment>> childCommentsByParentId;
   final String? overrideErrorMessage;
 
+  /// 테스트 더블도 실제 CommentService처럼 부모 스레드 ID를 채워 프로필 댓글 스레드 조립을 재현합니다.
+  Comment _normalizeReturnedComment(Comment comment, {int? parentCommentId}) {
+    if (parentCommentId != null) {
+      return comment.copyWith(threadParentId: parentCommentId);
+    }
+    if (comment.isReply) {
+      return comment;
+    }
+    return comment.copyWith(threadParentId: comment.threadParentId ?? comment.id);
+  }
+
   @override
   String? get errorMessage => overrideErrorMessage;
 
@@ -116,7 +130,12 @@ class _FakeCommentController extends CommentController {
   Future<({List<Comment> comments, bool hasMore})> getCommentsByUserId({
     required int userId,
     int page = 0,
-  }) async => (comments: comments, hasMore: false);
+  }) async => (
+    comments: comments
+        .map(_normalizeReturnedComment)
+        .toList(growable: false),
+    hasMore: false,
+  );
 
   /// 프로필 댓글 탭이 부모 댓글별 대댓글을 다시 조회할 수 있도록 고정 응답을 제공합니다.
   @override
@@ -124,7 +143,14 @@ class _FakeCommentController extends CommentController {
     required int parentCommentId,
     int page = 0,
   }) async => (
-    comments: childCommentsByParentId[parentCommentId] ?? const <Comment>[],
+    comments: (childCommentsByParentId[parentCommentId] ?? const <Comment>[])
+        .map(
+          (comment) => _normalizeReturnedComment(
+            comment,
+            parentCommentId: parentCommentId,
+          ),
+        )
+        .toList(growable: false),
     hasMore: false,
   );
 }
@@ -655,6 +681,66 @@ void main() {
       expect(find.text('두 번째 댓글입니다.'), findsOneWidget);
     });
 
+    testWidgets('프로필 전용 댓글 행은 답장 액션 없이 보정된 상대 시간을 표시한다', (tester) async {
+      final nowUtc = DateTime.now().toUtc();
+      final serverCreatedAt =
+          '${nowUtc.year.toString().padLeft(4, '0')}-'
+          '${nowUtc.month.toString().padLeft(2, '0')}-'
+          '${nowUtc.day.toString().padLeft(2, '0')}T'
+          '${nowUtc.hour.toString().padLeft(2, '0')}:'
+          '${nowUtc.minute.toString().padLeft(2, '0')}:'
+          '${nowUtc.second.toString().padLeft(2, '0')}';
+
+      await tester.pumpWidget(
+        _buildHarness(
+          child: ThreadedCommentRow(
+            comment: Comment.fromJson({
+              'id': 501,
+              'userId': _fakeUserId,
+              'nickname': _fakeUserIdStr,
+              'text': '방금 작성한 댓글',
+              'commentType': 'TEXT',
+              'createdAt': serverCreatedAt,
+            }),
+          ),
+        ),
+      );
+      await _pumpNoImages(tester);
+
+      expect(find.text('답장 달기'), findsNothing);
+      expect(find.text('방금 전'), findsOneWidget);
+    });
+
+    testWidgets('공용 댓글 행도 timezone 없는 서버 시각을 보정해 상대 시간을 표시한다', (tester) async {
+      final nowUtc = DateTime.now().toUtc();
+      final serverCreatedAt =
+          '${nowUtc.year.toString().padLeft(4, '0')}-'
+          '${nowUtc.month.toString().padLeft(2, '0')}-'
+          '${nowUtc.day.toString().padLeft(2, '0')}T'
+          '${nowUtc.hour.toString().padLeft(2, '0')}:'
+          '${nowUtc.minute.toString().padLeft(2, '0')}:'
+          '${nowUtc.second.toString().padLeft(2, '0')}';
+
+      await tester.pumpWidget(
+        _buildHarness(
+          child: ApiCommentRow(
+            comment: Comment.fromJson({
+              'id': 502,
+              'userId': _fakeUserId,
+              'nickname': _fakeUserIdStr,
+              'text': '공용 댓글 시간 확인',
+              'commentType': 'TEXT',
+              'createdAt': serverCreatedAt,
+            }),
+          ),
+        ),
+      );
+      await _pumpNoImages(tester);
+
+      expect(find.text('답장 달기'), findsOneWidget);
+      expect(find.text('방금 전'), findsOneWidget);
+    });
+
     testWidgets('댓글이 없으면 RefreshIndicator가 렌더링된다', (tester) async {
       await tester.pumpWidget(
         _buildHarness(
@@ -771,6 +857,7 @@ void main() {
           100: [
             Comment(
               id: 102,
+              threadParentId: 100,
               userId: _fakeUserId,
               nickname: _fakeUserIdStr,
               text: '대댓글도 확인합니다.',
@@ -797,6 +884,91 @@ void main() {
 
       expect(find.text('정말 멋진 사진이네요!'), findsOneWidget);
       expect(find.text('대댓글도 확인합니다.'), findsOneWidget);
+      expect(find.text('답장 달기'), findsNothing);
+    });
+
+    testWidgets('부모가 없는 대댓글은 단독으로 렌더링하지 않는다', (tester) async {
+      final orphanReplyController = _FakeCommentController(
+        comments: [
+          Comment(
+            id: 301,
+            threadParentId: 999,
+            userId: _fakeUserId,
+            nickname: _fakeUserIdStr,
+            text: '부모 없는 대댓글',
+            replyUserName: '다른 사용자',
+            type: CommentType.reply,
+            createdAt: DateTime(2025, 3, 4),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _buildHarness(
+          postController: _FakePostController(posts: const <Post>[]),
+          commentController: orphanReplyController,
+          child: ProfileCommentTabView(
+            userId: _fakeUserId,
+            isActive: true,
+            emptyMessageKey: 'profile.main.empty_comments',
+          ),
+        ),
+      );
+      await _pumpNoImages(tester);
+
+      expect(find.text('부모 없는 대댓글'), findsNothing);
+      expect(find.text('아직 댓글이 없습니다.'), findsOneWidget);
+    });
+  });
+
+  group('ProfileMainHeader', () {
+    testWidgets('커버 배경 탭이 콜백까지 전달된다', (tester) async {
+      await _setPhoneSurface(tester);
+      var coverTapCount = 0;
+
+      await tester.pumpWidget(
+        _buildHarness(
+          child: ProfileMainHeader(
+            nickname: _fakeUserIdStr,
+            profileImageUrl: null,
+            profileImageKey: null,
+            friendCount: 2,
+            onMenuTap: () {},
+            onCoverImageTap: () => coverTapCount += 1,
+          ),
+        ),
+      );
+      await _pumpNoImages(tester);
+
+      final headerTopLeft = tester.getTopLeft(find.byType(ProfileMainHeader));
+      await tester.tapAt(headerTopLeft + const Offset(120, 80));
+      await tester.pumpAndSettle();
+
+      expect(coverTapCount, 1);
+    });
+
+    testWidgets('프로필 아바타 탭은 기존처럼 독립적으로 동작한다', (tester) async {
+      await _setPhoneSurface(tester);
+      var profileTapCount = 0;
+
+      await tester.pumpWidget(
+        _buildHarness(
+          child: ProfileMainHeader(
+            nickname: _fakeUserIdStr,
+            profileImageUrl: null,
+            profileImageKey: null,
+            friendCount: 2,
+            onMenuTap: () {},
+            onProfileImageTap: () => profileTapCount += 1,
+          ),
+        ),
+      );
+      await _pumpNoImages(tester);
+
+      await tester.tap(find.byIcon(Icons.person_rounded));
+      await tester.pumpAndSettle();
+
+      expect(profileTapCount, 1);
     });
   });
 

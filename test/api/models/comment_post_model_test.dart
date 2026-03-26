@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/models/comment.dart';
 import 'package:soi/api/models/post.dart';
+import 'package:soi/utils/format_utils.dart';
 import 'package:soi_api_client/api.dart';
 
 void main() {
@@ -21,6 +22,8 @@ void main() {
       final comment = Comment.fromDto(dto);
 
       expect(comment.userId, 7);
+      expect(comment.threadParentId, isNull);
+      expect(comment.id, 10);
       expect(comment.replyUserName, 'bob');
       expect(comment.userProfileUrl, 'https://example.com/profile.jpg');
       expect(comment.userProfileKey, 'profiles/alice.jpg');
@@ -28,6 +31,49 @@ void main() {
       expect(comment.fileKey, 'comments/comment.jpg');
       expect(comment.type, CommentType.reply);
       expect(comment.toJson()['commentType'], 'REPLY');
+    });
+
+    test('maps thread relation fields for parent comments and json', () {
+      final dto = CommentRespDto(
+        id: 77,
+        userId: 9,
+        nickname: 'root',
+        commentType: CommentRespDtoCommentTypeEnum.TEXT,
+      );
+
+      final comment = Comment.fromDto(dto);
+      final restored = Comment.fromJson(comment.toJson());
+
+      expect(comment.threadParentId, 77);
+      expect(comment.id, 77);
+      expect(restored.threadParentId, 77);
+    });
+
+    test('normalizes comment createdAt in one shared utility path', () {
+      final dto = CommentRespDto(
+        id: 88,
+        userId: 3,
+        nickname: 'alice',
+        createdAt: DateTime.parse('2026-03-08T10:00:00Z'),
+        commentType: CommentRespDtoCommentTypeEnum.TEXT,
+      );
+      final json = {
+        'id': 89,
+        'userId': 3,
+        'nickname': 'alice',
+        'createdAt': '2026-03-08T10:00:00',
+        'commentType': 'TEXT',
+      };
+
+      final dtoComment = Comment.fromDto(dto);
+      final jsonComment = Comment.fromJson(json);
+      final restored = Comment.fromJson(dtoComment.toJson());
+      final expected = DateTime.parse('2026-03-08T10:00:00Z').toLocal();
+
+      expect(dtoComment.createdAt, expected);
+      expect(jsonComment.createdAt, expected);
+      expect(restored.createdAt, expected);
+      expect(dtoComment.toJson()['createdAt'], expected.toUtc().toIso8601String());
     });
   });
 
@@ -58,6 +104,31 @@ void main() {
       final post = Post.fromDto(dto);
 
       expect(post.postType, isNull);
+    });
+
+    test('normalizes post createdAt with the shared server time utility', () {
+      final dto = PostRespDto(
+        id: 10,
+        nickname: 'alice',
+        createdAt: DateTime.parse('2026-03-08T10:00:00Z'),
+      );
+      final json = {
+        'id': 10,
+        'nickname': 'alice',
+        'createdAt': '2026-03-08T10:00:00',
+      };
+
+      final postFromDto = Post.fromDto(dto);
+      final postFromJson = Post.fromJson(json);
+      final restored = Post.fromJson(postFromDto.toJson());
+      final expected = FormatUtils.normalizeServerDateTime(
+        DateTime.parse('2026-03-08T10:00:00Z'),
+      );
+
+      expect(postFromDto.createdAt, expected);
+      expect(postFromJson.createdAt, expected);
+      expect(restored.createdAt, expected);
+      expect(postFromDto.toJson()['createdAt'], expected?.toUtc().toIso8601String());
     });
   });
 }

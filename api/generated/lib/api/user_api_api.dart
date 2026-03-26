@@ -1,0 +1,522 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of openapi.api;
+
+
+class UserAPIApi {
+  UserAPIApi([ApiClient? apiClient]) : apiClient = apiClient ?? defaultApiClient;
+
+  final ApiClient apiClient;
+
+  /// Id로 사용자 삭제
+  ///
+  /// Id 로 사용자를 삭제합니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [int] id (required):
+  Future<Response> deleteUserWithHttpInfo(int id,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/delete';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'id', id));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Id로 사용자 삭제
+  ///
+  /// Id 로 사용자를 삭제합니다.
+  ///
+  /// Parameters:
+  ///
+  /// * [int] id (required):
+  Future<ApiResponseDtoUserRespDto?> deleteUser(int id,) async {
+    final response = await deleteUserWithHttpInfo(id,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoUserRespDto',) as ApiResponseDtoUserRespDto;
+    
+    }
+    return null;
+  }
+
+  /// 키워드로 사용자 검색
+  ///
+  /// 키워드가 포함된 userId를 갖고있는 사용자를 전부 검색합니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] nickname (required):
+  Future<Response> findUserWithHttpInfo(String nickname,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/find-by-keyword';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'nickname', nickname));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 키워드로 사용자 검색
+  ///
+  /// 키워드가 포함된 userId를 갖고있는 사용자를 전부 검색합니다.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] nickname (required):
+  Future<ApiResponseDtoListUserRespDto?> findUser(String nickname,) async {
+    final response = await findUserWithHttpInfo(nickname,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoListUserRespDto',) as ApiResponseDtoListUserRespDto;
+    
+    }
+    return null;
+  }
+
+  /// 모든유저 조회
+  ///
+  /// 모든유저를 조회합니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> getAllUsersWithHttpInfo() async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/get-all';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 모든유저 조회
+  ///
+  /// 모든유저를 조회합니다.
+  Future<ApiResponseDtoListUserFindRespDto?> getAllUsers() async {
+    final response = await getAllUsersWithHttpInfo();
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoListUserFindRespDto',) as ApiResponseDtoListUserFindRespDto;
+    
+    }
+    return null;
+  }
+
+  /// 특정유저 조회
+  ///
+  /// 유저의 id값(Long)으로 유저를 조회합니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> getUserWithHttpInfo() async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/get';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 특정유저 조회
+  ///
+  /// 유저의 id값(Long)으로 유저를 조회합니다.
+  Future<ApiResponseDtoUserRespDto?> getUser() async {
+    final response = await getUserWithHttpInfo();
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoUserRespDto',) as ApiResponseDtoUserRespDto;
+    
+    }
+    return null;
+  }
+
+  /// 사용자 로그인(전화번호로)
+  ///
+  /// 인증이 완료된 전화번호로 로그인을 합니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] nickName (required):
+  Future<Response> loginByNicknameWithHttpInfo(String nickName,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/login/by-nickname';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'nickName', nickName));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 사용자 로그인(전화번호로)
+  ///
+  /// 인증이 완료된 전화번호로 로그인을 합니다.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] nickName (required):
+  Future<ApiResponseDtoUserRespDto?> loginByNickname(String nickName,) async {
+    final response = await loginByNicknameWithHttpInfo(nickName,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoUserRespDto',) as ApiResponseDtoUserRespDto;
+    
+    }
+    return null;
+  }
+
+  /// 사용자 로그인(전화번호로)
+  ///
+  /// 인증이 완료된 전화번호로 로그인을 합니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] phoneNum (required):
+  Future<Response> loginByPhoneWithHttpInfo(String phoneNum,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/login/by-phone';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'phoneNum', phoneNum));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 사용자 로그인(전화번호로)
+  ///
+  /// 인증이 완료된 전화번호로 로그인을 합니다.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] phoneNum (required):
+  Future<ApiResponseDtoUserRespDto?> loginByPhone(String phoneNum,) async {
+    final response = await loginByPhoneWithHttpInfo(phoneNum,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoUserRespDto',) as ApiResponseDtoUserRespDto;
+    
+    }
+    return null;
+  }
+
+  /// 유저정보 업데이트
+  ///
+  /// 새로운 데이터로 유저정보를 업데이트합니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [UserUpdateReqDto] userUpdateReqDto (required):
+  Future<Response> update1WithHttpInfo(UserUpdateReqDto userUpdateReqDto,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/update';
+
+    // ignore: prefer_final_locals
+    Object? postBody = userUpdateReqDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'PATCH',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 유저정보 업데이트
+  ///
+  /// 새로운 데이터로 유저정보를 업데이트합니다.
+  ///
+  /// Parameters:
+  ///
+  /// * [UserUpdateReqDto] userUpdateReqDto (required):
+  Future<ApiResponseDtoUserRespDto?> update1(UserUpdateReqDto userUpdateReqDto,) async {
+    final response = await update1WithHttpInfo(userUpdateReqDto,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoUserRespDto',) as ApiResponseDtoUserRespDto;
+    
+    }
+    return null;
+  }
+
+  /// 유저 배경사진 업데이트
+  ///
+  /// 유저의 배경사진을 업데이트 합니다. 기본 배경화면으로 변경하고싶으면 profileImageKey에 \"\" 을 넣으면 됩니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] coverImageKey:
+  Future<Response> updateCoverImageWithHttpInfo({ String? coverImageKey, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/update-cover-image';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (coverImageKey != null) {
+      queryParams.addAll(_queryParams('', 'coverImageKey', coverImageKey));
+    }
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'PATCH',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 유저 배경사진 업데이트
+  ///
+  /// 유저의 배경사진을 업데이트 합니다. 기본 배경화면으로 변경하고싶으면 profileImageKey에 \"\" 을 넣으면 됩니다.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] coverImageKey:
+  Future<ApiResponseDtoUserRespDto?> updateCoverImage({ String? coverImageKey, }) async {
+    final response = await updateCoverImageWithHttpInfo( coverImageKey: coverImageKey, );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoUserRespDto',) as ApiResponseDtoUserRespDto;
+    
+    }
+    return null;
+  }
+
+  /// 유저 프로필 업데이트
+  ///
+  /// 유저의 프로필을 업데이트 합니다. 기본 프로필로 변경하고싶으면 profileImageKey에 \"\" 을 넣으면 됩니다.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] profileImageKey:
+  Future<Response> updateProfileWithHttpInfo({ String? profileImageKey, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/user/update-profile';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (profileImageKey != null) {
+      queryParams.addAll(_queryParams('', 'profileImageKey', profileImageKey));
+    }
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'PATCH',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// 유저 프로필 업데이트
+  ///
+  /// 유저의 프로필을 업데이트 합니다. 기본 프로필로 변경하고싶으면 profileImageKey에 \"\" 을 넣으면 됩니다.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] profileImageKey:
+  Future<ApiResponseDtoUserRespDto?> updateProfile({ String? profileImageKey, }) async {
+    final response = await updateProfileWithHttpInfo( profileImageKey: profileImageKey, );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'ApiResponseDtoUserRespDto',) as ApiResponseDtoUserRespDto;
+    
+    }
+    return null;
+  }
+}

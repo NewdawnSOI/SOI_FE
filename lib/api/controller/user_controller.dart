@@ -34,8 +34,10 @@ class UserController extends ChangeNotifier {
   static const String _keyPhoneNumber = 'api_phone_number';
   static const String _keyAccessToken = 'api_access_token';
   static const String _keyOnboardingCompleted = 'api_onboarding_completed';
+  static const String _keyCoverImageKey = 'api_cover_image_key';
 
   User? _currentUser;
+  String? _coverImageUrlKey;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -50,6 +52,9 @@ class UserController extends ChangeNotifier {
 
   /// 현재 로그인된 사용자 ID
   int? get currentUserId => _currentUser?.id;
+
+  /// 현재 사용자의 커버 이미지 키
+  String? get coverImageUrlKey => _coverImageUrlKey;
 
   /// 로그인 상태
   bool get isLoggedIn => _currentUser != null;
@@ -189,6 +194,7 @@ class UserController extends ChangeNotifier {
   /// 현재 로그인된 사용자를 로그아웃 처리합니다.
   Future<void> logout() async {
     _currentUser = null;
+    _coverImageUrlKey = null;
     _clearError();
 
     // 저장된 로그인 상태도 삭제
@@ -490,6 +496,43 @@ class UserController extends ChangeNotifier {
     }
   }
 
+  /// 커버 이미지 업데이트
+  ///
+  /// Parameters:
+  /// - [userId]: 사용자 ID
+  /// - [coverImageKey]: 새 커버 이미지 키
+  ///
+  /// Returns: 성공 여부
+  Future<bool> updateCoverImageUrl({
+    required int userId,
+    required String coverImageKey,
+  }) async {
+    _beginLoading();
+    try {
+      await _userService.updateCoverImage(
+        userId: userId,
+        coverImageKey: coverImageKey,
+      );
+      _coverImageUrlKey = coverImageKey;
+      await _saveCoverImageKey(coverImageKey);
+      _finishLoading(notify: false);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _finishLoading(errorMessage: '커버 이미지 수정 실패: $e');
+      return false;
+    }
+  }
+
+  Future<void> _saveCoverImageKey(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyCoverImageKey, key);
+    } catch (e) {
+      debugPrint('[UserController] 커버 이미지 키 저장 실패: $e');
+    }
+  }
+
   // ============================================
   // 사용자 삭제
   // ============================================
@@ -689,6 +732,11 @@ class UserController extends ChangeNotifier {
       // 서버에서 현재 사용자 정보 조회
       final user = await _userService.getCurrentUser();
       _currentUser = user;
+
+      // 커버 이미지 키 로드
+      final prefs = await SharedPreferences.getInstance();
+      _coverImageUrlKey = prefs.getString(_keyCoverImageKey);
+
       notifyListeners();
       debugPrint('[UserController] 자동 로그인 성공: ${user.name}');
       return true;
@@ -711,6 +759,7 @@ class UserController extends ChangeNotifier {
         prefs.remove(_keyPhoneNumber),
         prefs.remove(_keyAccessToken),
         prefs.remove(_keyOnboardingCompleted),
+        prefs.remove(_keyCoverImageKey),
       ]);
       debugPrint('[UserController] 로그인 상태 삭제 완료');
     } catch (e) {

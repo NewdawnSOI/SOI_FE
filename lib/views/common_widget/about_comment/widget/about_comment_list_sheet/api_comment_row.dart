@@ -43,20 +43,24 @@ class ApiCommentRow extends StatelessWidget {
   final Comment comment;
   final bool isHighlighted;
   final ValueChanged<Comment>? onReplyTap;
+  final bool showReplyAction;
   final bool showViewMoreRepliesButton;
   final bool showHideRepliesButton;
   final ValueChanged<Comment>? onViewMoreRepliesTap;
   final ValueChanged<Comment>? onHideRepliesTap;
+  final String? relativeTimeText;
 
   const ApiCommentRow({
     super.key,
     required this.comment,
     this.isHighlighted = false,
     this.onReplyTap,
+    this.showReplyAction = true,
     this.showViewMoreRepliesButton = false,
     this.showHideRepliesButton = false,
     this.onViewMoreRepliesTap,
     this.onHideRepliesTap,
+    this.relativeTimeText,
   });
 
   /// 댓글 작성자와 현재 사용자가 다른 경우에만 액션 메뉴(신고/차단)를 보여줄 수 있도록 하는 헬퍼 메서드
@@ -368,31 +372,41 @@ class ApiCommentRow extends StatelessWidget {
     letterSpacing: -0.50,
   );
 
-  /// "답장 달기"와 댓글 작성 시각이 있는 행을 빌드하는 메서드
+  /// 댓글 메타 영역이 모델에서 정규화한 createdAt을 일관된 상대 시간 문자열로 변환합니다.
+  String _resolvedRelativeTimeText() {
+    final overrideText = relativeTimeText?.trim();
+    if (overrideText != null && overrideText.isNotEmpty) {
+      return overrideText;
+    }
+    if (comment.createdAt == null) {
+      return '';
+    }
+    return FormatUtils.formatRelativeTime(comment.createdAt!);
+  }
+
+  /// "답장 달기"와 댓글 작성 시각이 있는 하단 메타 행을 빌드합니다.
   Widget _buildReplyAndTimeRow() {
     return Row(
       children: [
         SizedBox(width: (_effectiveProfileImageSize + _profileToContentGap).sp),
 
-        // "답장 달기" 버튼
-        TextButton(
-          onPressed: () => onReplyTap?.call(comment),
-          style: TextButton.styleFrom(
-            minimumSize: Size.zero,
-            padding: EdgeInsets.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        if (showReplyAction)
+          TextButton(
+            onPressed: () => onReplyTap?.call(comment),
+            style: TextButton.styleFrom(
+              minimumSize: Size.zero,
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              tr('comments.reply_action'),
+              style: _replyActionStyle(),
+            ),
           ),
-          child: Text(tr('comments.reply_action'), style: _replyActionStyle()),
-        ),
         const Spacer(),
 
         // 댓글 작성 시각
-        Text(
-          comment.createdAt != null
-              ? FormatUtils.formatRelativeTime(comment.createdAt!)
-              : '',
-          style: _relativeTimeStyle(),
-        ),
+        Text(_resolvedRelativeTimeText(), style: _relativeTimeStyle()),
         SizedBox(width: 12.sp),
       ],
     );

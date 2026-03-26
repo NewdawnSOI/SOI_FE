@@ -77,11 +77,18 @@ ApiResponseDtoSliceCommentRespDto _sliceResponse({
   );
 }
 
-CommentRespDto _commentDto(int id, {DateTime? createdAt}) {
+/// 테스트에서 부모/대댓글 DTO를 간단히 만들 수 있도록 공통 기본값을 채웁니다.
+CommentRespDto _commentDto(
+  int id, {
+  DateTime? createdAt,
+  CommentRespDtoCommentTypeEnum type = CommentRespDtoCommentTypeEnum.TEXT,
+  int? userId,
+}) {
   return CommentRespDto(
     id: id,
+    userId: userId,
     nickname: 'user$id',
-    commentType: CommentRespDtoCommentTypeEnum.TEXT,
+    commentType: type,
     createdAt: createdAt,
   );
 }
@@ -164,6 +171,38 @@ void main() {
         expect(capturedDto!.commentType, CommentReqDtoCommentTypeEnum.AUDIO);
       },
     );
+
+    test(
+      'enriches returned reply comment with requested parent thread id',
+      () async {
+        final service = CommentService(
+          commentApi: _CreateCommentApi(
+            onCreate: (dto) async => ApiResponseDtoObject(
+              success: true,
+              data: _commentDto(
+                88,
+                userId: 60,
+                type: CommentRespDtoCommentTypeEnum.REPLY,
+              ),
+            ),
+          ),
+        );
+
+        final result = await service.createComment(
+          postId: 50,
+          userId: 60,
+          parentId: 55,
+          replyUserId: 61,
+          text: '답글입니다.',
+          type: CommentType.reply,
+        );
+
+        expect(result.success, isTrue);
+        expect(result.comment, isNotNull);
+        expect(result.comment!.id, 88);
+        expect(result.comment!.threadParentId, 55);
+      },
+    );
   });
 
   group('CommentService getComments pagination', () {
@@ -233,7 +272,9 @@ void main() {
             switch (parentCommentId) {
               case 1:
                 return _sliceResponse(
-                  content: [_commentDto(11)],
+                  content: [
+                    _commentDto(11, type: CommentRespDtoCommentTypeEnum.REPLY),
+                  ],
                   last: true,
                   empty: false,
                 );
@@ -241,7 +282,10 @@ void main() {
                 return _sliceResponse(content: [], last: true, empty: true);
               case 3:
                 return _sliceResponse(
-                  content: [_commentDto(31), _commentDto(32)],
+                  content: [
+                    _commentDto(31, type: CommentRespDtoCommentTypeEnum.REPLY),
+                    _commentDto(32, type: CommentRespDtoCommentTypeEnum.REPLY),
+                  ],
                   last: true,
                   empty: false,
                 );
@@ -257,7 +301,16 @@ void main() {
       expect(parentCalls, ['99:0', '99:1']);
       expect(childCalls, ['1:0', '2:0', '3:0']);
       expect(comments.map((e) => e.id), [1, 11, 2, 3, 31, 32]);
-      expect(comments.first.createdAt, DateTime.parse('2026-03-08T10:00:00Z'));
+      expect(
+        comments.first.createdAt,
+        DateTime.parse('2026-03-08T10:00:00Z').toLocal(),
+      );
+      expect(comments[0].threadParentId, 1);
+      expect(comments[0].id, 1);
+      expect(comments[1].threadParentId, 1);
+      expect(comments[1].id, 11);
+      expect(comments[4].threadParentId, 3);
+      expect(comments[5].id, 32);
     });
 
     test(
@@ -295,14 +348,30 @@ void main() {
         expect(childCalls, ['1:0', '2:0']);
 
         secondChildCompleter.complete(
-          _sliceResponse(content: [_commentDto(21)], last: true, empty: false),
+          _sliceResponse(
+            content: [
+              _commentDto(21, type: CommentRespDtoCommentTypeEnum.REPLY),
+            ],
+            last: true,
+            empty: false,
+          ),
         );
         firstChildCompleter.complete(
-          _sliceResponse(content: [_commentDto(11)], last: true, empty: false),
+          _sliceResponse(
+            content: [
+              _commentDto(11, type: CommentRespDtoCommentTypeEnum.REPLY),
+            ],
+            last: true,
+            empty: false,
+          ),
         );
 
         final comments = await request;
         expect(comments.map((comment) => comment.id), [1, 11, 2, 21]);
+        expect(comments[1].threadParentId, 1);
+        expect(comments[1].id, 11);
+        expect(comments[3].threadParentId, 2);
+        expect(comments[3].id, 21);
       },
     );
 
@@ -359,6 +428,7 @@ void main() {
 
       expect(result.comments.map((comment) => comment.id), [201, 202]);
       expect(result.hasMore, isTrue);
+      expect(result.comments.first.threadParentId, 201);
     });
 
     test('dedupes in-flight getChildComments requests', () async {
@@ -381,13 +451,20 @@ void main() {
       final second = service.getChildComments(parentCommentId: 12, page: 1);
 
       sliceCompleter.complete(
-        _sliceResponse(content: [_commentDto(301)], last: true, empty: false),
+        _sliceResponse(
+          content: [
+            _commentDto(301, type: CommentRespDtoCommentTypeEnum.REPLY),
+          ],
+          last: true,
+          empty: false,
+        ),
       );
 
       final results = await Future.wait([first, second]);
 
       expect(callCount, 1);
       expect(results[0].comments.single.id, 301);
+      expect(results[0].comments.single.threadParentId, 12);
       expect(results[1].hasMore, isFalse);
     });
   });
@@ -401,7 +478,10 @@ void main() {
           onGetAllCommentByUserId: (page) async {
             expect(page, 1);
             return _sliceResponse(
-              content: [_commentDto(100), _commentDto(101)],
+              content: [
+                _commentDto(100),
+                _commentDto(101, type: CommentRespDtoCommentTypeEnum.REPLY),
+              ],
               last: false,
               empty: false,
             );
@@ -413,6 +493,8 @@ void main() {
 
       expect(result.comments.map((comment) => comment.id), [100, 101]);
       expect(result.hasMore, isTrue);
+      expect(result.comments.first.threadParentId, 100);
+      expect(result.comments.last.threadParentId, isNull);
     });
 
     test('dedupes in-flight getCommentsByUserId requests', () async {

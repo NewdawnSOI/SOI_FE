@@ -1,5 +1,7 @@
 import 'package:soi_api_client/api.dart';
 
+import '../../utils/format_utils.dart';
+
 /// 댓글 유형
 enum PostType {
   textOnly, // 텍스트만 Post에 입력할 경우
@@ -88,7 +90,7 @@ class Post {
       commentCount: dto.commentCount,
       duration: dto.duration,
       isActive: dto.isActive ?? true,
-      createdAt: _normalizeApiDateTime(dto.createdAt),
+      createdAt: FormatUtils.normalizeServerDateTime(dto.createdAt),
       postType: _postTypeFromRespEnum(dto.postType),
       savedAspectRatio: dto.savedAspectRatio,
       isFromGallery: dto.isFromGallery,
@@ -111,7 +113,7 @@ class Post {
       commentCount: json['commentCount'] as int?,
       duration: json['duration'] as int?,
       isActive: json['isActive'] as bool? ?? true,
-      createdAt: _parseApiDateString(json['createdAt'] as String?),
+      createdAt: FormatUtils.parseServerDateTime(json['createdAt']),
       postType: _postTypeFromJsonValue(json['postType']),
       savedAspectRatio: (json['savedAspectRatio'] as num?)?.toDouble(),
       isFromGallery: json['isFromGallery'] as bool?,
@@ -133,7 +135,7 @@ class Post {
       'commentCount': commentCount,
       'duration': duration,
       'isActive': isActive,
-      'createdAt': createdAt?.toIso8601String(),
+      'createdAt': FormatUtils.serializeServerDateTime(createdAt),
       'postType': _postTypeToApiValue(postType),
       'savedAspectRatio': savedAspectRatio,
       'isFromGallery': isFromGallery,
@@ -323,34 +325,4 @@ class Post {
     return ext;
   }
 
-  /// API에서 넘어온 시간을 로컬 시간으로 보정
-  ///
-  /// 타임존 정보가 없으면 UTC로 간주하고 로컬로 변환합니다.
-  static DateTime? _normalizeApiDateTime(DateTime? value) {
-    if (value == null) return null;
-    if (value.isUtc) return value.toLocal();
-
-    final utc = DateTime.utc(
-      value.year,
-      value.month,
-      value.day,
-      value.hour,
-      value.minute,
-      value.second,
-      value.millisecond,
-      value.microsecond,
-    );
-    return utc.toLocal();
-  }
-
-  /// 문자열 기반 날짜 파싱 (타임존 없는 경우 UTC로 간주)
-  static DateTime? _parseApiDateString(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    final normalized = _hasTimeZone(raw) ? raw : '${raw}Z';
-    return DateTime.tryParse(normalized)?.toLocal();
-  }
-
-  static bool _hasTimeZone(String value) {
-    return RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(value);
-  }
 }

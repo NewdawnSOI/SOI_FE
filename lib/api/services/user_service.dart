@@ -619,6 +619,48 @@ class UserService {
     }
   }
 
+  /// 커버 이미지 수정
+  ///
+  /// Parameters:
+  /// - [userId]: 사용자 ID (현재 인증된 사용자와 일치해야 함)
+  /// - [coverImageKey]: 새 커버 이미지 키
+  ///
+  /// Returns: 수정된 사용자 정보 (User)
+  Future<User> updateCoverImage({
+    required int userId,
+    required String coverImageKey,
+  }) async {
+    try {
+      // 보안을 위해 현재 인증된 사용자와 요청 대상 사용자가 일치하는지 확인합니다.
+      await _ensureCurrentUserMatches(userId);
+
+      // 사용자 정보 수정을 위한 API 호출을 수행합니다.
+      // response는 API 응답 객체로, ApiResponseDtoUserRespDto를 받습니다.
+      final response = await _userApi.updateCoverImage(
+        coverImageKey: coverImageKey,
+      );
+      if (response == null) {
+        throw const DataValidationException(message: '커버 이미지 수정 응답이 없습니다.');
+      }
+      if (response.success != true) {
+        throw SoiApiException(message: response.message ?? '커버 이미지 수정 실패');
+      }
+      if (response.data == null) {
+        throw const DataValidationException(message: '수정된 사용자 정보가 없습니다.');
+      }
+
+      // API 응답에서 수정된 사용자 정보를 User 모델로 변환하여 반환합니다.
+      return User.fromDto(response.data!);
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '커버 이미지 수정 실패: $e', originalException: e);
+    }
+  }
+
   // ============================================
   // 사용자 삭제
   // ============================================

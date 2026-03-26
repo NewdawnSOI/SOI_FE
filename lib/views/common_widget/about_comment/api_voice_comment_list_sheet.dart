@@ -95,8 +95,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   // 댓글 리스트에서 각 댓글 사이에 들어가는 구분선 위젯의 수직 패딩입니다.
   int _textInputSession = 0;
 
-  /// 선택된 댓글 ID에서 해시코드를 추출하는 함수입니다.
-  int? _selectedHashCode(String? selectedCommentId) {
+  /// 외부에서 전달된 선택 키에서 댓글 식별 숫자를 추출합니다.
+  int? _selectedCommentNumericId(String? selectedCommentId) {
     if (selectedCommentId == null) return null;
     final parts = selectedCommentId.split('_');
     if (parts.length < 2) return null;
@@ -147,6 +147,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   }) {
     final trimmedText = text.trim();
     final targetReplyUserName = (replyTarget?.nickname ?? '').trim();
+    final targetParentId = _replyThreadParentId(replyTarget);
 
     for (final comment in comments.reversed) {
       if (comment.userId != userId) {
@@ -161,6 +162,10 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       }
 
       if ((comment.text ?? '').trim() != trimmedText) {
+        continue;
+      }
+
+      if (targetParentId != null && comment.threadParentId != targetParentId) {
         continue;
       }
 
@@ -183,9 +188,14 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     required int durationMs,
   }) {
     final targetReplyUserName = (replyTarget.nickname ?? '').trim();
+    final targetParentId = _replyThreadParentId(replyTarget);
 
     for (final comment in comments.reversed) {
       if (!comment.isReply || comment.userId != userId) {
+        continue;
+      }
+
+      if (targetParentId != null && comment.threadParentId != targetParentId) {
         continue;
       }
 
@@ -209,9 +219,14 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     required String fileKey,
   }) {
     final targetReplyUserName = (replyTarget.nickname ?? '').trim();
+    final targetParentId = _replyThreadParentId(replyTarget);
 
     for (final comment in comments.reversed) {
       if (!comment.isReply || comment.userId != userId) {
+        continue;
+      }
+
+      if (targetParentId != null && comment.threadParentId != targetParentId) {
         continue;
       }
 
@@ -228,27 +243,41 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     return null;
   }
 
-  /// selectedHash를 기반으로 강조 표시할 스레드의 키를 계산하는 함수입니다.
-  Comment? _selectedCommentByHash(int? selectedHash) {
-    if (selectedHash == null) return null;
+  /// 선택 키와 안정적인 댓글 ID를 함께 사용해 현재 목록의 대상 댓글을 찾습니다.
+  Comment? _selectedComment(String? selectedCommentId) {
+    if (selectedCommentId == null) return null;
+
+    final exactMatch = _comments.cast<Comment?>().firstWhere(
+      (comment) =>
+          comment != null && _commentKeyId(comment) == selectedCommentId,
+      orElse: () => null,
+    );
+    if (exactMatch != null) {
+      return exactMatch;
+    }
+
+    final numericId = _selectedCommentNumericId(selectedCommentId);
+    if (numericId == null) return null;
+
     return _comments.cast<Comment?>().firstWhere(
-      (comment) => comment?.hashCode == selectedHash,
+      (comment) =>
+          comment != null &&
+          (comment.id == numericId || comment.hashCode == numericId),
       orElse: () => null,
     );
   }
 
-  /// selectedHash를 기반으로 강조 표시할 스레드의 키를 계산하는 함수입니다.
-  /// selectedHash를 가진 댓글이 대댓글인 경우, 그 부모 댓글을 기준으로 스레드를 강조 표시하기 위한 키를 반환합니다.
+  /// 선택된 댓글이 속한 스레드의 기준 키를 계산해 강조 표시와 스크롤에 재사용합니다.
   ///
   /// Parameters:
-  /// - [selectedHash]: 선택된 댓글의 해시코드입니다. 이 해시코드를 가진 댓글이 강조 표시될 스레드의 기준이 됩니다.
-  String? _highlightThreadKey(int? selectedHash) {
+  /// - [selectedCommentId]: 외부에서 전달된 선택 댓글 키입니다.
+  String? _highlightThreadKey(String? selectedCommentId) {
     if (_manuallyHighlightedThreadKey != null) {
       return _manuallyHighlightedThreadKey;
     }
 
-    // selectedHash를 가진 댓글을 찾아옵니다.
-    final selectedComment = _selectedCommentByHash(selectedHash);
+    // 선택 키에 대응하는 댓글을 찾아옵니다.
+    final selectedComment = _selectedComment(selectedCommentId);
     if (selectedComment == null) return null;
 
     // 선택된 댓글이 속한 스레드를 강조 표시하기 위한 키를 계산합니다.
@@ -313,26 +342,14 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   void _scrollToSelectedComment() {
     if (widget.selectedCommentId == null) return;
 
-    final targetHash = _selectedHashCode(widget.selectedCommentId);
-    if (targetHash == null) return;
-
-    final targetComment = _comments.cast<Comment?>().firstWhere(
-      (comment) => comment?.hashCode == targetHash,
-      orElse: () => null,
-    );
+    final targetComment = _selectedComment(widget.selectedCommentId);
     if (targetComment == null) return;
 
     _scrollCommentAboveActionBar(targetComment, animated: false);
   }
 
   void _expandSelectedReplyParentIfNeeded() {
-    final targetHash = _selectedHashCode(widget.selectedCommentId);
-    if (targetHash == null) return;
-
-    final targetComment = _comments.cast<Comment?>().firstWhere(
-      (comment) => comment?.hashCode == targetHash,
-      orElse: () => null,
-    );
+    final targetComment = _selectedComment(widget.selectedCommentId);
     if (targetComment == null || !targetComment.isReply) return;
 
     final parentComment = _findParentComment(targetComment);
@@ -368,6 +385,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     });
   }
 
+  /// 댓글을 현재 스레드 관계 기준으로 구분할 수 있는 안정적인 키로 변환합니다.
   String _commentKeyId(Comment comment) {
     final idPart = comment.id?.toString() ?? 'hash_${comment.hashCode}';
     return '${comment.type.name}_$idPart';
@@ -865,6 +883,17 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _notifyCommentsUpdated();
   }
 
+  /// 답글 대상이 속한 원댓글 스레드 ID를 우선 사용하고, 없을 때만 기존 순서 추론으로 보완합니다.
+  int? _replyThreadParentId(Comment? comment) {
+    if (comment == null) {
+      return null;
+    }
+
+    return comment.threadParentId ??
+        _findParentComment(comment)?.threadParentId ??
+        (!comment.isReply ? comment.id : null);
+  }
+
   /// 답글 저장 요청에 필요한 payload를 생성하는 함수입니다.
   /// replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
   ({int parentId, int replyUserId}) _buildReplyPayload(Comment? replyTarget) {
@@ -872,20 +901,15 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       return (parentId: 0, replyUserId: 0);
     }
 
-    // 답글 저장 요청인 경우, parentId와 replyUserId를 계산하기 위해,
-    // replyTarget이 대댓글인지 원댓글인지에 따라 부모 댓글을 찾습니다.
-    final threadParent = replyTarget.isReply
-        ? _findParentComment(replyTarget) ?? replyTarget
-        : replyTarget;
-
     // 원댓글 저장 요청인 경우 parentId와 replyUserId는 0으로 처리됩니다.
     // 대댓글 저장 요청인 경우, parentId는 원댓글의 id를, replyUserId는 답글 대상 댓글의 작성자 id를 전달합니다.
     return (
-      parentId: threadParent.id ?? replyTarget.id ?? 0,
+      parentId: _replyThreadParentId(replyTarget) ?? replyTarget.id ?? 0,
       replyUserId: replyTarget.userId ?? 0,
     );
   }
 
+  /// 저장 직후 리스트에 삽입할 댓글에 스레드 관계와 사용자 표시 정보를 보강합니다.
   Comment _normalizeCommentForThread(
     Comment comment, {
     required Comment? replyTarget,
@@ -903,8 +927,12 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
         (comment.userProfileKey ?? '').trim().isNotEmpty
         ? comment.userProfileKey
         : currentUserProfileKey;
+    final normalizedThreadParentId = replyTarget != null
+        ? _replyThreadParentId(replyTarget)
+        : (comment.threadParentId ?? comment.id);
 
     return comment.copyWith(
+      threadParentId: normalizedThreadParentId,
       replyUserName: normalizedReplyUserName,
       userProfileUrl: normalizedProfileUrl,
       userProfileKey: normalizedProfileKey,
@@ -937,16 +965,13 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     );
   }
 
+  /// 새 댓글이 현재 스레드 순서를 유지하도록 삽입 위치를 계산합니다.
   int _resolveInsertIndex(Comment? replyTarget) {
     if (replyTarget == null) {
       return _comments.length;
     }
 
-    final targetIndex = _comments.indexWhere(
-      (comment) =>
-          comment.id == replyTarget.id &&
-          comment.hashCode == replyTarget.hashCode,
-    );
+    final targetIndex = _indexOfComment(replyTarget);
     if (targetIndex < 0) {
       return _comments.length;
     }
@@ -956,24 +981,50 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
 
     var insertIndex = targetIndex + 1;
-    while (insertIndex < _comments.length && _comments[insertIndex].isReply) {
+    final targetParentId = _replyThreadParentId(replyTarget);
+    while (insertIndex < _comments.length &&
+        _comments[insertIndex].isReply &&
+        _comments[insertIndex].threadParentId == targetParentId) {
       insertIndex++;
     }
     return insertIndex;
   }
 
+  /// 리스트 안에서 같은 댓글을 다시 찾을 때 스레드 관계와 댓글 ID를 함께 비교합니다.
   int _indexOfComment(Comment target) {
     return _comments.indexWhere(
       (comment) =>
-          comment.id == target.id && comment.hashCode == target.hashCode,
+          comment.isReply == target.isReply &&
+          (comment.id == target.id ||
+              (comment.id == null &&
+                  target.id == null &&
+                  comment.hashCode == target.hashCode)) &&
+          (comment.threadParentId == target.threadParentId ||
+              comment.threadParentId == null ||
+              target.threadParentId == null),
     );
   }
 
+  /// 대댓글의 부모 원댓글을 명시적 parentId로 찾고, 없을 때만 기존 리스트 순서 추론을 사용합니다.
   Comment? _findParentComment(Comment comment) {
-    final targetIndex = _indexOfComment(comment);
-    if (targetIndex < 0) return null;
     if (!comment.isReply) return comment;
 
+    final explicitParentId = comment.threadParentId;
+    if (explicitParentId != null) {
+      final explicitParent = _comments.cast<Comment?>().firstWhere(
+        (candidate) =>
+            candidate != null &&
+            !candidate.isReply &&
+            candidate.threadParentId == explicitParentId,
+        orElse: () => null,
+      );
+      if (explicitParent != null) {
+        return explicitParent;
+      }
+    }
+
+    final targetIndex = _indexOfComment(comment);
+    if (targetIndex < 0) return null;
     for (var index = targetIndex - 1; index >= 0; index--) {
       final candidate = _comments[index];
       if (!candidate.isReply) {
@@ -984,22 +1035,21 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     return null;
   }
 
+  /// 현재 펼쳐진 스레드 상태를 기준으로 실제 렌더링할 댓글 목록만 추립니다.
   List<Comment> _visibleComments() {
     final visible = <Comment>[];
-    Comment? currentParent;
-    var isCurrentParentExpanded = false;
 
     for (final comment in _comments) {
       if (!comment.isReply) {
-        currentParent = comment;
-        isCurrentParentExpanded = _expandedReplyParentKeys.contains(
-          _commentKeyId(comment),
-        );
         visible.add(comment);
         continue;
       }
 
-      if (currentParent == null || isCurrentParentExpanded) {
+      final parentComment = _findParentComment(comment);
+      final isExpanded =
+          parentComment == null ||
+          _expandedReplyParentKeys.contains(_commentKeyId(parentComment));
+      if (isExpanded) {
         visible.add(comment);
       }
     }
@@ -1046,14 +1096,19 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     widget.onCommentsUpdated?.call(List<Comment>.unmodifiable(_comments));
   }
 
+  /// 같은 스레드 안에서 이어지는 댓글 사이만 구분선을 접어 표시합니다.
   Widget _buildCommentSeparator({
     required Comment current,
     required Comment next,
     required bool currentHighlighted,
     required bool nextHighlighted,
   }) {
-    // 다음 항목이 대댓글이면 같은 reply 묶음으로 간주해 선을 숨깁니다.
-    if (next.isReply) {
+    final sharesThread =
+        current.threadParentId != null &&
+        current.threadParentId == next.threadParentId;
+
+    // 같은 스레드로 이어지는 항목이면 답글 묶음으로 간주해 선을 숨깁니다.
+    if (next.isReply && sharesThread) {
       return Container(
         width: double.infinity,
         height: 15.sp,
@@ -1127,14 +1182,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   }
 
   Widget _buildCommentList() {
-    final selectedHash = _selectedHashCode(
-      widget.selectedCommentId,
-    ); // widget.selectedCommentId에서 해시코드를 추출합니다.
-
     // 선택된 댓글이 속한 스레드를 강조 표시하기 위한 키를 계산합니다.
-    final highlightedThreadKey = _highlightThreadKey(
-      selectedHash,
-    ); // selectedHash를 기반으로 강조 표시할 스레드의 키를 계산합니다.
+    final highlightedThreadKey = _highlightThreadKey(widget.selectedCommentId);
     final visibleComments = _visibleComments();
     return Expanded(
       child: Container(

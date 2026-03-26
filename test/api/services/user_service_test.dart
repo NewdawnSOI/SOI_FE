@@ -3,6 +3,7 @@ import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi_api_client/api.dart';
 
+/// 인증 전용 엔드포인트를 테스트 더블로 대체해 서비스 예외 분기를 검증합니다.
 class _FakeAuthApi extends AuthControllerApi {
   _FakeAuthApi({
     this.onAuthSMS,
@@ -67,12 +68,15 @@ class _FakeAuthApi extends AuthControllerApi {
   }
 }
 
+/// 사용자 API 응답을 주입해 wrapper의 DTO 매핑 결과를 고정합니다.
 class _FakeUserApi extends UserAPIApi {
-  _FakeUserApi({this.onGetUser, this.onUpdateProfile});
+  _FakeUserApi({this.onGetUser, this.onUpdateProfile, this.onUpdateCoverImage});
 
   final Future<ApiResponseDtoUserRespDto?> Function()? onGetUser;
   final Future<ApiResponseDtoUserRespDto?> Function(String? profileImageKey)?
   onUpdateProfile;
+  final Future<ApiResponseDtoUserRespDto?> Function(String? coverImageKey)?
+  onUpdateCoverImage;
 
   @override
   Future<ApiResponseDtoUserRespDto?> getUser() async {
@@ -92,6 +96,17 @@ class _FakeUserApi extends UserAPIApi {
       throw UnimplementedError('onUpdateProfile is not configured');
     }
     return handler(profileImageKey);
+  }
+
+  @override
+  Future<ApiResponseDtoUserRespDto?> updateCoverImage({
+    String? coverImageKey,
+  }) async {
+    final handler = onUpdateCoverImage;
+    if (handler == null) {
+      throw UnimplementedError('onUpdateCoverImage is not configured');
+    }
+    return handler(coverImageKey);
   }
 }
 
@@ -390,6 +405,36 @@ void main() {
 
       expect(result.id, 1);
       expect(result.profileImageUrlKey, 'profile-key');
+    });
+
+    test('updateCoverImage maps generated response to domain model', () async {
+      final service = UserService(
+        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+        userApi: _FakeUserApi(
+          onUpdateCoverImage: (coverImageKey) async {
+            expect(coverImageKey, 'cover-key');
+            return ApiResponseDtoUserRespDto(
+              success: true,
+              data: UserRespDto(
+                id: 1,
+                nickname: 'minchan',
+                name: '민찬',
+                phoneNum: '01012345678',
+              ),
+            );
+          },
+        ),
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
+      );
+
+      final result = await service.updateCoverImage(
+        userId: 1,
+        coverImageKey: 'cover-key',
+      );
+
+      expect(result.id, 1);
+      expect(result.userId, 'minchan');
     });
   });
 }

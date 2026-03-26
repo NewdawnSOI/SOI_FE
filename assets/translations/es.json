@@ -402,6 +402,9 @@
       "take_photo": "Tomar foto",
       "select_from_library": "Elegir de la galería"
     },
+    "cover_sheet": {
+      "title": "Cambiar foto de portada"
+    },
     "snackbar": {
       "login_required": "Inicia sesión.",
       "image_not_found": "Imagen no encontrada.",
@@ -411,7 +414,9 @@
       "camera_error": "Error al tomar la foto.",
       "gallery_error": "Error al elegir desde la galería.",
       "logout_failed": "Error al salir.",
-      "delete_account_failed": "Error al eliminar: {error}"
+      "delete_account_failed": "Error al eliminar: {error}",
+      "cover_updated": "Foto de portada actualizada.",
+      "cover_update_failed": "No se pudo actualizar la portada."
     }
   },
   "privacy": {
