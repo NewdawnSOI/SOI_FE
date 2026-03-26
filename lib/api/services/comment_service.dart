@@ -39,6 +39,14 @@ class CommentService {
   final Map<String, Future<({List<Comment> comments, bool hasMore})>>
   _inFlightCommentsByUserPage = {};
 
+  // 게시물 ID + 페이지 번호별로 진행 중인 원댓글 조회 요청을 추적하여 중복 요청 방지
+  final Map<String, Future<({List<Comment> comments, bool hasMore})>>
+  _inFlightParentCommentsByPostPage = {};
+
+  // 부모 댓글 ID + 페이지 번호별로 진행 중인 대댓글 조회 요청을 추적하여 중복 요청 방지
+  final Map<String, Future<({List<Comment> comments, bool hasMore})>>
+  _inFlightChildCommentsByParentPage = {};
+
   CommentService({CommentAPIApi? commentApi})
     : _commentApi = commentApi ?? SoiApiClient.instance.commentApi;
 
@@ -62,6 +70,22 @@ class CommentService {
     required int page,
   }) {
     return '$userId:$page';
+  }
+
+  /// 게시물별 원댓글 Slice 요청을 같은 키로 묶어 중복 호출을 막습니다.
+  String _buildParentCommentsRequestKey({
+    required int postId,
+    required int page,
+  }) {
+    return '$postId:$page';
+  }
+
+  /// 부모 댓글별 대댓글 Slice 요청을 같은 키로 묶어 중복 호출을 막습니다.
+  String _buildChildCommentsRequestKey({
+    required int parentCommentId,
+    required int page,
+  }) {
+    return '$parentCommentId:$page';
   }
 
   /// 유틸리티 메서드 - 파형 데이터 정규화
@@ -339,10 +363,13 @@ class CommentService {
   // ============================================
 
   /// 게시물의 댓글 조회
-  ///
   /// [postId]에 해당하는 게시물의 모든 댓글을 조회합니다.
   ///
-  /// Returns: 댓글 목록 (`List<Comment>`)
+  /// Parameters:
+  /// - [postId]: 게시물 ID
+  ///
+  /// Returns: 댓글 목록
+  /// - [Future<List<Comment>>]: 원댓글과 대댓글이 계층 구조로 병합된 형태로 반환됩니다.
   ///
   /// Throws:
   /// - [NotFoundException]: 게시물을 찾을 수 없음
@@ -369,8 +396,7 @@ class CommentService {
     }
   }
 
-  /// 게시물의 댓글 조회 내부 구현
-  ///
+  /// **게시물**의 댓글 조회 내부 구현
   /// [postId]에 해당하는 게시물의 모든 댓글을 조회합니다.
   /// 원댓글과 대댓글을 모두 조회하여 계층 구조로 병합한 후 반환합니다.
   ///
@@ -445,6 +471,74 @@ class CommentService {
     return comments.length;
   }
 
+  /// 게시물에 달린 원댓글 한 페이지를 `Comment` 모델로 정규화해 반환합니다.
+  Future<({List<Comment> comments, bool hasMore})> getParentComments({
+    required int postId,
+    int page = _defaultPage,
+  }) async {
+    final requestKey = _buildParentCommentsRequestKey(
+      postId: postId,
+      page: page,
+    );
+    final task = _inFlightParentCommentsByPostPage.putIfAbsent(
+      requestKey,
+      () => _fetchCommentSlice(
+        request: () => _commentApi.getParentComment(postId, page),
+        errorMessage: '원댓글 조회 실패',
+      ),
+    );
+
+    try {
+      return await task;
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '원댓글 조회 실패: $e', originalException: e);
+    } finally {
+      final registeredTask = _inFlightParentCommentsByPostPage[requestKey];
+      if (identical(registeredTask, task)) {
+        _inFlightParentCommentsByPostPage.remove(requestKey);
+      }
+    }
+  }
+
+  /// 부모 댓글에 달린 대댓글 한 페이지를 `Comment` 모델로 정규화해 반환합니다.
+  Future<({List<Comment> comments, bool hasMore})> getChildComments({
+    required int parentCommentId,
+    int page = _defaultPage,
+  }) async {
+    final requestKey = _buildChildCommentsRequestKey(
+      parentCommentId: parentCommentId,
+      page: page,
+    );
+    final task = _inFlightChildCommentsByParentPage.putIfAbsent(
+      requestKey,
+      () => _fetchCommentSlice(
+        request: () => _commentApi.getChildComment(parentCommentId, page),
+        errorMessage: '대댓글 조회 실패',
+      ),
+    );
+
+    try {
+      return await task;
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '대댓글 조회 실패: $e', originalException: e);
+    } finally {
+      final registeredTask = _inFlightChildCommentsByParentPage[requestKey];
+      if (identical(registeredTask, task)) {
+        _inFlightChildCommentsByParentPage.remove(requestKey);
+      }
+    }
+  }
+
   /// 사용자가 작성한 댓글 조회 (Slice 페이지네이션)
   ///
   /// [userId]가 작성한 댓글을 페이지 단위로 조회합니다.
@@ -479,14 +573,25 @@ class CommentService {
 
   Future<({List<Comment> comments, bool hasMore})>
   _getCommentsByUserIdInternal({required int page}) async {
-    final response = await _commentApi.getAllCommentByUserId(page);
+    return _fetchCommentSlice(
+      request: () => _commentApi.getAllCommentByUserId(page),
+      errorMessage: '댓글 조회 실패',
+    );
+  }
+
+  /// Slice 기반 댓글 응답을 앱 전용 `Comment` 목록과 다음 페이지 정보로 변환합니다.
+  Future<({List<Comment> comments, bool hasMore})> _fetchCommentSlice({
+    required Future<ApiResponseDtoSliceCommentRespDto?> Function() request,
+    required String errorMessage,
+  }) async {
+    final response = await request();
 
     if (response == null) {
       return (comments: <Comment>[], hasMore: false);
     }
 
     if (response.success != true) {
-      throw SoiApiException(message: response.message ?? '댓글 조회 실패');
+      throw SoiApiException(message: response.message ?? errorMessage);
     }
 
     final slice = response.data;

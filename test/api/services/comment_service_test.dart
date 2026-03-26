@@ -338,6 +338,60 @@ void main() {
     );
   });
 
+  group('CommentService parent/child slice queries', () {
+    test('getParentComments maps slice response and exposes hasMore', () async {
+      final service = CommentService(
+        commentApi: _FakeCommentApi(
+          onGetParentComment: (postId, page) async {
+            expect(postId, 55);
+            expect(page, 3);
+            return _sliceResponse(
+              content: [_commentDto(201), _commentDto(202)],
+              last: false,
+              empty: false,
+            );
+          },
+          onGetChildComment: (parentCommentId, page) async => null,
+        ),
+      );
+
+      final result = await service.getParentComments(postId: 55, page: 3);
+
+      expect(result.comments.map((comment) => comment.id), [201, 202]);
+      expect(result.hasMore, isTrue);
+    });
+
+    test('dedupes in-flight getChildComments requests', () async {
+      final sliceCompleter = Completer<ApiResponseDtoSliceCommentRespDto?>();
+      var callCount = 0;
+
+      final service = CommentService(
+        commentApi: _FakeCommentApi(
+          onGetParentComment: (postId, page) async => null,
+          onGetChildComment: (parentCommentId, page) {
+            callCount++;
+            expect(parentCommentId, 12);
+            expect(page, 1);
+            return sliceCompleter.future;
+          },
+        ),
+      );
+
+      final first = service.getChildComments(parentCommentId: 12, page: 1);
+      final second = service.getChildComments(parentCommentId: 12, page: 1);
+
+      sliceCompleter.complete(
+        _sliceResponse(content: [_commentDto(301)], last: true, empty: false),
+      );
+
+      final results = await Future.wait([first, second]);
+
+      expect(callCount, 1);
+      expect(results[0].comments.single.id, 301);
+      expect(results[1].hasMore, isFalse);
+    });
+  });
+
   group('CommentService getCommentsByUserId', () {
     test('maps slice response and exposes hasMore', () async {
       final service = CommentService(

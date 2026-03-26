@@ -99,10 +99,14 @@ class _FakePostController extends PostController {
 }
 
 class _FakeCommentController extends CommentController {
-  _FakeCommentController({required this.comments, this.overrideErrorMessage})
-    : super(commentService: CommentService(commentApi: _NoopCommentApi()));
+  _FakeCommentController({
+    required this.comments,
+    this.childCommentsByParentId = const <int, List<Comment>>{},
+    this.overrideErrorMessage,
+  }) : super(commentService: CommentService(commentApi: _NoopCommentApi()));
 
   final List<Comment> comments;
+  final Map<int, List<Comment>> childCommentsByParentId;
   final String? overrideErrorMessage;
 
   @override
@@ -113,6 +117,16 @@ class _FakeCommentController extends CommentController {
     required int userId,
     int page = 0,
   }) async => (comments: comments, hasMore: false);
+
+  /// 프로필 댓글 탭이 부모 댓글별 대댓글을 다시 조회할 수 있도록 고정 응답을 제공합니다.
+  @override
+  Future<({List<Comment> comments, bool hasMore})> getChildComments({
+    required int parentCommentId,
+    int page = 0,
+  }) async => (
+    comments: childCommentsByParentId[parentCommentId] ?? const <Comment>[],
+    hasMore: false,
+  );
 }
 
 class _FakeUserController extends UserController {
@@ -748,6 +762,41 @@ void main() {
       await _pumpNoImages(tester);
 
       expect(find.text('정말 멋진 사진이네요!'), findsOneWidget);
+    });
+
+    testWidgets('원댓글과 대댓글을 부모-자식 스레드로 묶어 표시한다', (tester) async {
+      final threadedCommentController = _FakeCommentController(
+        comments: _fakeComments,
+        childCommentsByParentId: {
+          100: [
+            Comment(
+              id: 102,
+              userId: _fakeUserId,
+              nickname: _fakeUserIdStr,
+              text: '대댓글도 확인합니다.',
+              replyUserName: '원댓글 작성자',
+              type: CommentType.reply,
+              createdAt: DateTime(2025, 3, 3),
+            ),
+          ],
+        },
+      );
+
+      await tester.pumpWidget(
+        _buildHarness(
+          postController: _FakePostController(posts: const <Post>[]),
+          commentController: threadedCommentController,
+          child: ProfileCommentTabView(
+            userId: _fakeUserId,
+            isActive: true,
+            emptyMessageKey: 'profile.main.empty_comments',
+          ),
+        ),
+      );
+      await _pumpNoImages(tester);
+
+      expect(find.text('정말 멋진 사진이네요!'), findsOneWidget);
+      expect(find.text('대댓글도 확인합니다.'), findsOneWidget);
     });
   });
 

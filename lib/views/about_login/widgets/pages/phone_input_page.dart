@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:solar_icons/solar_icons.dart';
@@ -23,62 +25,93 @@ class PhoneInputPage extends StatelessWidget {
     required this.pageController,
   });
 
+  /// 전화번호 입력 영역을 작은 화면과 키보드 상태에서도 스크롤 가능하게 배치한다.
   @override
   Widget build(BuildContext context) {
-    // 키보드 높이 계산
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    final verticalOffset = keyboardHeight > 0 ? -30.0 : 0.0; // 키보드가 올라올 때 위로 이동
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardHeight = mediaQuery.viewInsets.bottom;
+    final safeBottom = mediaQuery.padding.bottom;
 
-    return Stack(
-      children: [
-        Positioned(
-          top: 60.h,
-          left: 20.w,
-          child: IconButton(
-            onPressed: () {
-              pageController?.previousPage(
-                duration: Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            },
-            icon: Icon(Icons.arrow_back_ios, color: Colors.white),
-          ),
-        ),
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final topPadding = 84.h;
+          final bottomPadding = keyboardHeight > 0
+              ? keyboardHeight + 32.h
+              : 120.h + safeBottom;
+          final minContentHeight = math
+              .max(0.0, constraints.maxHeight - topPadding - bottomPadding)
+              .toDouble();
 
-        // 전화번호 입력 UI 임시 숨김
-        Align(
-          alignment: Alignment.center,
-          child: Transform.translate(
-            offset: Offset(0, verticalOffset),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                PageTitle(title: tr('register.phone_title', context: context)),
-                SizedBox(height: 16.h),
-                _CountrySelector(
-                  selectedCountryCode: selectedCountryCode,
-                  onChanged: onCountryChanged,
+          return Stack(
+            children: [
+              // 뒤로 가기 버튼을 화면 상단 왼쪽에 고정한다.
+              Positioned(
+                top: 8.h,
+                left: 8.w,
+                child: IconButton(
+                  onPressed: () {
+                    pageController?.previousPage(
+                      duration: Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  },
+                  icon: Icon(Icons.arrow_back_ios, color: Colors.white),
                 ),
-                SizedBox(height: 16.h),
-                CustomTextField(
-                  controller: controller,
-                  hintText: tr('register.phone_hint', context: context),
-                  keyboardType: TextInputType.phone,
-                  textAlign: TextAlign.start,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  prefixIcon: Icon(
-                    SolarIconsOutline.phone,
-                    color: const Color(0xffC0C0C0),
-                    size: 24.sp,
+              ),
+              //
+              SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  20.w,
+                  topPadding,
+                  20.w,
+                  bottomPadding,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: minContentHeight),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // "SOI 접속을 위해 전화번호를 입력해주세요." 제목 위젯
+                        PageTitle(
+                          title: tr('register.phone_title', context: context),
+                        ),
+                        SizedBox(height: 16.h),
+                        // 국가 코드 선택 드롭다운 위젯
+                        _CountrySelector(
+                          selectedCountryCode: selectedCountryCode,
+                          onChanged: onCountryChanged,
+                        ),
+                        SizedBox(height: 16.h),
+                        // 전화번호 입력 필드 위젯
+                        CustomTextField(
+                          controller: controller,
+                          hintText: tr('register.phone_hint', context: context),
+                          keyboardType: TextInputType.phone,
+                          textAlign: TextAlign.start,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          prefixIcon: Icon(
+                            SolarIconsOutline.phone,
+                            color: const Color(0xffC0C0C0),
+                            size: 24.sp,
+                          ),
+                          onChanged: onChanged,
+                        ),
+                      ],
+                    ),
                   ),
-                  onChanged: onChanged,
                 ),
-                SizedBox(height: 24.h),
-              ],
-            ),
-          ),
-        ),
-      ],
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -95,6 +128,7 @@ class _CountryOption {
   });
 }
 
+/// 전화번호 입력 전에 국가 코드 선택을 현재 화면 폭에 맞춰 제공한다.
 class _CountrySelector extends StatelessWidget {
   final String selectedCountryCode;
   final ValueChanged<String> onChanged;
@@ -104,6 +138,7 @@ class _CountrySelector extends StatelessWidget {
     required this.onChanged,
   });
 
+  /// 국가 코드 드롭다운을 현재 화면 폭에 맞춰 안정적으로 노출한다.
   @override
   Widget build(BuildContext context) {
     final options = [
@@ -136,6 +171,7 @@ class _CountrySelector extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedCountryCode,
+          isExpanded: true,
           dropdownColor: const Color(0xff323232),
           iconEnabledColor: const Color(0xFFF8F8F8),
           style: TextStyle(

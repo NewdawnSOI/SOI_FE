@@ -28,16 +28,30 @@ typedef _CreateCommentHandler =
 
 typedef _GetCommentsHandler =
     Future<List<Comment>> Function({required int postId});
+typedef _GetParentCommentsHandler =
+    Future<({List<Comment> comments, bool hasMore})> Function({
+      required int postId,
+      required int page,
+    });
+typedef _GetChildCommentsHandler =
+    Future<({List<Comment> comments, bool hasMore})> Function({
+      required int parentCommentId,
+      required int page,
+    });
 
 class _FakeCommentService extends CommentService {
   _FakeCommentService({
     required this.onCreate,
     this.onGetByUserId,
     this.onGetComments,
+    this.onGetParentComments,
+    this.onGetChildComments,
   }) : super(commentApi: _NoopCommentApi());
 
   final _CreateCommentHandler onCreate;
   final _GetCommentsHandler? onGetComments;
+  final _GetParentCommentsHandler? onGetParentComments;
+  final _GetChildCommentsHandler? onGetChildComments;
   final Future<({List<Comment> comments, bool hasMore})> Function({
     required int userId,
     required int page,
@@ -84,6 +98,32 @@ class _FakeCommentService extends CommentService {
       throw UnsupportedError('Should not call getComments');
     }
     return handler(postId: postId);
+  }
+
+  @override
+  /// 컨트롤러가 원댓글 조회 파라미터를 서비스로 그대로 넘기는지 검증합니다.
+  Future<({List<Comment> comments, bool hasMore})> getParentComments({
+    required int postId,
+    int page = 0,
+  }) {
+    final handler = onGetParentComments;
+    if (handler == null) {
+      throw UnsupportedError('Should not call getParentComments');
+    }
+    return handler(postId: postId, page: page);
+  }
+
+  @override
+  /// 컨트롤러가 대댓글 조회 파라미터를 서비스로 그대로 넘기는지 검증합니다.
+  Future<({List<Comment> comments, bool hasMore})> getChildComments({
+    required int parentCommentId,
+    int page = 0,
+  }) {
+    final handler = onGetChildComments;
+    if (handler == null) {
+      throw UnsupportedError('Should not call getChildComments');
+    }
+    return handler(parentCommentId: parentCommentId, page: page);
   }
 
   @override
@@ -449,6 +489,97 @@ void main() {
       expect(capturedUserId, 7);
       expect(capturedPage, 2);
       expect(result.comments, hasLength(1));
+      expect(result.hasMore, isTrue);
+    });
+
+    test('getParentComments forwards paging params to service', () async {
+      int? capturedPostId;
+      int? capturedPage;
+
+      final controller = CommentController(
+        commentService: _FakeCommentService(
+          onCreate:
+              ({
+                required int postId,
+                required int userId,
+                int? emojiId,
+                int? parentId,
+                int? replyUserId,
+                String? text,
+                String? audioFileKey,
+                String? fileKey,
+                String? waveformData,
+                int? duration,
+                double? locationX,
+                double? locationY,
+                CommentType? type,
+              }) async => const CommentCreationResult(success: true),
+          onGetParentComments:
+              ({required int postId, required int page}) async {
+                capturedPostId = postId;
+                capturedPage = page;
+                return (
+                  comments: const [
+                    Comment(id: 2, nickname: 'parent', type: CommentType.text),
+                  ],
+                  hasMore: false,
+                );
+              },
+        ),
+      );
+
+      final result = await controller.getParentComments(postId: 9, page: 4);
+
+      expect(capturedPostId, 9);
+      expect(capturedPage, 4);
+      expect(result.comments.single.id, 2);
+      expect(result.hasMore, isFalse);
+    });
+
+    test('getChildComments forwards paging params to service', () async {
+      int? capturedParentCommentId;
+      int? capturedPage;
+
+      final controller = CommentController(
+        commentService: _FakeCommentService(
+          onCreate:
+              ({
+                required int postId,
+                required int userId,
+                int? emojiId,
+                int? parentId,
+                int? replyUserId,
+                String? text,
+                String? audioFileKey,
+                String? fileKey,
+                String? waveformData,
+                int? duration,
+                double? locationX,
+                double? locationY,
+                CommentType? type,
+              }) async => const CommentCreationResult(success: true),
+          onGetChildComments:
+              ({required int parentCommentId, required int page}) async {
+                capturedParentCommentId = parentCommentId;
+                capturedPage = page;
+                return (
+                  comments: const [
+                    Comment(id: 3, nickname: 'child', type: CommentType.reply),
+                  ],
+                  hasMore: true,
+                );
+              },
+        ),
+      );
+
+      final result = await controller.getChildComments(
+        parentCommentId: 12,
+        page: 1,
+      );
+
+      expect(capturedParentCommentId, 12);
+      expect(capturedPage, 1);
+      expect(result.comments.single.id, 3);
       expect(result.hasMore, isTrue);
     });
 

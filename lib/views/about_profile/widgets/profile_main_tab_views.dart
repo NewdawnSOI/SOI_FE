@@ -14,6 +14,7 @@ import '../../about_archiving/widgets/archive_card_widget/archive_card_placehold
 import '../../common_widget/about_comment/widget/about_comment_list_sheet/api_comment_row.dart';
 
 class ProfilePostTabView extends StatefulWidget {
+  ///
   /// 프로필 메인 탭의 게시물과 댓글 뷰
   /// - 게시물 탭은 ApiPhotoGridItem을 사용하여 사진과 동영상 게시물을 표시합니다.
   /// - 댓글 탭은 ApiCommentRow를 사용하여 사용자가 작성한 댓글을 표시합니다.
@@ -25,6 +26,7 @@ class ProfilePostTabView extends StatefulWidget {
   /// - [isActive]: 탭이 현재 활성화되어 있는지 여부. 활성화되지 않은 경우 초기 로딩을 지연시킵니다.
   /// - [detailTitle]: ApiPhotoGridItem에 전달할 카테고리 이름 (게시물 탭에서만 사용).
   /// - [emptyMessageKey]: 게시물 또는 댓글이 없는 경우 표시할 메시지의 로컬라이즈된 키.
+  ///
   const ProfilePostTabView({
     super.key,
     required this.userId,
@@ -34,7 +36,7 @@ class ProfilePostTabView extends StatefulWidget {
     required this.emptyMessageKey,
   });
 
-  final int? userId; //
+  final int? userId;
   final PostType postType;
   final bool isActive;
   final String detailTitle;
@@ -360,6 +362,25 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
   late final AudioController _audioController;
 
   List<Comment> _comments = const <Comment>[];
+
+  /// 원댓글과 대댓글이 부모-자식 구조로 묶인 스레드 리스트입니다.
+  /// 해당 List를 이용해서 댓글 탭에서 댓글을 렌더링합니다.
+  ///
+  /// 댓글 탭이 바로 렌더링할 수 있게 변환된 데이터입니다.
+  ///
+  /// - Comment: 원댓글
+  /// - List<[Comment]>: 해당 원댓글의 대댓글 리스트
+  List<Map<Comment, List<Comment>>> _commentThreads =
+      const <Map<Comment, List<Comment>>>[];
+
+  /// 부모 ID별로 대댓글 리스트를 캐싱하는 맵입니다.
+  ///
+  /// 댓글 스레드를 구성할 때 원댓글 ID로 대댓글을 빠르게 조회하기 위해 사용합니다.
+  ///
+  /// - int: 원댓글 ID
+  /// - List<[Comment]>: 해당 원댓글의 대댓글 리스트
+  final Map<int, List<Comment>> _childCommentsByParentId =
+      <int, List<Comment>>{};
   bool _initialLoadScheduled = false; // 위젯 트리가 완성된 후에 초기 로딩을 시도하기 위한 플래그
   bool _hasLoadedOnce = false;
   bool _isInitialLoading = false;
@@ -405,6 +426,8 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
 
   void _resetState() {
     _comments = const <Comment>[];
+    _commentThreads = const <Map<Comment, List<Comment>>>[]; // 댓글 스레드 데이터 초기화
+    _childCommentsByParentId.clear(); // 부모 ID별 대댓글 캐시 초기화
     _hasLoadedOnce = false;
     _isInitialLoading = false;
     _isLoadingMore = false;
@@ -473,6 +496,13 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     return normalizedComments;
   }
 
+  /// 사용자 댓글 응답을 클래스 내부 전용 리스트로 복사한 뒤 정렬과 중복 제거를 적용합니다.
+  List<Comment> _copyComments(List<Comment> rawComments) {
+    return List<Comment>.unmodifiable(
+      _normalizeComments(List<Comment>.from(rawComments)),
+    );
+  }
+
   String _commentIdentity(Comment comment) {
     final id = comment.id;
     if (id != null) {
@@ -489,12 +519,92 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     ].join('|');
   }
 
+  /// 현재 페이지의 원댓글들에 필요한 대댓글 첫 페이지를 병렬로 조회해 스레드 캐시를 채웁니다.
+  Future<void> _loadChildCommentsForParents({
+    required CommentController commentController,
+    required List<Comment> sourceComments,
+  }) async {
+    final parentsToLoad = sourceComments
+        .where((comment) => !comment.isReply && comment.id != null)
+        .where((comment) => !_childCommentsByParentId.containsKey(comment.id))
+        .toList(growable: false);
+
+    if (parentsToLoad.isEmpty) {
+      return;
+    }
+
+    final loadedChildEntries = await Future.wait(
+      parentsToLoad.map((parentComment) async {
+        final parentId = parentComment.id!;
+        final result = await commentController.getChildComments(
+          parentCommentId: parentId,
+          page: 0,
+        );
+        return MapEntry(parentId, _copyComments(result.comments));
+      }),
+    );
+
+    for (final entry in loadedChildEntries) {
+      _childCommentsByParentId[entry.key] = entry.value;
+    }
+  }
+
+  /// 원댓글과 대댓글을 부모-자식 스레드 구조로 묶어 댓글 탭이 바로 렌더링할 수 있게 변환합니다.
+  List<Map<Comment, List<Comment>>> _buildCommentThreads(
+    List<Comment> sourceComments,
+  ) {
+    final renderedChildIdentities = <String>{
+      for (final childComments in _childCommentsByParentId.values)
+        for (final childComment in childComments)
+          _commentIdentity(childComment),
+    };
+
+    final threads = <Map<Comment, List<Comment>>>[];
+    for (final comment in sourceComments) {
+      if (comment.isReply) {
+        if (renderedChildIdentities.contains(_commentIdentity(comment))) {
+          continue;
+        }
+        threads.add({comment: const <Comment>[]});
+        continue;
+      }
+
+      final parentId = comment.id;
+      final childComments = parentId == null
+          ? const <Comment>[]
+          : _childCommentsByParentId[parentId] ?? const <Comment>[];
+      threads.add({comment: childComments});
+    }
+
+    return List<Map<Comment, List<Comment>>>.unmodifiable(threads);
+  }
+
+  /// 한 스레드의 부모 댓글과 대댓글 묶음을 하나의 리스트 아이템으로 그립니다.
+  Widget _buildCommentThreadItem(Map<Comment, List<Comment>> commentThread) {
+    final threadEntry = commentThread.entries.single;
+    final parentComment = threadEntry.key;
+    final childComments = threadEntry.value;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ApiCommentRow(comment: parentComment),
+        for (final childComment in childComments) ...[
+          SizedBox(height: 15.sp),
+          ApiCommentRow(comment: childComment),
+        ],
+      ],
+    );
+  }
+
   Future<void> _loadInitial() async {
     final userId = widget.userId;
     if (userId == null) {
       if (!mounted) return;
       setState(() {
         _comments = const <Comment>[];
+        _commentThreads = const <Map<Comment, List<Comment>>>[];
+        _childCommentsByParentId.clear();
         _hasLoadedOnce = true;
         _isInitialLoading = false;
         _isLoadingMore = false;
@@ -516,15 +626,21 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
       userId: userId,
       page: 0,
     );
+    final copiedComments = _copyComments(result.comments);
+    await _loadChildCommentsForParents(
+      commentController: commentController,
+      sourceComments: copiedComments,
+    );
     if (!mounted) return;
 
-    final normalizedComments = _normalizeComments(result.comments);
+    final commentThreads = _buildCommentThreads(copiedComments);
     final hasError =
         (commentController.errorMessage?.trim().isNotEmpty ?? false) &&
-        normalizedComments.isEmpty;
+        copiedComments.isEmpty;
 
     setState(() {
-      _comments = normalizedComments;
+      _comments = copiedComments;
+      _commentThreads = commentThreads;
       _hasLoadedOnce = true;
       _isInitialLoading = false;
       _hasMore = result.hasMore;
@@ -548,18 +664,24 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
       userId: userId,
       page: _nextPage,
     );
+    final copiedComments = _copyComments(<Comment>[
+      ..._comments,
+      ...result.comments,
+    ]);
+    await _loadChildCommentsForParents(
+      commentController: commentController,
+      sourceComments: copiedComments,
+    );
     if (!mounted) return;
 
     final hasError =
         (commentController.errorMessage?.trim().isNotEmpty ?? false) &&
         result.comments.isEmpty;
-    final mergedComments = _normalizeComments(<Comment>[
-      ..._comments,
-      ...result.comments,
-    ]);
+    final commentThreads = _buildCommentThreads(copiedComments);
 
     setState(() {
-      _comments = mergedComments;
+      _comments = copiedComments;
+      _commentThreads = commentThreads;
       _isLoadingMore = false;
       _hasMore = hasError ? false : result.hasMore;
       _nextPage = hasError ? _nextPage : _nextPage + 1;
@@ -570,6 +692,8 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
     _hasLoadedOnce = false;
     _nextPage = 0;
     _hasMore = true;
+    _commentThreads = const <Map<Comment, List<Comment>>>[];
+    _childCommentsByParentId.clear();
     await _loadInitial();
   }
 
@@ -615,14 +739,11 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
             parent: AlwaysScrollableScrollPhysics(),
           ),
           padding: EdgeInsets.fromLTRB(0, 8.h, 0, 28.h),
-          itemCount: _comments.length + (_isLoadingMore ? 1 : 0),
+          itemCount: _commentThreads.length + (_isLoadingMore ? 1 : 0),
           separatorBuilder: (_, index) {
             // 로딩 인디케이터 앞 구분선이나 범위 밖은 빈 위젯
-            if (index >= _comments.length - 1) return const SizedBox.shrink();
-            final next = _comments[index + 1];
-            // 다음 항목이 대댓글이면 같은 스레드로 간주해 선을 숨김
-            if (next.isReply) {
-              return SizedBox(width: double.infinity, height: 15.sp);
+            if (index >= _commentThreads.length - 1) {
+              return const SizedBox.shrink();
             }
             return Column(
               mainAxisSize: MainAxisSize.min,
@@ -638,7 +759,7 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
             );
           },
           itemBuilder: (context, index) {
-            if (index >= _comments.length) {
+            if (index >= _commentThreads.length) {
               return Padding(
                 padding: EdgeInsets.symmetric(vertical: 18.h),
                 child: const Center(
@@ -646,7 +767,7 @@ class _ProfileCommentTabViewState extends State<ProfileCommentTabView>
                 ),
               );
             }
-            return ApiCommentRow(comment: _comments[index]);
+            return _buildCommentThreadItem(_commentThreads[index]);
           },
         ),
       ),

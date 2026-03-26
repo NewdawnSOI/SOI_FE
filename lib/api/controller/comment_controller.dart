@@ -27,6 +27,10 @@ class CommentController extends ChangeNotifier {
   final Map<int, Future<List<Comment>>> _inFlightCommentsByPost = {};
   final Map<String, Future<({List<Comment> comments, bool hasMore})>>
   _inFlightCommentsByUserPage = {};
+  final Map<String, Future<({List<Comment> comments, bool hasMore})>>
+  _inFlightParentCommentsByPostPage = {};
+  final Map<String, Future<({List<Comment> comments, bool hasMore})>>
+  _inFlightChildCommentsByParentPage = {};
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -43,6 +47,22 @@ class CommentController extends ChangeNotifier {
     required int page,
   }) {
     return '$userId:$page';
+  }
+
+  /// 게시물별 원댓글 페이지 요청을 같은 키로 묶어 중복 조회를 막습니다.
+  String _buildParentCommentsRequestKey({
+    required int postId,
+    required int page,
+  }) {
+    return '$postId:$page';
+  }
+
+  /// 부모 댓글별 대댓글 페이지 요청을 같은 키로 묶어 중복 조회를 막습니다.
+  String _buildChildCommentsRequestKey({
+    required int parentCommentId,
+    required int page,
+  }) {
+    return '$parentCommentId:$page';
   }
 
   /// 로딩 상태
@@ -260,7 +280,94 @@ class CommentController extends ChangeNotifier {
     }
   }
 
+  /// 게시물에 달린 원댓글 한 페이지를 UI가 바로 쓰는 `Comment` 모델로 반환합니다.
+  Future<({List<Comment> comments, bool hasMore})> getParentComments({
+    required int postId,
+    int page = 0,
+  }) async {
+    final requestKey = _buildParentCommentsRequestKey(
+      postId: postId,
+      page: page,
+    );
+    final task = _inFlightParentCommentsByPostPage.putIfAbsent(
+      requestKey,
+      () async {
+        _beginRequest();
+        try {
+          return await _commentService.getParentComments(
+            postId: postId,
+            page: page,
+          );
+        } finally {
+          _endRequest();
+        }
+      },
+    );
+
+    try {
+      return await task;
+    } catch (e) {
+      _setError('원댓글 조회 실패: $e');
+      return (comments: <Comment>[], hasMore: false);
+    } finally {
+      final registeredTask = _inFlightParentCommentsByPostPage[requestKey];
+      if (identical(registeredTask, task)) {
+        _inFlightParentCommentsByPostPage.remove(requestKey);
+      }
+    }
+  }
+
+  /// 부모 댓글에 달린 대댓글 한 페이지를 UI가 바로 쓰는 `Comment` 모델로 반환합니다.
+  Future<({List<Comment> comments, bool hasMore})> getChildComments({
+    required int parentCommentId,
+    int page = 0,
+  }) async {
+    final requestKey = _buildChildCommentsRequestKey(
+      parentCommentId: parentCommentId,
+      page: page,
+    );
+    final task = _inFlightChildCommentsByParentPage.putIfAbsent(
+      requestKey,
+      () async {
+        _beginRequest();
+        try {
+          return await _commentService.getChildComments(
+            parentCommentId: parentCommentId,
+            page: page,
+          );
+        } finally {
+          _endRequest();
+        }
+      },
+    );
+
+    try {
+      return await task;
+    } catch (e) {
+      _setError('대댓글 조회 실패: $e');
+      return (comments: <Comment>[], hasMore: false);
+    } finally {
+      final registeredTask = _inFlightChildCommentsByParentPage[requestKey];
+      if (identical(registeredTask, task)) {
+        _inFlightChildCommentsByParentPage.remove(requestKey);
+      }
+    }
+  }
+
   /// 사용자가 작성한 댓글 조회
+  ///
+  /// Parameters:
+  /// - [userId]: 댓글 작성자 ID
+  /// - [page]: 페이지 번호 (0부터 시작)
+  ///
+  /// Returns:
+  /// - [Future<({List<Comment> comments, bool hasMore})>]: 댓글 목록과 다음 페이지 존재 여부를 함께 반환합니다.
+  ///   - `comments`: 댓글 목록
+  ///   - `hasMore`: 다음 페이지에 댓글이 더 존재하는지 여부
+  ///     - **true**인 경우, 다음 페이지를 조회할 수 있습니다.
+  ///     - **false**인 경우, 더 이상 다음 페이지가 없습니다.
+  ///   - 댓글 목록은 원댓글과 대댓글이 계층 구조로 병합된 형태로 반환됩니다.
+  ///
   Future<({List<Comment> comments, bool hasMore})> getCommentsByUserId({
     required int userId,
     int page = 0,

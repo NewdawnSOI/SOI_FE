@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-/// 공통으로 사용되는 커스텀 텍스트 필드
+/// 공통 입력 필드의 기본 스타일을 유지하면서 필요한 폭과 패딩을 조절한다.
 class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
@@ -31,6 +31,7 @@ class CustomTextField extends StatelessWidget {
     this.borderRadius = 12,
   });
 
+  /// 텍스트 필드 본문을 공통 스타일로 렌더링하고, 내부 여백만 상황에 맞게 조절한다.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -77,9 +78,10 @@ class CustomTextField extends StatelessWidget {
                   fontWeight: FontWeight.w400,
                 ),
                 contentPadding:
-                    (prefixIcon != null)
+                    contentPadding ??
+                    ((prefixIcon != null)
                         ? EdgeInsets.only(left: 15.w, bottom: 5.h)
-                        : EdgeInsets.only(bottom: 5.h),
+                        : EdgeInsets.only(bottom: 5.h)),
               ),
               onChanged: onChanged,
               onSubmitted: onSubmitted,

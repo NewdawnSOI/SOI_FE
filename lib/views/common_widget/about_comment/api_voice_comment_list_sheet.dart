@@ -495,6 +495,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _replyDraftFocusNode.unfocus();
   }
 
+  /// 텍스트 댓글과 답글 저장 요청을 보내고, 저장된 댓글을 현재 스레드에 반영합니다.
   Future<void> _submitTextComment(String text) async {
     final currentUser = context.read<UserController>().currentUser;
     if (currentUser == null) {
@@ -503,11 +504,18 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
 
     final replyTarget = _replyTargetComment;
+
+    // 답글 저장 요청에 필요한 payload를 생성하는 함수입니다. replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
+    final replyPayload = _buildReplyPayload(replyTarget);
     final result = await context.read<CommentController>().createComment(
       postId: widget.postId,
       userId: currentUser.id,
-      parentId: replyTarget?.id ?? 0,
-      replyUserId: replyTarget?.userId ?? 0,
+
+      // parentId는 원댓글의 id를 전달합니디.
+      parentId: replyPayload.parentId,
+
+      // replyUserId는 대댓글인 경우에만 전달됩니다. 원댓글 저장 요청인 경우에는 null로 전달됩니다.
+      replyUserId: replyPayload.replyUserId,
       text: text,
       type: replyTarget != null ? CommentType.reply : CommentType.text,
     );
@@ -639,6 +647,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
+  /// 음성 답글 저장 요청을 원댓글 스레드 기준 payload로 보내고, 결과를 리스트에 반영합니다.
   Future<void> _submitAudioComment({
     required Comment replyTarget,
     required String audioPath,
@@ -677,11 +686,18 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
 
     final encodedWaveform = _encodeWaveformForRequest(waveformData);
+
+    // 답글 저장 요청에 필요한 payload를 생성하는 함수입니다. replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
+    final replyPayload = _buildReplyPayload(replyTarget);
     final result = await context.read<CommentController>().createComment(
       postId: widget.postId,
       userId: currentUser.id,
-      parentId: replyTarget.id ?? 0,
-      replyUserId: replyTarget.userId ?? 0,
+
+      // parentId는 원댓글의 id를 전달합니디.
+      parentId: replyPayload.parentId,
+
+      // replyUserId는 대댓글인 경우에만 전달됩니다. 원댓글 저장 요청인 경우에는 null로 전달됩니다.
+      replyUserId: replyPayload.replyUserId,
       audioKey: audioKey,
       waveformData: encodedWaveform,
       duration: durationMs,
@@ -722,6 +738,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
+  /// 미디어 답글 저장 요청을 원댓글 스레드 기준 payload로 보내고, 결과를 리스트에 반영합니다.
   Future<void> _submitMediaComment({
     required Comment replyTarget,
     required String localFilePath,
@@ -763,11 +780,17 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
 
     final fileKey = uploadedKeys.first;
+
+    // 답글 저장 요청에 필요한 payload를 생성하는 함수입니다. replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
+    final replyPayload = _buildReplyPayload(replyTarget);
     final result = await context.read<CommentController>().createComment(
       postId: widget.postId,
       userId: currentUser.id,
-      parentId: replyTarget.id ?? 0,
-      replyUserId: replyTarget.userId ?? 0,
+
+      // 원댓글의 id를 전달합니다.
+      parentId: replyPayload.parentId,
+      // replyUserId는 대댓글인 경우에만 전달됩니다. 원댓글 저장 요청인 경우에는 null로 전달됩니다.
+      replyUserId: replyPayload.replyUserId,
       fileKey: fileKey,
       type: CommentType.reply,
     );
@@ -840,6 +863,27 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _pendingInitialReplyText = '';
     });
     _notifyCommentsUpdated();
+  }
+
+  /// 답글 저장 요청에 필요한 payload를 생성하는 함수입니다.
+  /// replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
+  ({int parentId, int replyUserId}) _buildReplyPayload(Comment? replyTarget) {
+    if (replyTarget == null) {
+      return (parentId: 0, replyUserId: 0);
+    }
+
+    // 답글 저장 요청인 경우, parentId와 replyUserId를 계산하기 위해,
+    // replyTarget이 대댓글인지 원댓글인지에 따라 부모 댓글을 찾습니다.
+    final threadParent = replyTarget.isReply
+        ? _findParentComment(replyTarget) ?? replyTarget
+        : replyTarget;
+
+    // 원댓글 저장 요청인 경우 parentId와 replyUserId는 0으로 처리됩니다.
+    // 대댓글 저장 요청인 경우, parentId는 원댓글의 id를, replyUserId는 답글 대상 댓글의 작성자 id를 전달합니다.
+    return (
+      parentId: threadParent.id ?? replyTarget.id ?? 0,
+      replyUserId: replyTarget.userId ?? 0,
+    );
   }
 
   Comment _normalizeCommentForThread(
