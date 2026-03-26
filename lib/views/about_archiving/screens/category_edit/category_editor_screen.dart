@@ -189,6 +189,7 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen>
 
       final currentCategory = _getCurrentCategory(categoryController);
       final nicknames = currentCategory.nickNames;
+      final profileUrls = currentCategory.usersProfileUrl;
       final profileKeys = currentCategory.usersProfileKey;
 
       if (nicknames.isEmpty) {
@@ -205,6 +206,7 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen>
         futures.add(
           _buildMemberViewModel(
             nickname: nicknames[i],
+            profileUrl: i < profileUrls.length ? profileUrls[i] : null,
             profileKey: i < profileKeys.length ? profileKeys[i] : null,
             userController: userController,
             mediaController: mediaController,
@@ -224,19 +226,30 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen>
     }
   }
 
+  /// 카테고리 멤버의 즉시 URL과 key를 받아 편집 화면에서 쓸 프로필 표시 데이터를 구성합니다.
   Future<CategoryMemberViewModel> _buildMemberViewModel({
     required String nickname,
+    required String? profileUrl,
     required String? profileKey,
     required UserController userController,
     required MediaController mediaController,
   }) async {
-    String? profileUrl;
-    if (profileKey != null && profileKey.isNotEmpty) {
-      final uri = Uri.tryParse(profileKey);
+    final normalizedProfileUrl = profileUrl?.trim();
+    final normalizedProfileKey = profileKey?.trim();
+    String? resolvedProfileUrl = normalizedProfileUrl?.isNotEmpty == true
+        ? normalizedProfileUrl
+        : null;
+
+    if (resolvedProfileUrl == null &&
+        normalizedProfileKey != null &&
+        normalizedProfileKey.isNotEmpty) {
+      final uri = Uri.tryParse(normalizedProfileKey);
       if (uri != null && uri.hasScheme) {
-        profileUrl = profileKey;
+        resolvedProfileUrl = normalizedProfileKey;
       } else {
-        profileUrl = await mediaController.getPresignedUrl(profileKey);
+        resolvedProfileUrl = await mediaController.getPresignedUrl(
+          normalizedProfileKey,
+        );
       }
     }
 
@@ -254,7 +267,8 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen>
     return CategoryMemberViewModel(
       userId: resolvedUserId,
       displayName: displayName,
-      profileImageUrl: profileUrl,
+      profileImageUrl: resolvedProfileUrl,
+      profileImageKey: normalizedProfileKey,
       subtitle: subtitle,
     );
   }

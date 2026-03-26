@@ -4,16 +4,19 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:easy_localization/easy_localization.dart';
 
+/// 카테고리 편집 화면에서 멤버 이름과 프로필 source를 함께 전달하는 표시용 모델입니다.
 class CategoryMemberViewModel {
   final int? userId;
   final String displayName;
   final String? profileImageUrl;
+  final String? profileImageKey;
   final String? subtitle;
 
   const CategoryMemberViewModel({
     this.userId,
     required this.displayName,
     this.profileImageUrl,
+    this.profileImageKey,
     this.subtitle,
   });
 }
@@ -284,6 +287,8 @@ class _FriendListItem extends StatelessWidget {
               ? ClipOval(
                   child: CachedNetworkImage(
                     imageUrl: member.profileImageUrl!,
+                    cacheKey: member.profileImageKey,
+                    useOldImageOnUrlChange: member.profileImageKey != null,
                     width: 40.w,
                     height: 40.w,
                     fit: BoxFit.fill,

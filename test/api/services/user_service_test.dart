@@ -404,7 +404,7 @@ void main() {
       );
 
       expect(result.id, 1);
-      expect(result.profileImageUrlKey, 'profile-key');
+      expect(result.profileImageKey, 'profile-key');
     });
 
     test('updateCoverImage maps generated response to domain model', () async {

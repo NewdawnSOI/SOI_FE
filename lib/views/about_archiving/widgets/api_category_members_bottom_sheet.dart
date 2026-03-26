@@ -55,23 +55,29 @@ class _ApiCategoryMembersBottomSheetState
       listen: false,
     );
 
-    // 프로필 URL 키 목록
-    final profileUrlKeys = widget.category.usersProfileKey;
+    // 프로필 key 목록
+    final profileImageKeys = widget.category.usersProfileKey;
 
-    // 모든 프로필 URL 키에 대해 presigned URL 요청
-    for (final key in profileUrlKeys) {
-      // 키가 비어있지 않은 경우에만 요청
-      if (key.isNotEmpty) {
-        try {
-          // presigned URL 요청
-          final url = await mediaController.getPresignedUrl(key);
-          // Url이 null이 아니면 캐시에 저장
-          if (url != null) {
-            _presignedUrlCache[key] = url;
+    final unresolvedKeys = profileImageKeys
+        .map((key) => key.trim())
+        .where((key) => key.isNotEmpty && !_presignedUrlCache.containsKey(key))
+        .toList(growable: false);
+
+    if (unresolvedKeys.isNotEmpty) {
+      try {
+        final urls = await mediaController.getPresignedUrls(unresolvedKeys);
+        final resolvedCount = urls.length < unresolvedKeys.length
+            ? urls.length
+            : unresolvedKeys.length;
+        for (var index = 0; index < resolvedCount; index++) {
+          final url = urls[index];
+          if (url.isEmpty) {
+            continue;
           }
-        } catch (e) {
-          debugPrint('[ApiCategoryMembersBottomSheet] presigned URL 로드 실패: $e');
+          _presignedUrlCache[unresolvedKeys[index]] = url;
         }
+      } catch (e) {
+        debugPrint('[ApiCategoryMembersBottomSheet] presigned URL 로드 실패: $e');
       }
     }
 
@@ -82,16 +88,73 @@ class _ApiCategoryMembersBottomSheetState
     }
   }
 
+  /// 인덱스별 즉시 렌더용 URL을 읽어 프로필 이미지를 빠르게 보여줍니다.
+  String? _profileImageUrlAt(int index) {
+    if (index < 0 || index >= widget.category.usersProfileUrl.length) {
+      return null;
+    }
+    final normalized = widget.category.usersProfileUrl[index].trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  /// 인덱스별 key를 읽어 fresh presigned URL 재발급과 캐시 키 계산에 사용합니다.
+  String? _profileImageKeyAt(int index) {
+    if (index < 0 || index >= widget.category.usersProfileKey.length) {
+      return null;
+    }
+    final normalized = widget.category.usersProfileKey[index].trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  /// key로 갱신된 URL이 있으면 우선 사용하고, 없으면 즉시 사용 가능한 URL을 그대로 사용합니다.
+  String _resolveDisplayProfileUrl(int index) {
+    final key = _profileImageKeyAt(index);
+    final resolvedUrl = key == null ? null : _presignedUrlCache[key];
+    if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+      return resolvedUrl;
+    }
+
+    return _profileImageUrlAt(index) ?? '';
+  }
+
+  /// key가 있을 때는 그것을 캐시 식별자로 사용해 presigned URL이 갱신돼도 같은 이미지를 재사용합니다.
+  String? _resolveProfileCacheKey(int index) {
+    final key = _profileImageKeyAt(index);
+    if (key != null) {
+      return key;
+    }
+
+    final profileUrl = _profileImageUrlAt(index);
+    if (profileUrl == null) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(profileUrl);
+    if (uri == null || !uri.hasScheme) {
+      return null;
+    }
+
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) {
+      return null;
+    }
+
+    final normalizedHost = uri.host.trim();
+    return normalizedHost.isEmpty
+        ? normalizedPath
+        : '$normalizedHost$normalizedPath';
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 카테고리 정보
-    final profileUrlKeys = widget.category.usersProfileKey;
-
     // 멤버 총 수
     final totalMemberCount = widget.category.totalUserCount;
 
     // 멤버 닉네임 목록
     final memberNickNames = widget.category.nickNames;
+    final hasImmediateProfileUrls = widget.category.usersProfileUrl.any(
+      (url) => url.trim().isNotEmpty,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -118,14 +181,9 @@ class _ApiCategoryMembersBottomSheetState
           SizedBox(height: 24.h),
 
           // 멤버 목록 (로딩 중이면 shimmer 표시)
-          _isLoading
+          _isLoading && !hasImmediateProfileUrls
               ? _buildLoadingGrid(totalMemberCount)
-              : _buildMembersGrid(
-                  context,
-                  profileUrlKeys,
-                  totalMemberCount,
-                  memberNickNames,
-                ),
+              : _buildMembersGrid(context, totalMemberCount, memberNickNames),
 
           SizedBox(height: 20.h),
         ],
@@ -176,7 +234,6 @@ class _ApiCategoryMembersBottomSheetState
   /// 멤버 그리드 위젯
   Widget _buildMembersGrid(
     BuildContext context,
-    List<String> profileUrlKeys,
     int totalMemberCount,
     List<String> memberNickNames,
   ) {
@@ -202,23 +259,29 @@ class _ApiCategoryMembersBottomSheetState
             return _buildAddFriendButton(context);
           }
 
-          // 프로필 URL 키를 index별로 순서대로 가지고 오기
-          final profileUrlKey = profileUrlKeys[index];
-
           // 멤버 닉네임을 index별로 순서대로 가지고 오기
-          final memberNickName = memberNickNames[index];
+          final memberNickName = index < memberNickNames.length
+              ? memberNickNames[index]
+              : '';
+          final profileUrl = _resolveDisplayProfileUrl(index);
+          final cacheKey = _resolveProfileCacheKey(index);
 
-          // 캐시에서 presigned URL 가져오기
-          final profileUrl = _presignedUrlCache[profileUrlKey] ?? '';
-
-          return _buildMemberItem(profileUrl, memberNickName, index);
+          return _buildMemberItem(
+            profileUrl,
+            memberNickName,
+            cacheKey: cacheKey,
+          );
         },
       ),
     );
   }
 
   /// 개별 멤버 아이템
-  Widget _buildMemberItem(String profileUrl, String memberNickName, int index) {
+  Widget _buildMemberItem(
+    String profileUrl,
+    String memberNickName, {
+    String? cacheKey,
+  }) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -231,6 +294,8 @@ class _ApiCategoryMembersBottomSheetState
                 // 프로필 이미지가 있으면, ChachedNetworkImage 사용
                 ? CachedNetworkImage(
                     imageUrl: profileUrl,
+                    cacheKey: cacheKey,
+                    useOldImageOnUrlChange: cacheKey != null,
                     fit: BoxFit.cover,
                     memCacheWidth: (60 * 4).round(),
                     memCacheHeight: (60 * 4).round(),
@@ -243,7 +308,9 @@ class _ApiCategoryMembersBottomSheetState
                       return _buildBasicMemberIcon();
                     },
                   )
-                // 프로필 이미지가 없으면, 기본 프로필 이미지 표시
+                // 프로필 이미지가 없고 아직 로딩 중이면 shimmer를, 완료 후엔 기본 프로필 이미지를 표시합니다.
+                : _isLoading
+                ? _buildMemberShimmer()
                 : _buildBasicMemberIcon(),
           ),
         ),

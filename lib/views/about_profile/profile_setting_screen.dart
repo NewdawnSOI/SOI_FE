@@ -886,6 +886,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     );
   }
 
+  /// 설정 화면의 헤더와 섹션 목록을 현재 사용자 상태에 맞춰 함께 렌더링합니다.
   @override
   Widget build(BuildContext context) {
     final currentUser = context.watch<UserController>().currentUser;
@@ -915,7 +916,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
                 profileImageUrl: displayProfileImageUrl,
                 profileImageKey: displayUser?.profileImageKey,
                 friendCount: _friendCount,
-                onMenuTap: _closeSettings,
+                onBackTap: _closeSettings,
                 onProfileImageTap: _showProfileImageActionSheet,
                 coverImageUrl: _coverImageUrl,
                 coverImageKey: context.read<UserController>().coverImageUrlKey,

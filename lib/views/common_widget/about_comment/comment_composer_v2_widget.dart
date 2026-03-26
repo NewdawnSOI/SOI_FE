@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 import 'pending_api_voice_comment.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
@@ -67,11 +69,37 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
     });
   }
 
+  /// pending draft에 담긴 프로필 source를 즉시 렌더 가능한 URL과 안정적인 key로 분리합니다.
+  (String? profileImageUrl, String? profileImageKey) _resolveDraftProfileImage(
+    PendingApiCommentDraft draft,
+  ) {
+    final profileSource = draft.profileImageUrlKey?.trim();
+    if (profileSource == null || profileSource.isEmpty) {
+      return (null, null);
+    }
+
+    final uri = Uri.tryParse(profileSource);
+    if (uri != null && uri.hasScheme) {
+      return (profileSource, null);
+    }
+
+    try {
+      final mediaController = context.read<MediaController>();
+      return (mediaController.peekPresignedUrl(profileSource), profileSource);
+    } catch (_) {
+      return (null, profileSource);
+    }
+  }
+
   CommentSavePayload? _buildPayloadFromDraft() {
     final draft = widget.pendingCommentDrafts[widget.postId];
     if (draft == null) {
       return null;
     }
+    final (
+      profileImageUrl,
+      profileImageKey,
+    ) = _resolveDraftProfileImage(draft);
 
     if (draft.isTextComment) {
       return CommentSavePayload(
@@ -79,7 +107,8 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
         userId: draft.recorderUserId,
         kind: CommentDraftKind.text,
         text: draft.text,
-        profileImageUrlKey: draft.profileImageUrlKey,
+        profileImageUrl: profileImageUrl,
+        profileImageKey: profileImageKey,
       );
     }
 
@@ -91,7 +120,8 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
         audioPath: draft.audioPath,
         waveformData: draft.waveformData,
         duration: draft.duration,
-        profileImageUrlKey: draft.profileImageUrlKey,
+        profileImageUrl: profileImageUrl,
+        profileImageKey: profileImageKey,
       );
     }
 
@@ -103,7 +133,8 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
             ? CommentDraftKind.video
             : CommentDraftKind.image,
         localFilePath: draft.mediaPath,
-        profileImageUrlKey: draft.profileImageUrlKey,
+        profileImageUrl: profileImageUrl,
+        profileImageKey: profileImageKey,
       );
     }
 

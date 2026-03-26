@@ -504,7 +504,8 @@ class ApiArchiveCardWidget extends StatelessWidget {
     required bool isListStyle,
   }) {
     final profileRow = ApiArchiveProfileRowWidget(
-      profileUrlKeys: profileRowData.profileUrlKeys,
+      profileImageUrls: profileRowData.profileImageUrls,
+      profileImageKeys: profileRowData.profileImageKeys,
       totalUserCount: profileRowData.totalUserCount,
       avatarSize: isListStyle ? 19.84.sp : 23.44.sp,
     );

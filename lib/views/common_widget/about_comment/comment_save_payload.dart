@@ -18,7 +18,8 @@ class CommentSavePayload {
 
   final int? parentId;
   final int? replyUserId;
-  final String? profileImageUrlKey;
+  final String? profileImageUrl;
+  final String? profileImageKey;
 
   final double? locationX;
   final double? locationY;
@@ -35,7 +36,8 @@ class CommentSavePayload {
     this.localFilePath,
     this.parentId,
     this.replyUserId,
-    this.profileImageUrlKey,
+    this.profileImageUrl,
+    this.profileImageKey,
     this.locationX,
     this.locationY,
   });
@@ -101,7 +103,8 @@ class CommentSavePayload {
       localFilePath: localFilePath,
       parentId: parentId,
       replyUserId: replyUserId,
-      profileImageUrlKey: profileImageUrlKey,
+      profileImageUrl: profileImageUrl,
+      profileImageKey: profileImageKey,
       locationX: locationX,
       locationY: locationY,
     );
@@ -116,7 +119,7 @@ class CommentSavePayload {
     return Comment(
       id: null,
       userId: userId,
-      userProfileKey: profileImageUrlKey,
+      userProfileKey: profileImageKey,
       text: text,
       fileKey: fileKey,
       audioUrl: audioPath,
@@ -127,7 +130,7 @@ class CommentSavePayload {
       type: commentType,
       replyUserName: null,
       nickname: nickname,
-      userProfileUrl: userProfileUrl ?? profileImageUrlKey,
+      userProfileUrl: userProfileUrl ?? profileImageUrl ?? profileImageKey,
       fileUrl: localFilePath,
       emojiId: 0,
     );

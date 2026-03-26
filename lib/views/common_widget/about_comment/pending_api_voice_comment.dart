@@ -1,7 +1,7 @@
 import 'dart:ui';
 
-const double kPendingCommentTagSize = 53.0;
-const double kPendingCommentTagPadding = 4.82;
+const double kPendingCommentTagSize = 33.0;
+const double kPendingCommentTagPadding = 3.0;
 const Color kPendingCommentTagBackgroundColor = Color(0xFF595959);
 const double kPendingCommentAvatarSize =
     kPendingCommentTagSize - (kPendingCommentTagPadding * 2);

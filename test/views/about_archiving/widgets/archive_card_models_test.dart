@@ -11,6 +11,7 @@ void main() {
         photoUrl: 'photos/travel.jpg',
         isNew: true,
         totalUserCount: 3,
+        usersProfileUrl: const ['https://example.com/a.jpg'],
         usersProfileKey: const ['a.jpg', 'b.jpg'],
       );
 
@@ -19,6 +20,10 @@ void main() {
 
       expect(first, second);
       expect(first.profileRowData.totalUserCount, 3);
+      expect(first.profileRowData.profileImageUrls, const [
+        'https://example.com/a.jpg',
+      ]);
+      expect(first.profileRowData.profileImageKeys, const ['a.jpg', 'b.jpg']);
     });
 
     test('detects meaningful card field changes', () {
@@ -28,6 +33,7 @@ void main() {
           name: 'Travel',
           photoUrl: 'photos/travel.jpg',
           totalUserCount: 2,
+          usersProfileUrl: ['https://example.com/a.jpg'],
           usersProfileKey: ['a.jpg'],
         ),
       );
@@ -37,6 +43,10 @@ void main() {
           name: 'Travel',
           photoUrl: 'photos/updated.jpg',
           totalUserCount: 4,
+          usersProfileUrl: [
+            'https://example.com/a.jpg',
+            'https://example.com/b.jpg',
+          ],
           usersProfileKey: ['a.jpg', 'b.jpg'],
         ),
       );

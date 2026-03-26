@@ -3,14 +3,16 @@ import 'package:flutter/foundation.dart';
 import '../../../../api/models/category.dart' as api_category;
 
 /// 모델: 카테고리 프로필 행 데이터
-/// 카테고리 프로필 행에 표시할 사용자 프로필 URL 키 목록과 총 사용자 수를 포함합니다.
+/// 카테고리 프로필 행에 표시할 사용자 프로필 URL/키와 총 사용자 수를 포함합니다.
 /// ApiArchiveCardWidget 및 ApiArchiveProfileRowWidget에서 사용됩니다.
 class CategoryProfileRowData {
-  final List<String> profileUrlKeys;
+  final List<String> profileImageUrls;
+  final List<String> profileImageKeys;
   final int totalUserCount;
 
   const CategoryProfileRowData({
-    required this.profileUrlKeys,
+    required this.profileImageUrls,
+    required this.profileImageKeys,
     required this.totalUserCount,
   });
 
@@ -20,11 +22,15 @@ class CategoryProfileRowData {
       other is CategoryProfileRowData &&
           runtimeType == other.runtimeType &&
           totalUserCount == other.totalUserCount &&
-          listEquals(profileUrlKeys, other.profileUrlKeys);
+          listEquals(profileImageUrls, other.profileImageUrls) &&
+          listEquals(profileImageKeys, other.profileImageKeys);
 
   @override
-  int get hashCode =>
-      Object.hash(totalUserCount, Object.hashAll(profileUrlKeys));
+  int get hashCode => Object.hash(
+    totalUserCount,
+    Object.hashAll(profileImageUrls),
+    Object.hashAll(profileImageKeys),
+  );
 }
 
 class ArchiveCardViewData {
@@ -63,7 +69,8 @@ class ArchiveCardViewData {
       photoUrl: category.photoUrl,
       isNew: category.isNew,
       profileRowData: CategoryProfileRowData(
-        profileUrlKeys: category.usersProfileKey,
+        profileImageUrls: category.usersProfileUrl,
+        profileImageKeys: category.usersProfileKey,
         totalUserCount: category.totalUserCount,
       ),
     );

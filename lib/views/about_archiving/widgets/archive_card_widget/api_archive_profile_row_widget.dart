@@ -7,16 +7,18 @@ import 'package:soi/api/controller/media_controller.dart';
 
 /// REST API 기반 프로필 이미지 행 위젯
 ///
-/// Category 객체에서 직접 프로필 URL 키 리스트와 총 인원수를 받아 표시합니다.
+/// Category 객체에서 직접 프로필 URL/키 리스트와 총 인원수를 받아 표시합니다.
 /// 최대 3개의 프로필을 표시하고, 초과 인원은 +N 배지로 표시합니다.
 class ApiArchiveProfileRowWidget extends StatefulWidget {
-  final List<String> profileUrlKeys;
+  final List<String> profileImageUrls;
+  final List<String> profileImageKeys;
   final int totalUserCount;
   final double avatarSize;
 
   const ApiArchiveProfileRowWidget({
     super.key,
-    required this.profileUrlKeys,
+    required this.profileImageUrls,
+    required this.profileImageKeys,
     this.totalUserCount = 0,
     this.avatarSize = 23.44,
   }) : assert(avatarSize > 0);
@@ -40,27 +42,88 @@ class _ApiArchiveProfileRowWidgetState
   @override
   void didUpdateWidget(ApiArchiveProfileRowWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final urlsChanged = !listEquals(
+      oldWidget.profileImageUrls,
+      widget.profileImageUrls,
+    );
     final keysChanged = !listEquals(
-      oldWidget.profileUrlKeys,
-      widget.profileUrlKeys,
+      oldWidget.profileImageKeys,
+      widget.profileImageKeys,
     );
     final countChanged = oldWidget.totalUserCount != widget.totalUserCount;
 
-    if (keysChanged || countChanged) {
+    if (urlsChanged || keysChanged || countChanged) {
       _presignedUrlCache.clear();
       _loadPresignedUrls(forceReload: true);
     }
+  }
+
+  /// 인덱스별 프로필 이미지 key를 읽어 key 기반 캐시와 presigned URL 갱신에 사용합니다.
+  String? _profileImageKeyAt(int index) {
+    if (index < 0 || index >= widget.profileImageKeys.length) {
+      return null;
+    }
+    final normalized = widget.profileImageKeys[index].trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  /// 인덱스별 프로필 이미지 URL을 읽어 첫 프레임에서 바로 렌더할 값을 제공합니다.
+  String? _profileImageUrlAt(int index) {
+    if (index < 0 || index >= widget.profileImageUrls.length) {
+      return null;
+    }
+    final normalized = widget.profileImageUrls[index].trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  /// key 기반으로 새 URL이 로드되면 그것을 우선 쓰고, 없으면 즉시 사용 가능한 URL을 그대로 사용합니다.
+  String? _resolveDisplayImageUrlAt(int index) {
+    final key = _profileImageKeyAt(index);
+    final resolvedUrl = key == null ? null : _presignedUrlCache[key];
+    if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+      return resolvedUrl;
+    }
+
+    return _profileImageUrlAt(index);
+  }
+
+  /// key가 있으면 그것을 캐시 식별자로 고정하고, 없을 때만 URL 기반 캐시 키를 사용합니다.
+  String? _resolveCacheKeyAt(int index) {
+    final key = _profileImageKeyAt(index);
+    if (key != null) {
+      return key;
+    }
+
+    final imageUrl = _profileImageUrlAt(index);
+    if (imageUrl == null) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null || !uri.hasScheme) {
+      return null;
+    }
+
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) {
+      return null;
+    }
+
+    final normalizedHost = uri.host.trim();
+    return normalizedHost.isEmpty
+        ? normalizedPath
+        : '$normalizedHost$normalizedPath';
   }
 
   Future<void> _loadPresignedUrls({bool forceReload = false}) async {
     final mediaController = context.read<MediaController>();
     final displayCount = widget.totalUserCount.clamp(1, 3);
 
-    // 표시할 프로필 키들만 로드 (최대 3개)
-    final keysToLoad = widget.profileUrlKeys
-        .take(displayCount)
-        .where((key) => key.isNotEmpty)
-        .toList(growable: false);
+    // 표시할 프로필 key들만 로드하되, 즉시 URL이 있더라도 key 기준 최신 URL로 갱신할 수 있도록 유지합니다.
+    final keysToLoad = List<String?>.generate(
+      displayCount,
+      _profileImageKeyAt,
+    ).whereType<String>().toList(growable: false);
     final unresolvedKeys = keysToLoad
         .where((key) => forceReload || !_presignedUrlCache.containsKey(key))
         .toList(growable: false);
@@ -116,17 +179,14 @@ class _ApiArchiveProfileRowWidgetState
         children: [
           // displayCount개 프로필 표시
           ...List.generate(displayCount, (index) {
-            // 키가 있고, presigned URL이 캐시에 있으면 사용
-            final key = index < widget.profileUrlKeys.length
-                ? widget.profileUrlKeys[index]
-                : '';
-            final imageUrl = _presignedUrlCache[key] ?? '';
+            final imageUrl = _resolveDisplayImageUrlAt(index) ?? '';
+            final cacheKey = _resolveCacheKeyAt(index);
 
             return Positioned(
               right: index * overlapSpacing,
               child: imageUrl.isEmpty
                   ? _buildDefaultAvatar()
-                  : _buildProfileImage(imageUrl),
+                  : _buildProfileImage(imageUrl, cacheKey: cacheKey),
             );
           }),
           // +N 배지 표시 (3명 초과 시)
@@ -155,7 +215,7 @@ class _ApiArchiveProfileRowWidgetState
   }
 
   /// 프로필 이미지 빌드
-  Widget _buildProfileImage(String imageUrl) {
+  Widget _buildProfileImage(String imageUrl, {String? cacheKey}) {
     return Container(
       width: widget.avatarSize,
       height: widget.avatarSize,
@@ -166,6 +226,8 @@ class _ApiArchiveProfileRowWidgetState
       child: ClipOval(
         child: CachedNetworkImage(
           imageUrl: imageUrl,
+          cacheKey: cacheKey,
+          useOldImageOnUrlChange: cacheKey != null,
           width: widget.avatarSize,
           height: widget.avatarSize,
           memCacheWidth: (widget.avatarSize * 4).round(),

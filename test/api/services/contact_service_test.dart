@@ -7,12 +7,12 @@ import 'package:soi/api/services/contact_service.dart';
 
 class _FakeContactRepository extends ContactRepository {
   _FakeContactRepository({
-    this.onLoadContactSyncSetting,
-    this.onSaveContactSyncSetting,
     this.onRequestContactPermission,
     this.onGetContacts,
-    this.onGetContact,
     this.onSearchContacts,
+    this.onLoadContactSyncSetting,
+    this.onSaveContactSyncSetting,
+    this.onGetContact,
   });
 
   final Future<bool> Function()? onLoadContactSyncSetting;

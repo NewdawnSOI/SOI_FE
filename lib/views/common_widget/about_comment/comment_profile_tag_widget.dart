@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -11,6 +10,7 @@ import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import '../api_photo/tag_pointer.dart';
+import '../api_photo/widgets/api_photo_circle_avatar.dart';
 import 'pending_api_voice_comment.dart';
 import 'comment_save_payload.dart';
 
@@ -79,38 +79,102 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
   @override
   void initState() {
     super.initState();
-    _profileImageFuture = _resolveProfileImageUrl(
-      widget.payload.profileImageUrlKey,
+    _profileImageFuture = _createProfileImageFuture(
+      profileImageUrl: widget.payload.profileImageUrl,
+      profileImageKey: widget.payload.profileImageKey,
     );
   }
 
   @override
   void didUpdateWidget(covariant CommentProfileTagWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.payload.profileImageUrlKey !=
-        widget.payload.profileImageUrlKey) {
-      _profileImageFuture = _resolveProfileImageUrl(
-        widget.payload.profileImageUrlKey,
+    if (oldWidget.payload.profileImageUrl != widget.payload.profileImageUrl ||
+        oldWidget.payload.profileImageKey != widget.payload.profileImageKey) {
+      _profileImageFuture = _createProfileImageFuture(
+        profileImageUrl: widget.payload.profileImageUrl,
+        profileImageKey: widget.payload.profileImageKey,
       );
     }
   }
 
-  Future<String?> _resolveProfileImageUrl(String? source) async {
-    if (source == null || source.isEmpty) {
-      return null;
-    }
-
-    final uri = Uri.tryParse(source);
-    if (uri != null && uri.hasScheme) {
-      return source;
+  /// 즉시 렌더 가능한 URL을 우선 사용하고, key가 있으면 presigned URL을 갱신해 최종 표시 이미지를 확정합니다.
+  Future<String?> _createProfileImageFuture({
+    required String? profileImageUrl,
+    required String? profileImageKey,
+  }) async {
+    final immediateImageUrl = _resolveImmediateProfileImageUrl(
+      profileImageUrl: profileImageUrl,
+      profileImageKey: profileImageKey,
+    );
+    final normalizedProfileKey = profileImageKey?.trim();
+    if (normalizedProfileKey == null || normalizedProfileKey.isEmpty) {
+      return immediateImageUrl;
     }
 
     try {
       final mediaController = context.read<MediaController>();
-      return await mediaController.getPresignedUrl(source) ?? source;
+      return await mediaController.getPresignedUrl(normalizedProfileKey) ??
+          immediateImageUrl;
     } catch (_) {
-      return source;
+      return immediateImageUrl;
     }
+  }
+
+  /// 드래그 직후 프레임에서는 직접 URL을 우선 그리고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
+  String? _resolveImmediateProfileImageUrl({
+    required String? profileImageUrl,
+    required String? profileImageKey,
+  }) {
+    final normalizedProfileUrl = profileImageUrl?.trim();
+    if (normalizedProfileUrl != null && normalizedProfileUrl.isNotEmpty) {
+      return normalizedProfileUrl;
+    }
+
+    final normalizedProfileKey = profileImageKey?.trim();
+    if (normalizedProfileKey == null || normalizedProfileKey.isEmpty) {
+      return null;
+    }
+
+    try {
+      return context.read<MediaController>().peekPresignedUrl(
+        normalizedProfileKey,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// profile key를 우선 캐시 식별자로 쓰고, key가 없을 때만 URL 기반 식별자를 계산합니다.
+  String? _resolveProfileCacheKey({
+    required String? profileImageKey,
+    required String? profileImageUrl,
+  }) {
+    final normalizedProfileKey = profileImageKey?.trim();
+    if (normalizedProfileKey != null && normalizedProfileKey.isNotEmpty) {
+      return normalizedProfileKey;
+    }
+
+    final normalizedProfileUrl = profileImageUrl?.trim();
+    if (normalizedProfileUrl == null || normalizedProfileUrl.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(normalizedProfileUrl);
+    if (uri == null || !uri.hasScheme) {
+      return null;
+    }
+
+    final normalizedHost = uri.host.trim();
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) {
+      return null;
+    }
+
+    if (normalizedHost.isEmpty) {
+      return normalizedPath;
+    }
+
+    return '$normalizedHost$normalizedPath';
   }
 
   /// 드래그 앵커 위치를 결정하는 메서드입니다.
@@ -486,7 +550,8 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
     }
   }
 
-  Widget _buildAvatar(String? imageUrl) {
+  /// 저장 중 원형 progress를 유지하면서 프로필 아바타를 일관된 캐시 정책으로 렌더링합니다.
+  Widget _buildAvatar(String? imageUrl, {String? cacheKey}) {
     return SizedBox(
       width: widget.avatarSize,
       height: widget.avatarSize,
@@ -504,54 +569,39 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
                 backgroundColor: Colors.black.withValues(alpha: 0.3),
               ),
             ),
-          ClipOval(
-            child: imageUrl != null && imageUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    width: widget.avatarSize,
-                    height: widget.avatarSize,
-                    fit: BoxFit.cover,
-                    memCacheWidth: (widget.avatarSize * 2).round(),
-                    memCacheHeight: (widget.avatarSize * 2).round(),
-                    maxWidthDiskCache: (widget.avatarSize * 2).round(),
-                    placeholder: (_, __) =>
-                        Container(color: Colors.grey.shade700),
-                    errorWidget: (_, __, ___) => Container(
-                      color: Colors.red.shade700,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.error,
-                        color: Colors.white,
-                        size: 13,
-                      ),
-                    ),
-                  )
-                : Container(
-                    color: const Color(0xffd9d9d9),
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 13,
-                    ),
-                  ),
+          ApiPhotoCircleAvatar(
+            imageUrl: imageUrl,
+            size: widget.avatarSize,
+            cacheKey: cacheKey,
           ),
         ],
       ),
     );
   }
 
+  /// 드래그용 태그와 저장 중 태그가 같은 크기와 같은 이미지 소스를 공유하도록 현재 표시 상태를 조립합니다.
   @override
   Widget build(BuildContext context) {
+    final profileImageUrl = widget.payload.profileImageUrl;
+    final profileImageKey = widget.payload.profileImageKey;
+    final profileCacheKey = _resolveProfileCacheKey(
+      profileImageKey: profileImageKey,
+      profileImageUrl: profileImageUrl,
+    );
+    final immediateImageUrl = _resolveImmediateProfileImageUrl(
+      profileImageUrl: profileImageUrl,
+      profileImageKey: profileImageKey,
+    );
     final tagBubble = FutureBuilder<String?>(
       future: _profileImageFuture,
+      initialData: immediateImageUrl,
       builder: (context, snapshot) {
-        final imageUrl = snapshot.data ?? widget.payload.profileImageUrlKey;
+        final imageUrl = snapshot.data;
         return TagBubble(
           contentSize: widget.avatarSize,
           padding: kPendingCommentTagPadding,
           backgroundColor: kPendingCommentTagBackgroundColor,
-          child: _buildAvatar(imageUrl),
+          child: _buildAvatar(imageUrl, cacheKey: profileCacheKey),
         );
       },
     );

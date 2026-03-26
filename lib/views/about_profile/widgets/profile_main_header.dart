@@ -3,23 +3,24 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+/// 프로필 상단 비주얼과 기본 액션을 함께 조립하는 공용 헤더입니다.
+/// 화면 성격에 맞춰 좌측 뒤로가기와 우측 메뉴 버튼을 선택적으로 노출합니다.
 class ProfileMainHeader extends StatelessWidget {
-  /// 프로필 페이지의 메인 헤더를 구성하는 위젯입니다.
-  /// 사용자의 닉네임, 프로필 이미지, 친구 수 등을 표시하며, 메뉴 버튼을 포함합니다.
-  ///
   /// Parameters:
   /// - [nickname]: 사용자의 닉네임입니다. 닉네임이 없는 경우 '@알 수 없음'으로 표시됩니다.
   /// - [profileImageUrl]: 사용자의 프로필 이미지 URL입니다. 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
   /// - [profileImageKey]: 프로필 이미지의 캐시 키입니다. 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
   /// - [friendCount]: 사용자의 친구 수입니다. '친구 {count}명' 형식으로 표시됩니다.
-  /// - [onMenuTap]: 메뉴 버튼이 탭될 때 호출되는 콜백 함수입니다.
+  /// - [onBackTap]: 좌측 뒤로가기 버튼이 탭될 때 호출되는 콜백 함수입니다.
+  /// - [onMenuTap]: 우측 메뉴 버튼이 탭될 때 호출되는 콜백 함수입니다.
   const ProfileMainHeader({
     super.key,
     required this.nickname,
     required this.profileImageUrl,
     required this.profileImageKey,
     required this.friendCount,
-    required this.onMenuTap,
+    this.onBackTap,
+    this.onMenuTap,
     this.onProfileImageTap,
     this.coverImageUrl,
     this.coverImageKey,
@@ -38,8 +39,11 @@ class ProfileMainHeader extends StatelessWidget {
   // 사용자의 친구 수입니다. '친구 {count}명' 형식으로 표시됩니다.
   final int friendCount;
 
-  // 메뉴 버튼이 탭될 때 호출되는 콜백 함수입니다.
-  final VoidCallback onMenuTap;
+  // 좌측 뒤로가기 버튼이 탭될 때 호출되는 콜백 함수입니다.
+  final VoidCallback? onBackTap;
+
+  // 우측 메뉴 버튼이 탭될 때 호출되는 콜백 함수입니다.
+  final VoidCallback? onMenuTap;
 
   /// 프로필 이미지가 탭될 때 호출되는 콜백 함수입니다.
   final VoidCallback? onProfileImageTap;
@@ -73,6 +77,7 @@ class ProfileMainHeader extends StatelessWidget {
   }
 
   /// 헤더의 배경 탭과 전경 액션이 서로 가로막지 않도록 레이어를 조립합니다.
+  /// 화면별로 필요한 상단 액션만 띄우고, 나머지 레이아웃은 동일하게 유지합니다.
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
@@ -127,19 +132,34 @@ class ProfileMainHeader extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(
-              top: topPadding + 10.h,
-              right: 16.w,
-              child: IconButton(
-                onPressed: onMenuTap,
-                splashRadius: 22.r,
-                icon: Icon(
-                  Icons.menu_rounded,
-                  color: const Color(0xFFF9F9F9),
-                  size: 24.sp,
+            if (onBackTap != null)
+              Positioned(
+                top: topPadding + 10.h,
+                left: 8.w,
+                child: IconButton(
+                  onPressed: onBackTap,
+                  splashRadius: 22.r,
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: const Color(0xFFF9F9F9),
+                    size: 20.sp,
+                  ),
                 ),
               ),
-            ),
+            if (onMenuTap != null)
+              Positioned(
+                top: topPadding + 10.h,
+                right: 16.w,
+                child: IconButton(
+                  onPressed: onMenuTap,
+                  splashRadius: 22.r,
+                  icon: Icon(
+                    Icons.menu_rounded,
+                    color: const Color(0xFFF9F9F9),
+                    size: 24.sp,
+                  ),
+                ),
+              ),
             Positioned(
               left: 24.w,
               right: 24.w,

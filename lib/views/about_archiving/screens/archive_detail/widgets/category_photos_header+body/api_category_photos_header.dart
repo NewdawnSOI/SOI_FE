@@ -280,7 +280,8 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
                     if (category.totalUserCount > 0)
                       ApiArchiveProfileRowWidget(
                         avatarSize: (26.94).sp,
-                        profileUrlKeys: category.usersProfileKey,
+                        profileImageUrls: category.usersProfileUrl,
+                        profileImageKeys: category.usersProfileKey,
                         totalUserCount: category.totalUserCount,
                       ),
                   ],
@@ -302,6 +303,10 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
         oldDelegate.heroTag != heroTag ||
         oldDelegate.category.name != category.name ||
         oldDelegate.category.totalUserCount != category.totalUserCount ||
+        !listEquals(
+          oldDelegate.category.usersProfileUrl,
+          category.usersProfileUrl,
+        ) ||
         !listEquals(
           oldDelegate.category.usersProfileKey,
           category.usersProfileKey,
