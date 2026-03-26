@@ -5,6 +5,10 @@ import 'package:shimmer/shimmer.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+/// API에서 받아온 미디어(PostFileKey)를 기반으로 이미지 또는 비디오를 렌더링하는 위젯입니다.
+/// - 텍스트만 있는 포스트는 텍스트 전용 렌더링을 합니다.
+/// - 이미지/비디오가 있는 포스트는 해당 미디어를 렌더링하며, 더블탭으로 BoxFit 토글이 가능합니다.
+/// - 비디오의 경우, 가시성에 따라 자동 재생/일시정지가 됩니다.
 class ApiPhotoMediaContent extends StatelessWidget {
   const ApiPhotoMediaContent({
     super.key,
@@ -39,6 +43,7 @@ class ApiPhotoMediaContent extends StatelessWidget {
   final VoidCallback onImageToggleFit;
   final ValueChanged<bool> onVideoVisibilityChanged;
 
+  /// 포스트 유형에 따라 텍스트, 이미지, 비디오 렌더링과 기본 BoxFit 정책을 선택합니다.
   @override
   Widget build(BuildContext context) {
     if (isTextOnlyPost) {
@@ -86,7 +91,7 @@ class ApiPhotoMediaContent extends StatelessWidget {
                       }
 
                       return FittedBox(
-                        fit: isVideoCoverMode ? BoxFit.contain : BoxFit.cover,
+                        fit: isVideoCoverMode ? BoxFit.cover : BoxFit.contain,
                         child: SizedBox(
                           width: controller.value.size.width,
                           height: controller.value.size.height,
@@ -110,6 +115,7 @@ class ApiPhotoMediaContent extends StatelessWidget {
         return _buildMediaPlaceholder();
       }
 
+      //
       return GestureDetector(
         onDoubleTap: onImageToggleFit,
         child: Container(
@@ -123,6 +129,7 @@ class ApiPhotoMediaContent extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
+            //
             child: CachedNetworkImage(
               imageUrl: mediaUrl!,
               cacheKey: postFileKey,
@@ -131,7 +138,7 @@ class ApiPhotoMediaContent extends StatelessWidget {
               fadeOutDuration: Duration.zero,
               width: imageSize.width,
               height: imageSize.height,
-              fit: isImageCoverMode ? BoxFit.contain : BoxFit.cover,
+              fit: isImageCoverMode ? BoxFit.cover : BoxFit.contain,
               memCacheWidth: (354.w * dpr).round(),
               maxWidthDiskCache: (354.w * dpr).round(),
               placeholder: (context, _) => _buildMediaPlaceholder(),
@@ -154,6 +161,7 @@ class ApiPhotoMediaContent extends StatelessWidget {
     return _buildUnsupportedMedia();
   }
 
+  /// 텍스트 전용 포스트 렌더링
   Widget _buildTextOnlyContent() {
     final text = textContent.trim();
 
@@ -198,6 +206,7 @@ class ApiPhotoMediaContent extends StatelessWidget {
     );
   }
 
+  /// 지원되지 않는 미디어 유형에 대한 기본 렌더링
   Widget _buildUnsupportedMedia() {
     return Container(
       width: imageSize.width,
@@ -211,6 +220,7 @@ class ApiPhotoMediaContent extends StatelessWidget {
     );
   }
 
+  /// 로딩 중이거나 URL이 유효하지 않은 이미지/비디오에 대한 플레이스홀더 렌더링
   Widget _buildMediaPlaceholder() {
     return Shimmer.fromColors(
       baseColor: Colors.grey[800]!,

@@ -148,6 +148,9 @@ class Post {
   /// 미디어(이미지/비디오) 유무 확인
   bool get hasMedia => postFileKey != null && postFileKey!.isNotEmpty;
 
+  /// 서버가 저장한 업로드 출처를 기준으로 기본 미디어 fit을 결정합니다.
+  bool get prefersContainMediaFit => isFromGallery == true;
+
   /// 비디오 여부 (postFileKey 확장자 기반)
   bool get isVideo => _isVideoKey(postFileKey);
 
@@ -324,5 +327,4 @@ class Post {
     if (ext.length > 8) return null;
     return ext;
   }
-
 }

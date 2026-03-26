@@ -73,7 +73,10 @@ void main() {
       expect(dtoComment.createdAt, expected);
       expect(jsonComment.createdAt, expected);
       expect(restored.createdAt, expected);
-      expect(dtoComment.toJson()['createdAt'], expected.toUtc().toIso8601String());
+      expect(
+        dtoComment.toJson()['createdAt'],
+        expected.toUtc().toIso8601String(),
+      );
     });
   });
 
@@ -94,9 +97,24 @@ void main() {
       expect(post.commentCount, 12);
       expect(post.savedAspectRatio, 1.25);
       expect(post.isFromGallery, isTrue);
+      expect(post.prefersContainMediaFit, isTrue);
       expect(post.toJson()['postType'], 'MULTIMEDIA');
       expect(post.toJson()['commentCount'], 12);
     });
+
+    test(
+      'defaults fit preference to cover when gallery metadata is absent',
+      () {
+        final post = Post(
+          id: 11,
+          nickName: 'alice',
+          postFileKey: 'posts/example.jpg',
+          postType: PostType.multiMedia,
+        );
+
+        expect(post.prefersContainMediaFit, isFalse);
+      },
+    );
 
     test('keeps nullable postType when response omits it', () {
       final dto = PostRespDto(id: 9, nickname: 'alice');
@@ -128,7 +146,10 @@ void main() {
       expect(postFromDto.createdAt, expected);
       expect(postFromJson.createdAt, expected);
       expect(restored.createdAt, expected);
-      expect(postFromDto.toJson()['createdAt'], expected?.toUtc().toIso8601String());
+      expect(
+        postFromDto.toJson()['createdAt'],
+        expected?.toUtc().toIso8601String(),
+      );
     });
   });
 }

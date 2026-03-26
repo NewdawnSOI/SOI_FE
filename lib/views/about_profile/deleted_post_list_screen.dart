@@ -7,6 +7,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/controller/post_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/post.dart';
@@ -112,7 +113,7 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
         _videoThumbnailBytesByPostId.clear();
       }
 
-      _cacheMediaUrls(posts);
+      await _cacheMediaUrls(posts);
       await _prefetchInitialVideoThumbnails(posts);
 
       if (!mounted) return;
@@ -141,13 +142,80 @@ class _DeletedPostListScreenState extends State<DeletedPostListScreen> {
     }
   }
 
-  void _cacheMediaUrls(List<Post> posts) {
+  /// 삭제된 게시물 미디어는 서버 URL을 먼저 쓰고, 없을 때만 key 기준 presigned URL로 채워 넣습니다.
+  Future<void> _cacheMediaUrls(List<Post> posts) async {
+    final mediaController = context.read<MediaController>();
+    final unresolvedPostIds = <int>[];
+    final unresolvedKeys = <String>[];
+
     for (final post in posts) {
-      final url = post.postFileUrl;
-      if (url != null && url.isNotEmpty) {
-        _imageUrlByPostId[post.id] = url;
+      final immediateUrl = _resolveImmediateMediaUrl(
+        post: post,
+        mediaController: mediaController,
+      );
+      if (immediateUrl != null) {
+        _imageUrlByPostId[post.id] = immediateUrl;
+        continue;
+      }
+
+      final mediaKey = _normalizeImageKey(post.postFileKey);
+      if (mediaKey != null) {
+        unresolvedPostIds.add(post.id);
+        unresolvedKeys.add(mediaKey);
       }
     }
+
+    if (unresolvedKeys.isEmpty) {
+      return;
+    }
+
+    final resolvedUrls = await Future.wait(
+      unresolvedKeys.map(mediaController.getPresignedUrl),
+    );
+
+    for (var index = 0; index < unresolvedPostIds.length; index++) {
+      final resolvedUrl = _normalizeImageUrl(resolvedUrls[index]);
+      if (resolvedUrl == null) {
+        continue;
+      }
+      _imageUrlByPostId[unresolvedPostIds[index]] = resolvedUrl;
+    }
+  }
+
+  /// 서버가 내려준 미디어 URL을 즉시 표시용 값으로 정규화합니다.
+  String? _normalizeImageUrl(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  /// 게시물 미디어 key는 캐시 식별과 presigned URL 재발급 기준으로 정규화합니다.
+  String? _normalizeImageKey(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  /// 삭제된 게시물 목록은 서버 URL을 바로 쓰고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
+  String? _resolveImmediateMediaUrl({
+    required Post post,
+    required MediaController mediaController,
+  }) {
+    final immediateUrl = _normalizeImageUrl(post.postFileUrl);
+    if (immediateUrl != null) {
+      return immediateUrl;
+    }
+
+    final mediaKey = _normalizeImageKey(post.postFileKey);
+    if (mediaKey == null) {
+      return null;
+    }
+
+    return mediaController.peekPresignedUrl(mediaKey);
   }
 
   List<Post> _mergeDeletedPosts(List<Post> current, List<Post> incoming) {

@@ -67,6 +67,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   String _userProfileImageUrl = '';
   String _userName = '';
   bool _isLoadingProfile = true;
+  int _profileLoadGeneration = 0;
 
   // 컨트롤러
   UserController? _userController;
@@ -148,7 +149,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       };
       _friendController?.addListener(_friendListener!);
     }
-    _loadUserProfileImage();
+    unawaited(_loadUserProfileImage());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
@@ -227,7 +228,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       });
     }
 
-    _loadUserProfileImage();
+    unawaited(_loadUserProfileImage());
     _loadCommentsForPost(_posts[_currentIndex].id);
   }
 
@@ -439,22 +440,134 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       _currentIndex = index;
     });
     _stopAudio();
-    _loadUserProfileImage();
+    unawaited(_loadUserProfileImage());
     _loadCommentsForPost(_posts[index].id);
   }
 
-  /// 현재 게시물 작성자의 프로필 이미지 로드 (서버에서 제공하는 URL 직접 사용)
-  void _loadUserProfileImage() {
+  /// 서버가 내려준 URL을 즉시 표시용 값으로 정규화합니다.
+  String? _normalizeImageUrl(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  /// 미디어/프로필 key를 캐시 식별과 presigned URL 재발급 기준으로 정규화합니다.
+  String? _normalizeImageKey(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  /// 상세 화면 작성자 프로필은 서버 URL을 바로 쓰고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
+  String? _resolveImmediateProfileImageUrl(Post post) {
+    final immediateUrl = _normalizeImageUrl(post.userProfileImageUrl);
+    if (immediateUrl != null) {
+      return immediateUrl;
+    }
+
+    final profileKey = _normalizeImageKey(post.userProfileImageKey);
+    if (profileKey == null) {
+      return null;
+    }
+
+    try {
+      return context.read<MediaController>().peekPresignedUrl(profileKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 상세 화면 미디어는 서버 URL을 바로 쓰고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
+  String? _resolveImmediateMediaUrl(Post post) {
+    final immediateUrl = _normalizeImageUrl(post.postFileUrl);
+    if (immediateUrl != null) {
+      return immediateUrl;
+    }
+
+    final mediaKey = _normalizeImageKey(post.postFileKey);
+    if (mediaKey == null) {
+      return null;
+    }
+
+    try {
+      return context.read<MediaController>().peekPresignedUrl(mediaKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 현재 게시물 작성자 프로필은 URL을 먼저 표시하고, key가 있으면 최신 presigned URL로 백그라운드 갱신합니다.
+  Future<void> _loadUserProfileImage() async {
     final currentPost = _posts[_currentIndex];
+    final requestId = ++_profileLoadGeneration;
+    final immediateUrl = _resolveImmediateProfileImageUrl(currentPost);
+    final profileKey = _normalizeImageKey(currentPost.userProfileImageKey);
+
     if (!mounted) return;
     setState(() {
-      _userProfileImageUrl = currentPost.userProfileImageUrl ?? '';
+      _userProfileImageUrl = immediateUrl ?? '';
       _userName = currentPost.nickName;
-      _isLoadingProfile = false;
+      _isLoadingProfile = immediateUrl == null && profileKey != null;
       _userProfileImages[currentPost.nickName] = _userProfileImageUrl;
-      _profileLoadingStates[currentPost.nickName] = false;
+      _profileLoadingStates[currentPost.nickName] = _isLoadingProfile;
       _userNames[currentPost.nickName] = _userName;
     });
+
+    if (profileKey == null) {
+      return;
+    }
+
+    try {
+      final resolvedUrl = _normalizeImageUrl(
+        await context.read<MediaController>().getPresignedUrl(profileKey),
+      );
+      if (!mounted || requestId != _profileLoadGeneration) {
+        return;
+      }
+
+      setState(() {
+        _userProfileImageUrl = resolvedUrl ?? immediateUrl ?? '';
+        _userName = currentPost.nickName;
+        _isLoadingProfile = false;
+        _userProfileImages[currentPost.nickName] = _userProfileImageUrl;
+        _profileLoadingStates[currentPost.nickName] = false;
+        _userNames[currentPost.nickName] = _userName;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _profileLoadGeneration) {
+        return;
+      }
+
+      setState(() {
+        _userProfileImageUrl = immediateUrl ?? '';
+        _userName = currentPost.nickName;
+        _isLoadingProfile = false;
+        _userProfileImages[currentPost.nickName] = _userProfileImageUrl;
+        _profileLoadingStates[currentPost.nickName] = false;
+        _userNames[currentPost.nickName] = _userName;
+      });
+    }
+  }
+
+  /// 다운로드는 즉시 URL을 우선 사용하고, 없을 때만 key로 최신 presigned URL을 발급받아 진행합니다.
+  Future<String?> _resolveMediaUrl(Post post) async {
+    final immediateUrl = _resolveImmediateMediaUrl(post);
+    if (immediateUrl != null) {
+      return immediateUrl;
+    }
+
+    final mediaKey = _normalizeImageKey(post.postFileKey);
+    if (mediaKey == null) {
+      return null;
+    }
+
+    return _normalizeImageUrl(
+      await context.read<MediaController>().getPresignedUrl(mediaKey),
+    );
   }
 
   /// 게시물의 댓글 로드
@@ -810,7 +923,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     }
 
     // profile 이미지 및 댓글 재로딩
-    _loadUserProfileImage();
+    unawaited(_loadUserProfileImage());
     _loadCommentsForPost(_posts[_currentIndex].id);
   }
 
@@ -822,7 +935,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   Future<void> _downloadPhoto() async {
     try {
       final currentPost = _posts[_currentIndex];
-      final mediaUrl = currentPost.postFileUrl;
+      final mediaUrl = await _resolveMediaUrl(currentPost);
 
       if (mediaUrl == null || mediaUrl.isEmpty) {
         _showSnackBar('다운로드할 미디어가 없습니다.');

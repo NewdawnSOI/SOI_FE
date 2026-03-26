@@ -163,12 +163,18 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
   ///
   /// - 위쪽 500 높이: 사진/영상만 "위아래로 스크롤"
   /// - 중간: 게시물의 작성자 정보 (화면에 고정)
-  /// - 아래쪽: 댓글 입력창 (화면에 고정)
+  /// - 아래쪽: 댓글 입력창 (화면에 고정, 홈 탭 바 높이를 제외한 만큼만 키보드 위로 이동)
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     final isKeyboardVisible = _isTextFieldFocused || keyboardInset > 0;
-    final composerBottomInset = isKeyboardVisible ? keyboardInset + 10.0 : 10.0;
+    final homeNavigationReservedHeight = 70.h + 10.h;
+    final effectiveKeyboardInset = keyboardInset > homeNavigationReservedHeight
+        ? keyboardInset - homeNavigationReservedHeight
+        : 0.0;
+    final composerBottomInset = isKeyboardVisible
+        ? effectiveKeyboardInset + 10.0
+        : 10.0;
 
     // 페이지뷰의 아이템 수: 게시물 수 + (더 불러올 데이터가 있으면 로딩 인디케이터용 아이템 1개)
     final itemCount = widget.posts.length + (widget.hasMoreData ? 1 : 0);
@@ -186,51 +192,49 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
             // ApiPhotoDisplayWidget만 PageView로 스크롤
             // PageView.builder는 페이지가 스크롤 되도록 만드는 위젯인데,
             // 여기서는 ApiPhotoCardWidget의 displayOnly 모드를 활용해서 사진/영상 부분만 스크롤되도록 구성했습니다.
-            Flexible(
-              child: SizedBox(
-                height: 500.h,
-                child: PageView.builder(
-                  controller: widget.pageController,
-                  scrollDirection: Axis.vertical, // 상하로 스크롤
-                  clipBehavior: Clip.hardEdge, // 페이지가 화면 밖으로 넘어가지 않도록 클리핑
-                  itemCount: itemCount, // 게시물 수 + 로딩 인디케이터(있으면)
-                  onPageChanged: (index) {
-                    setState(() => _currentIndex = index);
-                    widget.onPageChanged(index);
-                    widget.onStopAllAudio();
-                  },
-                  itemBuilder: (context, index) {
-                    if (index >= widget.posts.length) {
-                      return widget.isLoadingMore
-                          ? const Center(child: CircularProgressIndicator())
-                          : const SizedBox.shrink();
-                    }
+            SizedBox(
+              height: 500.h,
+              child: PageView.builder(
+                controller: widget.pageController,
+                scrollDirection: Axis.vertical, // 상하로 스크롤
+                clipBehavior: Clip.hardEdge, // 페이지가 화면 밖으로 넘어가지 않도록 클리핑
+                itemCount: itemCount, // 게시물 수 + 로딩 인디케이터(있으면)
+                onPageChanged: (index) {
+                  setState(() => _currentIndex = index);
+                  widget.onPageChanged(index);
+                  widget.onStopAllAudio();
+                },
+                itemBuilder: (context, index) {
+                  if (index >= widget.posts.length) {
+                    return widget.isLoadingMore
+                        ? const Center(child: CircularProgressIndicator())
+                        : const SizedBox.shrink();
+                  }
 
-                    // 현재 페이지에 해당하는 게시물을 가져옵니다. 인덱스가 범위를 벗어나면 null이 됩니다.
-                    // 여기서 가져온 post 정보로 ApiPhotoCardWidget을 구성합니다.
-                    final feedItem = widget.posts[index];
+                  // 현재 페이지에 해당하는 게시물을 가져옵니다. 인덱스가 범위를 벗어나면 null이 됩니다.
+                  // 여기서 가져온 post 정보로 ApiPhotoCardWidget을 구성합니다.
+                  final feedItem = widget.posts[index];
 
-                    return ApiPhotoCardWidget(
-                      key: ValueKey(feedItem.post.id),
-                      post: feedItem.post,
-                      categoryName: feedItem.categoryName,
-                      categoryId: feedItem.categoryId,
-                      index: index,
-                      isOwner: false,
-                      displayOnly: true,
-                      selectedEmoji:
-                          widget.selectedEmojisByPostId[feedItem.post.id],
-                      onEmojiSelected: (emoji) =>
-                          widget.onEmojiSelected(feedItem.post.id, emoji),
-                      postComments: widget.postComments,
-                      pendingCommentDrafts: widget.pendingCommentDrafts,
-                      pendingVoiceComments: widget.pendingVoiceComments,
-                      onToggleAudio: (p) => widget.onToggleAudio(feedItem),
-                      onProfileImageDragged: widget.onProfileImageDragged,
-                      onCommentsReloadRequested: widget.onReloadComments,
-                    );
-                  },
-                ),
+                  return ApiPhotoCardWidget(
+                    key: ValueKey(feedItem.post.id),
+                    post: feedItem.post,
+                    categoryName: feedItem.categoryName,
+                    categoryId: feedItem.categoryId,
+                    index: index,
+                    isOwner: false,
+                    displayOnly: true,
+                    selectedEmoji:
+                        widget.selectedEmojisByPostId[feedItem.post.id],
+                    onEmojiSelected: (emoji) =>
+                        widget.onEmojiSelected(feedItem.post.id, emoji),
+                    postComments: widget.postComments,
+                    pendingCommentDrafts: widget.pendingCommentDrafts,
+                    pendingVoiceComments: widget.pendingVoiceComments,
+                    onToggleAudio: (p) => widget.onToggleAudio(feedItem),
+                    onProfileImageDragged: widget.onProfileImageDragged,
+                    onCommentsReloadRequested: widget.onReloadComments,
+                  );
+                },
               ),
             ),
 

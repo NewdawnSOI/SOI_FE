@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../../api/controller/audio_controller.dart';
 import '../../../api/controller/category_controller.dart' as api_category;
+import '../../../api/controller/media_controller.dart';
 import '../../../utils/snackbar_utils.dart';
 import '../../../api/controller/comment_controller.dart';
 import '../../../api/models/comment.dart';
@@ -75,6 +76,34 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
   final ValueChanged<ExpandedMediaTagOverlayData?>?
   onExpandedMediaOverlayChanged;
 
+  ///
+  /// API에서 받아온 Post 데이터를 기반으로 이미지/비디오, 작성자 아바타, 댓글 태그 등을 렌더링하는 위젯입니다.
+  /// - Post의 content, postFileUrl, userProfileImageUrl 등의 필드를 활용해 미디어와 작성자 정보를 표시합니다.
+  /// - 댓글이 있는 경우 댓글 태그를 미디어 위에 오버레이로 렌더링하며, 댓글 작성자의 프로필 사진을 원형 아바타로 표시합니다.
+  /// - 댓글 태그는 댓글 작성자의 프로필 사진과 댓글 내용을 함께 보여주는 오버레이로, 탭하면 전체 댓글 내용을 스크롤 가능한 형태로 확장하여 보여줍니다.
+  ///
+  /// fields:
+  /// - [post]
+  ///   - API에서 받아온 Post 모델입니다.
+  ///   - content, postFileUrl, userProfileImageUrl 등의 필드를 활용해 미디어와 작성자 정보를 표시합니다.
+  /// - [categoryId]: 해당 포스트가 속한 카테고리의 ID입니다.
+  /// - [categoryName]: 해당 포스트가 속한 카테고리의 이름입니다.
+  /// - [isArchive]: 해당 포스트가 아카이브된 상태인지 여부를 나타내는 플래그입니다.
+  /// - [isFromCamera]: 해당 포스트가 카메라에서 촬영된 미디어인지 여부를 나타내는 플래그입니다.
+  /// - [postComments]: 포스트 ID를 키로, 해당 포스트에 달린 댓글 리스트를 값으로 가지는 맵입니다. 댓글 태그 렌더링에 사용됩니다.
+  /// - [onProfileImageDragged]: 작성자 아바타가 드래그될 때 호출되는 콜백 함수입니다. 댓글 태그의 위치 조정에 사용됩니다.
+  /// - [onToggleAudio]: 오디오 컨트롤 위젯이 토글될 때 호출되는 콜백 함수입니다. 오디오 재생/일시정지 등에 사용됩니다.
+  /// - [pendingVoiceComments]
+  ///   - 포스트 ID를 키로, 해당 포스트에 달린 음성 댓글 중 아직 서버에 등록되지 않은 댓글의 마커 정보를 값으로 가지는 맵입니다.
+  ///   - 댓글 태그 렌더링에 사용됩니다.
+  /// - [onCommentsReloadRequested]
+  ///   - 댓글 목록을 새로고침할 때 호출되는 콜백 함수입니다.
+  ///   - 댓글 태그의 최신 상태 반영에 사용됩니다.
+  /// - [onExpandedMediaOverlayChanged]
+  ///   - 댓글 태그의 오버레이가 확장되거나 축소될 때 호출되는 콜백 함수입니다.
+  ///   - 오버레이의 표시 상태를 상위 위젯에서 관리하는 데 사용됩니다.
+  ///
+
   const ApiPhotoDisplayWidget({
     super.key,
     required this.post,
@@ -129,6 +158,8 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   bool _isCaptionExpanded = false;
   String? _uploaderProfileImageUrl;
   bool _isProfileLoading = false;
+  int _profileLoadGeneration = 0;
+  int _mediaLoadGeneration = 0;
   final GlobalKey _displayStackKey = GlobalKey();
 
   List<Comment> get _postComments =>
@@ -151,12 +182,10 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   VideoPlayerController? _videoController;
   Future<void>? _videoInitialization;
 
-  /// 비디오 커버 모드 여부. true인 경우, 비디오가 컨테이너에 꽉 차도록 BoxFit.cover로 표시됩니다.
-  /// 카메라에서 촬영한 비디오는 기본적으로 커버 모드로 표시하되, 사용자가 탭하여 모드를 전환할 수 있도록 합니다.
+  /// 비디오의 기본 cover/contain 표시 상태를 추적해, 서버 기본값과 사용자 토글을 함께 반영합니다.
   bool _isVideoCoverMode = false;
 
-  /// 이미지 커버 모드 여부. true인 경우, 이미지가 컨테이너에 꽉 차도록 BoxFit.cover로 표시됩니다.
-  /// 카메라에서 촬영한 사진은 기본적으로 커버 모드로 표시하되, 사용자가 탭하여 모드를 전환할 수 있도록 합니다.
+  /// 이미지의 기본 cover/contain 표시 상태를 추적해, 서버 기본값과 사용자 토글을 함께 반영합니다.
   bool _isImageCoverMode = false;
 
   // 비디오는 실제로 보이는 시점에만 초기화해서 오프스크린 디코더 메모리 넘침 현상을 막습니다.
@@ -168,17 +197,22 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   /// 비디오 초기화 완료 시점에 여전히 최신 컨트롤러인지 확인하는 데 사용합니다.
   int _videoControllerGeneration = 0;
 
+  /// 게시물 메타데이터를 읽어 첫 렌더의 미디어 fit 기본값과 URL 로딩 상태를 준비합니다.
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _isImageCoverMode = widget.isFromCamera;
-    _isVideoCoverMode = widget.isFromCamera;
+    final initialCoverMode = _resolveInitialMediaCoverMode();
+    _isImageCoverMode = initialCoverMode;
+    _isVideoCoverMode = initialCoverMode;
     _isShowingComments = _hasComments || _hasPendingMarker;
-    _scheduleProfileLoad(widget.post.userProfileImageKey);
-
-    final url = widget.post.postFileUrl;
-    postImageUrl = (url != null && url.isNotEmpty) ? url : null;
+    _uploaderProfileImageUrl = _resolveImmediateProfileImageUrl();
+    _isProfileLoading =
+        _uploaderProfileImageUrl == null &&
+        _normalizedProfileImageKey() != null;
+    postImageUrl = _resolveImmediatePostMediaUrl();
+    _scheduleProfileLoad();
+    _schedulePostMediaLoad();
   }
 
   @override
@@ -206,14 +240,17 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     super.deactivate();
   }
 
+  /// 같은 카드가 새 post 메타데이터를 받으면 서버 기준 fit 기본값과 미디어 URL 로딩을 다시 맞춥니다.
   @override
   void didUpdateWidget(covariant ApiPhotoDisplayWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.isFromCamera != widget.isFromCamera) {
+    if (oldWidget.post.id != widget.post.id ||
+        oldWidget.post.isFromGallery != widget.post.isFromGallery) {
+      final initialCoverMode = _resolveInitialMediaCoverMode();
       setState(() {
-        _isImageCoverMode = widget.isFromCamera;
-        _isVideoCoverMode = widget.isFromCamera;
+        _isImageCoverMode = initialCoverMode;
+        _isVideoCoverMode = initialCoverMode;
       });
     }
 
@@ -232,23 +269,12 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
 
     if (oldWidget.post.userProfileImageUrl != widget.post.userProfileImageUrl ||
         oldWidget.post.userProfileImageKey != widget.post.userProfileImageKey) {
-      _scheduleProfileLoad(widget.post.userProfileImageKey);
+      _scheduleProfileLoad();
     }
 
     if (oldWidget.post.postFileUrl != widget.post.postFileUrl ||
         oldWidget.post.postFileKey != widget.post.postFileKey) {
-      _safeSetState(() {
-        final url = widget.post.postFileUrl;
-        postImageUrl = (url != null && url.isNotEmpty) ? url : null;
-      });
-      if (_isVideoVisible) {
-        // URL이 변경된 경우 강제로 비디오 컨트롤러를 재생성하여 새로운 비디오를 로드합니다.
-        _ensureVideoController(forceRecreate: true);
-      } else {
-        // 비디오가 보이지 않는 상태에서 URL이 변경된 경우, 컨트롤러를 폐기하여 메모리를 확보합니다.
-        // 이렇게 하는 이유는, URL이 변경된 비디오가 보이지 않는 상태에서 초기화된 컨트롤러가 메모리를 점유하는 것을 방지하기 위함입니다.
-        _disposeVideoController();
-      }
+      _schedulePostMediaLoad();
     } else {
       _ensureVideoController();
     }
@@ -344,18 +370,209 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     }
   }
 
-  void _loadProfileImage(String? key) {
-    final url = widget.post.userProfileImageUrl;
+  /// 서버가 저장한 업로드 출처를 기준으로 첫 렌더의 cover/contain 기본값을 계산합니다.
+  bool _resolveInitialMediaCoverMode() {
+    return !widget.post.prefersContainMediaFit;
+  }
+
+  /// 서버가 내려준 작성자 프로필 URL을 첫 프레임 표시용 값으로 정규화합니다.
+  String? _normalizeImageUrl(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  /// 미디어/프로필 키를 캐시 식별과 presigned URL 재발급 기준으로 정규화합니다.
+  String? _normalizeImageKey(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  /// 캡션 아바타는 서버 URL을 바로 쓰고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
+  String? _resolveImmediateProfileImageUrl() {
+    final immediateUrl = _normalizeImageUrl(widget.post.userProfileImageUrl);
+    if (immediateUrl != null) {
+      return immediateUrl;
+    }
+
+    final profileKey = _normalizedProfileImageKey();
+    if (profileKey == null) {
+      return null;
+    }
+
+    try {
+      return context.read<MediaController>().peekPresignedUrl(profileKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 포토 미디어는 서버 URL을 바로 쓰고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
+  String? _resolveImmediatePostMediaUrl() {
+    final immediateUrl = _normalizeImageUrl(widget.post.postFileUrl);
+    if (immediateUrl != null) {
+      return immediateUrl;
+    }
+
+    final postFileKey = _normalizedPostFileKey();
+    if (postFileKey == null) {
+      return null;
+    }
+
+    try {
+      return context.read<MediaController>().peekPresignedUrl(postFileKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 작성자 프로필 key는 캐시와 presigned URL 갱신의 단일 기준으로 사용합니다.
+  String? _normalizedProfileImageKey() {
+    return _normalizeImageKey(widget.post.userProfileImageKey);
+  }
+
+  /// 게시물 미디어 key는 캐시와 presigned URL 갱신의 단일 기준으로 사용합니다.
+  String? _normalizedPostFileKey() {
+    return _normalizeImageKey(widget.post.postFileKey);
+  }
+
+  /// 캡션 아바타는 key를 우선 캐시 식별자로 쓰고, 없을 때만 URL 기반 식별자를 계산합니다.
+  String? _resolveProfileCacheKey() {
+    final profileKey = _normalizedProfileImageKey();
+    if (profileKey != null) {
+      return profileKey;
+    }
+
+    final profileImageUrl = _normalizeImageUrl(_uploaderProfileImageUrl);
+    if (profileImageUrl == null) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(profileImageUrl);
+    if (uri == null || !uri.hasScheme) {
+      return null;
+    }
+
+    final normalizedHost = uri.host.trim();
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) {
+      return null;
+    }
+
+    return normalizedHost.isEmpty
+        ? normalizedPath
+        : '$normalizedHost$normalizedPath';
+  }
+
+  /// 캡션 오버레이 작성자 아바타는 URL을 먼저 표시하고, key가 있으면 최신 presigned URL로 백그라운드 갱신합니다.
+  Future<void> _loadProfileImage() async {
+    final requestId = ++_profileLoadGeneration;
+    final immediateUrl = _resolveImmediateProfileImageUrl();
+    final profileKey = _normalizedProfileImageKey();
+
     _safeSetState(() {
-      _uploaderProfileImageUrl = (url != null && url.isNotEmpty) ? url : null;
-      _isProfileLoading = false;
+      _uploaderProfileImageUrl = immediateUrl;
+      _isProfileLoading = immediateUrl == null && profileKey != null;
+    });
+
+    if (profileKey == null) {
+      return;
+    }
+
+    try {
+      final resolvedUrl = _normalizeImageUrl(
+        await context.read<MediaController>().getPresignedUrl(profileKey),
+      );
+      if (!mounted || requestId != _profileLoadGeneration) {
+        return;
+      }
+
+      _safeSetState(() {
+        _uploaderProfileImageUrl = resolvedUrl ?? immediateUrl;
+        _isProfileLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _profileLoadGeneration) {
+        return;
+      }
+
+      _safeSetState(() {
+        _uploaderProfileImageUrl = immediateUrl;
+        _isProfileLoading = false;
+      });
+    }
+  }
+
+  /// 화면 미디어 URL이 바뀌면 로컬 상태만 갱신하고, 비디오 컨트롤러는 현재 가시성에 맞춰 다시 맞춥니다.
+  void _applyPostMediaUrl(String? nextUrl) {
+    final normalizedNextUrl = _normalizeImageUrl(nextUrl);
+    final previousUrl = postImageUrl;
+    if (previousUrl == normalizedNextUrl) {
+      return;
+    }
+
+    _safeSetState(() {
+      postImageUrl = normalizedNextUrl;
+    });
+
+    if (!widget.post.isVideo) {
+      return;
+    }
+
+    if (_isVideoVisible && normalizedNextUrl != null) {
+      _ensureVideoController(forceRecreate: true);
+      return;
+    }
+
+    _disposeVideoController();
+  }
+
+  /// 포토 미디어는 URL을 먼저 표시하고, key가 있으면 최신 presigned URL로 백그라운드 갱신합니다.
+  Future<void> _loadPostMediaUrl() async {
+    final requestId = ++_mediaLoadGeneration;
+    final immediateUrl = _resolveImmediatePostMediaUrl();
+    final postFileKey = _normalizedPostFileKey();
+    _applyPostMediaUrl(immediateUrl);
+
+    if (postFileKey == null) {
+      return;
+    }
+
+    try {
+      final resolvedUrl = _normalizeImageUrl(
+        await context.read<MediaController>().getPresignedUrl(postFileKey),
+      );
+      if (!mounted || requestId != _mediaLoadGeneration) {
+        return;
+      }
+
+      _applyPostMediaUrl(resolvedUrl ?? immediateUrl);
+    } catch (_) {
+      if (!mounted || requestId != _mediaLoadGeneration) {
+        return;
+      }
+    }
+  }
+
+  /// 프레임 안정화 이후 작성자 아바타 refresh를 시작해 build 중 provider 접근을 피합니다.
+  void _scheduleProfileLoad() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadProfileImage();
+      }
     });
   }
 
-  void _scheduleProfileLoad(String? key) {
+  /// 프레임 안정화 이후 포스트 미디어 refresh를 시작해 URL 교체와 비디오 컨트롤러 재생성을 분리합니다.
+  void _schedulePostMediaLoad() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _loadProfileImage(key);
+        _loadPostMediaUrl();
       }
     });
   }
@@ -789,6 +1006,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                             crossAxisAlignment: CrossAxisAlignment.center,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+                              // 캡션이 있는 게시물에서, 작성자 아바타와 캡션 텍스트를 함께 오버레이로 표시합니다.
                               Expanded(
                                 child: ApiPhotoCaptionOverlay(
                                   content: widget.post.content!,
@@ -796,7 +1014,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                                   isProfileLoading: _isProfileLoading,
                                   profileImageUrl: _uploaderProfileImageUrl,
                                   profileImageCacheKey:
-                                      widget.post.userProfileImageKey,
+                                      _resolveProfileCacheKey(),
                                   onTap: () {
                                     if (!mounted) return;
                                     setState(() {

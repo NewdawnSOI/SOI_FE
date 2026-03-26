@@ -45,7 +45,8 @@ class _FakePostService extends PostService {
     int page = 0,
   }) async {
     final handler = onGetPostsByCategory;
-    if (handler == null) throw UnimplementedError('onGetPostsByCategory is not configured');
+    if (handler == null)
+      throw UnimplementedError('onGetPostsByCategory is not configured');
     return handler(
       categoryId: categoryId,
       userId: userId,
@@ -196,6 +197,43 @@ void main() {
         0,
       );
     });
+
+    test('forwards isFromGallery to service without mutation', () async {
+      bool? capturedIsFromGallery;
+
+      final controller = PostController(
+        postService: _FakePostService(
+          onCreate:
+              ({
+                int? userId,
+                required String nickName,
+                String? content,
+                List<String> postFileKey = const [],
+                List<String> audioFileKey = const [],
+                List<int> categoryIds = const [],
+                String? waveformData,
+                int? duration,
+                double? savedAspectRatio,
+                bool? isFromGallery,
+                PostType? postType,
+              }) async {
+                capturedIsFromGallery = isFromGallery;
+                return true;
+              },
+        ),
+      );
+
+      final result = await controller.createPost(
+        userId: 100,
+        nickName: 'tester',
+        postFileKey: const ['posts/example.jpg'],
+        isFromGallery: false,
+        postType: PostType.multiMedia,
+      );
+
+      expect(result, isTrue);
+      expect(capturedIsFromGallery, isFalse);
+    });
   });
 
   group('PostController getPostsByCategory cache', () {
@@ -203,15 +241,16 @@ void main() {
       int callCount = 0;
       final controller = PostController(
         postService: _FakePostService(
-          onGetPostsByCategory: ({
-            required int categoryId,
-            required int userId,
-            int? notificationId,
-            int page = 0,
-          }) async {
-            callCount++;
-            return [];
-          },
+          onGetPostsByCategory:
+              ({
+                required int categoryId,
+                required int userId,
+                int? notificationId,
+                int page = 0,
+              }) async {
+                callCount++;
+                return [];
+              },
         ),
       );
 
@@ -225,15 +264,16 @@ void main() {
       int callCount = 0;
       final controller = PostController(
         postService: _FakePostService(
-          onGetPostsByCategory: ({
-            required int categoryId,
-            required int userId,
-            int? notificationId,
-            int page = 0,
-          }) async {
-            callCount++;
-            return [];
-          },
+          onGetPostsByCategory:
+              ({
+                required int categoryId,
+                required int userId,
+                int? notificationId,
+                int page = 0,
+              }) async {
+                callCount++;
+                return [];
+              },
         ),
       );
 
@@ -251,17 +291,18 @@ void main() {
       int callCount = 0;
       final controller = PostController(
         postService: _FakePostService(
-          onGetPostsByCategory: ({
-            required int categoryId,
-            required int userId,
-            int? notificationId,
-            int page = 0,
-          }) async {
-            callCount++;
-            // 약간의 비동기 지연으로 동시 요청 시뮬레이션
-            await Future<void>.delayed(Duration.zero);
-            return [];
-          },
+          onGetPostsByCategory:
+              ({
+                required int categoryId,
+                required int userId,
+                int? notificationId,
+                int page = 0,
+              }) async {
+                callCount++;
+                // 약간의 비동기 지연으로 동시 요청 시뮬레이션
+                await Future<void>.delayed(Duration.zero);
+                return [];
+              },
         ),
       );
 
@@ -279,16 +320,17 @@ void main() {
       bool shouldFail = false;
       final controller = PostController(
         postService: _FakePostService(
-          onGetPostsByCategory: ({
-            required int categoryId,
-            required int userId,
-            int? notificationId,
-            int page = 0,
-          }) async {
-            callCount++;
-            if (shouldFail) throw Exception('network error');
-            return [];
-          },
+          onGetPostsByCategory:
+              ({
+                required int categoryId,
+                required int userId,
+                int? notificationId,
+                int page = 0,
+              }) async {
+                callCount++;
+                if (shouldFail) throw Exception('network error');
+                return [];
+              },
         ),
       );
 
@@ -319,29 +361,31 @@ void main() {
 
       final controller = PostController(
         postService: _FakePostService(
-          onCreate: ({
-            int? userId,
-            required String nickName,
-            String? content,
-            List<String> postFileKey = const [],
-            List<String> audioFileKey = const [],
-            List<int> categoryIds = const [],
-            String? waveformData,
-            int? duration,
-            double? savedAspectRatio,
-            bool? isFromGallery,
-            PostType? postType,
-          }) async => true,
-          onGetPostsByCategory: ({
-            required int categoryId,
-            required int userId,
-            int? notificationId,
-            int page = 0,
-          }) async {
-            if (categoryId == 10) catACallCount++;
-            if (categoryId == 20) catBCallCount++;
-            return [];
-          },
+          onCreate:
+              ({
+                int? userId,
+                required String nickName,
+                String? content,
+                List<String> postFileKey = const [],
+                List<String> audioFileKey = const [],
+                List<int> categoryIds = const [],
+                String? waveformData,
+                int? duration,
+                double? savedAspectRatio,
+                bool? isFromGallery,
+                PostType? postType,
+              }) async => true,
+          onGetPostsByCategory:
+              ({
+                required int categoryId,
+                required int userId,
+                int? notificationId,
+                int page = 0,
+              }) async {
+                if (categoryId == 10) catACallCount++;
+                if (categoryId == 20) catBCallCount++;
+                return [];
+              },
         ),
       );
 
@@ -371,19 +415,20 @@ void main() {
     test('리스너 순회 중 remove 호출해도 ConcurrentModificationError 없음', () {
       final controller = PostController(
         postService: _FakePostService(
-          onCreate: ({
-            int? userId,
-            required String nickName,
-            String? content,
-            List<String> postFileKey = const [],
-            List<String> audioFileKey = const [],
-            List<int> categoryIds = const [],
-            String? waveformData,
-            int? duration,
-            double? savedAspectRatio,
-            bool? isFromGallery,
-            PostType? postType,
-          }) async => true,
+          onCreate:
+              ({
+                int? userId,
+                required String nickName,
+                String? content,
+                List<String> postFileKey = const [],
+                List<String> audioFileKey = const [],
+                List<int> categoryIds = const [],
+                String? waveformData,
+                int? duration,
+                double? savedAspectRatio,
+                bool? isFromGallery,
+                PostType? postType,
+              }) async => true,
         ),
       );
 

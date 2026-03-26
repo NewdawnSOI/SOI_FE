@@ -6,6 +6,21 @@ import '../first_line_ellipsis_text.dart';
 import 'api_photo_circle_avatar.dart';
 
 class ApiPhotoCaptionOverlay extends StatelessWidget {
+  ///
+  /// 이미지/비디오 위에 포스트 작성자 정보와 캡션을 오버레이로 보여주는 위젯입니다.
+  /// - 포스트 작성자의 프로필 사진과 캡션 텍스트를 함께 보여주는 오버레이입니다.
+  /// - 캡션이 길 경우, 기본적으로는 한 줄로 보여주고, 탭하면 전체 내용을 스크롤 가능한 형태로 확장하여 보여줍니다.
+  /// - 작성자 프로필 사진이 로딩 중인 경우, 셰이머 효과로 로딩 상태를 표시합니다.
+  /// - 작성자 프로필 사진이 로딩 완료된 경우, 원형 아바타로 보여줍니다.
+  ///
+  /// fields:
+  /// - [content]: 포스트의 캡션 텍스트입니다.
+  /// - [isExpanded]: 캡션이 확장되어 전체 내용이 보이는지 여부를 나타내는 플래그입니다.
+  /// - [isProfileLoading]: 작성자 프로필 사진이 로딩 중인지 여부를 나타내는 플래그입니다.
+  /// - [profileImageUrl]: 작성자 프로필 사진의 URL입니다. null이거나 빈 문자열인 경우 기본 아바타 이미지가 보여집니다.
+  /// - [profileImageCacheKey]: 작성자 프로필 사진의 캐시 키입니다. null이거나 빈 문자열인 경우 imageUrl을 기반으로 캐시 키가 생성됩니다.
+  /// - [onTap]: 캡션 오버레이가 탭되었을 때 호출되는 콜백입니다. 캡션 확장/축소 토글 등의 동작을 수행하는 데 사용됩니다.
+  ///
   const ApiPhotoCaptionOverlay({
     super.key,
     required this.content,

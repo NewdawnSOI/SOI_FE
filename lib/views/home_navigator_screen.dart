@@ -99,11 +99,13 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
     _pageController.jumpToPage(index); // 즉시 페이지 이동 (애니메이션 없이)
   }
 
-  // 잘못된 프로필 이미지 URL을 확인하고 정리하는 함수
+  /// 홈 탭 컨테이너는 각 탭이 자체적으로 키보드/레이아웃을 제어할 수 있게
+  /// 루트 Scaffold의 body 높이를 키보드에 의해 다시 줄이지 않습니다.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: false, // 키보드에 의해 body 높이가 줄어드는 것을 방지
       bottomNavigationBar: Container(
         margin: EdgeInsets.only(top: 10.h),
         height: 70.h,

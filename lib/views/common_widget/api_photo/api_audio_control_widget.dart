@@ -35,59 +35,126 @@ class ApiAudioControlWidget extends StatefulWidget {
 class _ApiAudioControlWidgetState extends State<ApiAudioControlWidget> {
   String? _profileImageUrl;
   bool _isProfileLoading = false;
+  int _profileLoadGeneration = 0;
   String? _audioUrl;
   bool _isAudioLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchProfileImage(widget.post.userProfileImageKey);
+    _profileImageUrl = _resolveImmediateProfileImageUrl();
+    _isProfileLoading =
+        _profileImageUrl == null && _normalizedProfileImageKey() != null;
+    _fetchProfileImage();
     _fetchAudioUrl(widget.post.audioUrl);
   }
 
   @override
   void didUpdateWidget(covariant ApiAudioControlWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.post.userProfileImageKey != widget.post.userProfileImageKey) {
-      _fetchProfileImage(widget.post.userProfileImageKey);
+    if (oldWidget.post.userProfileImageKey != widget.post.userProfileImageKey ||
+        oldWidget.post.userProfileImageUrl != widget.post.userProfileImageUrl) {
+      _fetchProfileImage();
     }
     if (oldWidget.post.audioUrl != widget.post.audioUrl) {
       _fetchAudioUrl(widget.post.audioUrl);
     }
   }
 
-  /// 프로필 이미지 URL을 비동기로 가져오는 메소드
-  Future<void> _fetchProfileImage(String? profileKey) async {
-    if (!mounted) return;
+  /// 서버가 내려준 작성자 프로필 URL을 첫 프레임 표시용 값으로 정규화합니다.
+  String? _normalizeImageUrl(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
 
-    if (profileKey == null || profileKey.isEmpty) {
-      setState(() {
-        _profileImageUrl = null;
-        _isProfileLoading = false;
-      });
+  /// 작성자 프로필 key는 캐시와 presigned URL 갱신의 단일 기준으로 사용합니다.
+  String? _normalizedProfileImageKey() {
+    final normalized = widget.post.userProfileImageKey?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  /// 오디오 카드 작성자 아바타는 서버 URL을 바로 쓰고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
+  String? _resolveImmediateProfileImageUrl() {
+    final immediateUrl = _normalizeImageUrl(widget.post.userProfileImageUrl);
+    if (immediateUrl != null) {
+      return immediateUrl;
+    }
+
+    final profileKey = _normalizedProfileImageKey();
+    if (profileKey == null) {
+      return null;
+    }
+
+    try {
+      return context.read<MediaController>().peekPresignedUrl(profileKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 프로필 key를 우선 캐시 식별자로 쓰고, 없을 때만 URL 기반 식별자를 계산합니다.
+  String? _resolveProfileCacheKey() {
+    final profileKey = _normalizedProfileImageKey();
+    if (profileKey != null) {
+      return profileKey;
+    }
+
+    final profileImageUrl = _normalizeImageUrl(_profileImageUrl);
+    if (profileImageUrl == null) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(profileImageUrl);
+    if (uri == null || !uri.hasScheme) {
+      return null;
+    }
+
+    final normalizedHost = uri.host.trim();
+    final normalizedPath = uri.path.trim();
+    if (normalizedPath.isEmpty) {
+      return null;
+    }
+
+    return normalizedHost.isEmpty
+        ? normalizedPath
+        : '$normalizedHost$normalizedPath';
+  }
+
+  /// 오디오 카드 작성자 아바타는 URL을 먼저 표시하고, key가 있으면 최신 presigned URL로 백그라운드 갱신합니다.
+  Future<void> _fetchProfileImage() async {
+    if (!mounted) return;
+    final requestId = ++_profileLoadGeneration;
+    final immediateUrl = _resolveImmediateProfileImageUrl();
+    final profileKey = _normalizedProfileImageKey();
+
+    setState(() {
+      _profileImageUrl = immediateUrl;
+      _isProfileLoading = immediateUrl == null && profileKey != null;
+    });
+
+    if (profileKey == null) {
       return;
     }
 
-    setState(() => _isProfileLoading = true);
-
     try {
-      // MediaController 인스턴스 가져오기
-      final mediaController = Provider.of<MediaController>(
-        context,
-        listen: false,
+      final profileImageUrl = _normalizeImageUrl(
+        await context.read<MediaController>().getPresignedUrl(profileKey),
       );
-
-      // Presigned URL 가져오기
-      final profileImageUrl = await mediaController.getPresignedUrl(profileKey);
-      if (!mounted) return;
+      if (!mounted || requestId != _profileLoadGeneration) return;
       setState(() {
-        _profileImageUrl = profileImageUrl;
+        _profileImageUrl = profileImageUrl ?? immediateUrl;
         _isProfileLoading = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestId != _profileLoadGeneration) return;
       setState(() {
-        _profileImageUrl = null;
+        _profileImageUrl = immediateUrl;
         _isProfileLoading = false;
       });
     }
@@ -165,6 +232,7 @@ class _ApiAudioControlWidgetState extends State<ApiAudioControlWidget> {
             duration: Duration(seconds: widget.post.durationInSeconds),
             post: widget.post,
             profileImageUrl: _profileImageUrl,
+            profileImageCacheKey: _resolveProfileCacheKey(),
             isProfileLoading: _isProfileLoading,
             isAudioLoading: _isAudioLoading,
 
@@ -187,6 +255,7 @@ class _ApiAudioControlWidgetState extends State<ApiAudioControlWidget> {
       duration: Duration(seconds: widget.post.durationInSeconds),
       post: widget.post,
       profileImageUrl: _profileImageUrl,
+      profileImageCacheKey: _resolveProfileCacheKey(),
       isProfileLoading: _isProfileLoading,
       isAudioLoading: _isAudioLoading,
       onTap: () {
@@ -224,6 +293,7 @@ class _AudioControlSurface extends StatelessWidget {
   final VoidCallback? onTap;
   final Post post;
   final String? profileImageUrl;
+  final String? profileImageCacheKey;
   final bool isProfileLoading;
   final bool isAudioLoading;
 
@@ -234,6 +304,7 @@ class _AudioControlSurface extends StatelessWidget {
     required this.duration,
     required this.post,
     required this.profileImageUrl,
+    required this.profileImageCacheKey,
     required this.isProfileLoading,
     required this.isAudioLoading,
 
@@ -343,6 +414,10 @@ class _AudioControlSurface extends StatelessWidget {
     return ClipOval(
       child: CachedNetworkImage(
         imageUrl: profileImageUrl!,
+        cacheKey: profileImageCacheKey,
+        useOldImageOnUrlChange: profileImageCacheKey != null,
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
         width: 27,
         height: 27,
         fit: BoxFit.cover,
