@@ -73,6 +73,7 @@ Widget _buildHarness({
               post: post,
               categoryId: 1,
               categoryName: 'category',
+              postTagComments: const <int, List<Comment>>{},
               postComments: const <int, List<Comment>>{},
               onProfileImageDragged: (_, __) {},
               onToggleAudio: (_) {},

@@ -24,11 +24,61 @@ import '../services/comment_service.dart';
 /// ```
 class CommentController extends ChangeNotifier {
   final CommentService _commentService;
+
+  /// 게시물 ID별 "전체 댓글" 스레드 캐시 맵 (원댓글 + 대댓글 포함)
+  final Map<int, List<Comment>> _cachedCommentsByPost = {};
+
+  /// 위치 있는 댓글만 별도 보관하는 캐시 맵
+  final Map<int, List<Comment>> _cachedTagCommentsByPost = {};
   final Map<int, Future<List<Comment>>> _inFlightCommentsByPost = {};
+
+  /// 위치 있는 댓글만 별도 조회하는 경로의 in-flight 트래킹 맵
+  final Map<int, Future<List<Comment>>> _inFlightTagCommentsByPost = {};
+
+  /// 사용자별 **댓글 페이지 요청**을 캐싱하여 중복 조회를 방지합니다.
+  ///
+  /// **Key**: "userId:page" 형식의 문자열
+  /// - 예: `'42:0'` (사용자 ID 42의 페이지 0)
+  ///
+  /// **Value**: "Future<({List<Comment> comments, bool hasMore})>"
+  /// - "comments": 해당 페이지의 댓글 목록
+  /// - "hasMore": 다음 페이지 존재 여부
+  ///
+  /// 정리하면,
+  /// **ID가 42인 사용자**가 작성한 댓글 중 페이지 0에 해당하는 **댓글 목록**과 **다음 페이지 존재 여부**를 함께 캐싱하여서
+  /// 동일한 페이지 요청이 중복으로 발생하는 것을 방지합니다.
   final Map<String, Future<({List<Comment> comments, bool hasMore})>>
   _inFlightCommentsByUserPage = {};
+
+  /// 게시물별 **원댓글 페이지 요청**을 캐싱하여 중복 조회를 방지합니다.
+  ///
+  /// **Key**: "postId:page" 형식의 문자열
+  /// - 예: `'123:0'` (게시물 ID 123의 페이지 0)
+  ///
+  /// **Value**: "Future<({List<Comment> comments, bool hasMore})>"
+  /// - "comments": 해당 페이지의 원댓글 목록
+  ///   - 원댓글과 대댓글이 계층 구조로 병합된 형태가 아니라, 해당 페이지에 해당하는 **원댓글 목록만** 반환됩니다.
+  /// - "hasMore": 다음 페이지 존재 여부
+  ///
+  /// 정리하면,
+  /// **ID가 123인 게시물**에 달린 **원댓글** 중 페이지 0에 해당하는 **원댓글 목록**과 **다음 페이지 존재 여부**를 함께 캐싱하여서
+  /// 동일한 페이지 요청이 중복으로 발생하는 것을 방지합니다.
   final Map<String, Future<({List<Comment> comments, bool hasMore})>>
   _inFlightParentCommentsByPostPage = {};
+
+  /// 게시물별 **대댓글 페이지 요청**을 캐싱하여 중복 조회를 방지합니다.
+  ///
+  /// **Key**: "parentCommentId:page" 형식의 문자열
+  /// - 예: "123:0" (부모 댓글 ID 123의 페이지 0)
+  ///
+  /// **Value**: "Future<({List<Comment> comments, bool hasMore})>"
+  /// - "comments": 해당 페이지의 대댓글 목록
+  ///   - 원댓글-대댓글 계층구조가 아니라, 대댓글 목록만 반환됩니다.
+  /// - "hasMore": 다음 페이지 존재 여부
+  ///
+  /// 정리하면,
+  /// **ID가 123인 부모 댓글**에 달린 **대댓글** 중 페이지 0에 해당하는 **대댓글 목록**과 **다음 페이지 존재 여부**를 함께 캐싱하여서
+  /// 동일한 페이지 요청이 중복으로 발생하는 것을 방지합니다.
   final Map<String, Future<({List<Comment> comments, bool hasMore})>>
   _inFlightChildCommentsByParentPage = {};
 
@@ -71,6 +121,109 @@ class CommentController extends ChangeNotifier {
   /// 에러 메시지
   String? get errorMessage => _errorMessage;
 
+  /// full thread cache는 바텀시트 hydration과 화면 간 재진입에서 공용 재사용됩니다.
+  List<Comment>? peekCommentsCache({required int postId}) {
+    return _cachedCommentsByPost[postId];
+  }
+
+  /// tag cache는 overlay scope만 보존하고, full cache가 있으면 그 결과에서 바로 파생합니다.
+  List<Comment>? peekTagCommentsCache({required int postId}) {
+    final cached = _cachedTagCommentsByPost[postId];
+    if (cached != null) {
+      return cached;
+    }
+
+    final full = _cachedCommentsByPost[postId];
+    if (full == null) {
+      return null;
+    }
+
+    final derived = _freezeComments(_filterTagComments(full));
+    _cachedTagCommentsByPost[postId] = derived;
+    return derived;
+  }
+
+  /// full thread를 갱신하면 tag cache도 같은 스냅샷 기준으로 같이 맞춰 둡니다.
+  void replaceCommentsCache({
+    required int postId,
+    required List<Comment> comments,
+  }) {
+    final frozenComments = _freezeComments(comments);
+    _cachedCommentsByPost[postId] = frozenComments;
+    _cachedTagCommentsByPost[postId] = _freezeComments(
+      _filterTagComments(frozenComments),
+    );
+  }
+
+  /// overlay scope만 새로 가져온 경우 full cache를 건드리지 않고 tag cache만 교체합니다.
+  void replaceTagCommentsCache({
+    required int postId,
+    required List<Comment> comments,
+  }) {
+    _cachedTagCommentsByPost[postId] = _freezeComments(comments);
+  }
+
+  /// 생성 직후에는 이미 로드된 scope만 append해서 partial cache를 진실 소스로 만들지 않습니다.
+  void appendCreatedComment({required int postId, required Comment comment}) {
+    final full = _cachedCommentsByPost[postId];
+    if (full != null && !_containsComment(full, comment.id)) {
+      _cachedCommentsByPost[postId] = _freezeComments(
+        List<Comment>.from(full)..add(comment),
+      );
+    }
+
+    if (!comment.hasLocation) {
+      return;
+    }
+
+    final tags = _cachedTagCommentsByPost[postId];
+    if (tags != null && !_containsComment(tags, comment.id)) {
+      _cachedTagCommentsByPost[postId] = _freezeComments(
+        List<Comment>.from(tags)..add(comment),
+      );
+      return;
+    }
+
+    if (full != null) {
+      _cachedTagCommentsByPost[postId] = _freezeComments(
+        _filterTagComments(_cachedCommentsByPost[postId] ?? const <Comment>[]),
+      );
+    }
+  }
+
+  /// 삭제 직후에는 이미 로드된 scope에서만 제거하고, force reload가 들어오면 최신 서버값으로 덮습니다.
+  void removeCommentFromCache({required int postId, required int commentId}) {
+    final full = _cachedCommentsByPost[postId];
+    if (full != null) {
+      _cachedCommentsByPost[postId] = _freezeComments(
+        List<Comment>.from(full)
+          ..removeWhere((comment) => comment.id == commentId),
+      );
+    }
+
+    final tags = _cachedTagCommentsByPost[postId];
+    if (tags != null) {
+      _cachedTagCommentsByPost[postId] = _freezeComments(
+        List<Comment>.from(tags)
+          ..removeWhere((comment) => comment.id == commentId),
+      );
+    }
+  }
+
+  /// force refresh나 post 삭제 시 댓글 scope별 공용 cache를 명시적으로 비웁니다.
+  void invalidatePostCaches({
+    required int postId,
+    bool full = true,
+    bool tag = true,
+  }) {
+    if (full) {
+      _cachedCommentsByPost.remove(postId);
+    }
+    if (tag) {
+      _cachedTagCommentsByPost.remove(postId);
+    }
+  }
+
   void _notifyIfChanged(bool changed) {
     if (changed) {
       notifyListeners();
@@ -87,6 +240,28 @@ class CommentController extends ChangeNotifier {
     if (_errorMessage == message) return false;
     _errorMessage = message;
     return true;
+  }
+
+  /// 화면 간 재사용 캐시는 mutation 방지를 위해 immutable snapshot으로 보관합니다.
+  List<Comment> _freezeComments(List<Comment> comments) {
+    if (comments.isEmpty) {
+      return const <Comment>[];
+    }
+    return List<Comment>.unmodifiable(comments);
+  }
+
+  /// overlay용 cache는 위치가 있는 댓글만 유지해 full thread 비용과 책임을 분리합니다.
+  List<Comment> _filterTagComments(List<Comment> comments) {
+    return comments
+        .where((comment) => comment.hasLocation)
+        .toList(growable: false);
+  }
+
+  bool _containsComment(List<Comment> comments, int? commentId) {
+    if (commentId == null) {
+      return false;
+    }
+    return comments.any((comment) => comment.id == commentId);
   }
 
   void _beginRequest() {
@@ -177,6 +352,13 @@ class CommentController extends ChangeNotifier {
         locationY: normalizedLocationY,
         type: inferredType,
       );
+      if (result.success) {
+        if (result.comment != null) {
+          appendCreatedComment(postId: postId, comment: result.comment!);
+        } else {
+          invalidatePostCaches(postId: postId);
+        }
+      }
       return result;
     } catch (e) {
       _setError('댓글 생성 실패: $e');
@@ -243,11 +425,25 @@ class CommentController extends ChangeNotifier {
   // ============================================
 
   /// 게시물의 댓글 조회
-  Future<List<Comment>> getComments({required int postId}) async {
+  Future<List<Comment>> getComments({
+    required int postId,
+    bool forceReload = false,
+  }) async {
+    if (!forceReload) {
+      final cached = _cachedCommentsByPost[postId];
+      if (cached != null) {
+        return cached;
+      }
+    } else {
+      invalidatePostCaches(postId: postId, full: true, tag: true);
+    }
+
     final task = _inFlightCommentsByPost.putIfAbsent(postId, () async {
       _beginRequest();
       try {
-        return await _commentService.getComments(postId: postId);
+        final comments = await _commentService.getComments(postId: postId);
+        replaceCommentsCache(postId: postId, comments: comments);
+        return _cachedCommentsByPost[postId] ?? const <Comment>[];
       } finally {
         _endRequest();
       }
@@ -262,6 +458,44 @@ class CommentController extends ChangeNotifier {
       final registeredTask = _inFlightCommentsByPost[postId];
       if (identical(registeredTask, task)) {
         _inFlightCommentsByPost.remove(postId);
+      }
+    }
+  }
+
+  /// 태그 오버레이는 위치가 있는 부모 댓글만 별도 경로로 조회합니다.
+  Future<List<Comment>> getTagComments({
+    required int postId,
+    bool forceReload = false,
+  }) async {
+    if (!forceReload) {
+      final cached = peekTagCommentsCache(postId: postId);
+      if (cached != null) {
+        return cached;
+      }
+    } else {
+      invalidatePostCaches(postId: postId, tag: true, full: false);
+    }
+
+    final task = _inFlightTagCommentsByPost.putIfAbsent(postId, () async {
+      _beginRequest();
+      try {
+        final comments = await _commentService.getTagComments(postId: postId);
+        replaceTagCommentsCache(postId: postId, comments: comments);
+        return _cachedTagCommentsByPost[postId] ?? const <Comment>[];
+      } finally {
+        _endRequest();
+      }
+    });
+
+    try {
+      return await task;
+    } catch (e) {
+      _setError('태그 댓글 조회 실패: $e');
+      return [];
+    } finally {
+      final registeredTask = _inFlightTagCommentsByPost[postId];
+      if (identical(registeredTask, task)) {
+        _inFlightTagCommentsByPost.remove(postId);
       }
     }
   }

@@ -21,6 +21,7 @@ class FeedPageBuilder extends StatefulWidget {
   final List<FeedPostItem> posts;
   final bool hasMoreData;
   final bool isLoadingMore;
+  final Map<int, List<Comment>> postTagComments;
   final Map<int, List<Comment>> postComments;
   final Map<int, String?> selectedEmojisByPostId;
   final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
@@ -45,6 +46,7 @@ class FeedPageBuilder extends StatefulWidget {
   final VoidCallback onStopAllAudio;
   final String? currentUserNickname;
   final Future<void> Function(int postId) onReloadComments;
+  final Future<List<Comment>> Function(int postId) onLoadFullComments;
   final void Function(int postId, String? emoji) onEmojiSelected;
 
   final PageController? pageController;
@@ -54,6 +56,7 @@ class FeedPageBuilder extends StatefulWidget {
     required this.posts,
     required this.hasMoreData,
     required this.isLoadingMore,
+    required this.postTagComments,
     required this.postComments,
     required this.selectedEmojisByPostId,
     required this.pendingCommentDrafts,
@@ -71,6 +74,7 @@ class FeedPageBuilder extends StatefulWidget {
     required this.onStopAllAudio,
     this.currentUserNickname,
     required this.onReloadComments,
+    required this.onLoadFullComments,
     required this.onEmojiSelected,
     this.pageController,
   });
@@ -86,6 +90,14 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
   /// 지금 화면에 보이는 게시물의 순서 번호.
   int _currentIndex = 0;
   bool _isTextFieldFocused = false;
+
+  /// 피드 카드와 시트가 같은 원본을 보도록 full/tag cache를 함께 갱신합니다.
+  void _replaceCommentCaches(int postId, List<Comment> updatedComments) {
+    widget.postComments[postId] = List<Comment>.unmodifiable(updatedComments);
+    widget.postTagComments[postId] = List<Comment>.unmodifiable(
+      updatedComments.where((comment) => comment.hasLocation).toList(),
+    );
+  }
 
   /// 지금 보이는 게시물을 반환합니다. 목록이 비어 있거나 범위를 벗어나면 null을 반환합니다.
   /// 부모 위젯에서 전달된 게시물 목록과 현재 인덱스를 기준으로 현재 게시물을 계산합니다.
@@ -227,12 +239,14 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                         widget.selectedEmojisByPostId[feedItem.post.id],
                     onEmojiSelected: (emoji) =>
                         widget.onEmojiSelected(feedItem.post.id, emoji),
+                    postTagComments: widget.postTagComments,
                     postComments: widget.postComments,
                     pendingCommentDrafts: widget.pendingCommentDrafts,
                     pendingVoiceComments: widget.pendingVoiceComments,
                     onToggleAudio: (p) => widget.onToggleAudio(feedItem),
                     onProfileImageDragged: widget.onProfileImageDragged,
                     onCommentsReloadRequested: widget.onReloadComments,
+                    onLoadFullComments: widget.onLoadFullComments,
                   );
                 },
               ),
@@ -249,8 +263,12 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                 onDeletePressed: () =>
                     widget.onDeletePost(_currentIndex, currentPost),
                 onCommentPressed: () {
-                  final comments =
+                  final fullComments =
                       widget.postComments[currentPost.post.id] ?? const [];
+                  final initialComments = fullComments.isNotEmpty
+                      ? fullComments
+                      : (widget.postTagComments[currentPost.post.id] ??
+                            const []);
                   showModalBottomSheet<void>(
                     context: context,
                     isScrollControlled: true,
@@ -260,12 +278,15 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                         create: (_) => AudioController(),
                         child: ApiVoiceCommentListSheet(
                           postId: currentPost.post.id,
-                          comments: comments,
+                          initialComments: initialComments,
+                          loadFullComments: widget.onLoadFullComments,
                           onCommentsUpdated: (updatedComments) {
                             if (!mounted) return;
                             setState(() {
-                              widget.postComments[currentPost.post.id] =
-                                  updatedComments;
+                              _replaceCommentCaches(
+                                currentPost.post.id,
+                                updatedComments,
+                              );
                             });
                           },
                         ),
@@ -319,8 +340,7 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                 onCommentSaveProgress: widget.onCommentSaveProgress,
                 onCommentSaveSuccess: (postId, comment) {
                   final existingTagCountBefore =
-                      (widget.postComments[postId] ?? const <Comment>[])
-                          .where((c) => c.hasLocation)
+                      (widget.postTagComments[postId] ?? const <Comment>[])
                           .length;
                   if (comment.hasLocation) {
                     unawaited(

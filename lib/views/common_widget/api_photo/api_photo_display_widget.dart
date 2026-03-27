@@ -68,7 +68,9 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
   final String categoryName;
   final bool isArchive;
   final bool isFromCamera;
+  final Map<int, List<Comment>> postTagComments;
   final Map<int, List<Comment>> postComments;
+  final Future<List<Comment>> Function(int postId)? loadFullComments;
   final Function(int, Offset) onProfileImageDragged;
   final Function(Post) onToggleAudio;
   final Map<int, PendingApiCommentMarker> pendingVoiceComments;
@@ -111,7 +113,9 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
     required this.categoryName,
     this.isArchive = false,
     this.isFromCamera = false,
+    required this.postTagComments,
     required this.postComments,
+    this.loadFullComments,
     required this.onProfileImageDragged,
     required this.onToggleAudio,
     this.pendingVoiceComments = const {},
@@ -162,13 +166,19 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   int _mediaLoadGeneration = 0;
   final GlobalKey _displayStackKey = GlobalKey();
 
+  List<Comment> get _overlayComments =>
+      widget.postTagComments[widget.post.id] ?? const <Comment>[];
+
   List<Comment> get _postComments =>
       widget.postComments[widget.post.id] ?? const <Comment>[];
+
+  List<Comment> get _initialSheetComments =>
+      _postComments.isNotEmpty ? _postComments : _overlayComments;
 
   bool get _hasPendingMarker =>
       widget.pendingVoiceComments[widget.post.id] != null;
 
-  bool get _hasComments => _postComments.isNotEmpty;
+  bool get _hasComments => _overlayComments.isNotEmpty;
 
   bool get _hasCaption => widget.post.content?.isNotEmpty ?? false;
 
@@ -742,7 +752,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   }
 
   void _openCommentSheet(String selectedKey) {
-    final comments = _postComments;
+    final comments = _initialSheetComments;
     if (_expandedMediaTagKey != null) {
       setState(() {
         _expandedMediaTagKey = null;
@@ -759,12 +769,13 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
           create: (_) => AudioController(),
           child: ApiVoiceCommentListSheet(
             postId: widget.post.id,
-            comments: comments,
+            initialComments: comments,
+            loadFullComments: widget.loadFullComments,
             selectedCommentId: selectedKey,
             onCommentsUpdated: (updatedComments) {
               if (!mounted) return;
               setState(() {
-                widget.postComments[widget.post.id] = updatedComments;
+                _replaceCommentCaches(updatedComments);
               });
             },
           ),
@@ -818,11 +829,37 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   }
 
   void _removeCommentFromCache(int commentId) {
-    final updated = List<Comment>.from(
-      widget.postComments[widget.post.id] ?? const <Comment>[],
-    )..removeWhere((comment) => comment.id == commentId);
-    widget.postComments[widget.post.id] = updated;
+    context.read<CommentController>().removeCommentFromCache(
+      postId: widget.post.id,
+      commentId: commentId,
+    );
+    final updatedFull = List<Comment>.from(_postComments)
+      ..removeWhere((comment) => comment.id == commentId);
+    final updatedTags = List<Comment>.from(_overlayComments)
+      ..removeWhere((comment) => comment.id == commentId);
+    if (_postComments.isNotEmpty) {
+      widget.postComments[widget.post.id] = List<Comment>.unmodifiable(
+        updatedFull,
+      );
+    }
+    widget.postTagComments[widget.post.id] = List<Comment>.unmodifiable(
+      updatedTags,
+    );
     setState(() {});
+  }
+
+  /// 댓글시트의 full thread 결과를 full/tag cache에 함께 반영합니다.
+  void _replaceCommentCaches(List<Comment> updatedComments) {
+    context.read<CommentController>().replaceCommentsCache(
+      postId: widget.post.id,
+      comments: updatedComments,
+    );
+    widget.postComments[widget.post.id] = List<Comment>.unmodifiable(
+      updatedComments,
+    );
+    widget.postTagComments[widget.post.id] = List<Comment>.unmodifiable(
+      updatedComments.where((comment) => comment.hasLocation).toList(),
+    );
   }
 
   void _navigateToCategory() {
@@ -1028,7 +1065,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                         ),
                       Positioned.fill(
                         child: ApiPhotoCommentOverlay(
-                          comments: _postComments,
+                          comments: _overlayComments,
                           pendingMarker:
                               widget.pendingVoiceComments[widget.post.id],
                           isShowingComments: _isShowingComments,

@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../api/controller/category_controller.dart' as api_category;
+import '../../api/controller/comment_controller.dart';
 import '../../api/controller/post_controller.dart';
 import '../../api/controller/user_controller.dart';
 import '../../api/models/comment.dart';
@@ -69,11 +70,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       // 각 게시물에 대한 댓글을 로드하는 콜백 설정
       _feedDataManager?.setOnPostsLoaded((items) {
         if (!mounted) return;
-        final initialItems = _feedDataManager?.visiblePosts;
-        final targetItems = (initialItems != null && initialItems.isNotEmpty)
-            ? initialItems
-            : items.take(5).toList(growable: false);
-        _loadCommentsForItems(targetItems);
+        _loadTagCommentsForItems(_buildTagPreloadCandidates(items));
       });
 
       _userController = Provider.of<UserController>(context, listen: false);
@@ -175,10 +172,12 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       );
       if (!mounted) return;
       if (success) {
+        context.read<CommentController>().invalidatePostCaches(postId: postId);
         setState(() {
           _feedDataManager?.removePhoto(
             index,
           ); // UI에서 즉시 제거 --> 서버에 접근하는 것이 아니라, UI단에서 제거하는 것.
+          _voiceCommentStateManager?.postTagComments.remove(item.post.id);
           _voiceCommentStateManager?.postComments.remove(
             item.post.id,
           ); // 댓글도 제거
@@ -217,7 +216,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       return;
     }
 
-    _loadCommentsAroundIndex(index);
+    _loadTagCommentsAroundIndex(index);
 
     // 수정: 현재 5개를 보여줄 때 4번째(인덱스 3)에서 다음 5개를 미리 로드합니다.
     // (일반화: 끝에서 2번째에 도달하면 다음 청크를 요청)
@@ -292,6 +291,10 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   }
 
   void _onCommentSaveSuccess(int postId, Comment comment) {
+    context.read<CommentController>().appendCreatedComment(
+      postId: postId,
+      comment: comment,
+    );
     _voiceCommentStateManager?.handleCommentSaveSuccess(postId, comment);
   }
 
@@ -326,6 +329,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   void _refreshFeedAfterProfileUpdate() {
     final posts = _feedDataManager?.allPosts ?? const <FeedPostItem>[];
     if (posts.isNotEmpty) {
+      _voiceCommentStateManager?.postTagComments.clear();
       _voiceCommentStateManager?.postComments.clear();
     }
 
@@ -335,7 +339,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       _feedDataManager?.loadUserCategoriesAndPhotos(context).then((_) {
         if (!mounted) return;
         final refreshedPosts = _feedDataManager?.visiblePosts ?? const [];
-        _loadCommentsForItems(refreshedPosts, forceReload: true);
+        _loadTagCommentsForItems(refreshedPosts, forceReload: true);
         if (mounted) {
           setState(() {});
         }
@@ -343,7 +347,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     );
   }
 
-  void _loadCommentsAroundIndex(int index) {
+  /// 현재/인접 post의 태그 댓글만 선로딩해 visible 카드의 첫 오버레이 표시를 앞당깁니다.
+  void _loadTagCommentsAroundIndex(int index) {
     final visiblePosts =
         _feedDataManager?.visiblePosts ?? const <FeedPostItem>[];
     if (visiblePosts.isEmpty || index < 0 || index >= visiblePosts.length) {
@@ -353,10 +358,28 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     final upperBound = (index + 2) < visiblePosts.length
         ? (index + 2)
         : visiblePosts.length;
-    _loadCommentsForItems(visiblePosts.sublist(index, upperBound));
+    _loadTagCommentsForItems(visiblePosts.sublist(index, upperBound));
   }
 
-  void _loadCommentsForItems(
+  /// 잠정 후보와 현재 visible post를 합쳐 새 상단 후보가 나타나도 태그 preload가 늦지 않게 합니다.
+  List<FeedPostItem> _buildTagPreloadCandidates(List<FeedPostItem> items) {
+    final currentVisible =
+        _feedDataManager?.visiblePosts ?? const <FeedPostItem>[];
+    final targetCount = currentVisible.isNotEmpty ? currentVisible.length : 5;
+    final mergedByPostId = <int, FeedPostItem>{};
+
+    for (final item in currentVisible.take(targetCount)) {
+      mergedByPostId[item.post.id] = item;
+    }
+    for (final item in items.take(targetCount)) {
+      mergedByPostId[item.post.id] = item;
+    }
+
+    return mergedByPostId.values.toList(growable: false);
+  }
+
+  /// 피드 preload는 full thread 대신 태그 좌표 댓글만 가져옵니다.
+  void _loadTagCommentsForItems(
     List<FeedPostItem> items, {
     bool forceReload = false,
   }) {
@@ -366,12 +389,36 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
 
     final postIds = items.map((item) => item.post.id).toList(growable: false);
     unawaited(
-      _voiceCommentStateManager?.loadCommentsForPosts(
+      _voiceCommentStateManager?.loadTagCommentsForPosts(
         postIds,
         context,
         forceReload: forceReload,
       ),
     );
+  }
+
+  /// 태그 삭제 후에는 현재 cache 상태에 맞춰 tag/full 중 필요한 범위만 다시 동기화합니다.
+  Future<void> _reloadCommentsForPost(int postId) async {
+    final manager = _voiceCommentStateManager;
+    if (manager == null) {
+      return;
+    }
+
+    if (manager.postComments.containsKey(postId)) {
+      await manager.loadCommentsForPost(postId, context, forceReload: true);
+      return;
+    }
+
+    await manager.loadTagCommentsForPost(postId, context, forceReload: true);
+  }
+
+  /// 댓글시트는 mount 직후 full thread를 hydrate하고 재오픈 시에는 full cache를 재사용합니다.
+  Future<List<Comment>> _loadFullCommentsForPost(int postId) async {
+    final manager = _voiceCommentStateManager;
+    if (manager == null) {
+      return const <Comment>[];
+    }
+    return manager.loadCommentsForPost(postId, context);
   }
 
   @override
@@ -475,6 +522,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
         posts: feedViewState.visiblePosts,
         hasMoreData: feedViewState.hasMoreData,
         isLoadingMore: feedViewState.isLoadingMore,
+        postTagComments: _voiceCommentStateManager!.postTagComments,
         postComments: _voiceCommentStateManager!.postComments,
         selectedEmojisByPostId:
             _voiceCommentStateManager!.selectedEmojisByPostId,
@@ -492,8 +540,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
         onPageChanged: (index) => _handlePageChanged(index),
         onStopAllAudio: _stopAllAudio,
         currentUserNickname: _userController?.currentUser?.userId,
-        onReloadComments: (postId) =>
-            _voiceCommentStateManager!.loadCommentsForPost(postId, context),
+        onReloadComments: _reloadCommentsForPost,
+        onLoadFullComments: _loadFullCommentsForPost,
         onEmojiSelected: (postId, emoji) =>
             _voiceCommentStateManager!.setSelectedEmoji(postId, emoji),
       ),

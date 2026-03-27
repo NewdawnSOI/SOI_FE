@@ -70,6 +70,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
   onReportSubmitted;
 
   // 상태 관리 관련
+  final Map<int, List<Comment>> postTagComments;
   final Map<int, List<Comment>> postComments;
   final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
   final Map<int, PendingApiCommentMarker> pendingVoiceComments;
@@ -92,6 +93,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
   final void Function(int, Object)? onCommentSaveFailure;
   final VoidCallback? onDeletePressed;
   final Future<void> Function(int postId)? onCommentsReloadRequested;
+  final Future<List<Comment>> Function(int postId)? onLoadFullComments;
 
   const ApiPhotoCardWidget({
     super.key,
@@ -107,6 +109,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
     this.selectedEmoji,
     this.onEmojiSelected,
     this.onReportSubmitted,
+    required this.postTagComments,
     required this.postComments,
     required this.pendingCommentDrafts,
     this.pendingVoiceComments = const {},
@@ -120,6 +123,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
     this.onCommentSaveFailure,
     this.onDeletePressed,
     this.onCommentsReloadRequested,
+    this.onLoadFullComments,
   });
 
   @override
@@ -139,6 +143,17 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   OverlayEntry? _expandedOverlayEntry;
   late final AnimationController _overlayExpandController;
   late final Animation<double> _overlayExpandAnimation;
+
+  List<Comment> get _tagComments =>
+      widget.postTagComments[widget.post.id] ?? const <Comment>[];
+
+  List<Comment> get _initialSheetComments {
+    final fullComments = widget.postComments[widget.post.id] ?? const <Comment>[];
+    if (fullComments.isNotEmpty) {
+      return fullComments;
+    }
+    return _tagComments;
+  }
 
   /// 텍스트 댓글 작성이 완료되면 부모 위젯에 알립니다.
   Future<void> _handleTextCommentCreated(String text) async {
@@ -235,14 +250,14 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   @override
   void deactivate() {
     // 화면에서 사라질 때(페이지 이동 등) 팝업을 닫습니다.
-    _removeExpandedMediaOverlay();
+    _teardownExpandedMediaOverlay();
     super.deactivate();
   }
 
   @override
   void dispose() {
     // 위젯이 완전히 제거될 때 팝업과 애니메이션을 정리합니다.
-    _removeExpandedMediaOverlay();
+    _teardownExpandedMediaOverlay();
     _overlayExpandController.dispose();
     super.dispose();
   }
@@ -254,6 +269,24 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     _expandedOverlayEntry?.remove();
     _expandedOverlayEntry = null;
     _expandedOverlayData = null;
+  }
+
+  /// teardown 경로에서는 animation reset 알림을 생략해 dispose 중 build 충돌을 피합니다.
+  void _teardownExpandedMediaOverlay() {
+    _overlayExpandController.stop();
+    _expandedOverlayEntry?.remove();
+    _expandedOverlayEntry = null;
+    _expandedOverlayData = null;
+  }
+
+  /// 시트가 돌려준 full thread 결과를 full/tag cache에 함께 반영합니다.
+  void _replaceCommentCaches(List<Comment> updatedComments) {
+    widget.postComments[widget.post.id] = List<Comment>.unmodifiable(
+      updatedComments,
+    );
+    widget.postTagComments[widget.post.id] = List<Comment>.unmodifiable(
+      updatedComments.where((comment) => comment.hasLocation).toList(),
+    );
   }
 
   /// 사진에서 댓글 태그를 탭했을 때 호출됩니다.
@@ -380,7 +413,9 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
           categoryName: widget.categoryName,
           isArchive: widget.isArchive,
           isFromCamera: widget.isFromCamera,
+          postTagComments: widget.postTagComments,
           postComments: widget.postComments,
+          loadFullComments: widget.onLoadFullComments,
           onProfileImageDragged: widget.onProfileImageDragged,
           onToggleAudio: widget.onToggleAudio,
           pendingVoiceComments: widget.pendingVoiceComments,
@@ -424,7 +459,9 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   categoryName: widget.categoryName,
                   isArchive: widget.isArchive,
                   isFromCamera: widget.isFromCamera,
+                  postTagComments: widget.postTagComments,
                   postComments: widget.postComments,
+                  loadFullComments: widget.onLoadFullComments,
                   onProfileImageDragged: widget.onProfileImageDragged,
                   onToggleAudio: widget.onToggleAudio,
                   pendingVoiceComments: widget.pendingVoiceComments,
@@ -445,7 +482,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                             widget.onReportSubmitted!(widget.post, result),
                   onCommentPressed: () {
                     // 댓글 리스트 Bottom Sheet 표시
-                    final comments = widget.postComments[widget.post.id] ?? [];
+                    final comments = _initialSheetComments;
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -455,12 +492,12 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                           create: (_) => AudioController(),
                           child: ApiVoiceCommentListSheet(
                             postId: widget.post.id,
-                            comments: comments,
+                            initialComments: comments,
+                            loadFullComments: widget.onLoadFullComments,
                             onCommentsUpdated: (updatedComments) {
                               if (!mounted) return;
                               setState(() {
-                                widget.postComments[widget.post.id] =
-                                    updatedComments;
+                                _replaceCommentCaches(updatedComments);
                               });
                             },
                           ),
@@ -513,11 +550,9 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                 onCommentSaveProgress: widget.onCommentSaveProgress!,
                 onCommentSaveSuccess: (postId, comment) {
                   final existingTagCountBefore =
-                      (widget.postComments[widget.post.id] ?? const <Comment>[])
-                          .where(
-                            (existingComment) => existingComment.hasLocation,
-                          )
-                          .length;
+                      _tagComments.where((existingComment) {
+                        return existingComment.hasLocation;
+                      }).length;
 
                   if (comment.hasLocation) {
                     unawaited(

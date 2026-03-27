@@ -36,10 +36,13 @@ class VoiceCommentStateManager {
       {}; // 임시 댓글 초안 저장
   final Map<int, PendingApiCommentMarker> _pendingCommentMarkers =
       {}; // UI 마커용 최소 데이터 저장
+  final Map<int, List<Comment>> _postTagComments = {};
   final Map<int, List<Comment>> _postComments = {};
   final Map<int, bool> _pendingTextComments = {};
   final Map<int, int> _autoPlacementIndices = {};
   final Map<int, String?> _selectedEmojisByPostId = {}; // postId별 내가 선택한 이모지
+  final Map<int, Future<void>> _inFlightTagCommentLoads = {};
+  final Map<int, Future<List<Comment>>> _inFlightFullCommentLoads = {};
 
   VoidCallback? _onStateChanged;
 
@@ -49,6 +52,7 @@ class VoiceCommentStateManager {
       _pendingCommentMarkers;
   Map<int, PendingApiCommentDraft> get pendingCommentDrafts =>
       _pendingCommentDrafts;
+  Map<int, List<Comment>> get postTagComments => _postTagComments;
   Map<int, List<Comment>> get postComments => _postComments;
   Map<int, bool> get pendingTextComments => _pendingTextComments;
   Map<int, String?> get selectedEmojisByPostId => _selectedEmojisByPostId;
@@ -97,12 +101,17 @@ class VoiceCommentStateManager {
     _notifyStateChanged(); // 상태 변경 알림
   }
 
-  /// 댓글을 특정 게시물에 대해 로드하는 메서드
-  Future<void> loadCommentsForPost(int postId, BuildContext context) async {
-    await loadCommentsForPosts([postId], context);
+  /// 태그 오버레이는 위치 댓글만 선로딩해 첫 표시 시간을 줄입니다.
+  Future<void> loadTagCommentsForPost(
+    int postId,
+    BuildContext context, {
+    bool forceReload = false,
+  }) async {
+    await loadTagCommentsForPosts([postId], context, forceReload: forceReload);
   }
 
-  Future<void> loadCommentsForPosts(
+  /// 여러 게시물의 태그 댓글을 post 단위로 병렬 로드하고, 완료 즉시 개별 반영합니다.
+  Future<void> loadTagCommentsForPosts(
     List<int> postIds,
     BuildContext context, {
     bool forceReload = false,
@@ -110,71 +119,177 @@ class VoiceCommentStateManager {
     final uniquePostIds = postIds
         .toSet()
         .where((postId) {
-          return forceReload || !_postComments.containsKey(postId);
+          return forceReload || !_postTagComments.containsKey(postId);
         })
         .toList(growable: false);
     if (uniquePostIds.isEmpty) {
       return;
     }
 
+    await Future.wait(
+      uniquePostIds.map(
+        (postId) => _loadTagCommentsForPostInternal(
+          postId,
+          context,
+          forceReload: forceReload,
+        ),
+      ),
+    );
+  }
+
+  /// 댓글 바텀시트는 전체 스레드를 캐시해 재오픈 시 네트워크를 줄입니다.
+  Future<List<Comment>> loadCommentsForPost(
+    int postId,
+    BuildContext context, {
+    bool forceReload = false,
+  }) async {
+    if (!forceReload) {
+      final cached = _postComments[postId];
+      if (cached != null) {
+        return cached;
+      }
+      final inFlight = _inFlightFullCommentLoads[postId];
+      if (inFlight != null) {
+        return inFlight;
+      }
+    }
+
+    final future = _loadFullCommentsForPostInternal(
+      postId,
+      context,
+      forceReload: forceReload,
+    );
+    _inFlightFullCommentLoads[postId] = future;
+    try {
+      return await future;
+    } finally {
+      final registered = _inFlightFullCommentLoads[postId];
+      if (identical(registered, future)) {
+        _inFlightFullCommentLoads.remove(postId);
+      }
+    }
+  }
+
+  /// 기존 전체 댓글 로딩 호출은 full-thread cache warmup으로 유지합니다.
+  Future<void> loadCommentsForPosts(
+    List<int> postIds,
+    BuildContext context, {
+    bool forceReload = false,
+  }) async {
+    final uniquePostIds = postIds.toSet().toList(growable: false);
+    if (uniquePostIds.isEmpty) {
+      return;
+    }
+
+    await Future.wait(
+      uniquePostIds.map(
+        (postId) =>
+            loadCommentsForPost(postId, context, forceReload: forceReload),
+      ),
+    );
+  }
+
+  /// 태그 전용 로드는 위치 댓글만 post 단위로 반영해 느린 sibling post의 영향 범위를 줄입니다.
+  Future<void> _loadTagCommentsForPostInternal(
+    int postId,
+    BuildContext context, {
+    bool forceReload = false,
+  }) async {
+    if (!forceReload) {
+      final inFlight = _inFlightTagCommentLoads[postId];
+      if (inFlight != null) {
+        return inFlight;
+      }
+    }
+
+    final future = () async {
+      try {
+        final commentController = context.read<CommentController>();
+        final mediaController = context.read<api_media.MediaController>();
+        final comments = await commentController.getTagComments(
+          postId: postId,
+          forceReload: forceReload,
+        );
+        final resolvedComments = await _resolveCommentProfileImages(
+          comments,
+          mediaController,
+        );
+
+        if (!context.mounted) return;
+        _storeTagComments(postId, resolvedComments);
+        _voiceCommentSavedStates[postId] =
+            resolvedComments.isNotEmpty ||
+            (_postComments[postId]?.isNotEmpty ?? false);
+        _notifyStateChanged();
+        _prefetchProfileImages(
+          context,
+          _buildProfilePrefetchCandidates(resolvedComments),
+        );
+      } catch (e) {
+        debugPrint('태그 댓글 로드 실패(postId: $postId): $e');
+      }
+    }();
+
+    _inFlightTagCommentLoads[postId] = future;
+    try {
+      await future;
+    } finally {
+      final registered = _inFlightTagCommentLoads[postId];
+      if (identical(registered, future)) {
+        _inFlightTagCommentLoads.remove(postId);
+      }
+    }
+  }
+
+  /// 전체 댓글 로드는 바텀시트와 저장/삭제 보정의 진실 소스로 사용합니다.
+  Future<List<Comment>> _loadFullCommentsForPostInternal(
+    int postId,
+    BuildContext context, {
+    required bool forceReload,
+  }) async {
     try {
       final currentUserNickname = context
           .read<UserController>()
           .currentUser
           ?.userId;
-      final commentController = Provider.of<CommentController>(
-        context,
-        listen: false,
-      );
+      final commentController = context.read<CommentController>();
       final mediaController = context.read<api_media.MediaController>();
+      final comments = await commentController.getComments(
+        postId: postId,
+        forceReload: forceReload,
+      );
+      final resolvedComments = await _resolveCommentProfileImages(
+        comments,
+        mediaController,
+      );
 
-      final commentResults = await Future.wait([
-        for (final postId in uniquePostIds)
-          () async {
-            final comments = await commentController.getComments(
-              postId: postId,
-            );
-            final resolvedComments = await _resolveCommentProfileImages(
-              comments,
-              mediaController,
-            );
-            return (postId: postId, comments: resolvedComments);
-          }(),
-      ]);
-
-      if (!context.mounted) return;
-
-      final prefetchCandidates = <_ProfileImagePrefetchCandidate>[];
-      final seenPrefetchKeys = <String>{};
-
-      for (final result in commentResults) {
-        final postId = result.postId;
-        final comments = result.comments;
-
-        _postComments[postId] = comments;
-
-        if (currentUserNickname != null) {
-          final selected = _selectedEmojiFromComments(
-            comments: comments,
-            currentUserNickname: currentUserNickname,
-          );
-          if (selected != null) {
-            _selectedEmojisByPostId[postId] = selected;
-          }
-        }
-
-        _voiceCommentSavedStates[postId] = comments.isNotEmpty;
-        _collectProfileImagePrefetchCandidates(
-          comments: comments,
-          prefetchCandidates: prefetchCandidates,
-          seenPrefetchKeys: seenPrefetchKeys,
-        );
+      if (!context.mounted) {
+        return resolvedComments;
       }
 
+      _postComments[postId] = List<Comment>.unmodifiable(resolvedComments);
+      _storeTagComments(postId, _filterTagComments(resolvedComments));
+
+      if (currentUserNickname != null) {
+        final selected = _selectedEmojiFromComments(
+          comments: resolvedComments,
+          currentUserNickname: currentUserNickname,
+        );
+        if (selected != null) {
+          _selectedEmojisByPostId[postId] = selected;
+        }
+      }
+
+      _voiceCommentSavedStates[postId] = resolvedComments.isNotEmpty;
       _notifyStateChanged();
-      _prefetchProfileImages(context, prefetchCandidates);
+      _prefetchProfileImages(
+        context,
+        _buildProfilePrefetchCandidates(resolvedComments),
+      );
+      return resolvedComments;
     } catch (e) {
-      debugPrint('댓글 로드 실패(postIds: $uniquePostIds): $e');
+      debugPrint('전체 댓글 로드 실패(postId: $postId): $e');
+      return _postComments[postId] ?? const <Comment>[];
     }
   }
 
@@ -295,6 +410,42 @@ class VoiceCommentStateManager {
         _ProfileImagePrefetchCandidate(imageUrl: imageUrl, cacheKey: cacheKey),
       );
     }
+  }
+
+  List<_ProfileImagePrefetchCandidate> _buildProfilePrefetchCandidates(
+    List<Comment> comments,
+  ) {
+    final candidates = <_ProfileImagePrefetchCandidate>[];
+    final seenPrefetchKeys = <String>{};
+    _collectProfileImagePrefetchCandidates(
+      comments: comments,
+      prefetchCandidates: candidates,
+      seenPrefetchKeys: seenPrefetchKeys,
+    );
+    return candidates;
+  }
+
+  List<Comment> _filterTagComments(List<Comment> comments) {
+    return comments
+        .where((comment) => comment.hasLocation)
+        .toList(growable: false);
+  }
+
+  void _storeTagComments(int postId, List<Comment> comments) {
+    _postTagComments[postId] = List<Comment>.unmodifiable(comments);
+  }
+
+  /// 캐시된 전체 댓글이 없더라도 현재 태그 오버레이가 쓸 좌표 집합은 유지합니다.
+  List<Comment> overlayCommentsForPost(int postId) {
+    final tagged = _postTagComments[postId];
+    if (tagged != null) {
+      return tagged;
+    }
+    final full = _postComments[postId];
+    if (full != null) {
+      return _filterTagComments(full);
+    }
+    return const <Comment>[];
   }
 
   void _prefetchProfileImages(
@@ -480,9 +631,17 @@ class VoiceCommentStateManager {
   }
 
   void handleCommentSaveSuccess(int postId, Comment comment) {
-    final existing = List<Comment>.from(_postComments[postId] ?? const []);
-    existing.add(comment);
-    _postComments[postId] = existing;
+    if (_postComments.containsKey(postId)) {
+      final existing = List<Comment>.from(_postComments[postId] ?? const []);
+      existing.add(comment);
+      _postComments[postId] = List<Comment>.unmodifiable(existing);
+    }
+    if (comment.hasLocation) {
+      final existingTags = List<Comment>.from(
+        _postTagComments[postId] ?? const <Comment>[],
+      )..add(comment);
+      _storeTagComments(postId, existingTags);
+    }
 
     _voiceCommentSavedStates[postId] = true;
     _voiceCommentActiveStates[postId] = false;
@@ -646,10 +805,22 @@ class VoiceCommentStateManager {
       if (creationResult.success) {
         _updatePendingProgress(postId, 1.0);
         if (creationResult.comment != null) {
+          commentController.appendCreatedComment(
+            postId: postId,
+            comment: creationResult.comment!,
+          );
           _addCommentToCache(postId, creationResult.comment!);
         } else {
-          final refreshed = await commentController.getComments(postId: postId);
-          _postComments[postId] = refreshed;
+          final refreshed = await commentController.getComments(
+            postId: postId,
+            forceReload: true,
+          );
+          commentController.replaceCommentsCache(
+            postId: postId,
+            comments: refreshed,
+          );
+          _postComments[postId] = List<Comment>.unmodifiable(refreshed);
+          _storeTagComments(postId, _filterTagComments(refreshed));
           _voiceCommentSavedStates[postId] = refreshed.isNotEmpty;
         }
         return true;
@@ -665,9 +836,17 @@ class VoiceCommentStateManager {
   }
 
   void _addCommentToCache(int postId, Comment comment) {
-    final existing = List<Comment>.from(_postComments[postId] ?? const []);
-    existing.add(comment);
-    _postComments[postId] = existing;
+    if (_postComments.containsKey(postId)) {
+      final existing = List<Comment>.from(_postComments[postId] ?? const []);
+      existing.add(comment);
+      _postComments[postId] = List<Comment>.unmodifiable(existing);
+    }
+    if (comment.hasLocation) {
+      final existingTags = List<Comment>.from(
+        _postTagComments[postId] ?? const <Comment>[],
+      )..add(comment);
+      _storeTagComments(postId, existingTags);
+    }
     _voiceCommentSavedStates[postId] = true;
     _notifyStateChanged();
   }
@@ -689,7 +868,7 @@ class VoiceCommentStateManager {
   /// 자동 배치 위치 생성기
   Offset _generateAutoProfilePosition(int postId) {
     final occupiedPositions = <Offset>[];
-    final comments = _postComments[postId] ?? const <Comment>[];
+    final comments = overlayCommentsForPost(postId);
 
     for (final comment in comments) {
       if (comment.hasLocation) {
@@ -779,6 +958,7 @@ class VoiceCommentStateManager {
     _pendingCommentDrafts.clear();
     _pendingCommentMarkers.clear();
     _pendingTextComments.clear();
+    _postTagComments.clear();
     _postComments.clear();
   }
 

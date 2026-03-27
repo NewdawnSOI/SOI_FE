@@ -76,6 +76,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   int _lastBlockedFriendsRevision = 0;
 
   // 상태 맵 (Firebase 버전과 동일한 구조)
+  final Map<int, List<Comment>> _postTagComments = {};
   final Map<int, List<Comment>> _postComments = {};
   final Map<int, String?> _selectedEmojisByPostId = {}; // postId별 내가 선택한 이모지
   final Map<String, String> _userProfileImages = {};
@@ -84,6 +85,8 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   final Map<int, PendingApiCommentDraft> _pendingCommentDrafts = {};
   final Map<int, PendingApiCommentMarker> _pendingCommentMarkers = {};
   final Map<int, String> _resolvedAudioUrls = {};
+  final Map<int, Future<void>> _inFlightTagCommentLoads = {};
+  final Map<int, Future<List<Comment>>> _inFlightFullCommentLoads = {};
   bool _isTextFieldFocused = false;
 
   String? _emojiFromId(int? emojiId) {
@@ -154,7 +157,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       if (!mounted) return;
 
       // 초기 댓글 로드
-      _loadCommentsForPost(_posts[_currentIndex].id);
+      _loadTagCommentsForPost(_posts[_currentIndex].id);
     });
   }
 
@@ -229,7 +232,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     }
 
     unawaited(_loadUserProfileImage());
-    _loadCommentsForPost(_posts[_currentIndex].id);
+    _loadTagCommentsForPost(_posts[_currentIndex].id);
   }
 
   // ================= UI =================
@@ -330,6 +333,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                           selectedEmoji: _selectedEmojisByPostId[post.id],
                           onEmojiSelected: (emoji) =>
                               _setSelectedEmoji(post.id, emoji),
+                          postTagComments: _postTagComments,
                           postComments: _postComments,
                           pendingCommentDrafts: _pendingCommentDrafts,
                           pendingVoiceComments: _pendingCommentMarkers,
@@ -337,7 +341,8 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                           onProfileImageDragged: (postId, absolutePosition) {
                             _onProfileImageDragged(postId, absolutePosition);
                           },
-                          onCommentsReloadRequested: _loadCommentsForPost,
+                          onCommentsReloadRequested: _reloadCommentsForPost,
+                          onLoadFullComments: _loadFullCommentsForPost,
                         );
                       },
                     ),
@@ -357,7 +362,9 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                           isCurrentUserPost: isOwner,
                           onDeletePressed: () => _deletePost(post),
                           onCommentPressed: () {
-                            final comments = _postComments[post.id] ?? const [];
+                            final comments = _initialSheetCommentsForPost(
+                              post.id,
+                            );
                             showModalBottomSheet<void>(
                               context: context,
                               isScrollControlled: true,
@@ -367,12 +374,15 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                                   create: (_) => AudioController(),
                                   child: ApiVoiceCommentListSheet(
                                     postId: post.id,
-                                    comments: comments,
+                                    initialComments: comments,
+                                    loadFullComments: _loadFullCommentsForPost,
                                     onCommentsUpdated: (updatedComments) {
                                       if (!mounted) return;
                                       setState(() {
-                                        _postComments[post.id] =
-                                            updatedComments;
+                                        _replaceCommentCaches(
+                                          post.id,
+                                          updatedComments,
+                                        );
                                       });
                                     },
                                   ),
@@ -441,7 +451,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     });
     _stopAudio();
     unawaited(_loadUserProfileImage());
-    _loadCommentsForPost(_posts[index].id);
+    _loadTagCommentsForPost(_posts[index].id);
   }
 
   /// 서버가 내려준 URL을 즉시 표시용 값으로 정규화합니다.
@@ -570,46 +580,137 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     );
   }
 
-  /// 게시물의 댓글 로드
-  Future<void> _loadCommentsForPost(int postId) async {
+  /// 상세 화면은 overlay용 tag cache를 우선 사용하고 full thread는 시트를 열 때만 가져옵니다.
+  Future<void> _loadTagCommentsForPost(
+    int postId, {
+    bool forceReload = false,
+  }) async {
+    if (!forceReload) {
+      if (_postTagComments.containsKey(postId)) {
+        return;
+      }
+      final inFlight = _inFlightTagCommentLoads[postId];
+      if (inFlight != null) {
+        return inFlight;
+      }
+    }
+
+    final future = () async {
+      try {
+        final commentController = context.read<CommentController>();
+        final comments = await commentController.getTagComments(
+          postId: postId,
+          forceReload: forceReload,
+        );
+        if (!mounted) return;
+
+        setState(() {
+          _postTagComments[postId] = List<Comment>.unmodifiable(comments);
+        });
+      } catch (error) {
+        debugPrint('태그 댓글 로드 실패(postId: $postId): $error');
+      }
+    }();
+
+    _inFlightTagCommentLoads[postId] = future;
     try {
-      final commentController = Provider.of<CommentController>(
-        context,
-        listen: false,
-      );
-      final comments = await commentController.getComments(postId: postId);
-
-      if (!mounted) return;
-
-      final currentUserId = _userController?.currentUser?.userId;
-      _handleCommentsUpdate(postId, currentUserId, comments);
-    } catch (e) {
-      debugPrint('댓글 로드 실패: $e');
+      await future;
+    } finally {
+      final registered = _inFlightTagCommentLoads[postId];
+      if (identical(registered, future)) {
+        _inFlightTagCommentLoads.remove(postId);
+      }
     }
   }
 
-  /// 댓글 목록 업데이트 처리
-  void _handleCommentsUpdate(
-    int postId,
-    String? currentUserId,
-    List<Comment> comments,
-  ) {
-    if (!mounted) return;
-
-    setState(() {
-      _postComments[postId] = comments;
-
-      // 서버 댓글을 바탕으로, 내 이모지 선택값을 복원합니다(있을 때만 덮어쓰기).
-      if (currentUserId != null) {
-        final selected = _selectedEmojiFromComments(
-          comments: comments,
-          currentUserNickname: currentUserId,
-        );
-        if (selected != null) {
-          _selectedEmojisByPostId[postId] = selected;
-        }
+  /// 댓글시트는 full thread를 캐시해 재오픈 시 네트워크 비용을 줄입니다.
+  Future<List<Comment>> _loadFullCommentsForPost(
+    int postId, {
+    bool forceReload = false,
+  }) async {
+    if (!forceReload) {
+      final cached = _postComments[postId];
+      if (cached != null) {
+        return cached;
       }
-    });
+      final inFlight = _inFlightFullCommentLoads[postId];
+      if (inFlight != null) {
+        return inFlight;
+      }
+    }
+
+    final future = () async {
+      try {
+        final commentController = context.read<CommentController>();
+        final comments = await commentController.getComments(
+          postId: postId,
+          forceReload: forceReload,
+        );
+        if (!mounted) {
+          return comments;
+        }
+
+        setState(() {
+          _replaceCommentCaches(postId, comments);
+        });
+        return comments;
+      } catch (error) {
+        debugPrint('전체 댓글 로드 실패(postId: $postId): $error');
+        return _postComments[postId] ?? const <Comment>[];
+      }
+    }();
+
+    _inFlightFullCommentLoads[postId] = future;
+    try {
+      return await future;
+    } finally {
+      final registered = _inFlightFullCommentLoads[postId];
+      if (identical(registered, future)) {
+        _inFlightFullCommentLoads.remove(postId);
+      }
+    }
+  }
+
+  /// overlay 삭제 후에는 이미 가진 cache 범위에 맞춰 tag/full 중 필요한 조회만 다시 수행합니다.
+  Future<void> _reloadCommentsForPost(int postId) async {
+    if (_postComments.containsKey(postId)) {
+      await _loadFullCommentsForPost(postId, forceReload: true);
+      return;
+    }
+    await _loadTagCommentsForPost(postId, forceReload: true);
+  }
+
+  List<Comment> _initialSheetCommentsForPost(int postId) {
+    final fullComments = _postComments[postId];
+    if (fullComments != null && fullComments.isNotEmpty) {
+      return fullComments;
+    }
+    return _postTagComments[postId] ?? const <Comment>[];
+  }
+
+  /// full thread와 overlay tag cache를 같은 기준으로 갱신해 화면 간 상태를 맞춥니다.
+  void _replaceCommentCaches(int postId, List<Comment> comments) {
+    context.read<CommentController>().replaceCommentsCache(
+      postId: postId,
+      comments: comments,
+    );
+    _postComments[postId] = List<Comment>.unmodifiable(comments);
+    _postTagComments[postId] = List<Comment>.unmodifiable(
+      comments.where((comment) => comment.hasLocation).toList(),
+    );
+
+    final currentUserId = _userController?.currentUser?.userId;
+    if (currentUserId == null) {
+      return;
+    }
+
+    final selected = _selectedEmojiFromComments(
+      comments: comments,
+      currentUserNickname: currentUserId,
+    );
+    if (selected != null) {
+      _selectedEmojisByPostId[postId] = selected;
+    }
   }
 
   /// 프로필 이미지 드래그 시 위치 업데이트 처리
@@ -781,11 +882,23 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
   void _onCommentSaveSuccess(int postId, Comment comment) {
     if (!mounted) return;
+    context.read<CommentController>().appendCreatedComment(
+      postId: postId,
+      comment: comment,
+    );
     setState(() {
-      final updatedList = List<Comment>.from(
-        _postComments[postId] ?? const <Comment>[],
-      )..add(comment);
-      _postComments[postId] = updatedList;
+      if (_postComments.containsKey(postId)) {
+        final updatedList = List<Comment>.from(
+          _postComments[postId] ?? const <Comment>[],
+        )..add(comment);
+        _postComments[postId] = List<Comment>.unmodifiable(updatedList);
+      }
+      if (comment.hasLocation) {
+        final updatedTags = List<Comment>.from(
+          _postTagComments[postId] ?? const <Comment>[],
+        )..add(comment);
+        _postTagComments[postId] = List<Comment>.unmodifiable(updatedTags);
+      }
       _pendingCommentDrafts.remove(postId);
       _pendingCommentMarkers.remove(postId);
     });
@@ -876,11 +989,15 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   /// - [postId]: 삭제된 게시물 ID
   /// - [nickName]: 삭제된 게시물 작성자의 닉네임 (사용자 캐시 정리를 위해 필요)
   void _clearPostScopedState(int postId, {required String nickName}) {
+    context.read<CommentController>().invalidatePostCaches(postId: postId);
+    _postTagComments.remove(postId);
     _postComments.remove(postId);
     _selectedEmojisByPostId.remove(postId);
     _pendingCommentDrafts.remove(postId);
     _pendingCommentMarkers.remove(postId);
     _resolvedAudioUrls.remove(postId);
+    _inFlightTagCommentLoads.remove(postId);
+    _inFlightFullCommentLoads.remove(postId);
 
     final hasOtherPostsByNickname = _posts.any(
       (existingPost) =>
@@ -924,7 +1041,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
     // profile 이미지 및 댓글 재로딩
     unawaited(_loadUserProfileImage());
-    _loadCommentsForPost(_posts[_currentIndex].id);
+    _loadTagCommentsForPost(_posts[_currentIndex].id);
   }
 
   Future<void> _stopAudio() async {

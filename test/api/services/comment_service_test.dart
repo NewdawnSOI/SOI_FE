@@ -83,6 +83,8 @@ CommentRespDto _commentDto(
   DateTime? createdAt,
   CommentRespDtoCommentTypeEnum type = CommentRespDtoCommentTypeEnum.TEXT,
   int? userId,
+  double? locationX,
+  double? locationY,
 }) {
   return CommentRespDto(
     id: id,
@@ -90,6 +92,8 @@ CommentRespDto _commentDto(
     nickname: 'user$id',
     commentType: type,
     createdAt: createdAt,
+    locationX: locationX,
+    locationY: locationY,
   );
 }
 
@@ -405,6 +409,79 @@ void main() {
         );
       },
     );
+  });
+
+  group('CommentService getTagComments', () {
+    test('filters location comments from parent pages without child fetches', () async {
+      final parentCalls = <String>[];
+
+      final service = CommentService(
+        commentApi: _FakeCommentApi(
+          onGetParentComment: (postId, page) async {
+            parentCalls.add('$postId:$page');
+            if (page == 0) {
+              return _sliceResponse(
+                content: [
+                  _commentDto(1, locationX: 0.2, locationY: 0.3),
+                  _commentDto(2),
+                ],
+                last: false,
+                empty: false,
+              );
+            }
+            if (page == 1) {
+              return _sliceResponse(
+                content: [
+                  _commentDto(3, locationX: 0.6, locationY: 0.4),
+                ],
+                last: true,
+                empty: false,
+              );
+            }
+            return null;
+          },
+          onGetChildComment: (parentCommentId, page) async {
+            fail('getTagComments should not request child comments');
+          },
+        ),
+      );
+
+      final comments = await service.getTagComments(postId: 44);
+
+      expect(parentCalls, ['44:0', '44:1']);
+      expect(comments.map((comment) => comment.id), [1, 3]);
+      expect(comments.every((comment) => comment.hasLocation), isTrue);
+    });
+
+    test('dedupes in-flight getTagComments requests by postId', () async {
+      final parentCompleter = Completer<ApiResponseDtoSliceCommentRespDto?>();
+      var parentCallCount = 0;
+
+      final service = CommentService(
+        commentApi: _FakeCommentApi(
+          onGetParentComment: (postId, page) {
+            parentCallCount++;
+            return parentCompleter.future;
+          },
+          onGetChildComment: (parentCommentId, page) async {
+            fail('getTagComments should not request child comments');
+          },
+        ),
+      );
+
+      final first = service.getTagComments(postId: 77);
+      final second = service.getTagComments(postId: 77);
+
+      parentCompleter.complete(
+        _sliceResponse(content: const [], last: true, empty: true),
+      );
+
+      final results = await Future.wait([first, second]);
+
+      expect(parentCallCount, 1);
+      expect(results[0], isEmpty);
+      expect(results[1], isEmpty);
+    });
   });
 
   group('CommentService parent/child slice queries', () {

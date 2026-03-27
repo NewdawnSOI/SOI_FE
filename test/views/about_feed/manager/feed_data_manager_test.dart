@@ -105,6 +105,92 @@ void main() {
       },
     );
 
+    testWidgets(
+      'emits provisional feed candidates before every category request completes',
+      (tester) async {
+        final manager = FeedDataManager();
+        final userController =
+            UserController(userService: UserService(userApi: _NoopUserApi()))
+              ..setCurrentUser(
+                const User(
+                  id: 7,
+                  userId: 'viewer',
+                  name: 'Viewer',
+                  phoneNumber: '01000000000',
+                ),
+              );
+        final categoryController = _RecordingCategoryController(
+          categories: _categories,
+        );
+        final postController = _RecordingPostController();
+        final friendController = _NoopFriendController();
+        final alphaCompleter = Completer<List<Post>>();
+        final betaCompleter = Completer<List<Post>>();
+        final emittedSnapshots = <List<int>>[];
+
+        postController.onGetPostsByCategory =
+            ({
+              required int categoryId,
+              required int userId,
+              int? notificationId,
+              int page = 0,
+              bool notifyLoading = true,
+              bool forceRefresh = false,
+            }) {
+              if (categoryId == 1) {
+                return alphaCompleter.future;
+              }
+              return betaCompleter.future;
+            };
+
+        manager.setOnPostsLoaded((items) {
+          emittedSnapshots.add(
+            items.map((item) => item.post.id).toList(growable: false),
+          );
+        });
+
+        final context = await _pumpProviderTree(
+          tester: tester,
+          manager: manager,
+          userController: userController,
+          categoryController: categoryController,
+          postController: postController,
+          friendController: friendController,
+        );
+
+        final loadFuture = manager.loadUserCategoriesAndPhotos(context);
+
+        alphaCompleter.complete([
+          Post(
+            id: 101,
+            nickName: 'alpha-author',
+            createdAt: DateTime.utc(2026, 3, 11, 8),
+          ),
+        ]);
+        await tester.pump();
+
+        expect(emittedSnapshots, isNotEmpty);
+        expect(emittedSnapshots.first, [101]);
+
+        betaCompleter.complete([
+          Post(
+            id: 202,
+            nickName: 'beta-author',
+            createdAt: DateTime.utc(2026, 3, 11, 9),
+          ),
+        ]);
+        await loadFuture;
+        await tester.pumpAndSettle();
+
+        expect(emittedSnapshots.length, greaterThanOrEqualTo(2));
+        expect(emittedSnapshots.last, [202, 101]);
+        expect(
+          manager.allPosts.map((item) => item.post.id).toList(growable: false),
+          [202, 101],
+        );
+      },
+    );
+
     testWidgets('keeps visible feed while warm cache refresh is in flight', (
       tester,
     ) async {

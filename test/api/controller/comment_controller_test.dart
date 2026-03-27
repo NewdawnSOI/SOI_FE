@@ -28,6 +28,8 @@ typedef _CreateCommentHandler =
 
 typedef _GetCommentsHandler =
     Future<List<Comment>> Function({required int postId});
+typedef _GetTagCommentsHandler =
+    Future<List<Comment>> Function({required int postId});
 typedef _GetParentCommentsHandler =
     Future<({List<Comment> comments, bool hasMore})> Function({
       required int postId,
@@ -44,12 +46,14 @@ class _FakeCommentService extends CommentService {
     required this.onCreate,
     this.onGetByUserId,
     this.onGetComments,
+    this.onGetTagComments,
     this.onGetParentComments,
     this.onGetChildComments,
   }) : super(commentApi: _NoopCommentApi());
 
   final _CreateCommentHandler onCreate;
   final _GetCommentsHandler? onGetComments;
+  final _GetTagCommentsHandler? onGetTagComments;
   final _GetParentCommentsHandler? onGetParentComments;
   final _GetChildCommentsHandler? onGetChildComments;
   final Future<({List<Comment> comments, bool hasMore})> Function({
@@ -96,6 +100,15 @@ class _FakeCommentService extends CommentService {
     final handler = onGetComments;
     if (handler == null) {
       throw UnsupportedError('Should not call getComments');
+    }
+    return handler(postId: postId);
+  }
+
+  @override
+  Future<List<Comment>> getTagComments({required int postId}) {
+    final handler = onGetTagComments;
+    if (handler == null) {
+      throw UnsupportedError('Should not call getTagComments');
     }
     return handler(postId: postId);
   }
@@ -492,6 +505,161 @@ void main() {
       expect(result.hasMore, isTrue);
     });
 
+    test(
+      'getComments reuses cached full-thread snapshot until force reload',
+      () async {
+        var getCommentsCallCount = 0;
+
+        final controller = CommentController(
+          commentService: _FakeCommentService(
+            onCreate:
+                ({
+                  required int postId,
+                  required int userId,
+                  int? emojiId,
+                  int? parentId,
+                  int? replyUserId,
+                  String? text,
+                  String? audioFileKey,
+                  String? fileKey,
+                  String? waveformData,
+                  int? duration,
+                  double? locationX,
+                  double? locationY,
+                  CommentType? type,
+                }) async => const CommentCreationResult(success: true),
+            onGetComments: ({required int postId}) async {
+              getCommentsCallCount += 1;
+              return [
+                Comment(
+                  id: getCommentsCallCount,
+                  nickname: 'user-$getCommentsCallCount',
+                  locationX: 0.2,
+                  locationY: 0.8,
+                  type: CommentType.text,
+                ),
+              ];
+            },
+          ),
+        );
+
+        final first = await controller.getComments(postId: 44);
+        final second = await controller.getComments(postId: 44);
+        final refreshed = await controller.getComments(
+          postId: 44,
+          forceReload: true,
+        );
+
+        expect(getCommentsCallCount, 2);
+        expect(first.single.id, 1);
+        expect(second.single.id, 1);
+        expect(refreshed.single.id, 2);
+        expect(controller.peekCommentsCache(postId: 44)?.single.id, 2);
+        expect(controller.peekTagCommentsCache(postId: 44)?.single.id, 2);
+      },
+    );
+
+    test(
+      'tag cache derives from full cache and stays in sync with mutations',
+      () async {
+        var getTagCommentsCallCount = 0;
+
+        final controller = CommentController(
+          commentService: _FakeCommentService(
+            onCreate:
+                ({
+                  required int postId,
+                  required int userId,
+                  int? emojiId,
+                  int? parentId,
+                  int? replyUserId,
+                  String? text,
+                  String? audioFileKey,
+                  String? fileKey,
+                  String? waveformData,
+                  int? duration,
+                  double? locationX,
+                  double? locationY,
+                  CommentType? type,
+                }) async => const CommentCreationResult(success: true),
+            onGetComments: ({required int postId}) async {
+              return const [
+                Comment(
+                  id: 1,
+                  nickname: 'tagged',
+                  locationX: 0.1,
+                  locationY: 0.2,
+                  type: CommentType.text,
+                ),
+                Comment(id: 2, nickname: 'plain', type: CommentType.text),
+              ];
+            },
+            onGetTagComments: ({required int postId}) async {
+              getTagCommentsCallCount += 1;
+              return const [
+                Comment(
+                  id: 999,
+                  nickname: 'service-tag',
+                  locationX: 0.3,
+                  locationY: 0.7,
+                  type: CommentType.text,
+                ),
+              ];
+            },
+          ),
+        );
+
+        await controller.getComments(postId: 55);
+        final derivedTags = await controller.getTagComments(postId: 55);
+
+        expect(getTagCommentsCallCount, 0);
+        expect(derivedTags.map((comment) => comment.id).toList(), [1]);
+
+        controller.appendCreatedComment(
+          postId: 55,
+          comment: const Comment(
+            id: 3,
+            nickname: 'new-tag',
+            locationX: 0.4,
+            locationY: 0.6,
+            type: CommentType.text,
+          ),
+        );
+
+        expect(
+          controller
+              .peekCommentsCache(postId: 55)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [1, 2, 3],
+        );
+        expect(
+          controller
+              .peekTagCommentsCache(postId: 55)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [1, 3],
+        );
+
+        controller.removeCommentFromCache(postId: 55, commentId: 1);
+
+        expect(
+          controller
+              .peekCommentsCache(postId: 55)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [2, 3],
+        );
+        expect(
+          controller
+              .peekTagCommentsCache(postId: 55)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [3],
+        );
+      },
+    );
+
     test('getParentComments forwards paging params to service', () async {
       int? capturedPostId;
       int? capturedPage;
@@ -627,6 +795,104 @@ void main() {
 
         expect(callCount, 1);
         expect(results[0], hasLength(1));
+        expect(results[1].single.id, 1);
+        expect(controller.isLoading, isFalse);
+      },
+    );
+
+    test('getTagComments forwards requests to service', () async {
+      int? capturedPostId;
+
+      final controller = CommentController(
+        commentService: _FakeCommentService(
+          onCreate:
+              ({
+                required int postId,
+                required int userId,
+                int? emojiId,
+                int? parentId,
+                int? replyUserId,
+                String? text,
+                String? audioFileKey,
+                String? fileKey,
+                String? waveformData,
+                int? duration,
+                double? locationX,
+                double? locationY,
+                CommentType? type,
+              }) async => const CommentCreationResult(success: true),
+          onGetTagComments: ({required int postId}) async {
+            capturedPostId = postId;
+            return const [
+              Comment(
+                id: 9,
+                nickname: 'tag',
+                type: CommentType.text,
+                locationX: 0.1,
+                locationY: 0.2,
+              ),
+            ];
+          },
+        ),
+      );
+
+      final result = await controller.getTagComments(postId: 9);
+
+      expect(capturedPostId, 9);
+      expect(result.single.id, 9);
+      expect(result.single.hasLocation, isTrue);
+    });
+
+    test(
+      'dedupes in-flight getTagComments requests and keeps loading stable',
+      () async {
+        final tagCompleter = Completer<List<Comment>>();
+        var callCount = 0;
+
+        final controller = CommentController(
+          commentService: _FakeCommentService(
+            onCreate:
+                ({
+                  required int postId,
+                  required int userId,
+                  int? emojiId,
+                  int? parentId,
+                  int? replyUserId,
+                  String? text,
+                  String? audioFileKey,
+                  String? fileKey,
+                  String? waveformData,
+                  int? duration,
+                  double? locationX,
+                  double? locationY,
+                  CommentType? type,
+                }) async => const CommentCreationResult(success: true),
+            onGetTagComments: ({required int postId}) {
+              callCount++;
+              return tagCompleter.future;
+            },
+          ),
+        );
+
+        final first = controller.getTagComments(postId: 5);
+        final second = controller.getTagComments(postId: 5);
+
+        expect(controller.isLoading, isTrue);
+
+        tagCompleter.complete(const [
+          Comment(
+            id: 1,
+            nickname: 'tag',
+            type: CommentType.text,
+            locationX: 0.3,
+            locationY: 0.7,
+          ),
+        ]);
+
+        final results = await Future.wait([first, second]);
+
+        expect(callCount, 1);
+        expect(results[0].single.id, 1);
         expect(results[1].single.id, 1);
         expect(controller.isLoading, isFalse);
       },

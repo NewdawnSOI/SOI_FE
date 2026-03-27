@@ -27,6 +27,19 @@ class FeedPostItem {
   });
 }
 
+/// 카테고리별 게시물 fetch 결과를 잠정 피드 후보와 최종 집계에 함께 쓰기 위한 래퍼입니다.
+class _CategoryFeedLoadResult {
+  final int categoryId;
+  final List<FeedPostItem> items;
+  final bool success;
+
+  const _CategoryFeedLoadResult({
+    required this.categoryId,
+    required this.items,
+    required this.success,
+  });
+}
+
 class FeedDataManager extends ChangeNotifier {
   List<FeedPostItem> _allPosts =
       const <FeedPostItem>[]; // 전체 피드 게시물을 담는 리스트입니다.
@@ -125,6 +138,78 @@ class FeedDataManager extends ChangeNotifier {
     _hasMoreData = _visibleCount < _allPosts.length;
   }
 
+  /// 잠정 후보 목록을 스냅샷으로 넘겨 태그 prefetch가 전체 집계 완료를 기다리지 않게 합니다.
+  void _emitLoadedPostCandidates(List<FeedPostItem> posts) {
+    if (_onPostsLoaded == null) {
+      return;
+    }
+
+    final snapshot = posts.isEmpty
+        ? const <FeedPostItem>[]
+        : List<FeedPostItem>.unmodifiable(posts);
+    _onPostsLoaded?.call(snapshot);
+  }
+
+  /// provisional/final 집계 모두 차단 사용자 제거와 최신순 정렬을 같은 기준으로 맞춥니다.
+  List<FeedPostItem> _sortAndFilterFeedItems(
+    List<FeedPostItem> posts,
+    Set<String> blockedNicknames,
+  ) {
+    if (posts.isEmpty) {
+      return const <FeedPostItem>[];
+    }
+
+    final filtered = blockedNicknames.isEmpty
+        ? List<FeedPostItem>.from(posts)
+        : posts
+              .where((item) => !blockedNicknames.contains(item.post.nickName))
+              .toList(growable: true);
+    filtered.sort((a, b) {
+      final aTime = a.post.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = b.post.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    });
+    return filtered;
+  }
+
+  /// 카테고리별 fetch 실패를 로컬 결과로 감싸 한 카테고리 지연이 전체 피드를 막지 않게 합니다.
+  Future<_CategoryFeedLoadResult> _loadCategoryPosts({
+    required api_model.Category category,
+    required PostController postController,
+    required int userId,
+    required bool forceRefresh,
+  }) async {
+    try {
+      final posts = await postController.getPostsByCategory(
+        categoryId: category.id,
+        userId: userId,
+        notifyLoading: false,
+        forceRefresh: forceRefresh,
+      );
+
+      return _CategoryFeedLoadResult(
+        categoryId: category.id,
+        success: true,
+        items: posts
+            .map(
+              (post) => FeedPostItem(
+                post: post,
+                categoryId: category.id,
+                categoryName: category.name,
+              ),
+            )
+            .toList(growable: false),
+      );
+    } catch (e) {
+      debugPrint('[FeedDataManager] 카테고리 ${category.id} 로드 실패: $e');
+      return _CategoryFeedLoadResult(
+        categoryId: category.id,
+        items: const <FeedPostItem>[],
+        success: false,
+      );
+    }
+  }
+
   /// PostController의 게시물 변경을 구독
   void listenToPostController(
     PostController postController,
@@ -190,7 +275,7 @@ class FeedDataManager extends ChangeNotifier {
   // 메소드의 흐름
   // loadUserCategoriesAndPhotos
   //   -> (캐시 사용) visibleCount/hasMoreData 갱신 -> _notifyStateChanged
-  //   -> (서버 로드) loadCategories -> Future.wait(getPostsByCategory...) -> sort -> _notifyStateChanged -> _onPostsLoaded?.call(...)
+  //   -> (서버 로드) loadCategories -> 카테고리별 잠정 후보 emit -> sort/확정 -> _notifyStateChanged -> _onPostsLoaded?.call(...)
 
   /// 피드용 사용자 카테고리 및 게시물 로드 메소드
   /// forceRefresh=false면 이미 캐싱된 목록을 그대로 재사용(피드 재방문 시 쉬머/로딩 최소화)
@@ -269,7 +354,6 @@ class FeedDataManager extends ChangeNotifier {
         listen: false,
       );
 
-      var hadCategoryLoadFailure = false;
       final blockedUsersFuture = friendController.getAllFriends(
         userId: currentUser.id,
         status: FriendStatus.blocked,
@@ -290,39 +374,46 @@ class FeedDataManager extends ChangeNotifier {
         return;
       }
 
-      // 카테고리별 게시물을 "병렬"로 로드해서 결합합니다.
-      final combinedLists = await Future.wait(
-        categories.map((category) async {
-          try {
-            // 카테고리별 게시물 로드
-            final posts = await postController.getPostsByCategory(
-              categoryId: category.id,
+      final blockedUsers = await blockedUsersFuture;
+      final blockedNicknames = blockedUsers.map((user) => user.userId).toSet();
+      final combinedByCategory = <int, List<FeedPostItem>>{};
+      var hadCategoryLoadFailure = false;
+
+      // 카테고리별 게시물은 병렬로 요청하되, 완료되는 순서대로 잠정 후보를 먼저 전달합니다.
+      final categoryLoadTasks = categories
+          .map(
+            (category) => _loadCategoryPosts(
+              category: category,
+              postController: postController,
               userId: currentUser.id,
-              notifyLoading: false,
               forceRefresh: forceRefresh,
-            );
+            ),
+          )
+          .toList(growable: false);
 
-            // 게시물과 카테고리 정보를 결합
-            return posts
-                .map(
-                  (post) => FeedPostItem(
-                    post: post,
-                    categoryId: category.id,
-                    categoryName: category.name,
-                  ),
-                )
-                .toList(growable: false);
-          } catch (e) {
-            hadCategoryLoadFailure = true;
-            debugPrint('[FeedDataManager] 카테고리 ${category.id} 로드 실패: $e');
-            return const <FeedPostItem>[];
-          }
-        }),
+      await for (final result in Stream<_CategoryFeedLoadResult>.fromFutures(
+        categoryLoadTasks,
+      )) {
+        hadCategoryLoadFailure = hadCategoryLoadFailure || !result.success;
+        combinedByCategory[result.categoryId] = result.items;
+
+        final provisionalCombined = _sortAndFilterFeedItems(
+          combinedByCategory.values
+              .expand((items) => items)
+              .toList(growable: false),
+          blockedNicknames,
+        );
+        if (provisionalCombined.isNotEmpty) {
+          _emitLoadedPostCandidates(provisionalCombined);
+        }
+      }
+
+      final combined = _sortAndFilterFeedItems(
+        combinedByCategory.values
+            .expand((items) => items)
+            .toList(growable: false),
+        blockedNicknames,
       );
-
-      final List<FeedPostItem> combined = [
-        for (final items in combinedLists) ...items,
-      ];
 
       if (combined.isEmpty && hadCachedPosts && hadCategoryLoadFailure) {
         _restorePreviousPosts(
@@ -335,22 +426,6 @@ class FeedDataManager extends ChangeNotifier {
         return;
       }
 
-      // 차단 사용자 게시물 필터링
-      final blockedUsers = await blockedUsersFuture;
-      if (blockedUsers.isNotEmpty) {
-        final blockedIds = blockedUsers.map((user) => user.userId).toSet();
-        combined.removeWhere((item) => blockedIds.contains(item.post.nickName));
-      }
-
-      // 게시물 작성일 기준 내림차순 정렬
-      combined.sort((a, b) {
-        final aTime =
-            a.post.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bTime =
-            b.post.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return bTime.compareTo(aTime);
-      });
-
       _replaceAllPosts(
         combined,
         visibleCount: hadCachedPosts && previousVisibleCount > 0
@@ -360,7 +435,7 @@ class FeedDataManager extends ChangeNotifier {
       _isLoading = false;
 
       _notifyStateChanged(); // 상태 변경 알림
-      _onPostsLoaded?.call(_allPosts); // 로드 완료 콜백 호출
+      _emitLoadedPostCandidates(_allPosts); // 로드 완료 콜백 호출
     } catch (e) {
       debugPrint('[FeedDataManager] 피드 로드 실패: $e');
 

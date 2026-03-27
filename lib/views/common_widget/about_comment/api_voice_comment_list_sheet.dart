@@ -21,14 +21,16 @@ import 'widget/about_comment_list_sheet/api_comment_row.dart';
 /// API의 CommentRespDto와 달리, Comment 모델은 UI/도메인 레이어에서 사용하기 위한 모델입니다.
 class ApiVoiceCommentListSheet extends StatefulWidget {
   final int postId;
-  final List<Comment> comments;
+  final List<Comment> initialComments;
+  final Future<List<Comment>> Function(int postId)? loadFullComments;
   final String? selectedCommentId;
   final ValueChanged<List<Comment>>? onCommentsUpdated;
 
   const ApiVoiceCommentListSheet({
     super.key,
     required this.postId,
-    required this.comments,
+    required this.initialComments,
+    this.loadFullComments,
     this.selectedCommentId,
     this.onCommentsUpdated,
   });
@@ -60,12 +62,13 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   late final ScrollController _scrollController;
   late final TextEditingController _replyDraftController;
   late final FocusNode _replyDraftFocusNode;
-  late final List<Comment> _comments;
+  late List<Comment> _comments;
   final GlobalKey _commentListViewportKey = GlobalKey(
     debugLabel: 'comment_list_viewport',
   );
   final Map<String, GlobalKey> _commentKeys = <String, GlobalKey>{};
   final Set<String> _expandedReplyParentKeys = <String>{};
+  bool _isHydratingComments = false;
 
   // 특정 댓글 스레드를 수동으로 강조 표시하기 위한 키입니다.
   // null이면 선택된 댓글 기준으로 자동 강조 표시합니다.
@@ -319,8 +322,9 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _replyDraftController = TextEditingController();
     _replyDraftFocusNode = FocusNode();
     _replyDraftFocusNode.addListener(_handleReplyDraftFocusChanged);
-    _comments = widget.comments.toList();
+    _comments = widget.initialComments.toList();
     _expandSelectedReplyParentIfNeeded();
+    _hydrateFullCommentsIfNeeded();
 
     if (widget.selectedCommentId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -336,6 +340,47 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _replyDraftController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// 시트는 partial 댓글로 먼저 열리고, 가능하면 뒤에서 full thread를 hydrate합니다.
+  Future<void> _hydrateFullCommentsIfNeeded() async {
+    final loader = widget.loadFullComments;
+    if (loader == null) {
+      return;
+    }
+
+    setState(() {
+      _isHydratingComments = true;
+    });
+
+    try {
+      final hydratedComments = await loader(widget.postId);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _comments = hydratedComments.toList();
+        _expandedReplyParentKeys.clear();
+        _expandSelectedReplyParentIfNeeded();
+        _isHydratingComments = false;
+      });
+      _notifyCommentsUpdated();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _scrollToSelectedComment();
+      });
+    } catch (error) {
+      debugPrint('댓글 full hydrate 실패(postId: ${widget.postId}): $error');
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isHydratingComments = false;
+      });
+    }
   }
 
   /// 댓글 리스트가 처음 열릴 때, 선택된 댓글이 있으면 해당 댓글로 스크롤하는 함수
@@ -1172,6 +1217,12 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
               ),
             ),
             SizedBox(height: 15.sp),
+            if (_isHydratingComments)
+              const LinearProgressIndicator(
+                minHeight: 2,
+                color: Color(0xFFF8F8F8),
+                backgroundColor: Color(0xFF323232),
+              ),
             _buildCommentList(),
             //SizedBox(height: 10.sp),
             _buildCommentActionBar(),

@@ -34,6 +34,7 @@ class CommentService {
 
   // 게시물 ID별로 진행 중인 댓글 조회 요청을 추적하여 중복 요청 방지
   final Map<int, Future<List<Comment>>> _inFlightCommentsByPost = {};
+  final Map<int, Future<List<Comment>>> _inFlightTagCommentsByPost = {};
 
   // 사용자 ID + 페이지 번호별로 진행 중인 댓글 조회 요청을 추적하여 중복 요청 방지
   final Map<String, Future<({List<Comment> comments, bool hasMore})>>
@@ -411,23 +412,78 @@ class CommentService {
     }
   }
 
-  /// **게시물**의 댓글 조회 내부 구현
-  /// [postId]에 해당하는 게시물의 모든 댓글을 조회합니다.
-  /// 원댓글과 대댓글을 모두 조회하여 계층 구조로 병합한 후 반환합니다.
+  /// 태그 오버레이에 필요한 데이터만 조회하는 메서드
+  /// - [postId]에 해당하는 게시물의 위치가 있는 댓글만 조회하여 반환.
+  /// - 위치가 있는 댓글만 조회한 후, 반환하기 때문에 댓글을 전부 조회하는 병목을 피할 수 있다.
   ///
   /// Parameters:
   /// - [postId]: 게시물 ID
   ///
-  /// Returns: 댓글 목록 (`List<Comment>`)
-  /// - 원댓글과 대댓글이 계층 구조로 병합된 형태로 반환됩니다.
+  /// Returns: 위치 댓글 목록
+  /// - [Future<List<Comment>>]: 위치가 있는 댓글만 반환. 대댓글은 포함되지 않는다.
+  Future<List<Comment>> getTagComments({required int postId}) async {
+    final task = _inFlightTagCommentsByPost.putIfAbsent(
+      postId,
+      () => _getTagCommentsInternal(postId: postId),
+    );
+
+    try {
+      return await task;
+    } on ApiException catch (e) {
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      throw NetworkException(originalException: e);
+    } catch (e) {
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '태그 댓글 조회 실패: $e', originalException: e);
+    } finally {
+      final registeredTask = _inFlightTagCommentsByPost[postId];
+      if (identical(registeredTask, task)) {
+        _inFlightTagCommentsByPost.remove(postId);
+      }
+    }
+  }
+
+  /// 태그 오버레이는 부모 댓글 중 위치가 있는 항목만 순서대로 사용합니다.
+  Future<List<Comment>> _getTagCommentsInternal({required int postId}) async {
+    final taggedParents = <Comment>[];
+    var page = _defaultPage;
+
+    for (var i = 0; i < _maxSliceFetchPages; i++) {
+      final result = await getParentComments(postId: postId, page: page);
+      if (result.comments.isEmpty) {
+        return List<Comment>.unmodifiable(taggedParents);
+      }
+
+      taggedParents.addAll(
+        result.comments.where((comment) => comment.hasLocation),
+      );
+
+      if (!result.hasMore) {
+        return List<Comment>.unmodifiable(taggedParents);
+      }
+      page += 1;
+    }
+
+    _debugLog('[CommentService] 태그 댓글 페이지 조회 제한($_maxSliceFetchPages) 도달');
+    return List<Comment>.unmodifiable(taggedParents);
+  }
+
+  /// **게시물**의 댓글 조회 내부 구현
+  /// - [postId]에 해당하는 게시물의 모든 댓글을 조회.
+  /// - 원댓글과 대댓글을 모두 조회하여 계층 구조로 병합한 후 반환.
+  ///
+  /// Parameters:
+  /// - [postId]: 게시물 ID
+  ///
+  /// Returns: 댓글 목록
+  /// - [List<Comment>]: 원댓글과 대댓글이 계층 구조로 병합된 형태로 반환됩니다.
   /// - 예시: 원댓글 A, 원댓글 B, 대댓글 A-1(원댓글 A의 대댓글), 대댓글 B-1(원댓글 B의 대댓글) -> 반환 형태: [A, A-1, B, B-1]
   ///
   /// Throws:
   /// - [NotFoundException]: 게시물을 찾을 수 없음
   Future<List<Comment>> _getCommentsInternal({required int postId}) async {
-    // 원댓글 조회
-    // [postId]에 해당하는 게시물의 원댓글을 페이지 단위로 조회하여 전체 원댓글 리스트를 가져옵니다.
-    // parentComments는 CommentRespDto 리스트 형태로 반환됩니다.
+    // 원댓글을 페이지 단위로 모두 조회합니다. 대댓글은 원댓글별로 별도 조회하여 병합합니다.
     final parentComments = await _fetchAllSliceComments(
       fetchPage: (page) => _commentApi.getParentComment(postId, page),
       errorMessage: '댓글 조회 실패',
@@ -657,6 +713,17 @@ class CommentService {
     return (comments: comments, hasMore: hasMore);
   }
 
+  /// Slice 기반 댓글을 페이지 단위로 반복 조회하여 모든 댓글을 가져옵니다.
+  ///
+  /// Slice 기반 댓글?
+  /// - API가 페이지네이션된 댓글 데이터를 반환하는 경우, 각 페이지를 순차적으로 조회하여 **전체 댓글 목록**을 구성하는 방식입니다.
+  ///
+  /// Parameters:
+  /// - [fetchPage]: 페이지 번호를 입력으로 받아 해당 페이지의 댓글 데이터를 반환하는 함수입니다. API 호출을 래핑하여 전달합니다.
+  /// - [errorMessage]: API 호출 실패 시 사용할 기본 에러 메시지입니다.
+  ///
+  /// Returns: 댓글 목록
+  /// - [List<CommentRespDto>]: API에서 페이지 단위로 반환되는 댓글 데이터를 반복적으로 조회하여 전체 댓글 목록을 구성한 후 반환합니다.
   Future<List<CommentRespDto>> _fetchAllSliceComments({
     required Future<ApiResponseDtoSliceCommentRespDto?> Function(int page)
     fetchPage,
