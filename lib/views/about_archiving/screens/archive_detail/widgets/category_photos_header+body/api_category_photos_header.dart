@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show listEquals;
@@ -8,6 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../../api/models/category.dart' as api;
+import '../../services/api_category_photos_header_service.dart';
 import '../../../../widgets/archive_card_widget/api_archive_profile_row_widget.dart';
 
 /// 카테고리 사진 화면의 헤더를 구성하는 위젯
@@ -66,18 +66,17 @@ class ApiCategoryPhotosHeader extends StatelessWidget {
   }
 }
 
+/// 카테고리 헤더의 스크롤 진행값을 실제 위젯 배치와 시각 효과로 변환합니다.
 class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
-  static const double _kHeroEnabledMaxCollapse = 0.92;
-
   final api.Category category;
   final String? backgroundImageUrl;
   final String? backgroundImageCacheKey;
-  final String? heroTag;
-  final double collapsedHeight;
-  final double expandedHeight;
-  final VoidCallback onBackPressed;
-  final VoidCallback onMembersPressed;
-  final VoidCallback onMenuPressed;
+  final String? heroTag; // Hero 애니메이션을 위한 태그
+  final double collapsedHeight; // 헤더가 완전히 축소되었을 때의 높이
+  final double expandedHeight; // 헤더가 완전히 확장되었을 때의 높이
+  final VoidCallback onBackPressed; // 뒤로 가기 버튼이 눌렸을 때 호출되는 콜백 함수
+  final VoidCallback onMembersPressed; // 멤버 목록 버튼이 눌렸을 때 호출되는 콜백 함수
+  final VoidCallback onMenuPressed; // 메뉴 버튼이 눌렸을 때 호출되는 콜백 함수
 
   const _CategoryPhotosHeaderDelegate({
     required this.category,
@@ -91,9 +90,11 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.onMenuPressed,
   });
 
+  // 헤더가 완전히 축소되었을 때의 높이를 반환하는 getter
   @override
   double get minExtent => collapsedHeight;
 
+  // 헤더가 완전히 확장되었을 때의 높이와 축소되었을 때의 높이 중 큰 값을 반환하는 getter
   @override
   double get maxExtent => math.max(expandedHeight, collapsedHeight);
 
@@ -103,67 +104,8 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    final collapseRange = (maxExtent - minExtent).clamp(1.0, double.infinity);
-    final t = (shrinkOffset / collapseRange).clamp(0.0, 1.0);
-    final eased = Curves.easeInOutCubic.transform(t);
-    final backgroundOpacity = (1.0 - Curves.easeOut.transform(t)).clamp(
-      0.0,
-      1.0,
-    );
-    final expandedInfoOpacity = (1.0 - Curves.easeIn.transform(t)).clamp(
-      0.0,
-      1.0,
-    );
-    final compactTitleOpacity = Curves.easeIn.transform(t);
-    final toolbarOverlayOpacity = (Curves.easeIn.transform(t) * 0.94).clamp(
-      0.0,
-      1.0,
-    );
-    final toolbarTop = minExtent - kToolbarHeight;
-    final toolbarCenterY = toolbarTop + (kToolbarHeight / 2);
-    final horizontalPadding = lerpDouble(20.w, 16.w, eased) ?? 16.w;
-    final expandedTitleTop = maxExtent - 76.h;
-    final compactTitleTop = toolbarCenterY - 12.h;
-    final titleTop = lerpDouble(expandedTitleTop, compactTitleTop, eased) ?? 0;
-    final largeTitleScale = lerpDouble(1.0, 0.86, eased) ?? 1.0;
-    final titleFontSize = 26.sp;
-    final topBarItemTop = toolbarCenterY - 20.h;
-    final hasBackgroundImage =
-        backgroundImageUrl != null && backgroundImageUrl!.isNotEmpty;
-    final heroEnabled = t < _kHeroEnabledMaxCollapse;
-    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final viewportWidth = MediaQuery.sizeOf(context).width;
-    final decodeWidth = math.max(1, (viewportWidth * devicePixelRatio).round());
-    final headerBackground = hasBackgroundImage
-        ? CachedNetworkImage(
-            key: ValueKey(
-              'header_${category.id}_${backgroundImageCacheKey ?? backgroundImageUrl}',
-            ),
-            imageUrl: backgroundImageUrl!,
-            cacheKey: backgroundImageCacheKey,
-            useOldImageOnUrlChange: true,
-            fadeInDuration: Duration.zero,
-            fadeOutDuration: Duration.zero,
-            memCacheWidth: decodeWidth,
-            maxWidthDiskCache: decodeWidth,
-            fit: BoxFit.cover,
-            placeholder: (_, __) => Container(color: const Color(0xFF202020)),
-            errorWidget: (_, __, ___) =>
-                Container(color: const Color(0xFF202020)),
-          )
-        : Container(color: const Color(0xFF202020));
-    final backgroundWithHero = heroTag != null && hasBackgroundImage
-        ? HeroMode(
-            enabled: heroEnabled,
-            child: Hero(
-              tag: heroTag!,
-              createRectTween: (begin, end) =>
-                  MaterialRectArcTween(begin: begin, end: end),
-              transitionOnUserGestures: true,
-              child: headerBackground,
-            ),
-          )
-        : headerBackground;
+    final layout = _resolveLayout(context, shrinkOffset);
+    final backgroundWithHero = _buildHeaderBackground(layout);
 
     return RepaintBoundary(
       child: ClipRect(
@@ -172,7 +114,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
           children: [
             Positioned.fill(
               child: Opacity(
-                opacity: backgroundOpacity,
+                opacity: layout.backgroundOpacity,
                 child: backgroundWithHero,
               ),
             ),
@@ -200,14 +142,16 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
               height: minExtent,
               child: IgnorePointer(
                 child: Container(
-                  color: Colors.black.withValues(alpha: toolbarOverlayOpacity),
+                  color: Colors.black.withValues(
+                    alpha: layout.toolbarOverlayOpacity,
+                  ),
                 ),
               ),
             ),
             // 축소된 헤더의 왼쪽 상단에 뒤로 가기 버튼과 카테고리 이름 표시
             Positioned(
               left: 4.w,
-              top: topBarItemTop,
+              top: layout.topBarItemTop,
               child: Row(
                 children: [
                   _HeaderIconButton(
@@ -215,7 +159,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
                     onTap: onBackPressed,
                   ),
                   Opacity(
-                    opacity: compactTitleOpacity,
+                    opacity: layout.compactTitleOpacity,
                     child: Text(
                       category.name,
                       maxLines: 1,
@@ -234,7 +178,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
             // "확장된 헤더와 축소된 헤더"의 오른쪽 상단에 멤버 수와 메뉴 버튼 표시
             Positioned(
               right: 8.w,
-              top: topBarItemTop,
+              top: layout.topBarItemTop,
               child: Row(
                 children: [
                   _HeaderMembersAction(
@@ -249,18 +193,18 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
 
             // 확장된 헤더 중앙에 카테고리 이름과 멤버 수를 표시
             Positioned(
-              left: horizontalPadding,
-              right: horizontalPadding,
-              top: titleTop,
+              left: layout.horizontalPadding,
+              right: layout.horizontalPadding,
+              top: layout.titleTop,
               child: Opacity(
-                opacity: expandedInfoOpacity,
+                opacity: layout.expandedInfoOpacity,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // 카테고리 이름
                     Expanded(
                       child: Transform.scale(
-                        scale: largeTitleScale,
+                        scale: layout.largeTitleScale,
                         alignment: Alignment.centerLeft,
                         child: Text(
                           category.name,
@@ -268,7 +212,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: const Color(0xFFF9F9F9),
-                            fontSize: titleFontSize,
+                            fontSize: layout.titleFontSize,
                             fontFamily: "Pretendard Variable",
                             fontWeight: FontWeight.w600,
                           ),
@@ -311,6 +255,68 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
           oldDelegate.category.usersProfileKey,
           category.usersProfileKey,
         );
+  }
+
+  /// ScreenUtil 값과 현재 스크롤 위치를 묶어 헤더 배치 계산을 위임합니다.
+  CategoryPhotosHeaderLayout _resolveLayout(
+    BuildContext context,
+    double shrinkOffset,
+  ) {
+    return CategoryPhotosHeaderLayoutResolver.resolve(
+      minExtent: minExtent,
+      maxExtent: maxExtent,
+      shrinkOffset: shrinkOffset,
+      viewportWidth: MediaQuery.sizeOf(context).width,
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+      tokens: CategoryPhotosHeaderTokens(
+        expandedHorizontalPadding: 20.w,
+        collapsedHorizontalPadding: 16.w,
+        expandedTitleBottomInset: 96.h,
+        compactTitleVerticalOffset: 12.h,
+        toolbarItemVerticalOffset: 20.h,
+        collapsedTitleScale: 0.86,
+        titleFontSize: 26.sp,
+      ),
+    );
+  }
+
+  /// 배경 이미지, 디코드 크기, Hero 활성 조건을 한 곳에서 조립합니다.
+  Widget _buildHeaderBackground(CategoryPhotosHeaderLayout layout) {
+    final hasBackgroundImage =
+        backgroundImageUrl != null && backgroundImageUrl!.isNotEmpty;
+    final headerBackground = hasBackgroundImage
+        ? CachedNetworkImage(
+            key: ValueKey(
+              'header_${category.id}_${backgroundImageCacheKey ?? backgroundImageUrl}',
+            ),
+            imageUrl: backgroundImageUrl!,
+            cacheKey: backgroundImageCacheKey,
+            useOldImageOnUrlChange: true,
+            fadeInDuration: Duration.zero,
+            fadeOutDuration: Duration.zero,
+            memCacheWidth: layout.decodeWidth,
+            maxWidthDiskCache: layout.decodeWidth,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => Container(color: const Color(0xFF202020)),
+            errorWidget: (_, __, ___) =>
+                Container(color: const Color(0xFF202020)),
+          )
+        : Container(color: const Color(0xFF202020));
+
+    if (heroTag == null || !hasBackgroundImage) {
+      return headerBackground;
+    }
+
+    return HeroMode(
+      enabled: layout.heroEnabled,
+      child: Hero(
+        tag: heroTag!,
+        createRectTween: (begin, end) =>
+            MaterialRectArcTween(begin: begin, end: end),
+        transitionOnUserGestures: true,
+        child: headerBackground,
+      ),
+    );
   }
 }
 
