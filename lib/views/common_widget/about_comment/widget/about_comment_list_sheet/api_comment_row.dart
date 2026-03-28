@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 // 외부 패키지
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -17,6 +15,7 @@ import '../../../../../api/models/comment.dart';
 import '../../../../../utils/format_utils.dart';
 import '../../../../about_feed/manager/feed_data_manager.dart';
 import '../../../report/report_bottom_sheet.dart';
+import '../../../api_photo/services/api_photo_waveform_parser_service.dart';
 import 'api_comment_media_preview.dart';
 import 'api_waveform_playback_bar.dart';
 
@@ -556,7 +555,8 @@ class ApiCommentRow extends StatelessWidget {
   }
 
   Widget _buildAudioRow(BuildContext context) {
-    final waveformData = _parseWaveformData(comment.waveformData);
+    final waveformData =
+        ApiPhotoWaveformParserService.parse(comment.waveformData) ?? const [];
     final showActions = _shouldShowActions(context);
 
     return Consumer<AudioController>(
@@ -708,37 +708,5 @@ class ApiCommentRow extends StatelessWidget {
               child: const Icon(Icons.person, color: Colors.white),
             ),
     );
-  }
-
-  List<double> _parseWaveformData(String? waveformString) {
-    if (waveformString == null || waveformString.isEmpty) {
-      return [];
-    }
-
-    final trimmed = waveformString.trim();
-    if (trimmed.isEmpty) return [];
-
-    try {
-      final decoded = jsonDecode(trimmed);
-      if (decoded is List) {
-        return decoded.map((e) => (e as num).toDouble()).toList();
-      }
-    } catch (e) {
-      final sanitized = trimmed.replaceAll('[', '').replaceAll(']', '').trim();
-      if (sanitized.isEmpty) return [];
-
-      final parts = sanitized
-          .split(RegExp(r'[,\s]+'))
-          .where((part) => part.isNotEmpty);
-
-      try {
-        final values = parts.map((part) => double.parse(part)).toList();
-        return values;
-      } catch (_) {
-        debugPrint('waveformData 파싱 실패: $e');
-      }
-    }
-
-    return [];
   }
 }

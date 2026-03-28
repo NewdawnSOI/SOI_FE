@@ -1,13 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../api/controller/category_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/controller/user_controller.dart';
 import '../../../api/models/user.dart';
+import '../../../utils/media_processing/media_processing_backend.dart';
 
 /// 프로필 화면에서 필요한 데이터와 기능을 담당하는 서비스입니다.
 /// 사용자 정보와 프로필 사진 URL을 가져오고, 새로운 프로필 사진을 선택하고 업로드하는 기능을 제공합니다.
@@ -87,10 +87,16 @@ class CoverImageUploadResult {
 /// 이 도우미는 프로필 사진과 사용자 정보를 챙겨와요.
 /// 화면 대신 바깥일을 맡아서 코드를 더 깔끔하게 해줘요.
 class ProfileDataService {
-  ProfileDataService({ImagePicker? imagePicker})
-    : _imagePicker = imagePicker ?? ImagePicker();
+  /// 이미지 선택기와 공통 미디어 백엔드를 받아 프로필 업로드 경로를 테스트 가능하게 만듭니다.
+  ProfileDataService({
+    ImagePicker? imagePicker,
+    MediaProcessingBackend? mediaProcessingBackend,
+  }) : _imagePicker = imagePicker ?? ImagePicker(),
+       _mediaProcessingBackend =
+           mediaProcessingBackend ?? DefaultMediaProcessingBackend.instance;
 
   final ImagePicker _imagePicker;
+  final MediaProcessingBackend _mediaProcessingBackend;
 
   /// 이 메서드는 사용자 정보와 프로필 사진 주소를 가져와요.
   /// 화면이 바로 쓸 수 있게 필요한 것만 묶어서 돌려줘요.
@@ -144,17 +150,17 @@ class ProfileDataService {
       final targetPath =
           '${file.parent.path}/profile_${DateTime.now().millisecondsSinceEpoch}.webp';
 
-      final compressedFile = await FlutterImageCompress.compressAndGetFile(
-        file.absolute.path,
-        targetPath,
+      final compressedFile = await _mediaProcessingBackend.compressImage(
+        inputFile: file,
+        outputPath: targetPath,
         quality: 70,
         minWidth: 1080,
         minHeight: 1080,
-        format: CompressFormat.webp,
+        format: MediaImageOutputFormat.webp,
       );
 
       if (compressedFile != null) {
-        return File(compressedFile.path);
+        return compressedFile;
       }
 
       return file;

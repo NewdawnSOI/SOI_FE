@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../../api/controller/comment_controller.dart';
 import '../../../api/models/post.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/controller/audio_controller.dart';
@@ -36,7 +37,6 @@ import 'tag_pointer.dart';
 /// - [selectedEmoji]: 현재 게시물에 선택된 이모지 (댓글 태그에 표시하기 위함)
 /// - [onEmojiSelected]: 이모지 선택이 변경될 때 호출되는 콜백 (부모 위젯에서 선택된 이모지를 관리하기 위함)
 /// - [onReportSubmitted]: 신고 제출이 완료되었을 때 호출되는 콜백 (신고 결과를 부모 위젯에서 처리하기 위함)
-/// - [postComments]: 게시물 ID별 댓글 리스트 (댓글 태그와 댓글 리스트 표시를 위해 필요)
 /// - [pendingCommentDrafts]: 게시물 ID별 댓글 작성 중인 드래프트 (댓글 태그의 콘텐츠 유형 판단과 댓글 작성 UI에 필요)
 /// - [pendingVoiceComments]: 게시물 ID별 음성 댓글 작성 중인 드래프트 (댓글 태그의 콘텐츠 유형 판단과 음성 댓글 작성 UI에 필요)
 /// - [onToggleAudio]: 게시물의 음성 댓글 재생/일시정지 토글 시 호출되는 콜백 (음성 댓글 UI와 상호작용하기 위함)
@@ -70,8 +70,6 @@ class ApiPhotoCardWidget extends StatefulWidget {
   onReportSubmitted;
 
   // 상태 관리 관련
-  final Map<int, List<Comment>> postTagComments;
-  final Map<int, List<Comment>> postComments;
   final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
   final Map<int, PendingApiCommentMarker> pendingVoiceComments;
 
@@ -109,8 +107,6 @@ class ApiPhotoCardWidget extends StatefulWidget {
     this.selectedEmoji,
     this.onEmojiSelected,
     this.onReportSubmitted,
-    required this.postTagComments,
-    required this.postComments,
     required this.pendingCommentDrafts,
     this.pendingVoiceComments = const {},
     required this.onToggleAudio,
@@ -145,10 +141,17 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   late final Animation<double> _overlayExpandAnimation;
 
   List<Comment> get _tagComments =>
-      widget.postTagComments[widget.post.id] ?? const <Comment>[];
+      context.read<CommentController>().peekTagCommentsCache(
+        postId: widget.post.id,
+      ) ??
+      const <Comment>[];
 
   List<Comment> get _initialSheetComments {
-    final fullComments = widget.postComments[widget.post.id] ?? const <Comment>[];
+    final fullComments =
+        context.read<CommentController>().peekCommentsCache(
+          postId: widget.post.id,
+        ) ??
+        const <Comment>[];
     if (fullComments.isNotEmpty) {
       return fullComments;
     }
@@ -279,13 +282,11 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     _expandedOverlayData = null;
   }
 
-  /// 시트가 돌려준 full thread 결과를 full/tag cache에 함께 반영합니다.
+  /// 시트가 돌려준 full thread 결과를 controller cache 한 곳에 반영합니다.
   void _replaceCommentCaches(List<Comment> updatedComments) {
-    widget.postComments[widget.post.id] = List<Comment>.unmodifiable(
-      updatedComments,
-    );
-    widget.postTagComments[widget.post.id] = List<Comment>.unmodifiable(
-      updatedComments.where((comment) => comment.hasLocation).toList(),
+    context.read<CommentController>().replaceCommentsCache(
+      postId: widget.post.id,
+      comments: updatedComments,
     );
   }
 
@@ -413,8 +414,6 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
           categoryName: widget.categoryName,
           isArchive: widget.isArchive,
           isFromCamera: widget.isFromCamera,
-          postTagComments: widget.postTagComments,
-          postComments: widget.postComments,
           loadFullComments: widget.onLoadFullComments,
           onProfileImageDragged: widget.onProfileImageDragged,
           onToggleAudio: widget.onToggleAudio,
@@ -459,8 +458,6 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   categoryName: widget.categoryName,
                   isArchive: widget.isArchive,
                   isFromCamera: widget.isFromCamera,
-                  postTagComments: widget.postTagComments,
-                  postComments: widget.postComments,
                   loadFullComments: widget.onLoadFullComments,
                   onProfileImageDragged: widget.onProfileImageDragged,
                   onToggleAudio: widget.onToggleAudio,
@@ -549,10 +546,11 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                 resolveDropRelativePosition: _resolveDropRelativePosition,
                 onCommentSaveProgress: widget.onCommentSaveProgress!,
                 onCommentSaveSuccess: (postId, comment) {
-                  final existingTagCountBefore =
-                      _tagComments.where((existingComment) {
-                        return existingComment.hasLocation;
-                      }).length;
+                  final existingTagCountBefore = _tagComments.where((
+                    existingComment,
+                  ) {
+                    return existingComment.hasLocation;
+                  }).length;
 
                   if (comment.hasLocation) {
                     unawaited(

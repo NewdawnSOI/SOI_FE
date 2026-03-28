@@ -68,8 +68,6 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
   final String categoryName;
   final bool isArchive;
   final bool isFromCamera;
-  final Map<int, List<Comment>> postTagComments;
-  final Map<int, List<Comment>> postComments;
   final Future<List<Comment>> Function(int postId)? loadFullComments;
   final Function(int, Offset) onProfileImageDragged;
   final Function(Post) onToggleAudio;
@@ -92,7 +90,6 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
   /// - [categoryName]: 해당 포스트가 속한 카테고리의 이름입니다.
   /// - [isArchive]: 해당 포스트가 아카이브된 상태인지 여부를 나타내는 플래그입니다.
   /// - [isFromCamera]: 해당 포스트가 카메라에서 촬영된 미디어인지 여부를 나타내는 플래그입니다.
-  /// - [postComments]: 포스트 ID를 키로, 해당 포스트에 달린 댓글 리스트를 값으로 가지는 맵입니다. 댓글 태그 렌더링에 사용됩니다.
   /// - [onProfileImageDragged]: 작성자 아바타가 드래그될 때 호출되는 콜백 함수입니다. 댓글 태그의 위치 조정에 사용됩니다.
   /// - [onToggleAudio]: 오디오 컨트롤 위젯이 토글될 때 호출되는 콜백 함수입니다. 오디오 재생/일시정지 등에 사용됩니다.
   /// - [pendingVoiceComments]
@@ -113,8 +110,6 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
     required this.categoryName,
     this.isArchive = false,
     this.isFromCamera = false,
-    required this.postTagComments,
-    required this.postComments,
     this.loadFullComments,
     required this.onProfileImageDragged,
     required this.onToggleAudio,
@@ -167,10 +162,16 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   final GlobalKey _displayStackKey = GlobalKey();
 
   List<Comment> get _overlayComments =>
-      widget.postTagComments[widget.post.id] ?? const <Comment>[];
+      context.read<CommentController>().peekTagCommentsCache(
+        postId: widget.post.id,
+      ) ??
+      const <Comment>[];
 
   List<Comment> get _postComments =>
-      widget.postComments[widget.post.id] ?? const <Comment>[];
+      context.read<CommentController>().peekCommentsCache(
+        postId: widget.post.id,
+      ) ??
+      const <Comment>[];
 
   List<Comment> get _initialSheetComments =>
       _postComments.isNotEmpty ? _postComments : _overlayComments;
@@ -833,32 +834,13 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
       postId: widget.post.id,
       commentId: commentId,
     );
-    final updatedFull = List<Comment>.from(_postComments)
-      ..removeWhere((comment) => comment.id == commentId);
-    final updatedTags = List<Comment>.from(_overlayComments)
-      ..removeWhere((comment) => comment.id == commentId);
-    if (_postComments.isNotEmpty) {
-      widget.postComments[widget.post.id] = List<Comment>.unmodifiable(
-        updatedFull,
-      );
-    }
-    widget.postTagComments[widget.post.id] = List<Comment>.unmodifiable(
-      updatedTags,
-    );
-    setState(() {});
   }
 
-  /// 댓글시트의 full thread 결과를 full/tag cache에 함께 반영합니다.
+  /// 댓글시트의 full thread 결과를 controller cache 한 곳에 반영합니다.
   void _replaceCommentCaches(List<Comment> updatedComments) {
     context.read<CommentController>().replaceCommentsCache(
       postId: widget.post.id,
       comments: updatedComments,
-    );
-    widget.postComments[widget.post.id] = List<Comment>.unmodifiable(
-      updatedComments,
-    );
-    widget.postTagComments[widget.post.id] = List<Comment>.unmodifiable(
-      updatedComments.where((comment) => comment.hasLocation).toList(),
     );
   }
 
@@ -885,6 +867,14 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
 
   @override
   Widget build(BuildContext context) {
+    // 이 카드와 관련된 댓글 cache 변화만 구독해 오버레이와 시트 진입값을 최신으로 유지합니다.
+    context
+        .select<CommentController, ({List<Comment>? full, List<Comment>? tag})>(
+          (controller) => (
+            full: controller.peekCommentsCache(postId: widget.post.id),
+            tag: controller.peekTagCommentsCache(postId: widget.post.id),
+          ),
+        );
     final categoryTrimmed = widget.categoryName.trim();
     final isEnglishCategory =
         categoryTrimmed.isNotEmpty &&

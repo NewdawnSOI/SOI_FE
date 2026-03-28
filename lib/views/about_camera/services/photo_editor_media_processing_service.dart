@@ -1,25 +1,12 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:video_compress/video_compress.dart';
-import 'package:video_thumbnail/video_thumbnail.dart';
 
-/// 업로드 관련 모델 정의
-String _encodeWaveformDataWorker(List<double> waveformData) {
-  if (waveformData.isEmpty) return '';
-
-  final buffer = StringBuffer();
-  for (var i = 0; i < waveformData.length; i++) {
-    if (i > 0) buffer.write(', ');
-    buffer.write(double.parse(waveformData[i].toStringAsFixed(6)).toString());
-  }
-  return buffer.toString();
-}
+import '../../../utils/media_processing/media_processing_backend.dart';
+import '../../../utils/media_processing/waveform_codec.dart';
 
 class PhotoEditorMediaProcessingService {
   ///
@@ -39,55 +26,22 @@ class PhotoEditorMediaProcessingService {
   /// - [_fallbackImageDimension]: 최후의 수단으로 이미지 압축을 시도할 때 사용할 최대 가로/세로 길이입니다. 기본값은 1024입니다.
   /// - [_maxVideoSizeBytes]: 비디오 파일의 최대 허용 크기 (바이트 단위)입니다. 기본값은 50MB입니다.
   ///
-  /// methods:
-  /// - [calculateImageAspectRatio]
-  ///   - 이미지 파일의 **가로세로 비율**을 계산하는 메서드입니다.
-  ///   - 이미지 파일을 입력으로 받아 가로세로 비율을 반환합니다.
-  ///   - 계산에 실패할 경우 null을 반환합니다.
-  ///
-  /// - [extractVideoThumbnailFile]
-  ///   - 비디오 파일에서 썸네일 이미지를 추출하는 메서드입니다.
-  ///   - 비디오 파일 경로를 입력으로 받아 **추출된 썸네일 이미지 파일**을 반환합니다.
-  ///   - 썸네일 추출에 실패할 경우 null을 반환합니다.
-  ///
-  /// - [encodeWaveformDataAsync]
-  ///   - 파형 데이터를 문자열로 인코딩하는 메서드입니다.
-  ///   - 입력된 파형 데이터 리스트를 콤마로 구분된 문자열로 변환하여 반환합니다.
-  ///   - 입력 데이터가 null이거나 비어있는 경우 null을 반환합니다.
-  ///
-  /// - [compressVideoIfNeeded]
-  ///   - 비디오 파일이 최대 허용 크기를 초과하는 경우 압축하는 메서드입니다.
-  ///   - 압축된 비디오 파일을 반환하며, 압축이 필요하지 않거나 압축에 실패할 경우 원본 파일을 반환합니다.
-  ///
-  /// - [compressImageIfNeeded]
-  ///   - 이미지 파일이 최대 허용 크기를 초과하는 경우 압축하는 메서드입니다.
-  ///   - 압축된 이미지 파일을 반환하며, 압축이 필요하지 않거나 압축에 실패할 경우 원본 파일을 반환합니다.
-  ///
-  /// - [_tryCompressVideo]
-  ///   - 비디오 압축을 시도하는 메서드입니다.
-  ///   - 지정된 품질로 비디오를 압축하며, 압축된 파일을 반환합니다.
-  ///   - 압축에 실패할 경우 null을 반환합니다.
-  ///
-  /// - [_tryProgressiveCompression]
-  ///   - 이미지 압축을 시도하는 메서드입니다.
-  ///   - 초기 품질과 차원으로 압축을 시작하여, 필요에 따라 품질과 차원을 점진적으로 낮추며 압축을 시도합니다.
-  ///   - 최적의 압축된 파일을 반환하며, 압축에 실패할 경우 null을 반환합니다.
-  ///
-  /// - [_tryFallbackCompression]
-  ///   - 최후의 수단으로 더 낮은 품질과 작은 차원으로 이미지 압축을 시도하는 메서드입니다.
-  ///   - 압축된 파일을 반환하며, 압축에 실패할 경우 null을 반환합니다.
-  ///
-  /// - [_compressWithSettings]
-  ///   - 실제 이미지 압축을 수행하는 메서드입니다.
-  ///   - 지정된 품질과 차원으로 이미지를 압축하며, 압축된 파일을 반환합니다.
-  ///   - 압축에 실패할 경우 null을 반환합니다.
-  ///
-  /// - [_encodeWaveformData]
-  ///   - 파형 데이터를 문자열로 인코딩하는 메서드입니다.
-  ///   - 입력된 파형 데이터 리스트를 콤마로 구분된 문자열로 변환하여 반환합니다.
-  ///   - 입력 데이터가 null이거나 비어있는 경우 null을 반환합니다.
-  ///
-  const PhotoEditorMediaProcessingService();
+  /// 공통 백엔드와 코덱을 주입받아 업로드용 미디어 정책만 이 서비스에 남깁니다.
+  PhotoEditorMediaProcessingService({
+    MediaProcessingBackend? mediaProcessingBackend,
+    WaveformCodec? waveformCodec,
+    Future<Directory> Function()? temporaryDirectoryProvider,
+  }) : _mediaProcessingBackend =
+           mediaProcessingBackend ?? DefaultMediaProcessingBackend.instance,
+       _waveformCodec =
+           waveformCodec ??
+           WaveformCodec(
+             backend:
+                 mediaProcessingBackend ??
+                 DefaultMediaProcessingBackend.instance,
+           ),
+       _temporaryDirectoryProvider =
+           temporaryDirectoryProvider ?? getTemporaryDirectory;
 
   static const int _maxImageSizeBytes = 1024 * 1024;
   static const int _initialCompressionQuality = 85;
@@ -101,22 +55,21 @@ class PhotoEditorMediaProcessingService {
 
   static const int _maxVideoSizeBytes = 50 * 1024 * 1024;
 
+  // 공통 미디어 처리 백엔드 (네이티브 패키지와 Flutter 구현을 조합)
+  final MediaProcessingBackend _mediaProcessingBackend;
+
+  // 웨이브폼 인코딩·디코딩을 위한 편의 래퍼
+  final WaveformCodec _waveformCodec;
+
+  // 임시 디렉토리 제공자 (테스트에서 목업 가능하도록)
+  final Future<Directory> Function() _temporaryDirectoryProvider;
+
   /// 이미지의 가로세로 비율을 계산하는 메서드
   Future<double?> calculateImageAspectRatio(File file) async {
     try {
-      final bytes = await file.readAsBytes();
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
-
-      final width = image.width.toDouble();
-      final height = image.height.toDouble();
-
-      image.dispose();
-      codec.dispose();
-
-      if (height == 0) return null;
-      return width / height;
+      //
+      final imageInfo = await _mediaProcessingBackend.probeImage(file);
+      return imageInfo?.aspectRatio;
     } catch (e) {
       debugPrint('[PhotoEditor] 이미지 aspect ratio 계산 실패: $e');
       return null;
@@ -127,16 +80,14 @@ class PhotoEditorMediaProcessingService {
   Future<File?> extractVideoThumbnailFile(String videoPath) async {
     if (kIsWeb) return null;
     try {
-      final tempDir = await getTemporaryDirectory();
-      final thumbnailPath = await VideoThumbnail.thumbnailFile(
-        video: videoPath,
-        thumbnailPath: tempDir.path,
-        imageFormat: ImageFormat.WEBP,
+      final tempDir = await _temporaryDirectoryProvider();
+      return await _mediaProcessingBackend.generateThumbnail(
+        videoPath: videoPath,
+        outputPath: tempDir.path,
+        format: MediaThumbnailFormat.webp,
         maxWidth: 720,
         quality: 80,
       );
-      if (thumbnailPath == null || thumbnailPath.isEmpty) return null;
-      return File(thumbnailPath);
     } catch (e) {
       debugPrint('[PhotoEditor] 비디오 썸네일 추출 실패: $e');
       return null;
@@ -149,16 +100,16 @@ class PhotoEditorMediaProcessingService {
       return null;
     }
 
-    if (kIsWeb || waveformData.length < 800) {
-      return _encodeWaveformData(waveformData);
-    }
-
     try {
-      final encoded = await compute(_encodeWaveformDataWorker, waveformData);
-      return encoded.isEmpty ? null : encoded;
+      return _waveformCodec.encodeOrNull(
+        waveformData,
+        maxSamples: waveformData.length,
+        decimals: 6,
+        format: WaveformTransportFormat.csv,
+      );
     } catch (e) {
-      debugPrint('[PhotoEditor] waveform encode isolate failed: $e');
-      return _encodeWaveformData(waveformData);
+      debugPrint('[PhotoEditor] waveform encode failed: $e');
+      return null;
     }
   }
 
@@ -176,7 +127,7 @@ class PhotoEditorMediaProcessingService {
     // 1단계: 720p 품질로 압축
     var compressed = await _tryCompressVideo(
       file,
-      VideoQuality.Res1280x720Quality,
+      MediaVideoQualityPreset.res1280x720,
     );
     if (compressed != null) {
       final compressedSize = await compressed.length();
@@ -185,7 +136,7 @@ class PhotoEditorMediaProcessingService {
     }
 
     // 2단계: 중간 품질로 압축
-    compressed = await _tryCompressVideo(file, VideoQuality.MediumQuality);
+    compressed = await _tryCompressVideo(file, MediaVideoQualityPreset.medium);
     if (compressed != null) {
       final compressedSize = await compressed.length();
       debugPrint('[PhotoEditor] 2단계 압축 결과: ${compressedSize ~/ 1024}KB');
@@ -194,7 +145,7 @@ class PhotoEditorMediaProcessingService {
 
     // 3단계: 낮은 품질로 최종 압축 시도
     debugPrint('[PhotoEditor] 3단계: LowQuality 압축 시도');
-    compressed = await _tryCompressVideo(file, VideoQuality.LowQuality);
+    compressed = await _tryCompressVideo(file, MediaVideoQualityPreset.low);
     return compressed ?? file;
   }
 
@@ -218,16 +169,16 @@ class PhotoEditorMediaProcessingService {
   }
 
   /// 비디오 압축을 시도하는 메서드, 실패 시 null 반환
-  Future<File?> _tryCompressVideo(File file, VideoQuality quality) async {
+  Future<File?> _tryCompressVideo(
+    File file,
+    MediaVideoQualityPreset quality,
+  ) async {
     try {
-      final info = await VideoCompress.compressVideo(
-        // 기본 설정으로 압축 시도
-        file.path,
-        quality: quality,
+      return await _mediaProcessingBackend.transcodeVideo(
+        inputFile: file,
+        qualityPreset: quality,
         includeAudio: true,
-        deleteOrigin: false,
       );
-      return info?.file;
     } catch (e) {
       debugPrint('[PhotoEditor] 비디오 압축 실패: $e');
       return null;
@@ -236,7 +187,7 @@ class PhotoEditorMediaProcessingService {
 
   /// 이미지 압축을 시도하는 메서드, 실패 시 null 반환
   Future<File?> _tryProgressiveCompression(File file) async {
-    final tempDir = await getTemporaryDirectory();
+    final tempDir = await _temporaryDirectoryProvider();
     File? bestCompressed;
     var quality = _initialCompressionQuality;
     var dimension = _initialImageDimension;
@@ -276,7 +227,7 @@ class PhotoEditorMediaProcessingService {
   /// Returns:
   /// - 압축된 이미지 파일 또는 null (압축 실패 시)
   Future<File?> _tryFallbackCompression(File file) async {
-    final tempDir = await getTemporaryDirectory();
+    final tempDir = await _temporaryDirectoryProvider();
     return _compressWithSettings(
       file,
       tempDir,
@@ -309,30 +260,13 @@ class PhotoEditorMediaProcessingService {
       'soi_upload_${DateTime.now().millisecondsSinceEpoch}_$suffix.webp',
     );
 
-    final compressedXFile = await FlutterImageCompress.compressAndGetFile(
-      file.absolute.path,
-      targetPath,
+    return _mediaProcessingBackend.compressImage(
+      inputFile: file,
+      outputPath: targetPath,
       quality: quality,
       minWidth: dimension,
       minHeight: dimension,
-      format: CompressFormat.webp,
+      format: MediaImageOutputFormat.webp,
     );
-
-    return compressedXFile != null ? File(compressedXFile.path) : null;
-  }
-
-  /// 파형 데이터를 문자열로 인코딩하는 메서드, null 또는 빈 리스트인 경우 null 반환
-  ///
-  /// Parameters:
-  /// - [waveformData]: 인코딩할 파형 데이터 리스트
-  ///
-  /// Returns:
-  /// - 인코딩된 문자열 또는 null (입력 데이터가 null이거나 비어있는 경우)
-  String? _encodeWaveformData(List<double>? waveformData) {
-    if (waveformData == null || waveformData.isEmpty) {
-      return null;
-    }
-    final encoded = _encodeWaveformDataWorker(waveformData);
-    return encoded.isEmpty ? null : encoded;
   }
 }

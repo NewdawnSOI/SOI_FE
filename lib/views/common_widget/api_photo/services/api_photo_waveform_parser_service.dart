@@ -1,37 +1,13 @@
-import 'dart:convert';
+import '../../../../utils/media_processing/waveform_codec.dart';
 
+/// API photo 오디오 UI가 쓰는 웨이브폼 파싱 규칙을 공통 코덱에 위임합니다.
 class ApiPhotoWaveformParserService {
   const ApiPhotoWaveformParserService._();
 
+  static final WaveformCodec _waveformCodec = WaveformCodec();
+
+  /// JSON/CSV 웨이브폼 문자열을 화면 표시용 리스트로 복원합니다.
   static List<double>? parse(String? waveformString) {
-    if (waveformString == null || waveformString.isEmpty) {
-      return null;
-    }
-
-    final trimmed = waveformString.trim();
-    if (trimmed.isEmpty) return null;
-
-    try {
-      final decoded = jsonDecode(trimmed);
-      if (decoded is List) {
-        return decoded.map((element) => (element as num).toDouble()).toList();
-      }
-    } catch (_) {
-      final sanitized = trimmed.replaceAll('[', '').replaceAll(']', '').trim();
-      if (sanitized.isEmpty) return null;
-
-      final parts = sanitized
-          .split(RegExp(r'[,\s]+'))
-          .where((part) => part.isNotEmpty);
-
-      try {
-        final values = parts.map((part) => double.parse(part)).toList();
-        return values.isEmpty ? null : values;
-      } catch (_) {
-        return null;
-      }
-    }
-
-    return null;
+    return _waveformCodec.decodeOrNull(waveformString);
   }
 }

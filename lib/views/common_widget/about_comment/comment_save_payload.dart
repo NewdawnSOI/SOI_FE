@@ -1,10 +1,14 @@
 import '../../../api/models/comment.dart';
+import '../../../utils/media_processing/media_processing_backend.dart';
+import '../../../utils/media_processing/waveform_codec.dart';
 
 enum CommentDraftKind { text, audio, image, video }
 
 /// 댓글 저장에 필요한 공통 payload.
 /// 1차에서는 text만 실제 저장하고 나머지는 인터페이스만 유지합니다.
 class CommentSavePayload {
+  static final WaveformCodec _waveformCodec = WaveformCodec();
+
   final int postId;
   final int userId;
   final CommentDraftKind kind;
@@ -112,9 +116,12 @@ class CommentSavePayload {
 
   /// API 응답이 없거나 불완전한 경우에도 댓글 정보를 최대한 복원하기 위한 폴백 메서드입니다.
   Comment toFallbackComment({String? nickname, String? userProfileUrl}) {
-    final waveform = waveformData == null || waveformData!.isEmpty
-        ? null
-        : waveformData!.map((value) => value.toStringAsFixed(4)).join(',');
+    final waveform = _waveformCodec.encodeOrNull(
+      waveformData,
+      maxSamples: waveformData?.length ?? 0,
+      decimals: 4,
+      format: WaveformTransportFormat.csv,
+    );
 
     return Comment(
       id: null,

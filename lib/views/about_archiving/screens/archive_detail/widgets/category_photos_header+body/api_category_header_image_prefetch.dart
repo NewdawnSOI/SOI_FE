@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:soi/api/models/category.dart';
 
 /// 카테고리 헤더 이미지 프리페칭 모델
+///
 /// Category 객체에서 헤더 이미지 URL과 캐시 키를 추출하여 프리페칭에 필요한 정보를 담는 모델입니다.
 ///
 /// Parameters:

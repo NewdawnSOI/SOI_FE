@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import '../../../api/controller/comment_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/controller/user_controller.dart';
 import '../../../utils/snackbar_utils.dart';
+import '../../../utils/media_processing/waveform_codec.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
@@ -58,6 +58,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
 
   // 음성 댓글의 웨이브폼 데이터는 최대 30개 샘플로 줄여서 서버에 전송합니다.
   static const int _maxWaveformSamples = 30;
+  static final WaveformCodec _waveformCodec = WaveformCodec();
 
   late final ScrollController _scrollController;
   late final TextEditingController _replyDraftController;
@@ -986,27 +987,11 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     );
   }
 
+  /// 음성 댓글 업로드용 웨이브폼을 공통 코덱으로 JSON 문자열에 맞춰 압축합니다.
   String _encodeWaveformForRequest(List<double>? waveformData) {
-    if (waveformData == null || waveformData.isEmpty) {
-      return '';
-    }
-
-    final sampled = _sampleWaveformData(waveformData, _maxWaveformSamples);
-    final rounded = sampled
-        .map((value) => double.parse(value.toStringAsFixed(4)))
-        .toList();
-    return jsonEncode(rounded);
-  }
-
-  List<double> _sampleWaveformData(List<double> source, int maxLength) {
-    if (source.length <= maxLength) {
-      return source;
-    }
-
-    final step = source.length / maxLength;
-    return List<double>.generate(
-      maxLength,
-      (index) => source[(index * step).floor()],
+    return _waveformCodec.encodeOrEmpty(
+      waveformData,
+      maxSamples: _maxWaveformSamples,
     );
   }
 

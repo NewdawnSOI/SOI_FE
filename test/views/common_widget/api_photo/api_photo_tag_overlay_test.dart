@@ -4,10 +4,12 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soi/api/controller/comment_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/comment.dart';
 import 'package:soi/api/models/post.dart';
 import 'package:soi/api/models/user.dart';
+import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi/views/common_widget/about_comment/comment_media_tag_preview_widget.dart';
 import 'package:soi/views/common_widget/about_comment/api_voice_comment_list_sheet.dart';
@@ -40,6 +42,8 @@ class _InMemoryAssetLoader extends AssetLoader {
 
 class _NoopAuthApi extends AuthControllerApi {}
 
+class _NoopCommentApi extends CommentAPIApi {}
+
 class _NoopUserApi extends UserAPIApi {}
 
 class _FakeUserController extends UserController {
@@ -53,12 +57,7 @@ class _FakeUserController extends UserController {
         ),
       ) {
     setCurrentUser(
-      User(
-        id: 1,
-        userId: 'tester',
-        name: '테스터',
-        phoneNumber: '01000000000',
-      ),
+      User(id: 1, userId: 'tester', name: '테스터', phoneNumber: '01000000000'),
     );
   }
 }
@@ -92,8 +91,24 @@ void main() {
         path: 'assets/translations',
         fallbackLocale: const Locale('ko'),
         assetLoader: const _InMemoryAssetLoader(),
-        child: ChangeNotifierProvider<UserController>(
-          create: (_) => _FakeUserController(),
+        child: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<UserController>(
+              create: (_) => _FakeUserController(),
+            ),
+            ChangeNotifierProvider<CommentController>(
+              create: (_) {
+                final controller = CommentController(
+                  commentService: CommentService(commentApi: _NoopCommentApi()),
+                );
+                controller.replaceCommentsCache(
+                  postId: post.id,
+                  comments: comments,
+                );
+                return controller;
+              },
+            ),
+          ],
           child: Builder(
             builder: (easyCtx) => MaterialApp(
               localizationsDelegates: easyCtx.localizationDelegates,
@@ -116,8 +131,6 @@ void main() {
         index: 0,
         isOwner: true,
         displayOnly: true,
-        postTagComments: <int, List<Comment>>{post.id: comments},
-        postComments: <int, List<Comment>>{post.id: comments},
         pendingCommentDrafts: <int, PendingApiCommentDraft>{},
         pendingVoiceComments: const <int, PendingApiCommentMarker>{},
         onToggleAudio: (_) {},

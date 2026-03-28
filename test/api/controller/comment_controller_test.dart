@@ -617,7 +617,7 @@ void main() {
 
         controller.appendCreatedComment(
           postId: 55,
-          comment: const Comment(
+          newComment: const Comment(
             id: 3,
             nickname: 'new-tag',
             locationX: 0.4,

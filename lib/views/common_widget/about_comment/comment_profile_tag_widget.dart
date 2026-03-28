@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import '../../../api/controller/comment_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
+import '../../../utils/media_processing/waveform_codec.dart';
 import '../api_photo/tag_pointer.dart';
 import '../api_photo/widgets/api_photo_circle_avatar.dart';
 import 'pending_api_voice_comment.dart';
@@ -57,6 +57,7 @@ class CommentProfileTagWidget extends StatefulWidget {
 
 class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
   static const int _kMaxWaveformSamples = 30;
+  static final WaveformCodec _waveformCodec = WaveformCodec();
 
   // 댓글 저장 후, API에서 저장된 댓글 정보를 조회하여 id/userId를 확인하는 최대 시도 횟수입니다.
   // (실제 저장된 댓글이 조회되지 않는 경우에 대비한 폴백 로직입니다.)
@@ -471,26 +472,11 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
     return (a - b).abs() <= 0.03;
   }
 
+  /// 댓글 저장용 웨이브폼을 공통 코덱으로 JSON 문자열에 맞춰 압축합니다.
   String _encodeWaveformForRequest(List<double>? waveformData) {
-    if (waveformData == null || waveformData.isEmpty) {
-      return '';
-    }
-    final sampled = _sampleWaveformData(waveformData, _kMaxWaveformSamples);
-    final rounded = sampled
-        .map((value) => double.parse(value.toStringAsFixed(4)))
-        .toList();
-    return jsonEncode(rounded);
-  }
-
-  List<double> _sampleWaveformData(List<double> source, int maxLength) {
-    if (source.length <= maxLength) {
-      return source;
-    }
-
-    final step = source.length / maxLength;
-    return List<double>.generate(
-      maxLength,
-      (index) => source[(index * step).floor()],
+    return _waveformCodec.encodeOrEmpty(
+      waveformData,
+      maxSamples: _kMaxWaveformSamples,
     );
   }
 

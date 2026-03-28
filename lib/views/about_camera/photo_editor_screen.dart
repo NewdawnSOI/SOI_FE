@@ -94,7 +94,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen>
   late PhotoEditorUploadFlowService _uploadFlowService;
 
   final PhotoEditorMediaProcessingService _mediaProcessingService =
-      const PhotoEditorMediaProcessingService();
+      PhotoEditorMediaProcessingService();
   late final PhotoEditorScreenInitService _screenInitService =
       PhotoEditorScreenInitService(
         mediaProcessingService: _mediaProcessingService,

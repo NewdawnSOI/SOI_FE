@@ -10,7 +10,7 @@ void main() {
   late PhotoEditorScreenInitService service;
 
   setUp(() {
-    service = const PhotoEditorScreenInitService(
+    service = PhotoEditorScreenInitService(
       mediaProcessingService: PhotoEditorMediaProcessingService(),
     );
   });

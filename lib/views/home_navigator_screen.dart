@@ -188,24 +188,32 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
           ),
         ),
       ),
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          if (!mounted || _currentPageIndex == index) return;
-          setState(() {
-            _currentPageIndex = index;
-          });
-          if (index == 2) {
-            unawaited(CameraService.instance.activateSession());
-          }
+      body: ValueListenableBuilder<bool>(
+        valueListenable: CameraScreen.isVideoRecordingNotifier,
+        builder: (context, isVideoRecording, child) {
+          return PageView(
+            controller: _pageController,
+            physics: isVideoRecording
+                ? const NeverScrollableScrollPhysics()
+                : null,
+            onPageChanged: (index) {
+              if (!mounted || _currentPageIndex == index) return;
+              setState(() {
+                _currentPageIndex = index;
+              });
+              if (index == 2) {
+                unawaited(CameraService.instance.activateSession());
+              }
+            },
+            children: [
+              _buildPage(0, const FeedHomeScreen()),
+              _buildPage(1, const APIArchiveMainScreen()),
+              _buildPage(2, CameraScreen(isActive: _currentPageIndex == 2)),
+              _buildPage(3, const FriendManagementScreen()),
+              _buildPage(4, const ProfilePage()),
+            ],
+          );
         },
-        children: [
-          _buildPage(0, const FeedHomeScreen()),
-          _buildPage(1, const APIArchiveMainScreen()),
-          _buildPage(2, CameraScreen(isActive: _currentPageIndex == 2)),
-          _buildPage(3, const FriendManagementScreen()),
-          _buildPage(4, const ProfilePage()),
-        ],
       ),
     );
   }

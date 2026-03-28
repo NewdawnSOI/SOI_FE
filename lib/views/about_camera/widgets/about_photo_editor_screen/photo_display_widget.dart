@@ -133,10 +133,6 @@ class _PhotoDisplayWidgetState extends State<PhotoDisplayWidget> {
       decoration: BoxDecoration(
         color: Colors.black,
         borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(
-          color: Color(0xff2b2b2b), // 테두리 색상
-          width: 2.0, // 테두리 두께
-        ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20.0),

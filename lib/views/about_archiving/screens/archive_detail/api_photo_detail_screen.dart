@@ -76,8 +76,6 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   int _lastBlockedFriendsRevision = 0;
 
   // 상태 맵 (Firebase 버전과 동일한 구조)
-  final Map<int, List<Comment>> _postTagComments = {};
-  final Map<int, List<Comment>> _postComments = {};
   final Map<int, String?> _selectedEmojisByPostId = {}; // postId별 내가 선택한 이모지
   final Map<String, String> _userProfileImages = {};
   final Map<String, bool> _profileLoadingStates = {};
@@ -333,8 +331,6 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                           selectedEmoji: _selectedEmojisByPostId[post.id],
                           onEmojiSelected: (emoji) =>
                               _setSelectedEmoji(post.id, emoji),
-                          postTagComments: _postTagComments,
-                          postComments: _postComments,
                           pendingCommentDrafts: _pendingCommentDrafts,
                           pendingVoiceComments: _pendingCommentMarkers,
                           onToggleAudio: _toggleAudio,
@@ -585,8 +581,9 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     int postId, {
     bool forceReload = false,
   }) async {
+    final commentController = context.read<CommentController>();
     if (!forceReload) {
-      if (_postTagComments.containsKey(postId)) {
+      if (commentController.peekTagCommentsCache(postId: postId) != null) {
         return;
       }
       final inFlight = _inFlightTagCommentLoads[postId];
@@ -597,16 +594,10 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
     final future = () async {
       try {
-        final commentController = context.read<CommentController>();
-        final comments = await commentController.getTagComments(
+        await commentController.getTagComments(
           postId: postId,
           forceReload: forceReload,
         );
-        if (!mounted) return;
-
-        setState(() {
-          _postTagComments[postId] = List<Comment>.unmodifiable(comments);
-        });
       } catch (error) {
         debugPrint('태그 댓글 로드 실패(postId: $postId): $error');
       }
@@ -628,8 +619,9 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     int postId, {
     bool forceReload = false,
   }) async {
+    final commentController = context.read<CommentController>();
     if (!forceReload) {
-      final cached = _postComments[postId];
+      final cached = commentController.peekCommentsCache(postId: postId);
       if (cached != null) {
         return cached;
       }
@@ -641,7 +633,6 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
     final future = () async {
       try {
-        final commentController = context.read<CommentController>();
         final comments = await commentController.getComments(
           postId: postId,
           forceReload: forceReload,
@@ -656,7 +647,8 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
         return comments;
       } catch (error) {
         debugPrint('전체 댓글 로드 실패(postId: $postId): $error');
-        return _postComments[postId] ?? const <Comment>[];
+        return commentController.peekCommentsCache(postId: postId) ??
+            const <Comment>[];
       }
     }();
 
@@ -673,7 +665,8 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
   /// overlay 삭제 후에는 이미 가진 cache 범위에 맞춰 tag/full 중 필요한 조회만 다시 수행합니다.
   Future<void> _reloadCommentsForPost(int postId) async {
-    if (_postComments.containsKey(postId)) {
+    if (context.read<CommentController>().peekCommentsCache(postId: postId) !=
+        null) {
       await _loadFullCommentsForPost(postId, forceReload: true);
       return;
     }
@@ -681,22 +674,20 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   }
 
   List<Comment> _initialSheetCommentsForPost(int postId) {
-    final fullComments = _postComments[postId];
+    final commentController = context.read<CommentController>();
+    final fullComments = commentController.peekCommentsCache(postId: postId);
     if (fullComments != null && fullComments.isNotEmpty) {
       return fullComments;
     }
-    return _postTagComments[postId] ?? const <Comment>[];
+    return commentController.peekTagCommentsCache(postId: postId) ??
+        const <Comment>[];
   }
 
-  /// full thread와 overlay tag cache를 같은 기준으로 갱신해 화면 간 상태를 맞춥니다.
+  /// full thread 갱신 시 controller cache와 이모지 선택 상태를 같은 기준으로 맞춥니다.
   void _replaceCommentCaches(int postId, List<Comment> comments) {
     context.read<CommentController>().replaceCommentsCache(
       postId: postId,
       comments: comments,
-    );
-    _postComments[postId] = List<Comment>.unmodifiable(comments);
-    _postTagComments[postId] = List<Comment>.unmodifiable(
-      comments.where((comment) => comment.hasLocation).toList(),
     );
 
     final currentUserId = _userController?.currentUser?.userId;
@@ -880,25 +871,9 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     _updatePendingProgress(postId, progress);
   }
 
-  void _onCommentSaveSuccess(int postId, Comment comment) {
+  void _onCommentSaveSuccess(int postId, Comment _) {
     if (!mounted) return;
-    context.read<CommentController>().appendCreatedComment(
-      postId: postId,
-      comment: comment,
-    );
     setState(() {
-      if (_postComments.containsKey(postId)) {
-        final updatedList = List<Comment>.from(
-          _postComments[postId] ?? const <Comment>[],
-        )..add(comment);
-        _postComments[postId] = List<Comment>.unmodifiable(updatedList);
-      }
-      if (comment.hasLocation) {
-        final updatedTags = List<Comment>.from(
-          _postTagComments[postId] ?? const <Comment>[],
-        )..add(comment);
-        _postTagComments[postId] = List<Comment>.unmodifiable(updatedTags);
-      }
       _pendingCommentDrafts.remove(postId);
       _pendingCommentMarkers.remove(postId);
     });
@@ -990,8 +965,6 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   /// - [nickName]: 삭제된 게시물 작성자의 닉네임 (사용자 캐시 정리를 위해 필요)
   void _clearPostScopedState(int postId, {required String nickName}) {
     context.read<CommentController>().invalidatePostCaches(postId: postId);
-    _postTagComments.remove(postId);
-    _postComments.remove(postId);
     _selectedEmojisByPostId.remove(postId);
     _pendingCommentDrafts.remove(postId);
     _pendingCommentMarkers.remove(postId);

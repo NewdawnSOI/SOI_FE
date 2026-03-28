@@ -9,6 +9,7 @@ import '../../common_widget/about_comment/comment_composer_v2_widget.dart';
 import '../../common_widget/api_photo/api_photo_card_widget.dart';
 import '../../common_widget/api_photo/api_user_info_widget.dart';
 import '../../../api/controller/audio_controller.dart';
+import '../../../api/controller/comment_controller.dart';
 import '../../../api/models/comment.dart';
 import '../manager/feed_data_manager.dart';
 import '../../../utils/analytics_service.dart';
@@ -21,8 +22,6 @@ class FeedPageBuilder extends StatefulWidget {
   final List<FeedPostItem> posts;
   final bool hasMoreData;
   final bool isLoadingMore;
-  final Map<int, List<Comment>> postTagComments;
-  final Map<int, List<Comment>> postComments;
   final Map<int, String?> selectedEmojisByPostId;
   final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
   final Map<int, PendingApiCommentMarker> pendingVoiceComments;
@@ -56,8 +55,6 @@ class FeedPageBuilder extends StatefulWidget {
     required this.posts,
     required this.hasMoreData,
     required this.isLoadingMore,
-    required this.postTagComments,
-    required this.postComments,
     required this.selectedEmojisByPostId,
     required this.pendingCommentDrafts,
     required this.pendingVoiceComments,
@@ -91,11 +88,11 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
   int _currentIndex = 0;
   bool _isTextFieldFocused = false;
 
-  /// 피드 카드와 시트가 같은 원본을 보도록 full/tag cache를 함께 갱신합니다.
+  /// 피드 시트에서 바뀐 full thread를 controller cache 한 곳에 되돌립니다.
   void _replaceCommentCaches(int postId, List<Comment> updatedComments) {
-    widget.postComments[postId] = List<Comment>.unmodifiable(updatedComments);
-    widget.postTagComments[postId] = List<Comment>.unmodifiable(
-      updatedComments.where((comment) => comment.hasLocation).toList(),
+    context.read<CommentController>().replaceCommentsCache(
+      postId: postId,
+      comments: updatedComments,
     );
   }
 
@@ -239,8 +236,6 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                         widget.selectedEmojisByPostId[feedItem.post.id],
                     onEmojiSelected: (emoji) =>
                         widget.onEmojiSelected(feedItem.post.id, emoji),
-                    postTagComments: widget.postTagComments,
-                    postComments: widget.postComments,
                     pendingCommentDrafts: widget.pendingCommentDrafts,
                     pendingVoiceComments: widget.pendingVoiceComments,
                     onToggleAudio: (p) => widget.onToggleAudio(feedItem),
@@ -263,11 +258,17 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                 onDeletePressed: () =>
                     widget.onDeletePost(_currentIndex, currentPost),
                 onCommentPressed: () {
+                  final commentController = context.read<CommentController>();
                   final fullComments =
-                      widget.postComments[currentPost.post.id] ?? const [];
+                      commentController.peekCommentsCache(
+                        postId: currentPost.post.id,
+                      ) ??
+                      const <Comment>[];
                   final initialComments = fullComments.isNotEmpty
                       ? fullComments
-                      : (widget.postTagComments[currentPost.post.id] ??
+                      : (commentController.peekTagCommentsCache(
+                              postId: currentPost.post.id,
+                            ) ??
                             const []);
                   showModalBottomSheet<void>(
                     context: context,
@@ -339,8 +340,10 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                     widget.pendingVoiceComments[id]?.relativePosition,
                 onCommentSaveProgress: widget.onCommentSaveProgress,
                 onCommentSaveSuccess: (postId, comment) {
+                  final commentController = context.read<CommentController>();
                   final existingTagCountBefore =
-                      (widget.postTagComments[postId] ?? const <Comment>[])
+                      (commentController.peekTagCommentsCache(postId: postId) ??
+                              const <Comment>[])
                           .length;
                   if (comment.hasLocation) {
                     unawaited(

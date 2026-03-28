@@ -177,10 +177,6 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
           _feedDataManager?.removePhoto(
             index,
           ); // UI에서 즉시 제거 --> 서버에 접근하는 것이 아니라, UI단에서 제거하는 것.
-          _voiceCommentStateManager?.postTagComments.remove(item.post.id);
-          _voiceCommentStateManager?.postComments.remove(
-            item.post.id,
-          ); // 댓글도 제거
           _voiceCommentStateManager?.pendingVoiceComments.remove(
             item.post.id,
           ); // 대기 중인 댓글도 제거
@@ -290,11 +286,14 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     _voiceCommentStateManager?.updatePendingProgress(postId, progress);
   }
 
+  /// 댓글 저장 성공 처리
+  ///
+  /// 댓글이 성공적으로 저장된 후, 새 댓글을 캐시에 추가하고 UI를 갱신합니다.
+  ///
+  /// Parameters:
+  /// - [postId]: 댓글이 달린 게시물 ID
+  /// - [comment]: 서버에서 저장되어 반환된 댓글 데이터
   void _onCommentSaveSuccess(int postId, Comment comment) {
-    context.read<CommentController>().appendCreatedComment(
-      postId: postId,
-      comment: comment,
-    );
     _voiceCommentStateManager?.handleCommentSaveSuccess(postId, comment);
   }
 
@@ -328,9 +327,11 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   /// 피드 새로고침 및 댓글 재로딩
   void _refreshFeedAfterProfileUpdate() {
     final posts = _feedDataManager?.allPosts ?? const <FeedPostItem>[];
+    final commentController = context.read<CommentController>();
     if (posts.isNotEmpty) {
-      _voiceCommentStateManager?.postTagComments.clear();
-      _voiceCommentStateManager?.postComments.clear();
+      for (final item in posts) {
+        commentController.invalidatePostCaches(postId: item.post.id);
+      }
     }
 
     // 피드 데이터 새로고침
@@ -404,7 +405,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       return;
     }
 
-    if (manager.postComments.containsKey(postId)) {
+    if (context.read<CommentController>().peekCommentsCache(postId: postId) !=
+        null) {
       await manager.loadCommentsForPost(postId, context, forceReload: true);
       return;
     }
@@ -522,8 +524,6 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
         posts: feedViewState.visiblePosts,
         hasMoreData: feedViewState.hasMoreData,
         isLoadingMore: feedViewState.isLoadingMore,
-        postTagComments: _voiceCommentStateManager!.postTagComments,
-        postComments: _voiceCommentStateManager!.postComments,
         selectedEmojisByPostId:
             _voiceCommentStateManager!.selectedEmojisByPostId,
         pendingCommentDrafts: _voiceCommentStateManager!.pendingCommentDrafts,

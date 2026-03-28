@@ -25,6 +25,12 @@ class CameraScreen extends StatefulWidget {
 
   final bool isActive;
 
+  /// 비디오 녹화 중 여부를 알리는 ValueNotifier입니다.(true: 녹화 중, false: 녹화 아님)
+  /// - PageView 스와이프 잠금에 사용됩니다.
+  static final ValueNotifier<bool> isVideoRecordingNotifier = ValueNotifier(
+    false,
+  );
+
   @override
   State<CameraScreen> createState() => _CameraScreenState();
 }
@@ -105,13 +111,20 @@ class _CameraScreenState extends State<CameraScreen>
   @override
   bool get wantKeepAlive => true;
 
+  /// 카메라 녹화 상태 업데이트 함수
+  /// 녹화 상태를 업데이트하고, 관련된 ValueNotifier도 함께 갱신하여 UI에 반영합니다.
+  void _setVideoRecording(bool value) {
+    _isVideoRecording = value; // 내부 상태 업데이트
+    CameraScreen.isVideoRecordingNotifier.value = value;
+  }
+
   /// initState는 화면이 텍스트 모드로 시작해도 선초기화를 먼저 걸어
   /// 첫 카메라 진입과 첫 녹화 전환의 지연을 줄입니다.
   @override
   void initState() {
     super.initState();
 
-    _setupVideoListeners();
+    _setupVideoListeners(); // 비디오 녹화 이벤트 리스너 설정
 
     // 앱 라이프사이클 옵저버 등록
     WidgetsBinding.instance.addObserver(this);
@@ -333,7 +346,8 @@ class _CameraScreenState extends State<CameraScreen>
     });
   }
 
-  /// 비디오 녹화 이벤트 리스너 설정
+  /// 비디오 녹화 이벤트 리스너를 설정하는 메소드
+  /// 카메라 서비스에서 비디오 녹화 완료 및 오류 이벤트를 구독하여, 녹화 상태 업데이트 및 편집 화면으로의 이동을 처리합니다.
   void _setupVideoListeners() {
     // 비디오 녹화 시에 처리
     _videoRecordedSubscription = _cameraService.onVideoRecorded.listen((
@@ -348,7 +362,9 @@ class _CameraScreenState extends State<CameraScreen>
       }
 
       setState(() {
-        _isVideoRecording = false;
+        // 녹화 상태 업데이트
+        // false로 설정하면, CameraScreen.isVideoRecordingNotifier가 갱신되어 PageView 스와이프가 풀립니다.
+        _setVideoRecording(false);
       });
       _videoStartInFlight = false;
       _pendingVideoAction = _PendingVideoAction.none;
@@ -371,7 +387,7 @@ class _CameraScreenState extends State<CameraScreen>
       if (!mounted) return;
 
       setState(() {
-        _isVideoRecording = false;
+        _setVideoRecording(false);
       });
       _videoStartInFlight = false;
       _pendingVideoAction = _PendingVideoAction.none;
@@ -672,7 +688,9 @@ class _CameraScreenState extends State<CameraScreen>
     _videoStartInFlight = false;
     if (started) {
       setState(() {
-        _isVideoRecording = true;
+        // 녹화 상태 업데이트
+        // true로 설정하면, CameraScreen.isVideoRecordingNotifier가 갱신되어 PageView 스와이프가 잠깁니다.
+        _setVideoRecording(true);
       });
 
       // Progress 타이머 시작
@@ -690,7 +708,7 @@ class _CameraScreenState extends State<CameraScreen>
       }
     } else {
       setState(() {
-        _isVideoRecording = false;
+        _setVideoRecording(false);
       });
       _pendingVideoAction = _PendingVideoAction.none;
       _showSnackBar(
@@ -721,7 +739,7 @@ class _CameraScreenState extends State<CameraScreen>
 
     if (!mounted) return;
     setState(() {
-      _isVideoRecording = false;
+      _setVideoRecording(false);
     });
     _pendingVideoAction = _PendingVideoAction.none;
 

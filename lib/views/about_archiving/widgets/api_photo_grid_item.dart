@@ -466,14 +466,10 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.black,
-                    border: Border.all(
-                      color: const Color(0xff2b2b2b),
-                      width: 2.0,
-                    ),
                     borderRadius: BorderRadius.circular(20.0),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18.0),
+                    borderRadius: BorderRadius.circular(20.0),
                     child: widget.post.isVideo
                         ? _buildVideoThumbnail()
                         : ((_mediaUrl ?? '').isNotEmpty
@@ -699,11 +695,10 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.black,
-          border: Border.all(color: const Color(0xff2b2b2b), width: 2.0),
           borderRadius: BorderRadius.circular(20.0),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(18.0),
+          borderRadius: BorderRadius.circular(20.0),
           child: Container(
             color: const Color(0xff1e1e1e),
             alignment: Alignment.center,

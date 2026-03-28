@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -13,6 +12,7 @@ import '../../../api/controller/user_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/models/comment_creation_result.dart';
 import '../../../utils/position_converter.dart';
+import '../../../utils/media_processing/waveform_codec.dart';
 import '../../../utils/snackbar_utils.dart';
 import '../../common_widget/about_comment/pending_api_voice_comment.dart';
 
@@ -24,20 +24,18 @@ import '../../common_widget/about_comment/pending_api_voice_comment.dart';
 ///   - [voiceCommentActiveStates]: 게시물 ID별 음성/텍스트 댓글 활성화 상태 맵
 ///   - [voiceCommentSavedStates]: 게시물 ID별 음성/텍스트 댓글 저장 상태 맵
 ///   - [pendingVoiceComments]: 게시물 ID별 대기 중인 음성/텍스트 댓글 맵
-///   - [postComments]: 게시물 ID별 댓글 목록 맵
 ///   - [pendingTextComments]: 게시물 ID별 대기 중인 텍스트 댓글 상태 맵
 ///   - [autoPlacementIndices]: 게시물 ID별 자동 배치 인덱스 맵
 ///   - [onStateChanged]: 상태 변경 시 호출되는 콜백 함수
 class VoiceCommentStateManager {
   static const int _kMaxWaveformSamples = 30;
+  static final WaveformCodec _waveformCodec = WaveformCodec();
   final Map<int, bool> _voiceCommentActiveStates = {};
   final Map<int, bool> _voiceCommentSavedStates = {};
   final Map<int, PendingApiCommentDraft> _pendingCommentDrafts =
       {}; // 임시 댓글 초안 저장
   final Map<int, PendingApiCommentMarker> _pendingCommentMarkers =
       {}; // UI 마커용 최소 데이터 저장
-  final Map<int, List<Comment>> _postTagComments = {};
-  final Map<int, List<Comment>> _postComments = {};
   final Map<int, bool> _pendingTextComments = {};
   final Map<int, int> _autoPlacementIndices = {};
   final Map<int, String?> _selectedEmojisByPostId = {}; // postId별 내가 선택한 이모지
@@ -52,8 +50,6 @@ class VoiceCommentStateManager {
       _pendingCommentMarkers;
   Map<int, PendingApiCommentDraft> get pendingCommentDrafts =>
       _pendingCommentDrafts;
-  Map<int, List<Comment>> get postTagComments => _postTagComments;
-  Map<int, List<Comment>> get postComments => _postComments;
   Map<int, bool> get pendingTextComments => _pendingTextComments;
   Map<int, String?> get selectedEmojisByPostId => _selectedEmojisByPostId;
 
@@ -116,10 +112,14 @@ class VoiceCommentStateManager {
     BuildContext context, {
     bool forceReload = false,
   }) async {
+    final commentController = context.read<CommentController>();
     final uniquePostIds = postIds
         .toSet()
         .where((postId) {
-          return forceReload || !_postTagComments.containsKey(postId);
+          final cached = commentController.peekTagCommentsCache(postId: postId);
+          return forceReload ||
+              cached == null ||
+              _needsProfileImageResolution(cached);
         })
         .toList(growable: false);
     if (uniquePostIds.isEmpty) {
@@ -143,10 +143,22 @@ class VoiceCommentStateManager {
     BuildContext context, {
     bool forceReload = false,
   }) async {
+    final commentController = context.read<CommentController>();
     if (!forceReload) {
-      final cached = _postComments[postId];
+      final cached = commentController.peekCommentsCache(postId: postId);
       if (cached != null) {
-        return cached;
+        final resolved = await _resolveAndStoreCommentsIfNeeded(
+          postId: postId,
+          comments: cached,
+          context: context,
+          tagOnly: false,
+        );
+        if (!context.mounted) {
+          return resolved;
+        }
+        _syncCommentStateFromFullComments(postId, resolved, context);
+        _notifyStateChanged();
+        return resolved;
       }
       final inFlight = _inFlightFullCommentLoads[postId];
       if (inFlight != null) {
@@ -206,20 +218,31 @@ class VoiceCommentStateManager {
       try {
         final commentController = context.read<CommentController>();
         final mediaController = context.read<api_media.MediaController>();
-        final comments = await commentController.getTagComments(
-          postId: postId,
-          forceReload: forceReload,
-        );
+        final cached = forceReload
+            ? null
+            : commentController.peekTagCommentsCache(postId: postId);
+        final comments =
+            cached ??
+            await commentController.getTagComments(
+              postId: postId,
+              forceReload: forceReload,
+            );
         final resolvedComments = await _resolveCommentProfileImages(
           comments,
           mediaController,
         );
 
         if (!context.mounted) return;
-        _storeTagComments(postId, resolvedComments);
+        commentController.replaceTagCommentsCache(
+          postId: postId,
+          comments: resolvedComments,
+        );
         _voiceCommentSavedStates[postId] =
             resolvedComments.isNotEmpty ||
-            (_postComments[postId]?.isNotEmpty ?? false);
+            ((commentController
+                    .peekCommentsCache(postId: postId)
+                    ?.isNotEmpty) ??
+                false);
         _notifyStateChanged();
         _prefetchProfileImages(
           context,
@@ -248,10 +271,6 @@ class VoiceCommentStateManager {
     required bool forceReload,
   }) async {
     try {
-      final currentUserNickname = context
-          .read<UserController>()
-          .currentUser
-          ?.userId;
       final commentController = context.read<CommentController>();
       final mediaController = context.read<api_media.MediaController>();
       final comments = await commentController.getComments(
@@ -267,20 +286,11 @@ class VoiceCommentStateManager {
         return resolvedComments;
       }
 
-      _postComments[postId] = List<Comment>.unmodifiable(resolvedComments);
-      _storeTagComments(postId, _filterTagComments(resolvedComments));
-
-      if (currentUserNickname != null) {
-        final selected = _selectedEmojiFromComments(
-          comments: resolvedComments,
-          currentUserNickname: currentUserNickname,
-        );
-        if (selected != null) {
-          _selectedEmojisByPostId[postId] = selected;
-        }
-      }
-
-      _voiceCommentSavedStates[postId] = resolvedComments.isNotEmpty;
+      commentController.replaceCommentsCache(
+        postId: postId,
+        comments: resolvedComments,
+      );
+      _syncCommentStateFromFullComments(postId, resolvedComments, context);
       _notifyStateChanged();
       _prefetchProfileImages(
         context,
@@ -289,7 +299,10 @@ class VoiceCommentStateManager {
       return resolvedComments;
     } catch (e) {
       debugPrint('전체 댓글 로드 실패(postId: $postId): $e');
-      return _postComments[postId] ?? const <Comment>[];
+      return context.read<CommentController>().peekCommentsCache(
+            postId: postId,
+          ) ??
+          const <Comment>[];
     }
   }
 
@@ -425,27 +438,83 @@ class VoiceCommentStateManager {
     return candidates;
   }
 
-  List<Comment> _filterTagComments(List<Comment> comments) {
-    return comments
-        .where((comment) => comment.hasLocation)
-        .toList(growable: false);
+  /// presigned URL이 아직 풀리지 않은 댓글은 feed용 cache에 보정해 재사용합니다.
+  bool _needsProfileImageResolution(List<Comment> comments) {
+    for (final comment in comments) {
+      final profileKey = _extractCommentProfileKey(comment);
+      if (profileKey == null) {
+        continue;
+      }
+
+      final profileUrl = (comment.userProfileUrl ?? '').trim();
+      final uri = Uri.tryParse(profileUrl);
+      if (profileUrl.isEmpty || uri == null || !uri.hasScheme) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  void _storeTagComments(int postId, List<Comment> comments) {
-    _postTagComments[postId] = List<Comment>.unmodifiable(comments);
+  /// feed 화면은 controller cache도 presigned URL이 반영된 상태로 유지합니다.
+  Future<List<Comment>> _resolveAndStoreCommentsIfNeeded({
+    required int postId,
+    required List<Comment> comments,
+    required BuildContext context,
+    required bool tagOnly,
+  }) async {
+    if (!_needsProfileImageResolution(comments)) {
+      return comments;
+    }
+
+    final mediaController = context.read<api_media.MediaController>();
+    final commentController = context.read<CommentController>();
+    final resolvedComments = await _resolveCommentProfileImages(
+      comments,
+      mediaController,
+    );
+
+    if (!context.mounted) {
+      return resolvedComments;
+    }
+
+    if (tagOnly) {
+      commentController.replaceTagCommentsCache(
+        postId: postId,
+        comments: resolvedComments,
+      );
+      return commentController.peekTagCommentsCache(postId: postId) ??
+          resolvedComments;
+    }
+
+    commentController.replaceCommentsCache(
+      postId: postId,
+      comments: resolvedComments,
+    );
+    return commentController.peekCommentsCache(postId: postId) ??
+        resolvedComments;
   }
 
-  /// 캐시된 전체 댓글이 없더라도 현재 태그 오버레이가 쓸 좌표 집합은 유지합니다.
-  List<Comment> overlayCommentsForPost(int postId) {
-    final tagged = _postTagComments[postId];
-    if (tagged != null) {
-      return tagged;
+  /// 전체 댓글이 준비되면 저장 여부와 선택 이모지를 피드 UI 상태에 동기화합니다.
+  void _syncCommentStateFromFullComments(
+    int postId,
+    List<Comment> comments,
+    BuildContext context,
+  ) {
+    final currentUserNickname = context
+        .read<UserController>()
+        .currentUser
+        ?.userId;
+    if (currentUserNickname != null) {
+      final selected = _selectedEmojiFromComments(
+        comments: comments,
+        currentUserNickname: currentUserNickname,
+      );
+      if (selected != null) {
+        _selectedEmojisByPostId[postId] = selected;
+      }
     }
-    final full = _postComments[postId];
-    if (full != null) {
-      return _filterTagComments(full);
-    }
-    return const <Comment>[];
+
+    _voiceCommentSavedStates[postId] = comments.isNotEmpty;
   }
 
   void _prefetchProfileImages(
@@ -630,19 +699,7 @@ class VoiceCommentStateManager {
     _notifyStateChanged();
   }
 
-  void handleCommentSaveSuccess(int postId, Comment comment) {
-    if (_postComments.containsKey(postId)) {
-      final existing = List<Comment>.from(_postComments[postId] ?? const []);
-      existing.add(comment);
-      _postComments[postId] = List<Comment>.unmodifiable(existing);
-    }
-    if (comment.hasLocation) {
-      final existingTags = List<Comment>.from(
-        _postTagComments[postId] ?? const <Comment>[],
-      )..add(comment);
-      _storeTagComments(postId, existingTags);
-    }
-
+  void handleCommentSaveSuccess(int postId, Comment _) {
     _voiceCommentSavedStates[postId] = true;
     _voiceCommentActiveStates[postId] = false;
     _pendingTextComments.remove(postId);
@@ -687,7 +744,7 @@ class VoiceCommentStateManager {
     // 최종 위치 결정
     final finalPosition =
         _pendingCommentMarkers[postId]?.relativePosition ??
-        _generateAutoProfilePosition(postId);
+        _generateAutoProfilePosition(postId, commentController);
 
     // 저장 중에도 UI 마커가 유지되도록 최종 위치를 마커에 기록
     _pendingCommentMarkers[postId] = (
@@ -805,22 +862,12 @@ class VoiceCommentStateManager {
       if (creationResult.success) {
         _updatePendingProgress(postId, 1.0);
         if (creationResult.comment != null) {
-          commentController.appendCreatedComment(
-            postId: postId,
-            comment: creationResult.comment!,
-          );
-          _addCommentToCache(postId, creationResult.comment!);
+          _voiceCommentSavedStates[postId] = true;
         } else {
           final refreshed = await commentController.getComments(
             postId: postId,
             forceReload: true,
           );
-          commentController.replaceCommentsCache(
-            postId: postId,
-            comments: refreshed,
-          );
-          _postComments[postId] = List<Comment>.unmodifiable(refreshed);
-          _storeTagComments(postId, _filterTagComments(refreshed));
           _voiceCommentSavedStates[postId] = refreshed.isNotEmpty;
         }
         return true;
@@ -833,22 +880,6 @@ class VoiceCommentStateManager {
       SnackBarUtils.showWithMessenger(messenger, '댓글 저장 중 오류가 발생했습니다.');
       return false;
     }
-  }
-
-  void _addCommentToCache(int postId, Comment comment) {
-    if (_postComments.containsKey(postId)) {
-      final existing = List<Comment>.from(_postComments[postId] ?? const []);
-      existing.add(comment);
-      _postComments[postId] = List<Comment>.unmodifiable(existing);
-    }
-    if (comment.hasLocation) {
-      final existingTags = List<Comment>.from(
-        _postTagComments[postId] ?? const <Comment>[],
-      )..add(comment);
-      _storeTagComments(postId, existingTags);
-    }
-    _voiceCommentSavedStates[postId] = true;
-    _notifyStateChanged();
   }
 
   /// 음성/텍스트 댓글이 삭제되었을 때 호출되는 메서드
@@ -866,9 +897,14 @@ class VoiceCommentStateManager {
   }
 
   /// 자동 배치 위치 생성기
-  Offset _generateAutoProfilePosition(int postId) {
+  Offset _generateAutoProfilePosition(
+    int postId,
+    CommentController commentController,
+  ) {
     final occupiedPositions = <Offset>[];
-    final comments = overlayCommentsForPost(postId);
+    final comments =
+        commentController.peekTagCommentsCache(postId: postId) ??
+        const <Comment>[];
 
     for (final comment in comments) {
       if (comment.hasLocation) {
@@ -958,8 +994,8 @@ class VoiceCommentStateManager {
     _pendingCommentDrafts.clear();
     _pendingCommentMarkers.clear();
     _pendingTextComments.clear();
-    _postTagComments.clear();
-    _postComments.clear();
+    _inFlightTagCommentLoads.clear();
+    _inFlightFullCommentLoads.clear();
   }
 
   void _clearPendingState(int postId) {
@@ -971,22 +1007,9 @@ class VoiceCommentStateManager {
   // 음성 파형 데이터를 서버 요청용으로 인코딩
   // (샘플링 및 JSON 인코딩)
   String? _encodeWaveformForRequest(List<double>? waveformData) {
-    if (waveformData == null || waveformData.isEmpty) return null;
-    final sampled = _sampleWaveformData(waveformData, _kMaxWaveformSamples);
-    final rounded = sampled
-        .map((value) => double.parse(value.toStringAsFixed(4)))
-        .toList();
-    return jsonEncode(rounded);
-  }
-
-  // 파형 데이터 샘플링
-  // (최대 길이로 샘플링하여 데이터 크기 축소)
-  List<double> _sampleWaveformData(List<double> source, int maxLength) {
-    if (source.length <= maxLength) return source;
-    final step = source.length / maxLength;
-    return List<double>.generate(
-      maxLength,
-      (index) => source[(index * step).floor()],
+    return _waveformCodec.encodeOrNull(
+      waveformData,
+      maxSamples: _kMaxWaveformSamples,
     );
   }
 }
