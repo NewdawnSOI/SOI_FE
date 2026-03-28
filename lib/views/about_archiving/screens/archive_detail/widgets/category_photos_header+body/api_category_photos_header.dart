@@ -269,13 +269,20 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
       viewportWidth: MediaQuery.sizeOf(context).width,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       tokens: CategoryPhotosHeaderTokens(
-        expandedHorizontalPadding: 20.w,
-        collapsedHorizontalPadding: 16.w,
-        expandedTitleBottomInset: 96.h,
+        expandedHorizontalPadding: 20.w, // 확장된 상태에서의 좌우 패딩
+        collapsedHorizontalPadding: 16.w, // 축소된 상태에서의 좌우 패딩
+        expandedTitleBottomInset: 56.h, // 확장된 상태에서 큰 타이틀과 하단 사이의 간격
+        // 축소된 상태에서 큰 타이틀이 툴바 중앙선에서 얼마나 위로 올라갈지
         compactTitleVerticalOffset: 12.h,
+
+        // 툴바 아이콘과 멤버 액션의 y 좌표 (스크롤에 따라 고정)
         toolbarItemVerticalOffset: 20.h,
+
+        // 확장된 상태에서 큰 타이틀의 스케일 (축소된 상태에서는 0.86으로 고정)
         collapsedTitleScale: 0.86,
-        titleFontSize: 26.sp,
+
+        // 확장된 상태에서 큰 타이틀의 폰트 크기 (축소된 상태에서는 20.sp로 고정)
+        titleFontSize: 28.sp,
       ),
     );
   }
