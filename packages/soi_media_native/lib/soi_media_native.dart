@@ -42,7 +42,19 @@ class SoiMediaNativeClient {
     }
   }
 
-  /// compressImage는 decode-resize-encode 파이프라인을 native core 한 번으로 실행합니다.
+  /// 이미지 압축 내부 메소드를 감싸 앱 레이어에서 사용할 수 있게 합니다.
+  ///
+  /// Parameters:
+  /// - [inputPath]: 압축할 이미지 파일의 경로
+  /// - [outputPath]: 압축된 이미지 파일이 저장될 경로
+  /// - [quality]: 압축 품질 (0-100)
+  /// - [minWidth]: 최소 너비 (비율 유지하며 이보다 작아지지 않도록)
+  /// - [minHeight]: 최소 높이 (비율 유지하며 이보다 작아지지 않도록)
+  /// - [format]: 출력 이미지 포맷 (기본값: webp)
+  ///
+  /// Returns:
+  /// - [File]: 압축된 이미지 파일 객체
+  /// - [null]: 압축 실패 또는 출력 파일이 생성되지 않은 경우
   Future<File?> compressImage({
     required String inputPath,
     required String outputPath,
@@ -51,6 +63,7 @@ class SoiMediaNativeClient {
     required int minHeight,
     SoiImageOutputFormat format = SoiImageOutputFormat.webp,
   }) async {
+    // C 압축 엔트리포인트를 감싸 파일 경로와 enum 값을 native ABI에 맞게 넘깁니다.
     final ok = _compressImageSync(
       inputPath: inputPath,
       outputPath: outputPath,
@@ -151,9 +164,20 @@ class SoiMediaNativeClient {
   }
 }
 
-const SoiMediaNativeClient _defaultClient = SoiMediaNativeClient();
-
-/// C 압축 엔트리포인트를 감싸 파일 경로와 enum 값을 native ABI에 맞게 넘깁니다.
+/// C ABI에 맞는 네이티브 함수 호출을 수행하는 내부 메소드입니다.
+/// 앱 레이어에서는 compressImage 메소드로 이 기능을 사용해야 합니다.
+///
+/// Parameters:
+/// - [inputPath]: 압축할 이미지 파일의 경로
+/// - [outputPath]: 압축된 이미지 파일이 저장될 경로
+/// - [quality]: 압축 품질 (0-100)
+/// - [minWidth]: 최소 너비 (비율 유지하며 이보다 작아지지 않도록)
+/// - [minHeight]: 최소 높이 (비율 유지하며 이보다 작아지지 않도록)
+/// - [format]: 출력 이미지 포맷 (webp, jpeg, png)
+///
+/// Returns:
+/// - [true]: 압축 성공
+/// - [false]: 압축 실패
 bool _compressImageSync({
   required String inputPath,
   required String outputPath,
@@ -162,9 +186,13 @@ bool _compressImageSync({
   required int minHeight,
   required SoiImageOutputFormat format,
 }) {
+  // 입력 경로를 C ABI에 맞는 UTF-8 문자열로 변환
   final nativeInputPath = inputPath.toNativeUtf8();
+
+  // 출력 경로를 C ABI에 맞는 UTF-8 문자열로 변환
   final nativeOutputPath = outputPath.toNativeUtf8();
   try {
+    // C 압축 엔트리포인트를 감싸 파일 경로와 enum 값을 native ABI에 맞게 넘깁니다.
     return bindings.soi_compress_image(
           nativeInputPath.cast(),
           nativeOutputPath.cast(),
@@ -179,40 +207,3 @@ bool _compressImageSync({
     calloc.free(nativeOutputPath);
   }
 }
-
-Future<SoiImageProbeResult?> probeImage(String path) =>
-    _defaultClient.probeImage(path);
-
-Future<File?> compressImage({
-  required String inputPath,
-  required String outputPath,
-  required int quality,
-  required int minWidth,
-  required int minHeight,
-  SoiImageOutputFormat format = SoiImageOutputFormat.webp,
-}) => _defaultClient.compressImage(
-  inputPath: inputPath,
-  outputPath: outputPath,
-  quality: quality,
-  minWidth: minWidth,
-  minHeight: minHeight,
-  format: format,
-);
-
-List<double> sampleWaveform(List<double> source, int maxLength) =>
-    _defaultClient.sampleWaveform(source, maxLength);
-
-String encodeWaveform(
-  List<double> waveformData, {
-  required int maxSamples,
-  int decimals = 4,
-  SoiWaveformEncodingFormat format = SoiWaveformEncodingFormat.json,
-}) => _defaultClient.encodeWaveform(
-  waveformData,
-  maxSamples: maxSamples,
-  decimals: decimals,
-  format: format,
-);
-
-List<double> decodeWaveform(String? waveformString) =>
-    _defaultClient.decodeWaveform(waveformString);

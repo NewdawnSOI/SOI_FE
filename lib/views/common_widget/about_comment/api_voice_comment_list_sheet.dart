@@ -8,7 +8,7 @@ import '../../../api/controller/comment_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/controller/user_controller.dart';
 import '../../../utils/snackbar_utils.dart';
-import '../../../utils/media_processing/waveform_codec.dart';
+import '../../../api/media_processing/waveform_codec.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';

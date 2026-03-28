@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../../../utils/media_processing/media_processing_backend.dart';
-import '../../../utils/media_processing/waveform_codec.dart';
+import '../../../api/media_processing/media_processing_backend.dart';
+import '../../../api/media_processing/waveform_codec.dart';
 
 class PhotoEditorMediaProcessingService {
   ///

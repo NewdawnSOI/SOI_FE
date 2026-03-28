@@ -7,7 +7,7 @@ import '../../../api/controller/category_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/controller/user_controller.dart';
 import '../../../api/models/user.dart';
-import '../../../utils/media_processing/media_processing_backend.dart';
+import '../../../api/media_processing/media_processing_backend.dart';
 
 /// 프로필 화면에서 필요한 데이터와 기능을 담당하는 서비스입니다.
 /// 사용자 정보와 프로필 사진 URL을 가져오고, 새로운 프로필 사진을 선택하고 업로드하는 기능을 제공합니다.

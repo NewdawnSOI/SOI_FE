@@ -1,6 +1,6 @@
 import '../../../api/models/comment.dart';
-import '../../../utils/media_processing/media_processing_backend.dart';
-import '../../../utils/media_processing/waveform_codec.dart';
+import '../../../api/media_processing/media_processing_backend.dart';
+import '../../../api/media_processing/waveform_codec.dart';
 
 enum CommentDraftKind { text, audio, image, video }
 

@@ -43,10 +43,10 @@ UI / Service / Cache
 앱이 사용하는 **단일 미디어 처리 API**입니다.
 
 - `MediaProcessingBackend`
-  - 앱 코드가 의존하는 공통 계약입니다.
+  - 앱 코드가 의존하는 **공통 계약(추상 클래스)**입니다.
   - 테스트에서는 `FakeMediaProcessingBackend`가 이 계약을 구현합니다.
 - `DefaultMediaProcessingBackend`
-  - 실제 운영 구현입니다.
+  - 실제 기능을 구현한 클래스입니다.
   - 이미지와 웨이브폼은 `soi_media_native`를 사용합니다.
   - 비디오는 `video_compress`, `video_thumbnail`를 사용합니다.
 
@@ -70,24 +70,27 @@ UI / Service / Cache
 
 `C` 함수를 Dart에서 안전하게 호출하기 위한 **패키지 공개 API**입니다.
 
+패키지 사용자는 `SoiMediaNativeClient` 인스턴스를 만들어 메서드를 호출합니다.
+top-level helper 함수는 두지 않고, 공개 진입점을 클래스 하나로 고정했습니다.
+
 담당 기능:
 
-- `probeImage`
-- `compressImage`
-- `sampleWaveform`
-- `encodeWaveform`
-- `decodeWaveform`
+- `probeImage` - 이미지 메타데이터 읽기
+- `compressImage` - 이미지 압축
+- `sampleWaveform` - 파형 샘플링: 오디오 파일에서 일정 간격으로 진폭을 측정해 시각화나 간단한 분석에 활용하는 기술입니다.
+- `encodeWaveform` - 파형 인코딩: 샘플링된 진폭 데이터를 효율적으로 저장하거나 전송하기 위한 형식으로 변환하는 기술입니다.
+- `decodeWaveform` - 파형 디코딩: 인코딩된 파형 데이터를 원래의 진폭 데이터로 복원하는 기술입니다.
 
 이 파일에는 비디오나 썸네일 로직이 없습니다.
-FFI 패키지는 이제 이미지와 웨이브폼만 책임집니다.
+FFI 패키지는 이제 이미지와 파형만 책임집니다.
 
 #### [soi_media_native_bindings_generated.dart](/Users/minchanpark/Documents/SOI/packages/soi_media_native/lib/soi_media_native_bindings_generated.dart)
 
 `C ABI`와 Dart를 연결하는 **낮은 레벨 바인딩 선언**입니다.
 
-- `soi_probe_image`
-- `soi_compress_image`
-- `soi_sample_waveform`
+- `soi_probe_image` - 이미지 메타데이터 읽기
+- `soi_compress_image` - 이미지 압축
+- `soi_sample_waveform` - 파형 샘플링
 
 여기는 “기계적으로 연결”하는 레이어입니다.
 앱 로직을 넣지 않습니다.
@@ -120,7 +123,7 @@ FFI 패키지 빌드 스크립트입니다.
 - 이미지 decode
 - 비율 유지 resize
 - WEBP/JPEG/PNG encode
-- 웨이브폼 샘플링
+- 파형 샘플링
 
 이미지 압축 정책을 바꾸고 싶으면 이 파일을 먼저 봅니다.
 

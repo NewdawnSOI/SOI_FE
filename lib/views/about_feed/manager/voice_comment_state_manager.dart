@@ -12,7 +12,7 @@ import '../../../api/controller/user_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/models/comment_creation_result.dart';
 import '../../../utils/position_converter.dart';
-import '../../../utils/media_processing/waveform_codec.dart';
+import '../../../api/media_processing/waveform_codec.dart';
 import '../../../utils/snackbar_utils.dart';
 import '../../common_widget/about_comment/pending_api_voice_comment.dart';
 

@@ -9,6 +9,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('SoiMediaNative', () {
+    const client = SoiMediaNativeClient();
+
     test('probeImage reads png dimensions through native code', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'soi_media_native_test',
@@ -22,26 +24,26 @@ void main() {
         }
       });
 
-      final result = await probeImage(pngFile.path);
+      final result = await client.probeImage(pngFile.path);
       expect(result, isNotNull);
       expect(result?.width, 1);
       expect(result?.height, 1);
     });
 
     test('sampleWaveform keeps evenly spaced values', () {
-      final sampled = sampleWaveform(<double>[0, 1, 2, 3, 4, 5], 3);
+      final sampled = client.sampleWaveform(<double>[0, 1, 2, 3, 4, 5], 3);
       expect(sampled, <double>[0, 2, 4]);
     });
 
     test('encodeWaveform and decodeWaveform keep request compatibility', () {
-      final encoded = encodeWaveform(<double>[
+      final encoded = client.encodeWaveform(<double>[
         0.123456,
         0.987654,
         0.5,
       ], maxSamples: 2);
       expect(encoded, '[0.1235,0.9877]');
-      expect(decodeWaveform(encoded), <double>[0.1235, 0.9877]);
-      expect(decodeWaveform('0.1, 0.2, 0.3'), <double>[0.1, 0.2, 0.3]);
+      expect(client.decodeWaveform(encoded), <double>[0.1235, 0.9877]);
+      expect(client.decodeWaveform('0.1, 0.2, 0.3'), <double>[0.1, 0.2, 0.3]);
     });
 
     test('compressImage writes a native webp file', () async {
@@ -58,7 +60,6 @@ void main() {
         }
       });
 
-      const client = SoiMediaNativeClient();
       final compressed = await client.compressImage(
         inputPath: input.path,
         outputPath: output,
@@ -71,7 +72,7 @@ void main() {
       expect(await compressed!.exists(), isTrue);
       final bytes = await compressed.readAsBytes();
       expect(bytes.take(4).toList(), <int>[0x52, 0x49, 0x46, 0x46]);
-      final outputProbe = await probeImage(compressed.path);
+      final outputProbe = await client.probeImage(compressed.path);
       expect(outputProbe?.width, 8);
       expect(outputProbe?.height, 6);
     });

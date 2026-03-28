@@ -8,7 +8,7 @@ import '../../../api/controller/comment_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
-import '../../../utils/media_processing/waveform_codec.dart';
+import '../../../api/media_processing/waveform_codec.dart';
 import '../api_photo/tag_pointer.dart';
 import '../api_photo/widgets/api_photo_circle_avatar.dart';
 import 'pending_api_voice_comment.dart';

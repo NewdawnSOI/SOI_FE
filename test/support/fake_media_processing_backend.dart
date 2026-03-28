@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:soi/utils/media_processing/media_processing_backend.dart';
+import 'package:soi/api/media_processing/media_processing_backend.dart';
 
 class FakeMediaProcessingBackend implements MediaProcessingBackend {
   FakeMediaProcessingBackend({

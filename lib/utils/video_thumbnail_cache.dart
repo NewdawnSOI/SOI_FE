@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'media_processing/media_processing_backend.dart';
+import '../api/media_processing/media_processing_backend.dart';
 
 /// 비디오 썸네일 3-tier 캐시 (Memory → Disk → Generate)
 ///

@@ -1,4 +1,4 @@
-import '../../../../utils/media_processing/waveform_codec.dart';
+import '../../../../api/media_processing/waveform_codec.dart';
 
 /// API photo 오디오 UI가 쓰는 웨이브폼 파싱 규칙을 공통 코덱에 위임합니다.
 class ApiPhotoWaveformParserService {
