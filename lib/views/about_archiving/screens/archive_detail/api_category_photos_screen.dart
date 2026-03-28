@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -835,10 +834,9 @@ class _ApiCategoryPhotosScreenState extends State<ApiCategoryPhotosScreen>
   Widget build(BuildContext context) {
     final topSafeArea = MediaQuery.paddingOf(context).top; // 상단 안전 영역 높이
     final collapsedHeight = topSafeArea + kToolbarHeight; // 축소된 헤더 높이
-    final expandedHeight = math.max(
-      220.h,
-      collapsedHeight + 110.h,
-    ); // 확장된 헤더 높이
+
+    /// 확장된 헤더 높이
+    final expandedHeight = 253.h;
 
     return Scaffold(
       backgroundColor: AppTheme.lightTheme.colorScheme.surface,

@@ -98,6 +98,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   double get maxExtent => math.max(expandedHeight, collapsedHeight);
 
+  /// 현재 헤더 상태에 맞춰 배경, 액션 버튼, 확장 정보 Row를 함께 렌더링합니다.
   @override
   Widget build(
     BuildContext context,
@@ -222,11 +223,23 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
                     // 멤버 수가 0보다 클 때만 멤버 아이콘과 숫자 표시
                     if (category.totalUserCount > 0) SizedBox(width: 12.w),
                     if (category.totalUserCount > 0)
-                      ApiArchiveProfileRowWidget(
-                        avatarSize: (26.94).sp,
-                        profileImageUrls: category.usersProfileUrl,
-                        profileImageKeys: category.usersProfileKey,
-                        totalUserCount: category.totalUserCount,
+                      Material(
+                        color: const Color(0xFF323232),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 5.99.w,
+                            vertical: 3.99.h,
+                          ),
+                          child: ApiArchiveProfileRowWidget(
+                            avatarSize: (26.94).sp,
+                            profileImageUrls: category.usersProfileUrl,
+                            profileImageKeys: category.usersProfileKey,
+                            totalUserCount: category.totalUserCount,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -271,7 +284,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
       tokens: CategoryPhotosHeaderTokens(
         expandedHorizontalPadding: 20.w, // 확장된 상태에서의 좌우 패딩
         collapsedHorizontalPadding: 16.w, // 축소된 상태에서의 좌우 패딩
-        expandedTitleBottomInset: 56.h, // 확장된 상태에서 큰 타이틀과 하단 사이의 간격
+        expandedTitleBottomInset: 70.h, // 확장된 상태에서 큰 타이틀과 하단 사이의 간격
         // 축소된 상태에서 큰 타이틀이 툴바 중앙선에서 얼마나 위로 올라갈지
         compactTitleVerticalOffset: 12.h,
 
@@ -279,7 +292,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
         toolbarItemVerticalOffset: 20.h,
 
         // 확장된 상태에서 큰 타이틀의 스케일 (축소된 상태에서는 0.86으로 고정)
-        collapsedTitleScale: 0.86,
+        collapsedTitleScale: 1,
 
         // 확장된 상태에서 큰 타이틀의 폰트 크기 (축소된 상태에서는 20.sp로 고정)
         titleFontSize: 28.sp,

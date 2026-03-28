@@ -10,26 +10,6 @@ import '../../../api/controller/media_controller.dart';
 import '../../../api/models/post.dart';
 import '../../../utils/video_thumbnail_cache.dart';
 
-/// Hero 애니메이션에서 이미지가 확대/축소될 때,
-/// 원본 위젯이 아닌 새로 생성된 위젯을 사용하여 부드러운 전환을 구현하는 함수
-Widget _heroFlightShuttleBuilder(
-  BuildContext flightContext,
-  Animation<double> animation,
-  HeroFlightDirection flightDirection,
-  BuildContext fromHeroContext,
-  BuildContext toHeroContext,
-) {
-  final toHero = (toHeroContext.widget as Hero).child;
-  final fromHero = (fromHeroContext.widget as Hero).child;
-  final shuttleChild = flightDirection == HeroFlightDirection.push
-      ? toHero
-      : fromHero;
-  return Material(
-    type: MaterialType.transparency,
-    child: ClipRect(child: shuttleChild),
-  );
-}
-
 /// 카테고리 내에서 사진 그리드 아이템을 표시하는 위젯
 ///
 /// Parameters:
@@ -375,10 +355,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     }
   }
 
-  String get _heroTag => 'archive_photo_${widget.categoryId}_${widget.post.id}';
-
-  /// 상세 화면으로 이동하는 함수
-  /// 중복 탭 방지 위해 이동 중에는 추가 탭 무시
+  /// 상세 화면 진입 라우트를 플랫폼별 네비게이션 감각에 맞게 구성합니다.
   ///
   /// Parameters
   /// - [context]: 빌드 컨텍스트
@@ -405,7 +382,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       );
     }
 
-    // 그 외 플랫폼에서는 커스텀 페이지 라우트로 빠른 전환과 안정적인 Hero 애니메이션 구현
+    // 그 외 플랫폼에서는 추가 전환 효과 없이 상세 화면을 즉시 표시합니다.
     return PageRouteBuilder<List<int>>(
       transitionDuration: _kForwardTransitionDuration,
       reverseTransitionDuration: _kReverseTransitionDuration,
@@ -421,8 +398,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     );
   }
 
-  /// 상세 화면으로 이동하는 함수
-  /// 중복 탭 방지 위해 이동 중에는 추가 탭 무시
+  /// 중복 탭을 막으면서 상세 화면 이동 결과를 목록 삭제 상태와 동기화합니다.
   ///
   /// Parameters: null
   ///
@@ -440,8 +416,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
         detailRoute,
       ); // 상세 화면으로 이동하고, 삭제된 게시물 ID 리스트를 기다림
       if (deletedPostIds == null || deletedPostIds.isEmpty) return;
-      // 상세 pop 역방향 Hero가 안정화된 뒤 목록을 갱신합니다.
-      await Future<void>.delayed(_kReverseTransitionDuration);
       if (!mounted) return;
       onPostsDeleted?.call(deletedPostIds);
     } finally {
@@ -449,16 +423,16 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     }
   }
 
-  /// Hero 미디어 카드를 빌드하는 함수
+  /// 그리드 셀에서 사진, 영상 썸네일, 텍스트 카드를 공통 레이아웃으로 렌더링합니다.
   ///
   /// Parameters: null
   ///
-  /// Returns: Hero 위젯으로 감싸진 미디어 카드 (사진 또는 비디오 썸네일)
-  Widget _buildHeroMediaCard() {
+  /// Returns: 사진 또는 비디오 썸네일을 표시하는 미디어 카드
+  Widget _buildMediaCard() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final heroChild = _isTextOnlyPost
+        return _isTextOnlyPost
             ? _buildTextOnlyCard(math.min(width, _textOnlyMaxWidth))
             : SizedBox(
                 width: width,
@@ -518,15 +492,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
                   ),
                 ),
               );
-
-        return Hero(
-          tag: _heroTag,
-          createRectTween: (begin, end) =>
-              MaterialRectArcTween(begin: begin, end: end),
-          transitionOnUserGestures: true,
-          flightShuttleBuilder: _heroFlightShuttleBuilder,
-          child: heroChild,
-        );
       },
     );
   }
@@ -539,7 +504,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
         alignment: Alignment.bottomCenter,
         children: [
           // 미디어(사진/비디오 썸네일)
-          _buildHeroMediaCard(),
+          _buildMediaCard(),
 
           // 댓글 개수 (우측 하단)
           Positioned(
@@ -915,6 +880,8 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   /// 프로필 이미지 빌드
   Widget _buildProfileImage() {
     final profileCacheKey = _resolveProfileCacheKey();
+
+    // 로딩 중, 프로필 이미지는 shimmer로 표시
     if (_isLoadingProfile) {
       return Shimmer.fromColors(
         baseColor: Colors.grey.shade800,
@@ -933,6 +900,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       );
     }
 
+    // 프로필 이미지 URL이 없으면 기본 아바타 표시
     if (_profileImageUrl == null || _profileImageUrl!.isEmpty) {
       return CircleAvatar(
         radius: 14,

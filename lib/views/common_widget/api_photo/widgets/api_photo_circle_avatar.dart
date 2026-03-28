@@ -4,10 +4,8 @@ import 'package:shimmer/shimmer.dart';
 
 import '../tag_pointer.dart';
 
-/// 이미지/비디오 위에 댓글 작성자 프로필 사진을 원형 아바타로 보여주는 위젯입니다.
-/// - 댓글 작성자의 프로필 이미지를 원형으로 보여주는 태그입니다.
-/// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
-/// - 댓글 작성이 완료되면, 부모 위젯에 댓글 저장 진행 상황과 결과를 전달하는 역할도 수행합니다.
+/// 원형 아바타 위젯을 렌더링하는 공용 컴포넌트입니다.
+/// - 프로필 태그에서 사용되고, 캡션 프로필에서 사용됩니다.
 ///
 /// fields:
 /// - [imageUrl]: 아바타로 보여줄 이미지의 URL입니다. null이거나 빈 문자열인 경우 기본 아바타 이미지가 보여집니다.
@@ -59,9 +57,8 @@ class ApiPhotoCircleAvatar extends StatelessWidget {
           fadeOutDuration: Duration.zero,
           width: size,
           height: size,
-          memCacheWidth: (size * 4).round(),
-          memCacheHeight: (size * 4).round(),
-          maxWidthDiskCache: (size * 4).round(),
+          memCacheWidth: (size * 3).round(),
+          maxWidthDiskCache: (size * 3).round(),
           fit: BoxFit.cover,
           placeholder: (context, url) => Shimmer.fromColors(
             baseColor: const Color(0xFF2A2A2A),

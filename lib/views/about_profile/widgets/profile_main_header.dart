@@ -86,6 +86,7 @@ class ProfileMainHeader extends StatelessWidget {
     final resolvedCoverImageKey = coverImageKey?.trim() ?? '';
     final hasCoverImage = resolvedCoverImageUrl.isNotEmpty;
 
+    //
     return SizedBox(
       height: 253.h,
       width: double.infinity,
@@ -213,6 +214,17 @@ class ProfileMainHeader extends StatelessWidget {
 }
 
 class _ProfileHeaderAvatar extends StatelessWidget {
+  ///
+  /// 프로필 이미지를 표시하는 위젯입니다.
+  ///
+  /// 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
+  ///
+  /// fields:
+  /// - [profileImageUrl]: 프로필 이미지의 URL입니다. 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
+  /// - [profileImageKey]: 프로필 이미지의 캐시 키입니다. 이미지가 없는 경우 기본 아바타 아이콘이 표시됩니다.
+  /// - [onTap]: 프로필 이미지가 탭될 때 호출되는 콜백 함수입니다.
+  ///
+
   const _ProfileHeaderAvatar({
     required this.profileImageUrl,
     required this.profileImageKey,
@@ -230,12 +242,14 @@ class _ProfileHeaderAvatar extends StatelessWidget {
     final hasResolvedProfileImage = resolvedProfileImageUrl.isNotEmpty;
     final hasProfileImage = resolvedProfileImageKey.isNotEmpty;
 
+    final avatarSize = 45.9.sp;
+
     return GestureDetector(
       onTap: onTap,
       child: ClipOval(
         child: Container(
-          width: 45.9.sp,
-          height: 45.9.sp,
+          width: avatarSize,
+          height: avatarSize,
           color: const Color(0xFF1C1C1C),
           child: hasResolvedProfileImage
               ? CachedNetworkImage(
@@ -245,9 +259,8 @@ class _ProfileHeaderAvatar extends StatelessWidget {
                   fadeInDuration: Duration.zero,
                   fadeOutDuration: Duration.zero,
                   fit: BoxFit.cover,
-                  memCacheWidth: (45.9.sp * 4).round(),
-                  memCacheHeight: (45.9.sp * 4).round(),
-                  maxWidthDiskCache: (45.9.sp * 4).round(),
+                  memCacheWidth: (avatarSize * 2).round(),
+                  maxWidthDiskCache: (avatarSize * 2).round(),
                   placeholder: (_, __) =>
                       const ColoredBox(color: Color(0xFF1C1C1C)),
                   errorWidget: (_, __, ___) =>
