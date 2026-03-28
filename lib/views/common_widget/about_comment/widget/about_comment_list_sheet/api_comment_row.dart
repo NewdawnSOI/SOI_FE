@@ -686,8 +686,8 @@ class ApiCommentRow extends StatelessWidget {
               imageUrl: profileUrl,
               width: profileImageSize.sp,
               height: profileImageSize.sp,
-              memCacheHeight: (profileImageSize * 2).toInt(),
-              memCacheWidth: (profileImageSize * 2).toInt(),
+              memCacheWidth: (profileImageSize * 3).toInt(),
+              maxWidthDiskCache: (profileImageSize * 3).toInt(),
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(
                 width: profileImageSize.sp,
