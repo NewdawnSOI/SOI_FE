@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../api/controller/user_controller.dart';
 import '../../../../api/models/comment.dart';
 import '../../../../utils/position_converter.dart';
 import '../../about_comment/pending_api_voice_comment.dart';
+import '../../user/current_user_image_builder.dart';
 import '../services/api_photo_tag_geometry_service.dart';
 import '../tag_pointer.dart';
 import 'api_photo_circle_avatar.dart';
@@ -59,11 +62,12 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         if (isShowingComments) ..._buildCommentAvatars(),
-        if (pendingMarker != null) _buildPendingMarker(pendingMarker!),
+        if (pendingMarker != null) _buildPendingMarker(context, pendingMarker!),
       ],
     );
   }
 
+  /// 위치가 있는 댓글만 골라 각 태그 아바타가 현재 사용자 이미지 selector만 구독하게 만듭니다.
   List<Widget> _buildCommentAvatars() {
     final filteredComments = comments
         .where((comment) => comment.hasLocation)
@@ -120,13 +124,22 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
           ),
           child: TagBubble(
             contentSize: avatarSize,
-            child: ApiPhotoCircleAvatar(
-              key: ValueKey<String>('avatar_$key'),
-              imageUrl: _resolveProfileImageSource(comment),
-              size: avatarSize,
-              showBorder: isSelected,
-              borderColor: Colors.white,
-              cacheKey: _resolveProfileCacheKey(comment),
+            child: CurrentUserImageBuilder(
+              imageKind: CurrentUserImageKind.profile,
+              targetUserId: comment.userId,
+              targetUserHandle: comment.nickname,
+              fallbackImageUrl: comment.userProfileUrl,
+              fallbackImageKey: comment.userProfileKey,
+              builder: (context, imageUrl, cacheKey) {
+                return ApiPhotoCircleAvatar(
+                  key: ValueKey<String>('avatar_$key'),
+                  imageUrl: imageUrl,
+                  size: avatarSize,
+                  showBorder: isSelected,
+                  borderColor: Colors.white,
+                  cacheKey: cacheKey,
+                );
+              },
             ),
           ),
         ),
@@ -143,12 +156,26 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
   ///
   /// returns:
   /// - [Widget]: 댓글 작성 중인 위치에 표시할 원형 아바타 위젯
-  Widget _buildPendingMarker(PendingApiCommentMarker marker) {
+  Widget _buildPendingMarker(
+    BuildContext context,
+    PendingApiCommentMarker marker,
+  ) {
     // 마커의 상대 좌표를 이미지 크기에 맞게 절대 좌표로 변환합니다.
     final absolute = PositionConverter.toAbsolutePosition(
       marker.relativePosition,
       imageSize,
     );
+    final normalizedMarkerSource = _normalizeKey(marker.profileImageUrlKey);
+    final pendingFallbackImageUrl = _isAbsoluteUrl(normalizedMarkerSource)
+        ? normalizedMarkerSource
+        : null;
+    final pendingFallbackImageKey = pendingFallbackImageUrl == null
+        ? normalizedMarkerSource
+        : null;
+    final currentUserId = Provider.of<UserController?>(
+      context,
+      listen: false,
+    )?.currentUserId;
     final pendingTipOffset = TagBubble.pointerTipOffset(
       contentSize: kPendingCommentAvatarSize,
       padding: kPendingCommentTagPadding,
@@ -172,14 +199,22 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
       top: clamped.dy - pendingTipOffset.dy,
       child: IgnorePointer(
         // 진행률 표시 원형 프로그레스 인디케이터와 프로필 이미지 아바타가 겹쳐진 형태로, 진행률이 표시된 원형 아바타를 보여줍니다.
-        child: ApiPhotoPendingProgressAvatar(
-          imageUrl: marker.profileImageUrlKey,
-          cacheKey: _normalizeKey(marker.profileImageUrlKey),
-          size: kPendingCommentAvatarSize,
-          progress: marker.progress,
-          opacity: 0.85,
-          tagPadding: kPendingCommentTagPadding,
-          tagBackgroundColor: kPendingCommentTagBackgroundColor,
+        child: CurrentUserImageBuilder(
+          imageKind: CurrentUserImageKind.profile,
+          targetUserId: currentUserId,
+          fallbackImageUrl: pendingFallbackImageUrl,
+          fallbackImageKey: pendingFallbackImageKey,
+          builder: (context, imageUrl, cacheKey) {
+            return ApiPhotoPendingProgressAvatar(
+              imageUrl: imageUrl,
+              cacheKey: cacheKey,
+              size: kPendingCommentAvatarSize,
+              progress: marker.progress,
+              opacity: 0.85,
+              tagPadding: kPendingCommentTagPadding,
+              tagBackgroundColor: kPendingCommentTagBackgroundColor,
+            );
+          },
         ),
       ),
     );
@@ -197,50 +232,21 @@ class ApiPhotoCommentOverlay extends StatelessWidget {
     return 'comment_${userId}_${x}_${y}_$index';
   }
 
-  String? _resolveProfileImageSource(Comment comment) {
-    final profileUrl = (comment.userProfileUrl ?? '').trim();
-    if (profileUrl.isNotEmpty) {
-      return profileUrl;
-    }
-
-    final profileKey = (comment.userProfileKey ?? '').trim();
-    if (profileKey.isNotEmpty) {
-      return profileKey;
-    }
-
-    return null;
-  }
-
-  String? _resolveProfileCacheKey(Comment comment) {
-    final profileKey = _normalizeKey(comment.userProfileKey);
-    if (profileKey != null) {
-      return profileKey;
-    }
-
-    final profileUrl = (comment.userProfileUrl ?? '').trim();
-    final uri = Uri.tryParse(profileUrl);
-    if (uri == null || !uri.hasScheme) {
-      return null;
-    }
-
-    final normalizedPath = uri.path.trim();
-    if (normalizedPath.isEmpty) {
-      return null;
-    }
-
-    final normalizedHost = uri.host.trim();
-    if (normalizedHost.isEmpty) {
-      return normalizedPath;
-    }
-
-    return '$normalizedHost$normalizedPath';
-  }
-
   String? _normalizeKey(String? value) {
     final normalized = value?.trim();
     if (normalized == null || normalized.isEmpty) {
       return null;
     }
     return normalized;
+  }
+
+  bool _isAbsoluteUrl(String? value) {
+    final normalized = _normalizeKey(value);
+    if (normalized == null) {
+      return false;
+    }
+
+    final uri = Uri.tryParse(normalized);
+    return uri != null && uri.hasScheme && uri.host.isNotEmpty;
   }
 }

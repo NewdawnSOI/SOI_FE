@@ -4,12 +4,19 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:soi/api/controller/media_controller.dart';
+import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/post.dart';
+import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/media_service.dart';
+import 'package:soi/api/services/user_service.dart';
 import 'package:soi/views/about_archiving/widgets/api_photo_grid_item.dart';
 import 'package:soi_api_client/api.dart';
 
 class _NoopMediaApi extends APIApi {}
+
+class _NoopAuthApi extends AuthControllerApi {}
+
+class _NoopUserApi extends UserAPIApi {}
 
 /// 그리드 아이템 테스트에서 presigned URL 응답을 제어하는 미디어 컨트롤러입니다.
 class _FakeMediaController extends MediaController {
@@ -30,6 +37,24 @@ class _FakeMediaController extends MediaController {
       await Future<void>.delayed(delay);
     }
     return urls[key];
+  }
+}
+
+/// 그리드 아바타가 현재 사용자 selector를 탈 수 있도록 테스트용 로그인 상태를 제공합니다.
+class _FakeUserController extends UserController {
+  _FakeUserController({User? user})
+    : super(
+        userService: UserService(
+          authApi: _NoopAuthApi(),
+          userApi: _NoopUserApi(),
+          onAuthTokenIssued: (_) {},
+          onAuthTokenCleared: () {},
+        ),
+      ) {
+    setCurrentUser(
+      user ??
+          User(id: 1, userId: 'viewer', name: '뷰어', phoneNumber: '01000000000'),
+    );
   }
 }
 
@@ -57,9 +82,17 @@ Post _buildPost({
 Widget _buildHarness({
   required MediaController mediaController,
   required Post post,
+  UserController? userController,
 }) {
-  return ChangeNotifierProvider<MediaController>.value(
-    value: mediaController,
+  final effectiveUserController = userController ?? _FakeUserController();
+
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<MediaController>.value(value: mediaController),
+      ChangeNotifierProvider<UserController>.value(
+        value: effectiveUserController,
+      ),
+    ],
     child: ScreenUtilInit(
       designSize: const Size(393, 852),
       builder: (_, __) => MaterialApp(
@@ -164,6 +197,44 @@ void main() {
       expect(
         _findNetworkImage(tester, cacheKey: profileKey).imageUrl,
         profileUrl,
+      );
+    },
+  );
+
+  testWidgets(
+    'overrides the grid avatar with the current user image without rebuilding the whole card',
+    (tester) async {
+      const fallbackProfileKey = 'profiles/fallback.jpg';
+      const fallbackProfileUrl = 'https://example.com/profiles/fallback.jpg';
+      const currentProfileKey = 'profiles/current.jpg';
+      const currentProfileUrl = 'https://example.com/profiles/current.jpg';
+
+      await tester.pumpWidget(
+        _buildHarness(
+          mediaController: _FakeMediaController(),
+          userController: _FakeUserController(
+            user: const User(
+              id: 55,
+              userId: 'grid-user',
+              name: '그리드 사용자',
+              profileImageKey: currentProfileKey,
+              profileImageUrl: currentProfileUrl,
+              phoneNumber: '01000000000',
+            ),
+          ),
+          post: _buildPost(
+            postFileUrl: 'https://example.com/posts/grid.jpg',
+            postFileKey: 'posts/grid.jpg',
+            profileImageUrl: fallbackProfileUrl,
+            profileImageKey: fallbackProfileKey,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        _findNetworkImage(tester, cacheKey: currentProfileKey).imageUrl,
+        currentProfileUrl,
       );
     },
   );

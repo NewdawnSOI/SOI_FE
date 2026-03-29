@@ -25,8 +25,8 @@ class CommentBaseBarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 353.sp,
-      height: 46.sp,
+      width: 354,
+      height: 46,
       decoration: BoxDecoration(
         color: const Color(0xff1c1c1c),
         borderRadius: BorderRadius.circular(52.sp),

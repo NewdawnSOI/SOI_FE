@@ -43,8 +43,10 @@ import '../models/models.dart';
 /// final isAvailable = await userService.checknickNameAvailable('hong123');
 /// ```
 class UserService {
-  /// 인증 없이 사용하는 API 인스턴스 (SMS 인증, 사용자 생성 등)
-  /// 기본적으로는 SoiApiClient의 createUnauthenticatedAuthApi를 사용하지만, 필요에 따라 커스텀 구현을 주입할 수 있도록 설계되었습니다.
+  /// JWT 인증 없이 사용하는 API 인스턴스 (SMS 인증, 사용자 생성 등)
+  ///
+  /// 기본적으로는 SoiApiClient의 createUnauthenticatedAuthApi를 사용하지만,
+  /// 필요에 따라 커스텀 구현을 주입할 수 있도록 설계되었습니다.
   final AuthControllerApi Function() _buildUnauthenticatedAuthApi;
 
   /// 인증된 API 인스턴스 (JWT 토큰 포함)
@@ -74,6 +76,44 @@ class UserService {
        _clearAuthToken =
            onAuthTokenCleared ?? SoiApiClient.instance.clearAuthToken;
 
+  /// 인증 API 호출의 단계와 상태만 debug 로그로 남겨 실제 실패 지점을 좁힙니다.
+  void _debugLogAuthStage(
+    String stage, {
+    Map<String, Object?> details = const <String, Object?>{},
+  }) {
+    if (!kDebugMode) return;
+
+    final payload = details.entries
+        .where((entry) => entry.value != null)
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(', ');
+    final suffix = payload.isEmpty ? '' : ', $payload';
+    debugPrint('[UserService.auth] stage=$stage$suffix');
+  }
+
+  /// 인증 흐름 예외를 status와 타입 중심으로 축약해 debug 로그로 남깁니다.
+  void _debugLogAuthError(String stage, Object error) {
+    if (!kDebugMode) return;
+
+    if (error is ApiException) {
+      debugPrint(
+        '[UserService.auth] stage=$stage, errorType=ApiException, status=${error.code}, message=${error.message}',
+      );
+      return;
+    }
+
+    if (error is SoiApiException) {
+      debugPrint(
+        '[UserService.auth] stage=$stage, errorType=${error.runtimeType}, status=${error.statusCode}, message=${error.message}',
+      );
+      return;
+    }
+
+    debugPrint(
+      '[UserService.auth] stage=$stage, errorType=${error.runtimeType}, error=$error',
+    );
+  }
+
   /// 텍스트 정규화 (공백 제거)
   /// 사용자 입력에서 불필요한 공백을 제거하여 API 요청에 사용하기 적합한 형태로 변환합니다.
   String _normalizeText(String value) => value.trim();
@@ -87,6 +127,16 @@ class UserService {
       return null;
     }
     return normalized; // null이 아닌 경우, 정규화된 텍스트 반환
+  }
+
+  /// 선택적 문자열을 API 직렬화용 빈 문자열 규칙으로 정규화합니다.
+  /// 서버에 null 대신 빈 문자열을 보내야 하는 회원가입/프로필 필드에 사용합니다.
+  String _normalizeOptionalTextOrEmpty(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return '';
+    }
+    return normalized;
   }
 
   /// 로그인 요청 DTO를 만들어서 반환하는 헬퍼 함수입니다.
@@ -207,11 +257,20 @@ class UserService {
     // 로그인 요청 DTO를 생성하는 헬퍼 함수를 사용하여,
     // 닉네임과 전화번호를 정규화하고 DTO 객체로 만들어서 반환받습니다.
     final dto = _buildLoginRequest(nickName: nickName, phoneNum: phoneNum);
+    _debugLogAuthStage(
+      'manual-login.request-built',
+      details: <String, Object?>{
+        'hasNickname': dto.nickname != null,
+        'nicknameLength': dto.nickname?.length,
+        'phoneLength': dto.phoneNum?.length,
+      },
+    );
 
     try {
       // 실제 로그인 API 호출을 수행하는 헬퍼 함수입니다.
       return await _login(dto);
     } on ApiException catch (e) {
+      _debugLogAuthError('manual-login.api-exception', e);
       debugPrint(
         '[UserService.login] API 예외 code=${e.code}, message=${e.message}',
       );
@@ -222,14 +281,17 @@ class UserService {
       }
       throw _handleApiException(e);
     } on SocketException catch (e) {
+      _debugLogAuthError('manual-login.socket-exception', e);
       debugPrint('[UserService.login] 로그인 실패 code=network, error=$e');
       throw NetworkException(originalException: e);
     } on SoiApiException catch (e) {
+      _debugLogAuthError('manual-login.soi-api-exception', e);
       debugPrint(
         '[UserService.login] 로그인 실패 code=${e.statusCode ?? 'unknown'}, message=${e.message}',
       );
       rethrow;
     } catch (e) {
+      _debugLogAuthError('manual-login.unknown-exception', e);
       debugPrint('[UserService.login] 로그인 실패 code=unknown, error=$e');
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '로그인 실패: $e', originalException: e);
@@ -249,7 +311,8 @@ class UserService {
   /// - [nickName]: 사용자 아이디 (고유)
   /// - [phoneNum]: 전화번호
   /// - [birthDate]: 생년월일 (yyyy-MM-dd 형식)
-  /// - [profileImageKey]: 프로필 이미지 URL (선택)
+  /// - [profileImageKey]: 프로필 이미지 키 (선택)
+  /// - [profileCoverImageKey]: 프로필 커버 이미지 키 (선택)
   /// - [serviceAgreed]: 서비스 약관 동의 여부
   /// - [privacyPolicyAgreed]: 개인정보 처리방침 동의 여부
   /// - [marketingAgreed]: 마케팅 수신 동의 여부 (선택)
@@ -265,24 +328,45 @@ class UserService {
     required String phoneNum,
     required String birthDate,
     String? profileImageKey,
+    String? profileCoverImageKey,
     bool serviceAgreed = true,
     bool privacyPolicyAgreed = true,
     bool marketingAgreed = false,
   }) async {
+    _debugLogAuthStage(
+      'signup.request-building',
+      details: <String, Object?>{
+        'nameLength': name.trim().length,
+        'nicknameLength': nickName.trim().length,
+        'phoneLength': phoneNum.trim().length,
+        'birthDateLength': birthDate.trim().length,
+        'hasProfileImageKey': profileImageKey?.trim().isNotEmpty ?? false,
+        'hasProfileCoverImageKey':
+            profileCoverImageKey?.trim().isNotEmpty ?? false,
+        'serviceAgreed': serviceAgreed,
+        'privacyPolicyAgreed': privacyPolicyAgreed,
+        'marketingAgreed': marketingAgreed,
+      },
+    );
     try {
-      final normalizedName = _normalizeText(name); // 이름 정규화
-      final normalizedNickName = _normalizeText(nickName); // 아이디 정규화
-      final normalizedPhoneNum = _normalizeText(phoneNum); // 전화번호 정규화
-      final normalizedBirthDate = _normalizeText(birthDate); // 생년월일 정규화
-      final normalizedProfileImageKey = profileImageKey
-          ?.trim(); // 프로필 이미지 키 정규화 (선택)
-
       final dto = UserCreateReqDto(
-        name: normalizedName,
-        nickname: normalizedNickName,
-        phoneNum: normalizedPhoneNum,
-        birthDate: normalizedBirthDate,
-        profileImageKey: normalizedProfileImageKey ?? '', // null 대신 빈 문자열 전송
+        name: _normalizeText(name),
+        nickname: _normalizeText(nickName),
+        phoneNum: _normalizeText(phoneNum),
+        birthDate: _normalizeText(birthDate),
+        profileImageKey: _normalizeOptionalTextOrEmpty(profileImageKey),
+        profileCoverImageKey: _normalizeOptionalTextOrEmpty(
+          profileCoverImageKey,
+        ),
+      );
+
+      final createUserDto = UserCreateReqDto(
+        name: dto.name,
+        nickname: dto.nickname,
+        phoneNum: dto.phoneNum,
+        birthDate: dto.birthDate,
+        profileImageKey: dto.profileImageKey,
+        profileCoverImageKey: dto.profileCoverImageKey,
         serviceAgreed: serviceAgreed,
         privacyPolicyAgreed: privacyPolicyAgreed,
         marketingAgreed: marketingAgreed,
@@ -291,7 +375,29 @@ class UserService {
       // 인증 없이 사용자 생성 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
       // user를 생성하는 API는 인증이 필요하지 않으므로,
       // SoiApiClient의 createUnauthenticatedAuthApi를 사용하여 인증 없이 호출합니다.
-      final response = await _buildUnauthenticatedAuthApi().createUser(dto);
+      _debugLogAuthStage(
+        'signup.request-built',
+        details: <String, Object?>{
+          'nameLength': createUserDto.name?.length,
+          'nicknameLength': createUserDto.nickname?.length,
+          'phoneLength': createUserDto.phoneNum?.length,
+          'birthDateLength': createUserDto.birthDate?.length,
+          'profileImageKeyLength': createUserDto.profileImageKey?.length,
+          'profileCoverImageKeyLength':
+              createUserDto.profileCoverImageKey?.length,
+        },
+      );
+      final response = await _buildUnauthenticatedAuthApi().createUser(
+        createUserDto,
+      );
+      _debugLogAuthStage(
+        'signup.response',
+        details: <String, Object?>{
+          'hasResponse': response != null,
+          'success': response?.success,
+          'hasData': response?.data != null,
+        },
+      );
 
       if (response == null) {
         throw const DataValidationException(message: '사용자 생성 응답이 없습니다.');
@@ -307,10 +413,16 @@ class UserService {
 
       return User.fromDto(response.data!);
     } on ApiException catch (e) {
+      _debugLogAuthError('signup.api-exception', e);
       throw _handleApiException(e);
     } on SocketException catch (e) {
+      _debugLogAuthError('signup.socket-exception', e);
       throw NetworkException(originalException: e);
+    } on SoiApiException catch (e) {
+      _debugLogAuthError('signup.soi-api-exception', e);
+      rethrow;
     } catch (e) {
+      _debugLogAuthError('signup.unknown-exception', e);
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '사용자 생성 실패: $e', originalException: e);
     }
@@ -322,8 +434,22 @@ class UserService {
 
   /// JWT 토큰 기준 현재 사용자 조회
   Future<User> getCurrentUser() async {
+    _debugLogAuthStage(
+      'user-get.request',
+      details: <String, Object?>{
+        'isAuthenticated': SoiApiClient.instance.isAuthenticated,
+      },
+    );
     try {
       final response = await _userApi.getUser();
+      _debugLogAuthStage(
+        'user-get.response',
+        details: <String, Object?>{
+          'hasResponse': response != null,
+          'success': response?.success,
+          'hasData': response?.data != null,
+        },
+      );
 
       if (response == null) {
         throw const NotFoundException(message: '사용자를 찾을 수 없습니다.');
@@ -337,12 +463,23 @@ class UserService {
         throw const NotFoundException(message: '사용자 정보가 없습니다.');
       }
 
-      return User.fromDto(response.data!);
+      final user = User.fromDto(response.data!);
+      _debugLogAuthStage(
+        'user-get.mapped',
+        details: <String, Object?>{
+          'hasProfileImageUrl': user.profileImageUrl?.isNotEmpty ?? false,
+          'hasCoverImageKey': user.profileCoverImageKey?.isNotEmpty ?? false,
+        },
+      );
+      return user;
     } on ApiException catch (e) {
+      _debugLogAuthError('user-get.api-exception', e);
       throw _handleApiException(e);
     } on SocketException catch (e) {
+      _debugLogAuthError('user-get.socket-exception', e);
       throw NetworkException(originalException: e);
     } catch (e) {
+      _debugLogAuthError('user-get.unknown-exception', e);
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '사용자 조회 실패: $e', originalException: e);
     }
@@ -763,7 +900,18 @@ class UserService {
   Future<User?> _login(LoginReqDto dto) async {
     // 로그인 API는 JWT 발급 전 호출하는 인증 API이므로, 인증 없이 호출해야 합니다.
     // SoiApiClient의 createUnauthenticatedAuthApi를 사용하여 인증 없이 호출합니다.
-    final loginResponse = await _buildUnauthenticatedAuthApi().login(dto);
+    _debugLogAuthStage('auth-login.request');
+    LoginRespDto? loginResponse;
+    try {
+      loginResponse = await _buildUnauthenticatedAuthApi().login(dto);
+    } catch (e) {
+      _debugLogAuthError('auth-login.request', e);
+      rethrow;
+    }
+    _debugLogAuthStage(
+      'auth-login.response',
+      details: <String, Object?>{'hasResponse': loginResponse != null},
+    );
 
     // loginResponse가 null인 경우, return으로 null을 반환하여 로그인 실패를 나타냅니다.
     if (loginResponse == null) {
@@ -771,17 +919,44 @@ class UserService {
     }
 
     // loginResponse에서 accessToken을 추출합니다.
-    final accessToken = _requireAccessToken(loginResponse);
+    late final String accessToken;
+    try {
+      accessToken = _requireAccessToken(loginResponse);
+    } catch (e) {
+      _debugLogAuthError('auth-login.token-parse', e);
+      rethrow;
+    }
+    _debugLogAuthStage(
+      'auth-login.token-issued',
+      details: <String, Object?>{'tokenLength': accessToken.length},
+    );
 
     // 인증 토큰 설정
     // 로그인 성공 시, 발급된 JWT 토큰을 SoiApiClient에 설정하여 이후 API 호출에 사용하도록 합니다.
     // 발급된 JWT 토큰을 API 헤더에 자동으로 포함시키기 위해 SoiApiClient의 setAuthToken 콜백을 호출합니다.
     _setAuthToken(accessToken);
+    _debugLogAuthStage(
+      'auth-login.token-applied',
+      details: <String, Object?>{
+        'isAuthenticated': SoiApiClient.instance.isAuthenticated,
+      },
+    );
 
     try {
-      return await getCurrentUser();
-    } catch (_) {
+      _debugLogAuthStage('auth-login.user-get.request');
+      final user = await getCurrentUser();
+      _debugLogAuthStage(
+        'auth-login.user-get.success',
+        details: <String, Object?>{
+          'hasProfileImageUrl': user.profileImageUrl?.isNotEmpty ?? false,
+          'hasCoverImageKey': user.profileCoverImageKey?.isNotEmpty ?? false,
+        },
+      );
+      return user;
+    } catch (e) {
+      _debugLogAuthError('auth-login.user-get.failure', e);
       _clearAuthToken();
+      _debugLogAuthStage('auth-login.token-cleared-after-failure');
       rethrow;
     }
   }

@@ -9,6 +9,7 @@ import 'package:soi/views/about_archiving/screens/archive_detail/api_photo_detai
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/post.dart';
 import '../../../utils/video_thumbnail_cache.dart';
+import '../../common_widget/user/current_user_image_builder.dart';
 
 /// 카테고리 내에서 사진 그리드 아이템을 표시하는 위젯
 ///
@@ -59,11 +60,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   double get _textOnlyMaxHeight => 204.sp;
   bool _isNavigatingToDetail = false; // 상세 화면으로 이동 중인지 여부 (중복 방지)
 
-  // 프로필 이미지 캐시
-  String? _profileImageUrl;
-  bool _isLoadingProfile = true;
   String? _mediaUrl;
-  int _profileLoadGeneration = 0;
   int _mediaLoadGeneration = 0;
   Uint8List? _videoThumbnailBytes;
   bool _isVideoThumbnailLoading = false;
@@ -82,21 +79,13 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     super.initState();
     _commentCount = widget.initialCommentCount;
     _mediaUrl = _resolveImmediateMediaUrl();
-    _profileImageUrl = _resolveImmediateProfileImageUrl();
-    _isLoadingProfile =
-        _profileImageUrl == null && _normalizedProfileImageKey() != null;
     _loadVideoThumbnailIfNeeded();
-    _loadProfileImage();
     _loadMediaUrl();
   }
 
   @override
   void didUpdateWidget(covariant ApiPhotoGridItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.post.userProfileImageKey != widget.post.userProfileImageKey ||
-        oldWidget.post.userProfileImageUrl != widget.post.userProfileImageUrl) {
-      _loadProfileImage();
-    }
     if (oldWidget.postUrl != widget.postUrl ||
         oldWidget.post.postFileUrl != widget.post.postFileUrl ||
         oldWidget.post.postFileKey != widget.post.postFileKey) {
@@ -182,25 +171,6 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     return normalized;
   }
 
-  /// 그리드 프로필은 서버 URL을 바로 쓰고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
-  String? _resolveImmediateProfileImageUrl() {
-    final immediateUrl = _normalizeImageUrl(widget.post.userProfileImageUrl);
-    if (immediateUrl != null) {
-      return immediateUrl;
-    }
-
-    final profileKey = _normalizedProfileImageKey();
-    if (profileKey == null) {
-      return null;
-    }
-
-    try {
-      return context.read<MediaController>().peekPresignedUrl(profileKey);
-    } catch (_) {
-      return null;
-    }
-  }
-
   /// 그리드 미디어는 서버 URL을 바로 쓰고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
   String? _resolveImmediateMediaUrl() {
     final immediateUrl =
@@ -222,82 +192,9 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     }
   }
 
-  /// 작성자 프로필 key는 캐시와 presigned URL 갱신의 단일 기준으로 사용합니다.
-  String? _normalizedProfileImageKey() {
-    return _normalizeImageKey(widget.post.userProfileImageKey);
-  }
-
   /// 게시물 미디어 key는 캐시와 presigned URL 갱신의 단일 기준으로 사용합니다.
   String? _normalizedPostFileKey() {
     return _normalizeImageKey(widget.post.postFileKey);
-  }
-
-  /// 프로필 key를 우선 캐시 식별자로 쓰고, 없을 때만 URL 기반 식별자를 계산합니다.
-  String? _resolveProfileCacheKey() {
-    final profileKey = _normalizedProfileImageKey();
-    if (profileKey != null) {
-      return profileKey;
-    }
-
-    final profileImageUrl = _normalizeImageUrl(_profileImageUrl);
-    if (profileImageUrl == null) {
-      return null;
-    }
-
-    final uri = Uri.tryParse(profileImageUrl);
-    if (uri == null || !uri.hasScheme) {
-      return null;
-    }
-
-    final normalizedHost = uri.host.trim();
-    final normalizedPath = uri.path.trim();
-    if (normalizedPath.isEmpty) {
-      return null;
-    }
-
-    return normalizedHost.isEmpty
-        ? normalizedPath
-        : '$normalizedHost$normalizedPath';
-  }
-
-  /// 그리드 작성자 아바타는 URL을 먼저 표시하고, key가 있으면 최신 presigned URL로 백그라운드 갱신합니다.
-  Future<void> _loadProfileImage() async {
-    final requestId = ++_profileLoadGeneration;
-    final immediateUrl = _resolveImmediateProfileImageUrl();
-    final profileKey = _normalizedProfileImageKey();
-
-    if (!mounted) return;
-    setState(() {
-      _profileImageUrl = immediateUrl;
-      _isLoadingProfile = immediateUrl == null && profileKey != null;
-    });
-
-    if (profileKey == null) {
-      return;
-    }
-
-    try {
-      final resolvedUrl = _normalizeImageUrl(
-        await context.read<MediaController>().getPresignedUrl(profileKey),
-      );
-      if (!mounted || requestId != _profileLoadGeneration) {
-        return;
-      }
-
-      setState(() {
-        _profileImageUrl = resolvedUrl ?? immediateUrl;
-        _isLoadingProfile = false;
-      });
-    } catch (_) {
-      if (!mounted || requestId != _profileLoadGeneration) {
-        return;
-      }
-
-      setState(() {
-        _profileImageUrl = immediateUrl;
-        _isLoadingProfile = false;
-      });
-    }
   }
 
   /// 그리드 미디어는 URL을 먼저 표시하고, key가 있으면 최신 presigned URL로 백그라운드 갱신합니다.
@@ -877,12 +774,47 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     )..layout(maxWidth: maxWidth);
   }
 
-  /// 프로필 이미지 빌드
+  /// 작성자 아바타 셀만 현재 사용자 selector를 구독해 그리드 전체 재빌드를 막습니다.
   Widget _buildProfileImage() {
-    final profileCacheKey = _resolveProfileCacheKey();
+    return CurrentUserImageBuilder(
+      imageKind: CurrentUserImageKind.profile,
+      targetUserHandle: widget.post.nickName,
+      fallbackImageUrl: widget.post.userProfileImageUrl,
+      fallbackImageKey: widget.post.userProfileImageKey,
+      builder: (context, imageUrl, cacheKey) {
+        return _GridItemProfileAvatar(
+          postId: widget.post.id,
+          imageUrl: imageUrl,
+          cacheKey: cacheKey,
+        );
+      },
+    );
+  }
+}
 
-    // 로딩 중, 프로필 이미지는 shimmer로 표시
-    if (_isLoadingProfile) {
+/// 그리드 하단 프로필 이미지만 별도 렌더링해 URL 변경 시 셀 단위로만 갱신합니다.
+class _GridItemProfileAvatar extends StatelessWidget {
+  const _GridItemProfileAvatar({
+    required this.postId,
+    required this.imageUrl,
+    required this.cacheKey,
+  });
+
+  final int postId;
+  final String? imageUrl;
+  final String? cacheKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedImageUrl = imageUrl?.trim();
+    final normalizedCacheKey = cacheKey?.trim();
+    final resolvedImageUrl = normalizedImageUrl ?? '';
+    final hasImageUrl =
+        normalizedImageUrl != null && normalizedImageUrl.isNotEmpty;
+    final hasCacheKey =
+        normalizedCacheKey != null && normalizedCacheKey.isNotEmpty;
+
+    if (!hasImageUrl && hasCacheKey) {
       return Shimmer.fromColors(
         baseColor: Colors.grey.shade800,
         highlightColor: Colors.grey.shade700,
@@ -900,8 +832,7 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
       );
     }
 
-    // 프로필 이미지 URL이 없으면 기본 아바타 표시
-    if (_profileImageUrl == null || _profileImageUrl!.isEmpty) {
+    if (!hasImageUrl) {
       return CircleAvatar(
         radius: 14,
         backgroundColor: const Color(0xffd9d9d9),
@@ -910,12 +841,10 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     }
 
     return CachedNetworkImage(
-      key: ValueKey(
-        'profile_${widget.post.id}_${profileCacheKey ?? 'default'}',
-      ),
-      imageUrl: _profileImageUrl!,
-      cacheKey: profileCacheKey,
-      useOldImageOnUrlChange: profileCacheKey != null,
+      key: ValueKey('profile_${postId}_${normalizedCacheKey ?? 'default'}'),
+      imageUrl: resolvedImageUrl,
+      cacheKey: normalizedCacheKey,
+      useOldImageOnUrlChange: hasCacheKey,
       fadeInDuration: Duration.zero,
       fadeOutDuration: Duration.zero,
       memCacheWidth: (28 * 5).round(),

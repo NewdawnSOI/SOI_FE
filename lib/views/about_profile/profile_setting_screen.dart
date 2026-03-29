@@ -73,12 +73,16 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
       ),
     );
 
-    // 커버 이미지 초기 로드
-    final coverImageKey = userController.coverImageUrlKey?.trim() ?? '';
+    _coverImageUrl = _peekCoverImageUrl(
+      user: currentUser,
+      mediaController: mediaController,
+    );
+    final coverImageKey =
+        currentUser.profileCoverImageCacheKey ??
+        userController.coverImageUrlKey?.trim() ??
+        '';
     if (coverImageKey.isNotEmpty) {
-      _coverImageUrl = mediaController.peekPresignedUrl(coverImageKey)?.trim();
       if (_coverImageUrl == null || _coverImageUrl!.isEmpty) {
-        _coverImageUrl = null;
         unawaited(
           _prefetchCoverImageUrl(
             coverImageKey: coverImageKey,
@@ -105,6 +109,11 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     if (!mounted) return;
     final trimmed = resolvedUrl?.trim() ?? '';
     if (trimmed.isEmpty) return;
+    final activeCoverImageKey =
+        (_userInfo ?? context.read<UserController>().currentUser)
+            ?.profileCoverImageCacheKey ??
+        '';
+    if (activeCoverImageKey != coverImageKey) return;
     setState(() {
       _coverImageUrl = trimmed;
     });
@@ -123,6 +132,26 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     if (profileImageKey.isEmpty) return null;
 
     final cachedUrl = mediaController.peekPresignedUrl(profileImageKey)?.trim();
+    if (cachedUrl == null || cachedUrl.isEmpty) {
+      return null;
+    }
+    return cachedUrl;
+  }
+
+  /// 커버 이미지는 서버 응답 URL을 우선 쓰고, 없으면 presigned URL 캐시를 재사용합니다.
+  String? _peekCoverImageUrl({
+    required User? user,
+    required MediaController mediaController,
+  }) {
+    final directUrl = user?.displayCoverImageUrl;
+    if (directUrl != null && directUrl.isNotEmpty) {
+      return directUrl;
+    }
+
+    final coverImageKey = user?.profileCoverImageCacheKey ?? '';
+    if (coverImageKey.isEmpty) return null;
+
+    final cachedUrl = mediaController.peekPresignedUrl(coverImageKey)?.trim();
     if (cachedUrl == null || cachedUrl.isEmpty) {
       return null;
     }
@@ -204,6 +233,44 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     return null;
   }
 
+  /// 커버 키가 바뀐 경우엔 새 키 기준 URL만 허용해 이전 헤더 이미지를 계속 재사용하지 않게 합니다.
+  String? _resolveLoadedCoverImageUrl({
+    required User? previousUser,
+    required String? previousUrl,
+    required User? nextUser,
+    required String? nextUrl,
+    required MediaController mediaController,
+  }) {
+    final resolvedNextUrl = nextUrl?.trim() ?? '';
+    if (resolvedNextUrl.isNotEmpty) {
+      return resolvedNextUrl;
+    }
+
+    final directUrl = nextUser?.displayCoverImageUrl;
+    if (directUrl != null && directUrl.isNotEmpty) {
+      return directUrl;
+    }
+
+    final nextCoverImageKey = nextUser?.profileCoverImageCacheKey ?? '';
+    if (nextCoverImageKey.isEmpty) return null;
+
+    final cachedUrl = mediaController
+        .peekPresignedUrl(nextCoverImageKey)
+        ?.trim();
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      return cachedUrl;
+    }
+
+    final previousCoverImageKey = previousUser?.profileCoverImageCacheKey ?? '';
+    final resolvedPreviousUrl = previousUrl?.trim() ?? '';
+    if (previousCoverImageKey == nextCoverImageKey &&
+        resolvedPreviousUrl.isNotEmpty) {
+      return resolvedPreviousUrl;
+    }
+
+    return null;
+  }
+
   /// 사용자 데이터를 로드하는 함수입니다.
   Future<void> _loadUserData() async {
     if (!mounted) return;
@@ -226,7 +293,14 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
       previousUser: previousUser,
       previousUrl: _profileImageUrl,
       nextUser: previousUser,
-      nextUrl: null,
+      nextUrl: previousUser.displayProfileImageUrl,
+      mediaController: mediaController,
+    );
+    var resolvedCoverImageUrl = _resolveLoadedCoverImageUrl(
+      previousUser: previousUser,
+      previousUrl: _coverImageUrl,
+      nextUser: previousUser,
+      nextUrl: previousUser.displayCoverImageUrl,
       mediaController: mediaController,
     );
     var resolvedFriendCount = _friendCount;
@@ -262,6 +336,13 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
         nextUrl: profileData.profileImageUrl,
         mediaController: mediaController,
       );
+      resolvedCoverImageUrl = _resolveLoadedCoverImageUrl(
+        previousUser: previousUser,
+        previousUrl: _coverImageUrl,
+        nextUser: profileData.userInfo ?? previousUser,
+        nextUrl: (profileData.userInfo ?? previousUser).displayCoverImageUrl,
+        mediaController: mediaController,
+      );
     }
 
     if (friends != null) {
@@ -275,15 +356,28 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
         profileData,
         friendCount: resolvedFriendCount,
         profileImageUrl: resolvedProfileImageUrl,
+        coverImageUrl: resolvedCoverImageUrl,
       );
       return;
     }
 
     setState(() {
       _profileImageUrl = resolvedProfileImageUrl;
+      _coverImageUrl = resolvedCoverImageUrl;
       _friendCount = resolvedFriendCount;
       _isLoading = false;
     });
+
+    final coverImageKey =
+        (profileData?.userInfo ?? previousUser).profileCoverImageCacheKey ?? '';
+    if (resolvedCoverImageUrl == null && coverImageKey.isNotEmpty) {
+      unawaited(
+        _prefetchCoverImageUrl(
+          coverImageKey: coverImageKey,
+          mediaController: mediaController,
+        ),
+      );
+    }
   }
 
   void _closeSettings() {
@@ -781,10 +875,12 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
     ProfileScreenData profileData, {
     required int friendCount,
     required String? profileImageUrl,
+    required String? coverImageUrl,
   }) {
     setState(() {
       _userInfo = profileData.userInfo ?? _userInfo;
       _profileImageUrl = profileImageUrl;
+      _coverImageUrl = coverImageUrl;
       _friendCount = friendCount;
       _isLoading = false;
     });
@@ -910,21 +1006,35 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
   /// 설정 화면의 헤더와 섹션 목록을 현재 사용자 상태에 맞춰 함께 렌더링합니다.
   @override
   Widget build(BuildContext context) {
-    final currentUser = context.watch<UserController>().currentUser;
+    final currentUserId = context.select<UserController, int?>(
+      (controller) => controller.currentUser?.id,
+    );
+    final currentUser = context.read<UserController>().currentUser;
     final mediaController = context.read<MediaController>();
-    final displayUser = _userInfo ?? currentUser;
+    final displayUser = currentUserId == null
+        ? _userInfo
+        : currentUser ?? _userInfo;
     final displayProfileImageUrl =
         _resolveLoadedProfileImageUrl(
           previousUser: _userInfo,
           previousUrl: _profileImageUrl,
           nextUser: displayUser,
-          nextUrl: _profileImageUrl,
+          nextUrl: displayUser?.displayProfileImageUrl,
           mediaController: mediaController,
         ) ??
         _peekProfileImageUrl(
           user: displayUser,
           mediaController: mediaController,
         );
+    final displayCoverImageUrl =
+        _resolveLoadedCoverImageUrl(
+          previousUser: _userInfo,
+          previousUrl: _coverImageUrl,
+          nextUser: displayUser,
+          nextUrl: displayUser?.displayCoverImageUrl,
+          mediaController: mediaController,
+        ) ??
+        _peekCoverImageUrl(user: displayUser, mediaController: mediaController);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -933,14 +1043,15 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
           Column(
             children: [
               ProfileMainHeader(
+                observedUserId: displayUser?.id,
                 nickname: displayUser?.userId,
                 profileImageUrl: displayProfileImageUrl,
                 profileImageKey: displayUser?.profileImageCacheKey,
                 friendCount: _friendCount,
                 onBackTap: _closeSettings,
                 onProfileImageTap: _showProfileImageActionSheet,
-                coverImageUrl: _coverImageUrl,
-                coverImageKey: context.read<UserController>().coverImageUrlKey,
+                coverImageUrl: displayCoverImageUrl,
+                coverImageKey: displayUser?.profileCoverImageCacheKey,
                 onCoverImageTap: _showCoverImageActionSheet,
               ),
               Expanded(

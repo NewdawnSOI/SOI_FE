@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+/// 댓글 텍스트를 입력하고 제출하는 단일 입력 바를 렌더링합니다.
+/// 포커스와 제출 진행 상태를 내부에서 관리해 댓글 작성 흐름을 안정적으로 유지합니다.
 class CommentTextInputWidget extends StatefulWidget {
   final Future<void> Function(String text) onSubmitText;
   final ValueChanged<bool>? onFocusChanged;
@@ -103,7 +105,7 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 353,
+      width: 354,
       height: 46,
       decoration: BoxDecoration(
         color: const Color(0xff161616),

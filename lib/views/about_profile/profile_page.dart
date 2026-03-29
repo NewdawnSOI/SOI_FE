@@ -74,12 +74,16 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
 
-    // 커버 이미지 초기 로드
-    final coverImageKey = userController.coverImageUrlKey?.trim() ?? '';
+    _coverImageUrl = _peekCoverImageUrl(
+      user: currentUser,
+      mediaController: mediaController,
+    );
+    final coverImageKey =
+        currentUser.profileCoverImageCacheKey ??
+        userController.coverImageUrlKey?.trim() ??
+        '';
     if (coverImageKey.isNotEmpty) {
-      _coverImageUrl = mediaController.peekPresignedUrl(coverImageKey)?.trim();
       if (_coverImageUrl == null || _coverImageUrl!.isEmpty) {
-        _coverImageUrl = null;
         unawaited(
           _prefetchCoverImageUrl(
             coverImageKey: coverImageKey,
@@ -106,6 +110,11 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!mounted) return;
     final trimmed = resolvedUrl?.trim() ?? '';
     if (trimmed.isEmpty) return;
+    final activeCoverImageKey =
+        (_userInfo ?? context.read<UserController>().currentUser)
+            ?.profileCoverImageCacheKey ??
+        '';
+    if (activeCoverImageKey != coverImageKey) return;
     setState(() {
       _coverImageUrl = trimmed;
     });
@@ -124,6 +133,26 @@ class _ProfilePageState extends State<ProfilePage> {
     if (profileImageKey.isEmpty) return null;
 
     final cachedUrl = mediaController.peekPresignedUrl(profileImageKey)?.trim();
+    if (cachedUrl == null || cachedUrl.isEmpty) {
+      return null;
+    }
+    return cachedUrl;
+  }
+
+  /// 커버 이미지 URL은 서버가 직접 준 주소를 우선 쓰고, 없으면 presigned URL 캐시를 재사용합니다.
+  String? _peekCoverImageUrl({
+    required User? user,
+    required MediaController mediaController,
+  }) {
+    final directUrl = user?.displayCoverImageUrl;
+    if (directUrl != null && directUrl.isNotEmpty) {
+      return directUrl;
+    }
+
+    final coverImageKey = user?.profileCoverImageCacheKey ?? '';
+    if (coverImageKey.isEmpty) return null;
+
+    final cachedUrl = mediaController.peekPresignedUrl(coverImageKey)?.trim();
     if (cachedUrl == null || cachedUrl.isEmpty) {
       return null;
     }
@@ -205,6 +234,44 @@ class _ProfilePageState extends State<ProfilePage> {
     return null;
   }
 
+  /// 새 커버 키가 들어오면 기존 URL을 버리고, 같은 키면 기존 URL을 재사용해 깜빡임을 줄입니다.
+  String? _resolveLoadedCoverImageUrl({
+    required User? previousUser,
+    required String? previousUrl,
+    required User? nextUser,
+    required String? nextUrl,
+    required MediaController mediaController,
+  }) {
+    final resolvedNextUrl = nextUrl?.trim() ?? '';
+    if (resolvedNextUrl.isNotEmpty) {
+      return resolvedNextUrl;
+    }
+
+    final directUrl = nextUser?.displayCoverImageUrl;
+    if (directUrl != null && directUrl.isNotEmpty) {
+      return directUrl;
+    }
+
+    final nextCoverImageKey = nextUser?.profileCoverImageCacheKey ?? '';
+    if (nextCoverImageKey.isEmpty) return null;
+
+    final cachedUrl = mediaController
+        .peekPresignedUrl(nextCoverImageKey)
+        ?.trim();
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      return cachedUrl;
+    }
+
+    final previousCoverImageKey = previousUser?.profileCoverImageCacheKey ?? '';
+    final resolvedPreviousUrl = previousUrl?.trim() ?? '';
+    if (previousCoverImageKey == nextCoverImageKey &&
+        resolvedPreviousUrl.isNotEmpty) {
+      return resolvedPreviousUrl;
+    }
+
+    return null;
+  }
+
   Future<void> _loadProfilePageData() async {
     if (!mounted) return;
 
@@ -217,13 +284,20 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
-    final previousUser = _userInfo ?? currentUser;
-    User? resolvedUser = previousUser;
+    final User previousUser = _userInfo ?? currentUser;
+    User resolvedUser = previousUser;
     var resolvedProfileImageUrl = _resolveLoadedProfileImageUrl(
       previousUser: previousUser,
       previousUrl: _profileImageUrl,
       nextUser: previousUser,
-      nextUrl: null,
+      nextUrl: previousUser.displayProfileImageUrl,
+      mediaController: mediaController,
+    );
+    var resolvedCoverImageUrl = _resolveLoadedCoverImageUrl(
+      previousUser: previousUser,
+      previousUrl: _coverImageUrl,
+      nextUser: previousUser,
+      nextUrl: previousUser.displayCoverImageUrl,
       mediaController: mediaController,
     );
     var resolvedFriendCount = _friendCount;
@@ -254,6 +328,13 @@ class _ProfilePageState extends State<ProfilePage> {
         nextUrl: profileData.profileImageUrl,
         mediaController: mediaController,
       );
+      resolvedCoverImageUrl = _resolveLoadedCoverImageUrl(
+        previousUser: previousUser,
+        previousUrl: _coverImageUrl,
+        nextUser: resolvedUser,
+        nextUrl: resolvedUser.displayCoverImageUrl,
+        mediaController: mediaController,
+      );
     } else {
       resolvedUser = previousUser;
     }
@@ -269,12 +350,31 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       _userInfo = resolvedUser;
       _profileImageUrl = resolvedProfileImageUrl;
+      _coverImageUrl = resolvedCoverImageUrl;
       _friendCount = resolvedFriendCount;
     });
+
+    final coverImageKey = resolvedUser.profileCoverImageCacheKey ?? '';
+    if (resolvedCoverImageUrl == null && coverImageKey.isNotEmpty) {
+      unawaited(
+        _prefetchCoverImageUrl(
+          coverImageKey: coverImageKey,
+          mediaController: mediaController,
+        ),
+      );
+    }
   }
 
+  /// 설정 화면을 닫고 돌아오면 최신 사용자 헤더를 다시 읽어 프로필 페이지를 즉시 맞춥니다.
   void _openProfileSettings() {
-    Navigator.of(context).pushNamed(AppRoute.profileScreen);
+    unawaited(_pushProfileSettingsAndRefresh());
+  }
+
+  /// 설정 화면 복귀 직후 최신 사용자/이미지 상태를 다시 불러와 로컬 헤더 캐시를 갱신합니다.
+  Future<void> _pushProfileSettingsAndRefresh() async {
+    await Navigator.of(context).pushNamed(AppRoute.profileScreen);
+    if (!mounted) return;
+    await _loadProfilePageData();
   }
 
   void _selectTab(_ProfileTab tab) {
@@ -284,23 +384,38 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
+  /// 프로필 메인 헤더 아래 간격과 탭 영역을 함께 배치해 상단 레이아웃을 고정합니다.
   @override
   Widget build(BuildContext context) {
-    final currentUser = context.watch<UserController>().currentUser;
+    final currentUserId = context.select<UserController, int?>(
+      (controller) => controller.currentUser?.id,
+    );
+    final currentUser = context.read<UserController>().currentUser;
     final mediaController = context.read<MediaController>();
-    final displayUser = _userInfo ?? currentUser;
+    final displayUser = currentUserId == null
+        ? _userInfo
+        : currentUser ?? _userInfo;
     final displayProfileImageUrl =
         _resolveLoadedProfileImageUrl(
           previousUser: _userInfo,
           previousUrl: _profileImageUrl,
           nextUser: displayUser,
-          nextUrl: _profileImageUrl,
+          nextUrl: displayUser?.displayProfileImageUrl,
           mediaController: mediaController,
         ) ??
         _peekProfileImageUrl(
           user: displayUser,
           mediaController: mediaController,
         );
+    final displayCoverImageUrl =
+        _resolveLoadedCoverImageUrl(
+          previousUser: _userInfo,
+          previousUrl: _coverImageUrl,
+          nextUser: displayUser,
+          nextUrl: displayUser?.displayCoverImageUrl,
+          mediaController: mediaController,
+        ) ??
+        _peekCoverImageUrl(user: displayUser, mediaController: mediaController);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -308,14 +423,16 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           // 프로필 페이지의 헤더를 구성하는 ProfileMainHeader 위젯입니다.
           ProfileMainHeader(
+            observedUserId: displayUser?.id,
             nickname: displayUser?.userId,
             profileImageUrl: displayProfileImageUrl,
             profileImageKey: displayUser?.profileImageCacheKey,
             friendCount: _friendCount,
             onMenuTap: _openProfileSettings,
-            coverImageUrl: _coverImageUrl,
-            coverImageKey: context.read<UserController>().coverImageUrlKey,
+            coverImageUrl: displayCoverImageUrl,
+            coverImageKey: displayUser?.profileCoverImageCacheKey,
           ),
+          SizedBox(height: 24.h),
           // 프로필 페이지의 탭 바를 구성하는 _ProfileTabBar 위젯입니다.
           // 탭 바는 미디어, 텍스트, 댓글 탭을 표시하고, 선택된 탭을 강조합니다.
           _ProfileTabBar(selectedTab: _selectedTab, onTabSelected: _selectTab),

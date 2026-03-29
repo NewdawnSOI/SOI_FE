@@ -364,6 +364,45 @@ void main() {
       expect(result.userId, 'minchan');
     });
 
+    test('serializes omitted signup image fields as empty strings', () async {
+      final service = UserService(
+        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+        userApi: _FakeUserApi(onGetUser: () async => null),
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+          onCreateUser: (dto) async {
+            expect(dto.name, '민찬');
+            expect(dto.nickname, 'minchan');
+            expect(dto.phoneNum, '01012345678');
+            expect(dto.birthDate, '1990-01-01');
+            expect(dto.profileImageKey, '');
+            expect(dto.profileCoverImageKey, '');
+            return ApiResponseDtoUserRespDto(
+              success: true,
+              data: UserRespDto(
+                id: 3,
+                nickname: dto.nickname,
+                name: dto.name,
+                phoneNum: dto.phoneNum,
+              ),
+            );
+          },
+        ),
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
+      );
+
+      final result = await service.createUser(
+        name: '  민찬 ',
+        nickName: ' minchan ',
+        phoneNum: ' 01012345678 ',
+        birthDate: ' 1990-01-01 ',
+        profileImageKey: '   ',
+      );
+
+      expect(result.id, 3);
+      expect(result.userId, 'minchan');
+    });
+
     test(
       'uses unauthenticated auth api for nickname availability check',
       () async {

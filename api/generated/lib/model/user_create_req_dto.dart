@@ -18,6 +18,7 @@ class UserCreateReqDto {
     this.phoneNum,
     this.birthDate,
     this.profileImageKey,
+    this.profileCoverImageKey,
     this.serviceAgreed,
     this.privacyPolicyAgreed,
     this.marketingAgreed,
@@ -69,6 +70,14 @@ class UserCreateReqDto {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
+  String? profileCoverImageKey;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
   bool? serviceAgreed;
 
   ///
@@ -94,6 +103,7 @@ class UserCreateReqDto {
     other.phoneNum == phoneNum &&
     other.birthDate == birthDate &&
     other.profileImageKey == profileImageKey &&
+    other.profileCoverImageKey == profileCoverImageKey &&
     other.serviceAgreed == serviceAgreed &&
     other.privacyPolicyAgreed == privacyPolicyAgreed &&
     other.marketingAgreed == marketingAgreed;
@@ -106,12 +116,13 @@ class UserCreateReqDto {
     (phoneNum == null ? 0 : phoneNum!.hashCode) +
     (birthDate == null ? 0 : birthDate!.hashCode) +
     (profileImageKey == null ? 0 : profileImageKey!.hashCode) +
+    (profileCoverImageKey == null ? 0 : profileCoverImageKey!.hashCode) +
     (serviceAgreed == null ? 0 : serviceAgreed!.hashCode) +
     (privacyPolicyAgreed == null ? 0 : privacyPolicyAgreed!.hashCode) +
     (marketingAgreed == null ? 0 : marketingAgreed!.hashCode);
 
   @override
-  String toString() => 'UserCreateReqDto[name=$name, nickname=$nickname, phoneNum=$phoneNum, birthDate=$birthDate, profileImageKey=$profileImageKey, serviceAgreed=$serviceAgreed, privacyPolicyAgreed=$privacyPolicyAgreed, marketingAgreed=$marketingAgreed]';
+  String toString() => 'UserCreateReqDto[name=$name, nickname=$nickname, phoneNum=$phoneNum, birthDate=$birthDate, profileImageKey=$profileImageKey, profileCoverImageKey=$profileCoverImageKey, serviceAgreed=$serviceAgreed, privacyPolicyAgreed=$privacyPolicyAgreed, marketingAgreed=$marketingAgreed]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -139,6 +150,11 @@ class UserCreateReqDto {
       json[r'profileImageKey'] = this.profileImageKey;
     } else {
       json[r'profileImageKey'] = null;
+    }
+    if (this.profileCoverImageKey != null) {
+      json[r'profileCoverImageKey'] = this.profileCoverImageKey;
+    } else {
+      json[r'profileCoverImageKey'] = null;
     }
     if (this.serviceAgreed != null) {
       json[r'serviceAgreed'] = this.serviceAgreed;
@@ -182,6 +198,7 @@ class UserCreateReqDto {
         phoneNum: mapValueOfType<String>(json, r'phoneNum'),
         birthDate: mapValueOfType<String>(json, r'birthDate'),
         profileImageKey: mapValueOfType<String>(json, r'profileImageKey'),
+        profileCoverImageKey: mapValueOfType<String>(json, r'profileCoverImageKey'),
         serviceAgreed: mapValueOfType<bool>(json, r'serviceAgreed'),
         privacyPolicyAgreed: mapValueOfType<bool>(json, r'privacyPolicyAgreed'),
         marketingAgreed: mapValueOfType<bool>(json, r'marketingAgreed'),

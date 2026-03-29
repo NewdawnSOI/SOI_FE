@@ -8,11 +8,13 @@ import '../../../../api/models/category.dart' as api_category;
 class CategoryProfileRowData {
   final List<String> profileImageUrls;
   final List<String> profileImageKeys;
+  final List<String> memberNicknames;
   final int totalUserCount;
 
   const CategoryProfileRowData({
     required this.profileImageUrls,
     required this.profileImageKeys,
+    required this.memberNicknames,
     required this.totalUserCount,
   });
 
@@ -23,12 +25,14 @@ class CategoryProfileRowData {
           runtimeType == other.runtimeType &&
           totalUserCount == other.totalUserCount &&
           listEquals(profileImageUrls, other.profileImageUrls) &&
+          listEquals(memberNicknames, other.memberNicknames) &&
           listEquals(profileImageKeys, other.profileImageKeys);
 
   @override
   int get hashCode => Object.hash(
     totalUserCount,
     Object.hashAll(profileImageUrls),
+    Object.hashAll(memberNicknames),
     Object.hashAll(profileImageKeys),
   );
 }
@@ -71,6 +75,7 @@ class ArchiveCardViewData {
       profileRowData: CategoryProfileRowData(
         profileImageUrls: category.usersProfileUrl,
         profileImageKeys: category.usersProfileKey,
+        memberNicknames: category.nickNames,
         totalUserCount: category.totalUserCount,
       ),
     );

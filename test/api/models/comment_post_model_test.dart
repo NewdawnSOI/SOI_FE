@@ -198,6 +198,21 @@ void main() {
         'https://legacy.example.com/profiles/bob.webp',
       );
     });
+
+    test('serializes empty optional user fields as empty strings', () {
+      const user = User(
+        id: 3,
+        userId: 'charlie',
+        name: 'Charlie',
+        phoneNumber: '01011112222',
+      );
+
+      expect(user.toJson()['profileImageKey'], '');
+      expect(user.toJson()['profileImageUrl'], '');
+      expect(user.toJson()['profileCoverImageKey'], '');
+      expect(user.toJson()['profileCoverImageUrl'], '');
+      expect(user.toJson()['birthDate'], '');
+    });
   });
 
   group('Notification model image resolution', () {

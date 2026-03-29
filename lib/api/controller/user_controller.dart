@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/models/user.dart';
@@ -8,6 +8,32 @@ import 'package:soi/api/services/user_service.dart';
 import 'package:soi/utils/username_validator.dart';
 
 import '../api_client.dart';
+
+/// 현재 사용자와 뷰의 대상 사용자를 맞춰 프로필/커버 이미지 구독값을 전달합니다.
+@immutable
+class UserImageSelection {
+  const UserImageSelection({this.imageUrl, this.imageKey});
+
+  final String? imageUrl;
+  final String? imageKey;
+
+  /// 뷰가 기존 렌더링 방식을 유지하면서도 현재 선택된 이미지를 바로 쓸 수 있게 합니다.
+  String? get displayImageUrl => imageUrl ?? imageKey;
+
+  /// key 기반 캐시를 쓰는 위젯이 중앙 선택 결과를 그대로 재사용할 수 있게 합니다.
+  String? get cacheKey => imageKey;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserImageSelection &&
+          runtimeType == other.runtimeType &&
+          imageUrl == other.imageUrl &&
+          imageKey == other.imageKey;
+
+  @override
+  int get hashCode => Object.hash(imageUrl, imageKey);
+}
 
 /// 사용자 및 인증 컨트롤러
 ///
@@ -49,6 +75,38 @@ class UserController extends ChangeNotifier {
   UserController({UserService? userService})
     : _userService = userService ?? UserService();
 
+  /// 인증 오케스트레이션의 단계만 debug 로그로 남겨 수동/자동 로그인 실패 지점을 추적합니다.
+  void _debugLogAuthStage(
+    String flow,
+    String stage, {
+    Map<String, Object?> details = const <String, Object?>{},
+  }) {
+    if (!kDebugMode) return;
+
+    final payload = details.entries
+        .where((entry) => entry.value != null)
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(', ');
+    final suffix = payload.isEmpty ? '' : ', $payload';
+    debugPrint('[UserController.auth] flow=$flow, stage=$stage$suffix');
+  }
+
+  /// 인증 상태 흐름에서 발생한 예외를 status와 타입 중심으로 축약해 debug 로그로 남깁니다.
+  void _debugLogAuthError(String flow, String stage, Object error) {
+    if (!kDebugMode) return;
+
+    if (error is SoiApiException) {
+      debugPrint(
+        '[UserController.auth] flow=$flow, stage=$stage, errorType=${error.runtimeType}, status=${error.statusCode}, message=${error.message}',
+      );
+      return;
+    }
+
+    debugPrint(
+      '[UserController.auth] flow=$flow, stage=$stage, errorType=${error.runtimeType}, error=$error',
+    );
+  }
+
   /// 현재 로그인된 사용자
   User? get currentUser => _currentUser;
 
@@ -57,6 +115,61 @@ class UserController extends ChangeNotifier {
 
   /// 현재 사용자의 커버 이미지 키
   String? get coverImageUrlKey => _coverImageUrlKey;
+
+  /// 뷰가 현재 사용자 프로필 이미지만 부분 구독할 수 있도록 fallback과 현재 상태를 합칩니다.
+  UserImageSelection selectProfileImage({
+    int? userId,
+    String? nickname,
+    String? fallbackImageUrl,
+    String? fallbackImageKey,
+  }) {
+    // fallback 이미지 source와 UserController 선택값을 합쳐 렌더용 URL/cache key를 제공합니다.
+    final fallback = UserImageSelection(
+      imageUrl: _normalizeOptionalImageValue(fallbackImageUrl),
+      imageKey: _normalizeOptionalImageValue(fallbackImageKey),
+    );
+    if (!_matchesCurrentUser(userId: userId, nickname: nickname)) {
+      return fallback;
+    }
+
+    final currentUser = _currentUser;
+    if (currentUser == null) {
+      return fallback;
+    }
+
+    return _mergeUserImageSelection(
+      fallback: fallback,
+      currentImageUrl: currentUser.displayProfileImageUrl,
+      currentImageKey: currentUser.profileImageCacheKey,
+    );
+  }
+
+  /// 뷰가 현재 사용자 커버 이미지만 부분 구독할 수 있도록 fallback과 현재 상태를 합칩니다.
+  UserImageSelection selectCoverImage({
+    int? userId,
+    String? nickname,
+    String? fallbackImageUrl,
+    String? fallbackImageKey,
+  }) {
+    final fallback = UserImageSelection(
+      imageUrl: _normalizeOptionalImageValue(fallbackImageUrl),
+      imageKey: _normalizeOptionalImageValue(fallbackImageKey),
+    );
+    if (!_matchesCurrentUser(userId: userId, nickname: nickname)) {
+      return fallback;
+    }
+
+    final currentUser = _currentUser;
+    if (currentUser == null) {
+      return fallback;
+    }
+
+    return _mergeUserImageSelection(
+      fallback: fallback,
+      currentImageUrl: currentUser.displayCoverImageUrl,
+      currentImageKey: currentUser.profileCoverImageCacheKey,
+    );
+  }
 
   /// 로그인 상태
   bool get isLoggedIn => _currentUser != null;
@@ -147,6 +260,15 @@ class UserController extends ChangeNotifier {
   Future<User?> login({String? nickName, String? phoneNumber}) async {
     final normalizedNickname = nickName?.trim();
     final normalizedPhoneNumber = phoneNumber?.trim();
+    _debugLogAuthStage(
+      'manual-login',
+      'start',
+      details: <String, Object?>{
+        'hasNickname': normalizedNickname?.isNotEmpty ?? false,
+        'nicknameLength': normalizedNickname?.length,
+        'phoneLength': normalizedPhoneNumber?.length,
+      },
+    );
 
     _beginLoading();
 
@@ -155,14 +277,27 @@ class UserController extends ChangeNotifier {
         nickName: normalizedNickname,
         phoneNum: normalizedPhoneNumber,
       );
+      _debugLogAuthStage(
+        'manual-login',
+        'service-returned',
+        details: <String, Object?>{'hasUser': user != null},
+      );
       _syncCurrentUserState(user);
 
       // 로그인 성공 시 상태 저장
       if (user != null) {
         await saveLoginState(userId: user.id, phoneNumber: user.phoneNumber);
         await _persistCoverImageKey(_coverImageUrlKey);
+        _debugLogAuthStage(
+          'manual-login',
+          'session-persisted',
+          details: <String, Object?>{
+            'hasCoverImageKey': _coverImageUrlKey?.isNotEmpty ?? false,
+          },
+        );
       } else {
         await _persistCoverImageKey(null);
+        _debugLogAuthStage('manual-login', 'not-found');
         debugPrint('[UserController.login] 로그인 실패 code=404');
       }
 
@@ -170,6 +305,7 @@ class UserController extends ChangeNotifier {
       notifyListeners();
       return user;
     } on NotFoundException catch (e) {
+      _debugLogAuthError('manual-login', 'service-login', e);
       debugPrint(
         '[UserController.login] 로그인 실패 code=${e.statusCode ?? 404}, message=${e.message}',
       );
@@ -179,12 +315,14 @@ class UserController extends ChangeNotifier {
       notifyListeners();
       return null;
     } on SoiApiException catch (e) {
+      _debugLogAuthError('manual-login', 'service-login', e);
       debugPrint(
         '[UserController.login] 로그인 실패 code=${e.statusCode ?? 'unknown'}, message=${e.message}',
       );
       _finishLoading(errorMessage: '로그인 실패: $e');
       rethrow;
     } catch (e) {
+      _debugLogAuthError('manual-login', 'service-login', e);
       debugPrint('[UserController.login] 로그인 실패 code=unknown, error=$e');
       final wrapped = SoiApiException(
         message: '로그인 실패: $e',
@@ -210,23 +348,37 @@ class UserController extends ChangeNotifier {
   /// 서버 응답에 포함된 커버 이미지 키까지 함께 동기화해 UI와 로컬 세션을 같은 상태로 유지합니다.
   Future<void> refreshCurrentUser() async {
     if (!SoiApiClient.instance.isAuthenticated) return;
+    _debugLogAuthStage(
+      'refresh-current-user',
+      'start',
+      details: <String, Object?>{
+        'isAuthenticated': SoiApiClient.instance.isAuthenticated,
+      },
+    );
 
     _beginLoading();
     try {
       final user = await _userService.getCurrentUser();
       _syncCurrentUserState(user);
       await _persistCoverImageKey(_coverImageUrlKey);
+      _debugLogAuthStage(
+        'refresh-current-user',
+        'success',
+        details: <String, Object?>{
+          'hasCoverImageKey': _coverImageUrlKey?.isNotEmpty ?? false,
+        },
+      );
       _finishLoading(notify: false);
       notifyListeners();
     } catch (e) {
+      _debugLogAuthError('refresh-current-user', 'get-current-user', e);
       _finishLoading(errorMessage: '사용자 정보 갱신 실패: $e');
     }
   }
 
   /// 현재 사용자 설정 (외부에서 직접 설정 필요 시)
   void setCurrentUser(User? user) {
-    if (_currentUser == user &&
-        _coverImageUrlKey == user?.profileCoverImageKey) {
+    if (_hasSameCurrentUserSnapshot(user)) {
       return;
     }
     _syncCurrentUserState(user);
@@ -247,10 +399,12 @@ class UserController extends ChangeNotifier {
   ///   - [phoneNum]: 전화번호 (String)
   ///   - [birthDate]: 생년월일 (String, YYYY-MM-DD)
   ///   - [profileImageKey]: 프로필 이미지 파일 키 (선택)
+  ///   - [profileCoverImageKey]: 프로필 커버 이미지 파일 키 (선택)
   ///   - [serviceAgreed]: 서비스 이용약관 동의 여부 (기본값: true)
   ///   - [privacyPolicyAgreed]: 개인정보 처리방침 동의 여부 (기본값: true)
   ///   - [marketingAgreed]: 마케팅 정보 수신 동의 여부 (기본값: false)
   ///
+  /// 회원가입 직전 입력과 프로필/커버 이미지 키를 정규화해 빈 값이 null 대신 빈 문자열 흐름을 타도록 맞춥니다.
   /// Returns: 생성된 사용자 정보 (User)
   ///   - null: 생성 실패
 
@@ -260,39 +414,78 @@ class UserController extends ChangeNotifier {
     required String phoneNum,
     required String birthDate,
     String? profileImageKey,
+    String? profileCoverImageKey,
     bool serviceAgreed = true,
     bool privacyPolicyAgreed = true,
     bool marketingAgreed = false,
   }) async {
+    final normalizedName = name.trim();
+    final normalizedNickName = nickName.trim();
+    final normalizedPhoneNum = phoneNum.trim();
+    final normalizedBirthDate = birthDate.trim();
+    final normalizedProfileImageKey = profileImageKey?.trim() ?? '';
+    final normalizedProfileCoverImageKey = profileCoverImageKey?.trim() ?? '';
+
+    _debugLogAuthStage(
+      'signup',
+      'start',
+      details: <String, Object?>{
+        'nameLength': normalizedName.length,
+        'nicknameLength': normalizedNickName.length,
+        'phoneLength': normalizedPhoneNum.length,
+        'birthDateLength': normalizedBirthDate.length,
+        'hasProfileImageKey': normalizedProfileImageKey.isNotEmpty,
+        'hasProfileCoverImageKey': normalizedProfileCoverImageKey.isNotEmpty,
+      },
+    );
+
     _beginLoading();
 
     try {
-      await _userService.createUser(
-        name: name,
-        nickName: nickName,
-        phoneNum: phoneNum,
-        birthDate: birthDate,
-        profileImageKey: profileImageKey,
+      final createdUser = await _userService.createUser(
+        name: normalizedName,
+        nickName: normalizedNickName,
+        phoneNum: normalizedPhoneNum,
+        birthDate: normalizedBirthDate,
+        profileImageKey: normalizedProfileImageKey,
+        profileCoverImageKey: normalizedProfileCoverImageKey,
         serviceAgreed: serviceAgreed,
         privacyPolicyAgreed: privacyPolicyAgreed,
         marketingAgreed: marketingAgreed,
       );
+      _debugLogAuthStage(
+        'signup',
+        'user-created',
+        details: <String, Object?>{
+          'createdUserId': createdUser.id,
+          'hasCoverImageKey':
+              createdUser.profileCoverImageKey?.isNotEmpty ?? false,
+          'hasProfileImageKey':
+              createdUser.profileImageKey?.isNotEmpty ?? false,
+        },
+      );
 
+      _debugLogAuthStage('signup', 'auth-after-signup.start');
       final authenticatedUser = await _authenticateAfterSignup(
-        phoneNum: phoneNum,
-        nickName: nickName,
+        phoneNum: normalizedPhoneNum,
+        nickName: normalizedNickName,
       );
       if (authenticatedUser == null) {
         throw const AuthException(message: '회원가입 후 로그인에 실패했습니다.');
       }
 
-      _currentUser = authenticatedUser;
-      await saveLoginState(userId: authenticatedUser.id, phoneNumber: phoneNum);
+      _syncCurrentUserState(authenticatedUser);
+      await saveLoginState(
+        userId: authenticatedUser.id,
+        phoneNumber: authenticatedUser.phoneNumber,
+      );
+      await _persistCoverImageKey(_coverImageUrlKey);
       _finishLoading(notify: false);
       notifyListeners();
       return authenticatedUser;
     } catch (e) {
-      _currentUser = null;
+      _debugLogAuthError('signup', 'create-or-authenticate', e);
+      _syncCurrentUserState(null);
       await clearLoginState();
       _finishLoading(errorMessage: '사용자 생성 실패: $e');
       return null;
@@ -490,17 +683,19 @@ class UserController extends ChangeNotifier {
     _beginLoading();
 
     try {
-      return await _userService.updateProfileImage(
+      final updatedUser = await _userService.updateProfileImage(
         userId: userId,
         profileImageKey: profileImageKey,
       );
+      if (_matchesCurrentUser(userId: userId, nickname: updatedUser.userId)) {
+        _syncCurrentUserState(_mergeCurrentUserProfileUpdate(updatedUser));
+      }
+      _finishLoading(notify: false);
+      notifyListeners();
+      return updatedUser;
     } catch (e) {
       _finishLoading(errorMessage: '프로필 이미지 수정 실패: $e');
       return null;
-    } finally {
-      if (_isLoading) {
-        _finishLoading();
-      }
     }
   }
 
@@ -548,6 +743,102 @@ class UserController extends ChangeNotifier {
   void _syncCurrentUserState(User? user) {
     _currentUser = user;
     _coverImageUrlKey = user?.profileCoverImageKey;
+  }
+
+  /// 프로필 이미지 응답이 일부 필드를 생략해도 현재 사용자 커버/세션 스냅샷이 유지되게 병합합니다.
+  User _mergeCurrentUserProfileUpdate(User updatedUser) {
+    final currentUser = _currentUser;
+    if (currentUser == null || currentUser.id != updatedUser.id) {
+      return updatedUser;
+    }
+
+    return User(
+      id: updatedUser.id,
+      userId: updatedUser.userId,
+      name: updatedUser.name,
+      profileImageKey: updatedUser.profileImageKey,
+      profileImageUrl: updatedUser.profileImageUrl,
+      profileCoverImageKey:
+          updatedUser.profileCoverImageKey ?? currentUser.profileCoverImageKey,
+      profileCoverImageUrl:
+          updatedUser.profileCoverImageUrl ?? currentUser.profileCoverImageUrl,
+      birthDate: updatedUser.birthDate ?? currentUser.birthDate,
+      phoneNumber: updatedUser.phoneNumber.isNotEmpty
+          ? updatedUser.phoneNumber
+          : currentUser.phoneNumber,
+      active: updatedUser.active || currentUser.active,
+    );
+  }
+
+  /// 현재 뷰의 대상 사용자가 로그인 사용자와 같은지 식별해 selector 범위를 현재 사용자로만 제한합니다.
+  bool _matchesCurrentUser({int? userId, String? nickname}) {
+    final currentUser = _currentUser;
+    if (currentUser == null) {
+      return false;
+    }
+
+    if (userId != null) {
+      return currentUser.id == userId;
+    }
+
+    final normalizedNickname = nickname?.trim();
+    if (normalizedNickname == null || normalizedNickname.isEmpty) {
+      return false;
+    }
+    return currentUser.userId == normalizedNickname;
+  }
+
+  /// 같은 사용자라도 이미지나 핵심 필드가 달라지면 selector가 즉시 갱신되도록 전체 스냅샷을 비교합니다.
+  bool _hasSameCurrentUserSnapshot(User? user) {
+    final currentUser = _currentUser;
+    if (identical(currentUser, user)) {
+      return true;
+    }
+    if (currentUser == null || user == null) {
+      return currentUser == user;
+    }
+
+    return mapEquals(currentUser.toJson(), user.toJson()) &&
+        _coverImageUrlKey == user.profileCoverImageKey;
+  }
+
+  /// selector 비교 전에 이미지 관련 선택 문자열을 공백 없는 값으로 정규화합니다.
+  String? _normalizeOptionalImageValue(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  /// 현재 사용자 key가 바뀌면 예전 fallback URL을 버려 새 이미지가 같은 셀에서 즉시 교체되게 합니다.
+  UserImageSelection _mergeUserImageSelection({
+    required UserImageSelection fallback,
+    required String? currentImageUrl,
+    required String? currentImageKey,
+  }) {
+    final normalizedCurrentImageUrl = _normalizeOptionalImageValue(
+      currentImageUrl,
+    );
+    final normalizedCurrentImageKey = _normalizeOptionalImageValue(
+      currentImageKey,
+    );
+
+    if (normalizedCurrentImageKey == null) {
+      return UserImageSelection(
+        imageUrl: normalizedCurrentImageUrl ?? fallback.imageUrl,
+        imageKey: fallback.imageKey,
+      );
+    }
+
+    return UserImageSelection(
+      imageUrl:
+          normalizedCurrentImageUrl ??
+          (normalizedCurrentImageKey == fallback.imageKey
+              ? fallback.imageUrl
+              : null),
+      imageKey: normalizedCurrentImageKey,
+    );
   }
 
   /// 로컬 세션이 서버 응답과 같은 커버 이미지 키를 재사용하도록 SharedPreferences를 갱신합니다.
@@ -741,9 +1032,15 @@ class UserController extends ChangeNotifier {
   ///  - false: 자동 로그인 실패
   Future<bool> tryAutoLogin() async {
     try {
+      _debugLogAuthStage('auto-login', 'start');
       debugPrint('[UserController] 자동 로그인 시도...');
 
       final savedInfo = await getSavedUserInfo();
+      _debugLogAuthStage(
+        'auto-login',
+        'saved-info-loaded',
+        details: <String, Object?>{'hasSavedInfo': savedInfo != null},
+      );
       if (savedInfo == null) {
         debugPrint('[UserController] 저장된 로그인 정보 없음');
         return false;
@@ -751,6 +1048,14 @@ class UserController extends ChangeNotifier {
 
       final userId = savedInfo['userId'] as int;
       final accessToken = savedInfo['accessToken'] as String?;
+      _debugLogAuthStage(
+        'auto-login',
+        'saved-credentials-resolved',
+        details: <String, Object?>{
+          'hasAccessToken': accessToken?.isNotEmpty ?? false,
+          'tokenLength': accessToken?.length,
+        },
+      );
       debugPrint('[UserController] 저장된 userId: $userId');
 
       if (accessToken == null || accessToken.isEmpty) {
@@ -760,16 +1065,31 @@ class UserController extends ChangeNotifier {
       }
 
       SoiApiClient.instance.setAuthToken(accessToken);
+      _debugLogAuthStage(
+        'auto-login',
+        'token-restored',
+        details: <String, Object?>{
+          'isAuthenticated': SoiApiClient.instance.isAuthenticated,
+        },
+      );
 
       // 서버에서 현재 사용자 정보 조회
       final user = await _userService.getCurrentUser();
       _syncCurrentUserState(user);
       await _persistCoverImageKey(_coverImageUrlKey);
+      _debugLogAuthStage(
+        'auto-login',
+        'get-current-user.success',
+        details: <String, Object?>{
+          'hasCoverImageKey': _coverImageUrlKey?.isNotEmpty ?? false,
+        },
+      );
 
       notifyListeners();
       debugPrint('[UserController] 자동 로그인 성공: ${user.name}');
       return true;
     } catch (e) {
+      _debugLogAuthError('auto-login', 'restore-or-get-current-user', e);
       debugPrint('[UserController] 자동 로그인 실패: $e');
       await clearLoginState();
       return false;

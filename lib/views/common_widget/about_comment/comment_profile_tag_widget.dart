@@ -11,6 +11,7 @@ import '../../../api/services/media_service.dart';
 import '../../../api/media_processing/waveform_codec.dart';
 import '../api_photo/tag_pointer.dart';
 import '../api_photo/widgets/api_photo_circle_avatar.dart';
+import '../user/current_user_image_builder.dart';
 import 'pending_api_voice_comment.dart';
 import 'comment_save_payload.dart';
 
@@ -72,111 +73,6 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
   // 댓글 저장 진행 상황을 0.0 ~ 1.0 사이의 값으로 나타냅니다.
   // 부모 위젯에 전달하여 프로그레스 표시 등에 활용할 수 있습니다.
   double _progress = 0.0;
-
-  // 프로필 이미지 URL을 비동기로 조회하여 저장하는 Future입니다.
-  // 댓글 작성자의 프로필 이미지를 표시하는 데 사용됩니다.
-  late Future<String?> _profileImageFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _profileImageFuture = _createProfileImageFuture(
-      profileImageUrl: widget.payload.profileImageUrl,
-      profileImageKey: widget.payload.profileImageKey,
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant CommentProfileTagWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.payload.profileImageUrl != widget.payload.profileImageUrl ||
-        oldWidget.payload.profileImageKey != widget.payload.profileImageKey) {
-      _profileImageFuture = _createProfileImageFuture(
-        profileImageUrl: widget.payload.profileImageUrl,
-        profileImageKey: widget.payload.profileImageKey,
-      );
-    }
-  }
-
-  /// 즉시 렌더 가능한 URL을 우선 사용하고, key가 있으면 presigned URL을 갱신해 최종 표시 이미지를 확정합니다.
-  Future<String?> _createProfileImageFuture({
-    required String? profileImageUrl,
-    required String? profileImageKey,
-  }) async {
-    final immediateImageUrl = _resolveImmediateProfileImageUrl(
-      profileImageUrl: profileImageUrl,
-      profileImageKey: profileImageKey,
-    );
-    final normalizedProfileKey = profileImageKey?.trim();
-    if (normalizedProfileKey == null || normalizedProfileKey.isEmpty) {
-      return immediateImageUrl;
-    }
-
-    try {
-      final mediaController = context.read<MediaController>();
-      return await mediaController.getPresignedUrl(normalizedProfileKey) ??
-          immediateImageUrl;
-    } catch (_) {
-      return immediateImageUrl;
-    }
-  }
-
-  /// 드래그 직후 프레임에서는 직접 URL을 우선 그리고, 없을 때만 key의 캐시된 presigned URL을 재사용합니다.
-  String? _resolveImmediateProfileImageUrl({
-    required String? profileImageUrl,
-    required String? profileImageKey,
-  }) {
-    final normalizedProfileUrl = profileImageUrl?.trim();
-    if (normalizedProfileUrl != null && normalizedProfileUrl.isNotEmpty) {
-      return normalizedProfileUrl;
-    }
-
-    final normalizedProfileKey = profileImageKey?.trim();
-    if (normalizedProfileKey == null || normalizedProfileKey.isEmpty) {
-      return null;
-    }
-
-    try {
-      return context.read<MediaController>().peekPresignedUrl(
-        normalizedProfileKey,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// profile key를 우선 캐시 식별자로 쓰고, key가 없을 때만 URL 기반 식별자를 계산합니다.
-  String? _resolveProfileCacheKey({
-    required String? profileImageKey,
-    required String? profileImageUrl,
-  }) {
-    final normalizedProfileKey = profileImageKey?.trim();
-    if (normalizedProfileKey != null && normalizedProfileKey.isNotEmpty) {
-      return normalizedProfileKey;
-    }
-
-    final normalizedProfileUrl = profileImageUrl?.trim();
-    if (normalizedProfileUrl == null || normalizedProfileUrl.isEmpty) {
-      return null;
-    }
-
-    final uri = Uri.tryParse(normalizedProfileUrl);
-    if (uri == null || !uri.hasScheme) {
-      return null;
-    }
-
-    final normalizedHost = uri.host.trim();
-    final normalizedPath = uri.path.trim();
-    if (normalizedPath.isEmpty) {
-      return null;
-    }
-
-    if (normalizedHost.isEmpty) {
-      return normalizedPath;
-    }
-
-    return '$normalizedHost$normalizedPath';
-  }
 
   /// 드래그 앵커 위치를 결정하는 메서드입니다.
   /// 태그의 원형 부분의 중심에서 포인터의 끝까지의 오프셋을 반환하여, 드래그 시 태그가 포인터에 맞춰지도록 합니다.
@@ -568,28 +464,19 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
   /// 드래그용 태그와 저장 중 태그가 같은 크기와 같은 이미지 소스를 공유하도록 현재 표시 상태를 조립합니다.
   @override
   Widget build(BuildContext context) {
-    final profileImageUrl = widget.payload.profileImageUrl;
-    final profileImageKey = widget.payload.profileImageKey;
-    final profileCacheKey = _resolveProfileCacheKey(
-      profileImageKey: profileImageKey,
-      profileImageUrl: profileImageUrl,
-    );
-    final immediateImageUrl = _resolveImmediateProfileImageUrl(
-      profileImageUrl: profileImageUrl,
-      profileImageKey: profileImageKey,
-    );
-    final tagBubble = FutureBuilder<String?>(
-      future: _profileImageFuture,
-      initialData: immediateImageUrl,
-      builder: (context, snapshot) {
-        final imageUrl = snapshot.data;
-        return TagBubble(
-          contentSize: widget.avatarSize,
-          padding: kPendingCommentTagPadding,
-          backgroundColor: kPendingCommentTagBackgroundColor,
-          child: _buildAvatar(imageUrl, cacheKey: profileCacheKey),
-        );
-      },
+    final tagBubble = TagBubble(
+      contentSize: widget.avatarSize,
+      padding: kPendingCommentTagPadding,
+      backgroundColor: kPendingCommentTagBackgroundColor,
+      child: CurrentUserImageBuilder(
+        imageKind: CurrentUserImageKind.profile,
+        targetUserId: widget.payload.userId,
+        fallbackImageUrl: widget.payload.profileImageUrl,
+        fallbackImageKey: widget.payload.profileImageKey,
+        builder: (context, imageUrl, cacheKey) {
+          return _buildAvatar(imageUrl, cacheKey: cacheKey);
+        },
+      ),
     );
 
     if (_isSaving) {

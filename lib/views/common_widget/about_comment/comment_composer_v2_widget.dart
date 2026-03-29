@@ -319,9 +319,10 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
     }
     // 댓글 작성 모드에 따라 보여주는 UI가 즉시 교체되도록 KeyedSubtree로 감싸고, 고유한 key로 모드를 지정합니다.
     // 이렇게 하면 모드가 변경될 때마다 완전히 새로운 위젯 트리가 빌드되어, 입력 진입 시 불필요한 흔들림을 줄일 수 있습니다.
-    return SizedBox(
-      width: 353,
+    return Container(
+      width: 354,
       height: 52,
+      padding: EdgeInsets.symmetric(horizontal: 16),
       child: KeyedSubtree(key: ValueKey(_mode.name), child: child),
     );
   }

@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **phoneNum** | **String** |  | [optional] 
 **birthDate** | **String** |  | [optional] 
 **profileImageKey** | **String** |  | [optional] 
+**profileCoverImageKey** | **String** |  | [optional] 
 **serviceAgreed** | **bool** |  | [optional] 
 **privacyPolicyAgreed** | **bool** |  | [optional] 
 **marketingAgreed** | **bool** |  | [optional] 

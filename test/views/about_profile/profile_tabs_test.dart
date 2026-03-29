@@ -1,5 +1,6 @@
 library;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -120,7 +121,9 @@ class _FakeCommentController extends CommentController {
     if (comment.isReply) {
       return comment;
     }
-    return comment.copyWith(threadParentId: comment.threadParentId ?? comment.id);
+    return comment.copyWith(
+      threadParentId: comment.threadParentId ?? comment.id,
+    );
   }
 
   @override
@@ -131,9 +134,7 @@ class _FakeCommentController extends CommentController {
     required int userId,
     int page = 0,
   }) async => (
-    comments: comments
-        .map(_normalizeReturnedComment)
-        .toList(growable: false),
+    comments: comments.map(_normalizeReturnedComment).toList(growable: false),
     hasMore: false,
   );
 
@@ -392,6 +393,15 @@ Future<void> _setPhoneSurface(WidgetTester tester) async {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
   });
+}
+
+CachedNetworkImage _findNetworkImage(
+  WidgetTester tester, {
+  required String cacheKey,
+}) {
+  return tester
+      .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
+      .firstWhere((widget) => widget.cacheKey == cacheKey);
 }
 
 void main() {
@@ -921,7 +931,90 @@ void main() {
     });
   });
 
+  group('ApiCommentRow', () {
+    testWidgets('현재 사용자 댓글 아바타는 UserController selector 값을 우선 사용한다', (
+      tester,
+    ) async {
+      await _setPhoneSurface(tester);
+
+      await tester.pumpWidget(
+        _buildHarness(
+          userController: _FakeUserController(
+            currentUser: const User(
+              id: _fakeUserId,
+              userId: _fakeUserIdStr,
+              name: '테스트 유저',
+              phoneNumber: '01099999999',
+              profileImageUrl: 'https://example.com/profiles/current.png',
+              profileImageKey: 'profiles/current.png',
+            ),
+          ),
+          child: ApiCommentRow(
+            comment: Comment(
+              id: 1,
+              userId: _fakeUserId,
+              nickname: _fakeUserIdStr,
+              userProfileUrl: 'https://example.com/profiles/stale.png',
+              userProfileKey: 'profiles/stale.png',
+              text: '현재 사용자 댓글',
+              type: CommentType.text,
+              createdAt: DateTime(2025, 3, 4),
+            ),
+            showReplyAction: false,
+            relativeTimeText: '방금',
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      final networkImage = tester.widget<CachedNetworkImage>(
+        find.byType(CachedNetworkImage),
+      );
+      expect(networkImage.imageUrl, 'https://example.com/profiles/current.png');
+      expect(networkImage.cacheKey, 'profiles/current.png');
+    });
+  });
+
   group('ProfileMainHeader', () {
+    testWidgets('현재 사용자 커버 이미지는 UserController selector 값으로 즉시 덮어쓴다', (
+      tester,
+    ) async {
+      await _setPhoneSurface(tester);
+
+      await tester.pumpWidget(
+        _buildHarness(
+          userController: _FakeUserController(
+            currentUser: const User(
+              id: _fakeUserId,
+              userId: _fakeUserIdStr,
+              name: '테스트 유저',
+              phoneNumber: '01099999999',
+              profileCoverImageUrl: 'https://example.com/covers/current.png',
+              profileCoverImageKey: 'covers/current.png',
+            ),
+          ),
+          child: ProfileMainHeader(
+            observedUserId: _fakeUserId,
+            nickname: _fakeUserIdStr,
+            profileImageUrl: null,
+            profileImageKey: null,
+            friendCount: 2,
+            onMenuTap: () {},
+            coverImageUrl: 'https://example.com/covers/stale.png',
+            coverImageKey: 'covers/stale.png',
+          ),
+        ),
+      );
+      await _pumpNoImages(tester);
+
+      final networkImage = tester.widget<CachedNetworkImage>(
+        find.byType(CachedNetworkImage),
+      );
+      expect(networkImage.imageUrl, 'https://example.com/covers/current.png');
+      expect(networkImage.cacheKey, 'covers/current.png');
+    });
+
     testWidgets('커버 배경 탭이 콜백까지 전달된다', (tester) async {
       await _setPhoneSurface(tester);
       var coverTapCount = 0;
@@ -929,6 +1022,7 @@ void main() {
       await tester.pumpWidget(
         _buildHarness(
           child: ProfileMainHeader(
+            observedUserId: _fakeUserId,
             nickname: _fakeUserIdStr,
             profileImageUrl: null,
             profileImageKey: null,
@@ -954,6 +1048,7 @@ void main() {
       await tester.pumpWidget(
         _buildHarness(
           child: ProfileMainHeader(
+            observedUserId: _fakeUserId,
             nickname: _fakeUserIdStr,
             profileImageUrl: null,
             profileImageKey: null,
@@ -1027,6 +1122,48 @@ void main() {
       await _pumpNoImages(tester);
 
       expect(find.text('로그인이 필요합니다.'), findsOneWidget);
+    });
+
+    testWidgets('현재 사용자 이미지 키가 바뀌면 헤더가 즉시 새 presigned URL을 사용한다', (
+      tester,
+    ) async {
+      await _setPhoneSurface(tester);
+      final userController = _FakeUserController(
+        currentUser: _fakeUser,
+        loadedUser: _fakeUser,
+      );
+      final updatedUser = _fakeUser.copyWith(
+        profileImageKey: 'profiles/updated.webp',
+        profileCoverImageKey: 'covers/updated.webp',
+      );
+
+      await tester.pumpWidget(
+        _buildHarness(
+          userController: userController,
+          friendController: _FakeFriendController(friends: _fakeFriends),
+          mediaController: _FakeMediaController(
+            urls: const <String, String?>{
+              'profiles/updated.webp':
+                  'https://example.com/profiles/updated.webp',
+              'covers/updated.webp': 'https://example.com/covers/updated.webp',
+            },
+          ),
+          child: const ProfilePage(),
+        ),
+      );
+      await _pumpWithImages(tester);
+
+      userController.setCurrentUser(updatedUser);
+      await tester.pump();
+
+      expect(
+        _findNetworkImage(tester, cacheKey: 'profiles/updated.webp').imageUrl,
+        'https://example.com/profiles/updated.webp',
+      );
+      expect(
+        _findNetworkImage(tester, cacheKey: 'covers/updated.webp').imageUrl,
+        'https://example.com/covers/updated.webp',
+      );
     });
   });
 }

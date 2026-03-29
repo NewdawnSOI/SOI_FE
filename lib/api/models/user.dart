@@ -96,17 +96,18 @@ class User {
     );
   }
 
-  /// User 모델을 JSON으로 변환
+  /// User 모델을 JSON으로 변환합니다.
+  /// 서버/스토리지로 다시 흘러가는 선택 문자열은 null 대신 빈 문자열로 직렬화합니다.
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'userId': userId,
       'name': name,
-      'profileImageKey': profileImageKey,
-      'profileImageUrl': profileImageUrl,
-      'profileCoverImageKey': profileCoverImageKey,
-      'profileCoverImageUrl': profileCoverImageUrl,
-      'birthDate': birthDate,
+      'profileImageKey': _serializeOptionalText(profileImageKey),
+      'profileImageUrl': _serializeOptionalText(profileImageUrl),
+      'profileCoverImageKey': _serializeOptionalText(profileCoverImageKey),
+      'profileCoverImageUrl': _serializeOptionalText(profileCoverImageUrl),
+      'birthDate': _serializeOptionalText(birthDate),
       'phoneNum': phoneNumber,
       'active': active,
     };
@@ -194,6 +195,9 @@ class User {
     }
     return normalized;
   }
+
+  /// 선택 문자열을 JSON 직렬화 시 null 대신 빈 문자열로 고정합니다.
+  static String _serializeOptionalText(String? value) => value?.trim() ?? '';
 
   @override
   bool operator ==(Object other) =>

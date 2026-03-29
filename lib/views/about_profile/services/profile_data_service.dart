@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 import '../../../api/controller/category_controller.dart';
@@ -146,14 +147,15 @@ class ProfileDataService {
   }
 
   /// 이 메서드는 사진 용량을 줄여서 더 가볍게 만들어요.
-  /// 실패하면 원래 사진을 그대로 돌려줘서 멈추지 않아요.
+  /// EXIF 방향도 먼저 픽셀에 반영해 커버/프로필 이미지가 뒤집혀 보이지 않게 맞춥니다.
   Future<File> compressProfileImage(File file) async {
+    final preparedFile = await _normalizeUploadImageOrientation(file);
     try {
       final targetPath =
           '${file.parent.path}/profile_${DateTime.now().millisecondsSinceEpoch}.webp';
 
       final compressedFile = await _mediaProcessingBackend.compressImage(
-        inputFile: file,
+        inputFile: preparedFile,
         outputPath: targetPath,
         quality: 70,
         minWidth: 1080,
@@ -162,13 +164,62 @@ class ProfileDataService {
       );
 
       if (compressedFile != null) {
+        await _deletePreparedUploadFile(
+          originalFile: file,
+          preparedFile: preparedFile,
+        );
         return compressedFile;
       }
 
-      return file;
+      return preparedFile;
     } catch (error) {
       debugPrint('프로필 이미지 압축 오류: $error');
+      return preparedFile;
+    }
+  }
+
+  /// 업로드 전에 EXIF 방향을 픽셀에 구워 커버/프로필 이미지가 상하 반전되지 않게 정규화합니다.
+  Future<File> _normalizeUploadImageOrientation(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final decodedImage = img.decodeImage(bytes);
+      if (decodedImage == null) {
+        return file;
+      }
+
+      final orientation = decodedImage.exif.imageIfd.orientation;
+      if (orientation == null || orientation == 1) {
+        return file;
+      }
+
+      final normalizedImage = img.bakeOrientation(decodedImage);
+      final normalizedBytes = img.encodeJpg(normalizedImage, quality: 95);
+      final normalizedPath =
+          '${file.parent.path}/profile_upright_${DateTime.now().microsecondsSinceEpoch}.jpg';
+      final normalizedFile = File(normalizedPath);
+      await normalizedFile.writeAsBytes(normalizedBytes, flush: true);
+      return normalizedFile;
+    } catch (error) {
+      debugPrint('프로필 이미지 방향 정규화 오류: $error');
       return file;
+    }
+  }
+
+  /// 압축 성공 뒤에는 임시 정규화 파일만 정리해 업로드 캐시가 불필요하게 남지 않게 합니다.
+  Future<void> _deletePreparedUploadFile({
+    required File originalFile,
+    required File preparedFile,
+  }) async {
+    if (preparedFile.path == originalFile.path) {
+      return;
+    }
+
+    try {
+      if (await preparedFile.exists()) {
+        await preparedFile.delete();
+      }
+    } catch (error) {
+      debugPrint('프로필 업로드 임시 파일 정리 오류: $error');
     }
   }
 

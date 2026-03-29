@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:soi/api/controller/media_controller.dart';
 
+import '../../../common_widget/user/current_user_image_builder.dart';
+
 /// REST API 기반 프로필 이미지 행 위젯
 ///
 /// Category 객체에서 직접 프로필 URL/키 리스트와 총 인원수를 받아 표시합니다.
@@ -12,6 +14,7 @@ import 'package:soi/api/controller/media_controller.dart';
 class ApiArchiveProfileRowWidget extends StatefulWidget {
   final List<String> profileImageUrls;
   final List<String> profileImageKeys;
+  final List<String> memberNicknames;
   final int totalUserCount;
   final double avatarSize;
 
@@ -19,6 +22,7 @@ class ApiArchiveProfileRowWidget extends StatefulWidget {
     super.key,
     required this.profileImageUrls,
     required this.profileImageKeys,
+    required this.memberNicknames,
     this.totalUserCount = 0,
     this.avatarSize = 23.44,
   }) : assert(avatarSize > 0);
@@ -50,9 +54,13 @@ class _ApiArchiveProfileRowWidgetState
       oldWidget.profileImageKeys,
       widget.profileImageKeys,
     );
+    final nicknamesChanged = !listEquals(
+      oldWidget.memberNicknames,
+      widget.memberNicknames,
+    );
     final countChanged = oldWidget.totalUserCount != widget.totalUserCount;
 
-    if (urlsChanged || keysChanged || countChanged) {
+    if (urlsChanged || keysChanged || nicknamesChanged || countChanged) {
       _presignedUrlCache.clear();
       _loadPresignedUrls(forceReload: true);
     }
@@ -73,6 +81,15 @@ class _ApiArchiveProfileRowWidgetState
       return null;
     }
     final normalized = widget.profileImageUrls[index].trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  /// 인덱스별 닉네임을 읽어 현재 사용자 selector가 어떤 셀만 교체해야 하는지 판단합니다.
+  String? _memberNicknameAt(int index) {
+    if (index < 0 || index >= widget.memberNicknames.length) {
+      return null;
+    }
+    final normalized = widget.memberNicknames[index].trim();
     return normalized.isEmpty ? null : normalized;
   }
 
@@ -181,12 +198,18 @@ class _ApiArchiveProfileRowWidgetState
           ...List.generate(displayCount, (index) {
             final imageUrl = _resolveDisplayImageUrlAt(index) ?? '';
             final cacheKey = _resolveCacheKeyAt(index);
+            final profileImageKey = _profileImageKeyAt(index);
+            final memberNickname = _memberNicknameAt(index);
 
             return Positioned(
               right: index * overlapSpacing,
-              child: imageUrl.isEmpty
-                  ? _buildDefaultAvatar()
-                  : _buildProfileImage(imageUrl, cacheKey: cacheKey),
+              child: _ArchiveProfileAvatar(
+                fallbackImageUrl: imageUrl,
+                fallbackCacheKey: cacheKey,
+                fallbackImageKey: profileImageKey,
+                memberNickname: memberNickname,
+                avatarSize: widget.avatarSize,
+              ),
             );
           }),
           // +N 배지 표시 (3명 초과 시)
@@ -196,61 +219,6 @@ class _ApiArchiveProfileRowWidgetState
               child: _buildRemainingBadge(remainingCount),
             ),
         ],
-      ),
-    );
-  }
-
-  /// 기본 아바타 (이미지 없을 때)
-  Widget _buildDefaultAvatar() {
-    return Container(
-      width: widget.avatarSize,
-      height: widget.avatarSize,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade700,
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFF1C1C1C), width: 1.5),
-      ),
-      child: const Icon(Icons.person, size: 12, color: Colors.white54),
-    );
-  }
-
-  /// 프로필 이미지 빌드
-  Widget _buildProfileImage(String imageUrl, {String? cacheKey}) {
-    return Container(
-      width: widget.avatarSize,
-      height: widget.avatarSize,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFF1C1C1C), width: 1.5),
-      ),
-      child: ClipOval(
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          cacheKey: cacheKey,
-          useOldImageOnUrlChange: cacheKey != null,
-          width: widget.avatarSize,
-          height: widget.avatarSize,
-          memCacheWidth: (widget.avatarSize * 3).round(),
-          maxWidthDiskCache: (widget.avatarSize * 3).round(),
-          fit: BoxFit.cover,
-          fadeInDuration: Duration.zero,
-          fadeOutDuration: Duration.zero,
-          placeholder: (context, url) => Shimmer.fromColors(
-            baseColor: Colors.grey.shade800,
-            highlightColor: Colors.grey.shade700,
-            child: Container(
-              width: widget.avatarSize,
-              height: widget.avatarSize,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          errorWidget: (context, url, error) => Container(
-            width: widget.avatarSize,
-            height: widget.avatarSize,
-            color: Colors.grey.shade700,
-            child: const Icon(Icons.person, size: 12, color: Colors.white54),
-          ),
-        ),
       ),
     );
   }
@@ -272,6 +240,96 @@ class _ApiArchiveProfileRowWidgetState
             color: Colors.white,
             fontSize: 8,
             fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 아카이브 카드 아바타 셀만 현재 사용자 이미지 selector를 구독해 부분 갱신합니다.
+class _ArchiveProfileAvatar extends StatelessWidget {
+  const _ArchiveProfileAvatar({
+    required this.fallbackImageUrl,
+    required this.fallbackCacheKey,
+    required this.fallbackImageKey,
+    required this.memberNickname,
+    required this.avatarSize,
+  });
+
+  final String fallbackImageUrl;
+  final String? fallbackCacheKey;
+  final String? fallbackImageKey;
+  final String? memberNickname;
+  final double avatarSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return CurrentUserImageBuilder(
+      imageKind: CurrentUserImageKind.profile,
+      targetUserHandle: memberNickname,
+      fallbackImageUrl: fallbackImageUrl,
+      fallbackImageKey: fallbackImageKey,
+      builder: (context, imageUrl, cacheKey) {
+        final resolvedImageUrl = imageUrl?.trim() ?? '';
+        final resolvedCacheKey = cacheKey ?? fallbackCacheKey;
+
+        if (resolvedImageUrl.isEmpty) {
+          return _buildDefaultAvatar();
+        }
+
+        return _buildProfileImage(resolvedImageUrl, cacheKey: resolvedCacheKey);
+      },
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      width: avatarSize,
+      height: avatarSize,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade700,
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFF1C1C1C), width: 1.5),
+      ),
+      child: const Icon(Icons.person, size: 12, color: Colors.white54),
+    );
+  }
+
+  Widget _buildProfileImage(String imageUrl, {String? cacheKey}) {
+    return Container(
+      width: avatarSize,
+      height: avatarSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFF1C1C1C), width: 1.5),
+      ),
+      child: ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: imageUrl,
+          cacheKey: cacheKey,
+          useOldImageOnUrlChange: cacheKey != null,
+          width: avatarSize,
+          height: avatarSize,
+          memCacheWidth: (avatarSize * 3).round(),
+          maxWidthDiskCache: (avatarSize * 3).round(),
+          fit: BoxFit.cover,
+          fadeInDuration: Duration.zero,
+          fadeOutDuration: Duration.zero,
+          placeholder: (context, url) => Shimmer.fromColors(
+            baseColor: Colors.grey.shade800,
+            highlightColor: Colors.grey.shade700,
+            child: Container(
+              width: avatarSize,
+              height: avatarSize,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          errorWidget: (context, url, error) => Container(
+            width: avatarSize,
+            height: avatarSize,
+            color: Colors.grey.shade700,
+            child: const Icon(Icons.person, size: 12, color: Colors.white54),
           ),
         ),
       ),

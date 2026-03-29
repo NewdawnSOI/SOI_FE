@@ -985,6 +985,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                           child: GestureDetector(
                             onTap: _navigateToCategory,
                             child: IntrinsicWidth(
+                              // 카테고리 이름을 감싸는 컨테이너로, 텍스트 길이에 따라 크기가 조절됩니다.
                               child: Container(
                                 height: 25,
                                 padding: EdgeInsets.only(

@@ -1,5 +1,4 @@
 // 외부 패키지
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -16,6 +15,8 @@ import '../../../../../utils/format_utils.dart';
 import '../../../../about_feed/manager/feed_data_manager.dart';
 import '../../../report/report_bottom_sheet.dart';
 import '../../../api_photo/services/api_photo_waveform_parser_service.dart';
+import '../../../api_photo/widgets/api_photo_circle_avatar.dart';
+import '../../../user/current_user_image_builder.dart';
 import 'api_comment_media_preview.dart';
 import 'api_waveform_playback_bar.dart';
 
@@ -679,34 +680,47 @@ class ApiCommentRow extends StatelessWidget {
   }
 
   Widget _buildProfileImage(String? profileUrl) {
-    final profileImageSize = _effectiveProfileImageSize;
-    return ClipOval(
-      child: profileUrl != null && profileUrl.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: profileUrl,
-              width: profileImageSize.sp,
-              height: profileImageSize.sp,
-              memCacheWidth: (profileImageSize * 3).toInt(),
-              maxWidthDiskCache: (profileImageSize * 3).toInt(),
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                width: profileImageSize.sp,
-                height: profileImageSize.sp,
-                color: const Color(0xFF4E4E4E),
-              ),
-              errorWidget: (context, url, error) => Container(
-                width: profileImageSize.sp,
-                height: profileImageSize.sp,
-                color: const Color(0xFF4E4E4E),
-                child: const Icon(Icons.person, color: Colors.white),
-              ),
-            )
-          : Container(
-              width: profileImageSize.sp,
-              height: profileImageSize.sp,
-              color: const Color(0xFF4E4E4E),
-              child: const Icon(Icons.person, color: Colors.white),
-            ),
+    return _CommentRowAvatar(
+      commentUserId: comment.userId,
+      commentNickname: comment.nickname,
+      fallbackProfileUrl: profileUrl,
+      fallbackProfileKey: comment.userProfileKey,
+      size: _effectiveProfileImageSize.sp,
+    );
+  }
+}
+
+/// 댓글 아바타만 현재 사용자 이미지 selector를 구독해 행 전체 재빌드를 막습니다.
+class _CommentRowAvatar extends StatelessWidget {
+  const _CommentRowAvatar({
+    required this.commentUserId,
+    required this.commentNickname,
+    required this.fallbackProfileUrl,
+    required this.fallbackProfileKey,
+    required this.size,
+  });
+
+  final int? commentUserId;
+  final String? commentNickname;
+  final String? fallbackProfileUrl;
+  final String? fallbackProfileKey;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return CurrentUserImageBuilder(
+      imageKind: CurrentUserImageKind.profile,
+      targetUserId: commentUserId,
+      targetUserHandle: commentNickname,
+      fallbackImageUrl: fallbackProfileUrl,
+      fallbackImageKey: fallbackProfileKey,
+      builder: (context, imageUrl, cacheKey) {
+        return ApiPhotoCircleAvatar(
+          imageUrl: imageUrl,
+          size: size,
+          cacheKey: cacheKey,
+        );
+      },
     );
   }
 }

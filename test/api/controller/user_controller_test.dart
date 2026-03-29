@@ -19,6 +19,7 @@ class _FakeUserService extends UserService {
     this.onLogin,
     this.onGetCurrentUser,
     this.onCreateUser,
+    this.onUpdateProfileImage,
     this.onUpdateCoverImage,
     this.onDeleteUser,
   }) : super(
@@ -38,11 +39,17 @@ class _FakeUserService extends UserService {
     required String phoneNum,
     required String birthDate,
     String? profileImageKey,
+    String? profileCoverImageKey,
     bool serviceAgreed,
     bool privacyPolicyAgreed,
     bool marketingAgreed,
   })?
   onCreateUser;
+  final Future<User> Function({
+    required int userId,
+    required String profileImageKey,
+  })?
+  onUpdateProfileImage;
   final Future<User> Function({
     required int userId,
     required String coverImageKey,
@@ -86,6 +93,7 @@ class _FakeUserService extends UserService {
     return handler();
   }
 
+  /// 회원가입 인자를 그대로 노출해 컨트롤러 정규화와 전달 값을 검증합니다.
   @override
   Future<User> createUser({
     required String name,
@@ -93,6 +101,7 @@ class _FakeUserService extends UserService {
     required String phoneNum,
     required String birthDate,
     String? profileImageKey,
+    String? profileCoverImageKey,
     bool serviceAgreed = true,
     bool privacyPolicyAgreed = true,
     bool marketingAgreed = false,
@@ -107,10 +116,23 @@ class _FakeUserService extends UserService {
       phoneNum: phoneNum,
       birthDate: birthDate,
       profileImageKey: profileImageKey,
+      profileCoverImageKey: profileCoverImageKey,
       serviceAgreed: serviceAgreed,
       privacyPolicyAgreed: privacyPolicyAgreed,
       marketingAgreed: marketingAgreed,
     );
+  }
+
+  @override
+  Future<User> updateProfileImage({
+    required int userId,
+    required String profileImageKey,
+  }) async {
+    final handler = onUpdateProfileImage;
+    if (handler == null) {
+      throw UnimplementedError('onUpdateProfileImage is not configured');
+    }
+    return handler(userId: userId, profileImageKey: profileImageKey);
   }
 
   @override
@@ -282,15 +304,20 @@ void main() {
                 required String phoneNum,
                 required String birthDate,
                 String? profileImageKey,
+                String? profileCoverImageKey,
                 bool serviceAgreed = true,
                 bool privacyPolicyAgreed = true,
                 bool marketingAgreed = false,
-              }) async => const User(
-                id: 2,
-                userId: 'new-user',
-                name: '새 사용자',
-                phoneNumber: '01099998888',
-              ),
+              }) async {
+                expect(profileImageKey, '');
+                expect(profileCoverImageKey, '');
+                return const User(
+                  id: 2,
+                  userId: 'new-user',
+                  name: '새 사용자',
+                  phoneNumber: '01099998888',
+                );
+              },
           onLogin: ({String? nickName, String? phoneNum}) async {
             expect(nickName, 'new-user');
             expect(phoneNum, '01099998888');
@@ -308,6 +335,7 @@ void main() {
 
       expect(result, isNull);
       expect(controller.currentUser, isNull);
+      expect(controller.coverImageUrlKey, isNull);
       expect(controller.errorMessage, contains('사용자 생성 실패'));
     });
 
@@ -338,6 +366,117 @@ void main() {
       expect(controller.coverImageUrlKey, 'cover-key');
       expect(prefs.getString('api_cover_image_key'), 'cover-key');
     });
+
+    test(
+      'updateprofileImageUrl syncs current user immediately without losing cover data',
+      () async {
+        final controller = UserController(
+          userService: _FakeUserService(
+            onUpdateProfileImage:
+                ({required int userId, required String profileImageKey}) async {
+                  expect(userId, 1);
+                  expect(profileImageKey, 'profiles/new-profile.webp');
+                  return const User(
+                    id: 1,
+                    userId: 'minchan',
+                    name: '민찬',
+                    profileImageKey: 'profiles/new-profile.webp',
+                    profileImageUrl: 'https://example.com/new-profile.webp',
+                    phoneNumber: '01012345678',
+                  );
+                },
+          ),
+        );
+        controller.setCurrentUser(
+          const User(
+            id: 1,
+            userId: 'minchan',
+            name: '민찬',
+            profileImageKey: 'profiles/old-profile.webp',
+            profileImageUrl: 'https://example.com/old-profile.webp',
+            profileCoverImageKey: 'covers/keep-cover.webp',
+            profileCoverImageUrl: 'https://example.com/keep-cover.webp',
+            phoneNumber: '01012345678',
+          ),
+        );
+
+        final result = await controller.updateprofileImageUrl(
+          userId: 1,
+          profileImageKey: 'profiles/new-profile.webp',
+        );
+
+        expect(result?.profileImageKey, 'profiles/new-profile.webp');
+        expect(
+          controller.currentUser?.profileImageUrl,
+          'https://example.com/new-profile.webp',
+        );
+        expect(
+          controller.currentUser?.profileCoverImageKey,
+          'covers/keep-cover.webp',
+        );
+        expect(controller.coverImageUrlKey, 'covers/keep-cover.webp');
+      },
+    );
+
+    test(
+      'normalizes signup fields and persists the authenticated cover image key',
+      () async {
+        final controller = UserController(
+          userService: _FakeUserService(
+            onCreateUser:
+                ({
+                  required String name,
+                  required String nickName,
+                  required String phoneNum,
+                  required String birthDate,
+                  String? profileImageKey,
+                  String? profileCoverImageKey,
+                  bool serviceAgreed = true,
+                  bool privacyPolicyAgreed = true,
+                  bool marketingAgreed = false,
+                }) async {
+                  expect(name, '새 사용자');
+                  expect(nickName, 'new-user');
+                  expect(phoneNum, '01099998888');
+                  expect(birthDate, '2000-01-01');
+                  expect(profileImageKey, '');
+                  expect(profileCoverImageKey, '');
+                  return const User(
+                    id: 2,
+                    userId: 'new-user',
+                    name: '새 사용자',
+                    phoneNumber: '01099998888',
+                  );
+                },
+            onLogin: ({String? nickName, String? phoneNum}) async {
+              expect(nickName, 'new-user');
+              expect(phoneNum, '01099998888');
+              return const User(
+                id: 2,
+                userId: 'new-user',
+                name: '새 사용자',
+                phoneNumber: '01099998888',
+                profileCoverImageKey: 'covers/new-user.webp',
+              );
+            },
+          ),
+        );
+
+        final result = await controller.createUser(
+          name: ' 새 사용자 ',
+          nickName: ' new-user ',
+          phoneNum: ' 01099998888 ',
+          birthDate: ' 2000-01-01 ',
+          profileImageKey: '   ',
+        );
+        final prefs = await SharedPreferences.getInstance();
+
+        expect(result?.id, 2);
+        expect(controller.currentUser?.id, 2);
+        expect(controller.coverImageUrlKey, 'covers/new-user.webp');
+        expect(prefs.getString('api_cover_image_key'), 'covers/new-user.webp');
+      },
+    );
 
     test('clears local session after account deletion succeeds', () async {
       SharedPreferences.setMockInitialValues({
@@ -381,5 +520,70 @@ void main() {
       expect(prefs.getInt('api_user_id'), isNull);
       expect(prefs.getString('api_cover_image_key'), isNull);
     });
+
+    test('notifies listeners when the same user updates profile visuals', () {
+      final controller = UserController(
+        userService: _FakeUserService(
+          onLogin: ({String? nickName, String? phoneNum}) async => null,
+        ),
+      );
+      var notificationCount = 0;
+      controller.addListener(() {
+        notificationCount += 1;
+      });
+
+      controller.setCurrentUser(
+        const User(
+          id: 1,
+          userId: 'minchan',
+          name: '민찬',
+          phoneNumber: '01012345678',
+          profileImageKey: 'profiles/original.png',
+        ),
+      );
+      notificationCount = 0;
+
+      controller.setCurrentUser(
+        const User(
+          id: 1,
+          userId: 'minchan',
+          name: '민찬',
+          phoneNumber: '01012345678',
+          profileImageKey: 'profiles/updated.png',
+          profileImageUrl: 'https://example.com/profiles/updated.png',
+        ),
+      );
+
+      expect(notificationCount, 1);
+    });
+
+    test(
+      'drops stale fallback image URL when current user image key changes',
+      () {
+        final controller = UserController(
+          userService: _FakeUserService(
+            onLogin: ({String? nickName, String? phoneNum}) async => null,
+          ),
+        );
+        controller.setCurrentUser(
+          const User(
+            id: 7,
+            userId: 'me',
+            name: '나',
+            phoneNumber: '01000000000',
+            profileImageKey: 'profiles/current.png',
+          ),
+        );
+
+        final selection = controller.selectProfileImage(
+          userId: 7,
+          fallbackImageUrl: 'https://example.com/profiles/old.png',
+          fallbackImageKey: 'profiles/old.png',
+        );
+
+        expect(selection.imageUrl, isNull);
+        expect(selection.imageKey, 'profiles/current.png');
+      },
+    );
   });
 }

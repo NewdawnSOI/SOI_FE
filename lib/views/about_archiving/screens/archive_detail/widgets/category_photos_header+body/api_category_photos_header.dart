@@ -237,6 +237,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
                             avatarSize: (26.94).sp,
                             profileImageUrls: category.usersProfileUrl,
                             profileImageKeys: category.usersProfileKey,
+                            memberNicknames: category.nickNames,
                             totalUserCount: category.totalUserCount,
                           ),
                         ),

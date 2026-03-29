@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:soi/api/controller/media_controller.dart';
 import '../../../api/models/category.dart';
+import '../../common_widget/user/current_user_image_builder.dart';
 
 /// API 버전 카테고리 멤버들을 보여주는 바텀시트
 ///
@@ -265,11 +266,13 @@ class _ApiCategoryMembersBottomSheetState
               : '';
           final profileUrl = _resolveDisplayProfileUrl(index);
           final cacheKey = _resolveProfileCacheKey(index);
+          final profileImageKey = _profileImageKeyAt(index);
 
           return _buildMemberItem(
             profileUrl,
             memberNickName,
             cacheKey: cacheKey,
+            profileImageKey: profileImageKey,
           );
         },
       ),
@@ -281,38 +284,20 @@ class _ApiCategoryMembersBottomSheetState
     String profileUrl,
     String memberNickName, {
     String? cacheKey,
+    String? profileImageKey,
   }) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         // 프로필 이미지
-        ClipOval(
-          child: SizedBox(
-            width: 60,
-            height: 60,
-            child: profileUrl.isNotEmpty
-                // 프로필 이미지가 있으면, ChachedNetworkImage 사용
-                ? CachedNetworkImage(
-                    imageUrl: profileUrl,
-                    cacheKey: cacheKey,
-                    useOldImageOnUrlChange: cacheKey != null,
-                    fit: BoxFit.cover,
-                    memCacheWidth: (60 * 4).round(),
-                    memCacheHeight: (60 * 4).round(),
-                    maxWidthDiskCache: (60 * 4).round(),
-                    placeholder: (context, url) => _buildMemberShimmer(),
-                    errorWidget: (context, url, error) {
-                      debugPrint(
-                        '[ApiCategoryMembersBottomSheet] 이미지 로드 에러: $error',
-                      );
-                      return _buildBasicMemberIcon();
-                    },
-                  )
-                // 프로필 이미지가 없고 아직 로딩 중이면 shimmer를, 완료 후엔 기본 프로필 이미지를 표시합니다.
-                : _isLoading
-                ? _buildMemberShimmer()
-                : _buildBasicMemberIcon(),
-          ),
+        _CategoryMemberAvatar(
+          memberNickname: memberNickName,
+          fallbackProfileUrl: profileUrl,
+          fallbackCacheKey: cacheKey,
+          fallbackProfileKey: profileImageKey,
+          isLoading: _isLoading,
+          shimmerBuilder: _buildMemberShimmer,
+          fallbackBuilder: _buildBasicMemberIcon,
         ),
 
         SizedBox(height: (5.86).h),
@@ -412,6 +397,70 @@ class _ApiCategoryMembersBottomSheetState
         color: Color(0xFFd9d9d9),
       ),
       child: const Icon(Icons.person, color: Colors.white, size: 44),
+    );
+  }
+}
+
+/// 멤버 바텀시트의 아바타 셀만 현재 사용자 이미지 selector를 구독해 부분 갱신합니다.
+class _CategoryMemberAvatar extends StatelessWidget {
+  const _CategoryMemberAvatar({
+    required this.memberNickname,
+    required this.fallbackProfileUrl,
+    required this.fallbackCacheKey,
+    required this.fallbackProfileKey,
+    required this.isLoading,
+    required this.shimmerBuilder,
+    required this.fallbackBuilder,
+  });
+
+  final String memberNickname;
+  final String fallbackProfileUrl;
+  final String? fallbackCacheKey;
+  final String? fallbackProfileKey;
+  final bool isLoading;
+  final Widget Function() shimmerBuilder;
+  final Widget Function() fallbackBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return CurrentUserImageBuilder(
+      imageKind: CurrentUserImageKind.profile,
+      targetUserHandle: memberNickname,
+      fallbackImageUrl: fallbackProfileUrl,
+      fallbackImageKey: fallbackProfileKey,
+      builder: (context, imageUrl, cacheKey) {
+        final profileUrl = imageUrl?.trim() ?? '';
+        final resolvedCacheKey = cacheKey ?? fallbackCacheKey;
+        final shouldShowShimmer =
+            isLoading || (profileUrl.isEmpty && resolvedCacheKey != null);
+
+        return ClipOval(
+          child: SizedBox(
+            width: 60,
+            height: 60,
+            child: profileUrl.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: profileUrl,
+                    cacheKey: resolvedCacheKey,
+                    useOldImageOnUrlChange: resolvedCacheKey != null,
+                    fit: BoxFit.cover,
+                    memCacheWidth: (60 * 4).round(),
+                    memCacheHeight: (60 * 4).round(),
+                    maxWidthDiskCache: (60 * 4).round(),
+                    placeholder: (context, url) => shimmerBuilder(),
+                    errorWidget: (context, url, error) {
+                      debugPrint(
+                        '[ApiCategoryMembersBottomSheet] 이미지 로드 에러: $error',
+                      );
+                      return fallbackBuilder();
+                    },
+                  )
+                : shouldShowShimmer
+                ? shimmerBuilder()
+                : fallbackBuilder(),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,15 +1,18 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soi/api/controller/comment_controller.dart';
+import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/comment.dart';
 import 'package:soi/api/models/post.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/comment_service.dart';
+import 'package:soi/api/services/media_service.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi/views/common_widget/about_comment/comment_media_tag_preview_widget.dart';
 import 'package:soi/views/common_widget/about_comment/api_voice_comment_list_sheet.dart';
@@ -46,8 +49,11 @@ class _NoopCommentApi extends CommentAPIApi {}
 
 class _NoopUserApi extends UserAPIApi {}
 
+class _NoopMediaApi extends APIApi {}
+
+/// 오버레이가 현재 사용자 selector를 통과하는지 확인하기 위한 테스트용 사용자 컨트롤러입니다.
 class _FakeUserController extends UserController {
-  _FakeUserController()
+  _FakeUserController({User? user})
     : super(
         userService: UserService(
           authApi: _NoopAuthApi(),
@@ -57,9 +63,29 @@ class _FakeUserController extends UserController {
         ),
       ) {
     setCurrentUser(
-      User(id: 1, userId: 'tester', name: '테스터', phoneNumber: '01000000000'),
+      user ??
+          const User(
+            id: 1,
+            userId: 'tester',
+            name: '테스터',
+            phoneNumber: '01000000000',
+          ),
     );
   }
+}
+
+/// 태그 오버레이에서 key 기반 프로필 URL 해석을 제어하는 테스트용 미디어 컨트롤러입니다.
+class _FakeMediaController extends MediaController {
+  _FakeMediaController()
+    : super(mediaService: MediaService(mediaApi: _NoopMediaApi()));
+
+  final Map<String, String?> urls = const <String, String?>{};
+
+  @override
+  String? peekPresignedUrl(String key) => urls[key];
+
+  @override
+  Future<String?> getPresignedUrl(String key) async => urls[key];
 }
 
 void main() {
@@ -75,7 +101,12 @@ void main() {
     );
   });
 
-  Widget buildHarness({required List<Comment> comments}) {
+  /// ApiPhotoCardWidget이 오버레이 태그만 검증할 수 있도록 필요한 provider를 모두 감싼 하네스입니다.
+  Widget buildHarness({
+    required List<Comment> comments,
+    UserController? userController,
+    MediaController? mediaController,
+  }) {
     final post = Post(
       id: 100,
       nickName: 'tester',
@@ -83,6 +114,8 @@ void main() {
       postFileUrl: 'https://example.com/post.jpg',
       createdAt: DateTime(2024, 1, 1),
     );
+    final effectiveUserController = userController ?? _FakeUserController();
+    final effectiveMediaController = mediaController ?? _FakeMediaController();
 
     return ScreenUtilInit(
       designSize: const Size(393, 852),
@@ -93,8 +126,11 @@ void main() {
         assetLoader: const _InMemoryAssetLoader(),
         child: MultiProvider(
           providers: [
-            ChangeNotifierProvider<UserController>(
-              create: (_) => _FakeUserController(),
+            ChangeNotifierProvider<MediaController>.value(
+              value: effectiveMediaController,
+            ),
+            ChangeNotifierProvider<UserController>.value(
+              value: effectiveUserController,
             ),
             ChangeNotifierProvider<CommentController>(
               create: (_) {
@@ -179,6 +215,53 @@ void main() {
         ),
         findsNothing,
       );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'uses the current user profile image for matching comment avatars',
+    (tester) async {
+      const currentProfileKey = 'profiles/current.jpg';
+      const currentProfileUrl = 'https://example.com/profiles/current.jpg';
+
+      final currentUserController = _FakeUserController(
+        user: const User(
+          id: 1,
+          userId: 'tester',
+          name: '테스터',
+          profileImageKey: currentProfileKey,
+          profileImageUrl: currentProfileUrl,
+          phoneNumber: '01000000000',
+        ),
+      );
+
+      final matchingComment = Comment(
+        id: 300,
+        userId: 1,
+        nickname: 'tester',
+        userProfileUrl: 'https://example.com/profiles/fallback.jpg',
+        userProfileKey: 'profiles/fallback.jpg',
+        locationX: 0.5,
+        locationY: 0.2,
+        type: CommentType.photo,
+      );
+
+      await tester.pumpWidget(
+        buildHarness(
+          comments: [matchingComment],
+          userController: currentUserController,
+        ),
+      );
+      await tester.pump();
+
+      final avatarImage = tester
+          .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
+          .singleWhere((image) => image.cacheKey == currentProfileKey);
+
+      expect(avatarImage.imageUrl, currentProfileUrl);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
