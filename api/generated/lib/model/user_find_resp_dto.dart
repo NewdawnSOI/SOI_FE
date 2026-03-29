@@ -17,6 +17,7 @@ class UserFindRespDto {
     this.name,
     this.nickname,
     this.profileImageKey,
+    this.profileCoverImageKey,
     this.active,
   });
 
@@ -58,6 +59,14 @@ class UserFindRespDto {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
+  String? profileCoverImageKey;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
   bool? active;
 
   @override
@@ -66,6 +75,7 @@ class UserFindRespDto {
     other.name == name &&
     other.nickname == nickname &&
     other.profileImageKey == profileImageKey &&
+    other.profileCoverImageKey == profileCoverImageKey &&
     other.active == active;
 
   @override
@@ -75,10 +85,11 @@ class UserFindRespDto {
     (name == null ? 0 : name!.hashCode) +
     (nickname == null ? 0 : nickname!.hashCode) +
     (profileImageKey == null ? 0 : profileImageKey!.hashCode) +
+    (profileCoverImageKey == null ? 0 : profileCoverImageKey!.hashCode) +
     (active == null ? 0 : active!.hashCode);
 
   @override
-  String toString() => 'UserFindRespDto[id=$id, name=$name, nickname=$nickname, profileImageKey=$profileImageKey, active=$active]';
+  String toString() => 'UserFindRespDto[id=$id, name=$name, nickname=$nickname, profileImageKey=$profileImageKey, profileCoverImageKey=$profileCoverImageKey, active=$active]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -101,6 +112,11 @@ class UserFindRespDto {
       json[r'profileImageKey'] = this.profileImageKey;
     } else {
       json[r'profileImageKey'] = null;
+    }
+    if (this.profileCoverImageKey != null) {
+      json[r'profileCoverImageKey'] = this.profileCoverImageKey;
+    } else {
+      json[r'profileCoverImageKey'] = null;
     }
     if (this.active != null) {
       json[r'active'] = this.active;
@@ -133,6 +149,7 @@ class UserFindRespDto {
         name: mapValueOfType<String>(json, r'name'),
         nickname: mapValueOfType<String>(json, r'nickname'),
         profileImageKey: mapValueOfType<String>(json, r'profileImageKey'),
+        profileCoverImageKey: mapValueOfType<String>(json, r'profileCoverImageKey'),
         active: mapValueOfType<bool>(json, r'active'),
       );
     }

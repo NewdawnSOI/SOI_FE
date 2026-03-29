@@ -18,6 +18,7 @@ class NotificationRespDto {
     this.name,
     this.nickname,
     this.userProfileKey,
+    this.userProfileUrl,
     this.imageUrl,
     this.type,
     this.isRead,
@@ -67,6 +68,14 @@ class NotificationRespDto {
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
   String? userProfileKey;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? userProfileUrl;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -127,6 +136,7 @@ class NotificationRespDto {
     other.name == name &&
     other.nickname == nickname &&
     other.userProfileKey == userProfileKey &&
+    other.userProfileUrl == userProfileUrl &&
     other.imageUrl == imageUrl &&
     other.type == type &&
     other.isRead == isRead &&
@@ -144,6 +154,7 @@ class NotificationRespDto {
     (name == null ? 0 : name!.hashCode) +
     (nickname == null ? 0 : nickname!.hashCode) +
     (userProfileKey == null ? 0 : userProfileKey!.hashCode) +
+    (userProfileUrl == null ? 0 : userProfileUrl!.hashCode) +
     (imageUrl == null ? 0 : imageUrl!.hashCode) +
     (type == null ? 0 : type!.hashCode) +
     (isRead == null ? 0 : isRead!.hashCode) +
@@ -154,7 +165,7 @@ class NotificationRespDto {
     (categoryInvitedUsers.hashCode);
 
   @override
-  String toString() => 'NotificationRespDto[id=$id, text=$text, name=$name, nickname=$nickname, userProfileKey=$userProfileKey, imageUrl=$imageUrl, type=$type, isRead=$isRead, categoryIdForPost=$categoryIdForPost, relatedId=$relatedId, replyCommentId=$replyCommentId, parentCommentId=$parentCommentId, categoryInvitedUsers=$categoryInvitedUsers]';
+  String toString() => 'NotificationRespDto[id=$id, text=$text, name=$name, nickname=$nickname, userProfileKey=$userProfileKey, userProfileUrl=$userProfileUrl, imageUrl=$imageUrl, type=$type, isRead=$isRead, categoryIdForPost=$categoryIdForPost, relatedId=$relatedId, replyCommentId=$replyCommentId, parentCommentId=$parentCommentId, categoryInvitedUsers=$categoryInvitedUsers]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -182,6 +193,11 @@ class NotificationRespDto {
       json[r'userProfileKey'] = this.userProfileKey;
     } else {
       json[r'userProfileKey'] = null;
+    }
+    if (this.userProfileUrl != null) {
+      json[r'userProfileUrl'] = this.userProfileUrl;
+    } else {
+      json[r'userProfileUrl'] = null;
     }
     if (this.imageUrl != null) {
       json[r'imageUrl'] = this.imageUrl;
@@ -246,6 +262,7 @@ class NotificationRespDto {
         name: mapValueOfType<String>(json, r'name'),
         nickname: mapValueOfType<String>(json, r'nickname'),
         userProfileKey: mapValueOfType<String>(json, r'userProfileKey'),
+        userProfileUrl: mapValueOfType<String>(json, r'userProfileUrl'),
         imageUrl: mapValueOfType<String>(json, r'imageUrl'),
         type: NotificationRespDtoTypeEnum.fromJson(json[r'type']),
         isRead: mapValueOfType<bool>(json, r'isRead'),

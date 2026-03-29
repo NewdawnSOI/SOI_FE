@@ -110,12 +110,14 @@ class _FriendRequestCardState extends State<FriendRequestCard> {
     if (result != null && mounted) {
       // 친구 요청 목록 갱신
       await _loadFriendRequests();
+      if (!mounted) return;
 
       // userId가 null이 아닐 때만 친구 목록 갱신
       if (userId != null && mounted) {
         // 친구 목록 갱신
         await friendController.refreshFriends(userId: userId);
       }
+      if (!mounted) return;
       _showSnackBar(
         status == FriendStatus.accepted
             ? tr('friends.request.accepted', context: context)
@@ -193,7 +195,10 @@ class _FriendRequestCardState extends State<FriendRequestCard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _buildProfileAvatar(notification.userProfile),
+          _buildProfileAvatar(
+            notification.userProfileImageUrl,
+            cacheKey: notification.userProfileCacheKey,
+          ),
           SizedBox(width: 12.w),
           Expanded(
             child: Column(
@@ -261,7 +266,7 @@ class _FriendRequestCardState extends State<FriendRequestCard> {
     );
   }
 
-  Widget _buildProfileAvatar(String? profileUrl) {
+  Widget _buildProfileAvatar(String? profileUrl, {String? cacheKey}) {
     final safeUrl = profileUrl ?? '';
     final hasProfile = safeUrl.isNotEmpty;
     return CircleAvatar(
@@ -271,6 +276,7 @@ class _FriendRequestCardState extends State<FriendRequestCard> {
         child: hasProfile
             ? CachedNetworkImage(
                 imageUrl: safeUrl,
+                cacheKey: cacheKey,
                 fit: BoxFit.cover,
                 width: (44).w,
                 height: (44).w,

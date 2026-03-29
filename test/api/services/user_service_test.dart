@@ -189,6 +189,9 @@ void main() {
               id: 1,
               nickname: 'minchan',
               name: '민찬',
+              profileImageUrl: 'https://example.com/profile.webp',
+              profileCoverImageKey: 'covers/minchan.webp',
+              profileCoverImageUrl: 'https://example.com/covers/minchan.webp',
               phoneNum: '01012345678',
             ),
           ),
@@ -205,6 +208,12 @@ void main() {
       expect(issuedToken, 'jwt-token');
       expect(result?.id, 1);
       expect(result?.userId, 'minchan');
+      expect(result?.profileImageUrl, 'https://example.com/profile.webp');
+      expect(result?.profileCoverImageKey, 'covers/minchan.webp');
+      expect(
+        result?.profileCoverImageUrl,
+        'https://example.com/covers/minchan.webp',
+      );
     });
 
     test('trims login credentials before calling auth api', () async {
@@ -390,6 +399,7 @@ void main() {
                 nickname: 'minchan',
                 name: '민찬',
                 profileImageKey: profileImageKey,
+                profileImageUrl: 'https://example.com/profile-key.webp',
                 phoneNum: '01012345678',
               ),
             );
@@ -405,6 +415,7 @@ void main() {
 
       expect(result.id, 1);
       expect(result.profileImageKey, 'profile-key');
+      expect(result.profileImageUrl, 'https://example.com/profile-key.webp');
     });
 
     test('updateCoverImage maps generated response to domain model', () async {
@@ -419,6 +430,9 @@ void main() {
                 id: 1,
                 nickname: 'minchan',
                 name: '민찬',
+                profileCoverImageKey: coverImageKey,
+                profileCoverImageUrl:
+                    'https://example.com/covers/cover-key.webp',
                 phoneNum: '01012345678',
               ),
             );
@@ -435,6 +449,11 @@ void main() {
 
       expect(result.id, 1);
       expect(result.userId, 'minchan');
+      expect(result.profileCoverImageKey, 'cover-key');
+      expect(
+        result.profileCoverImageUrl,
+        'https://example.com/covers/cover-key.webp',
+      );
     });
   });
 }

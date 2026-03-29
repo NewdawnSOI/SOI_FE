@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -164,33 +165,24 @@ class _FriendListCardState extends State<FriendListCard> {
                                   ),
                                   child: ClipOval(
                                     child:
-                                        friend.profileImageKey == null ||
-                                            friend.profileImageKey!.isEmpty
+                                        friend.displayProfileImageUrl == null ||
+                                            friend
+                                                .displayProfileImageUrl!
+                                                .isEmpty
                                         ? _buildInitialOrIcon(friend)
-                                        : Image.network(
-                                            friend.profileImageKey!,
-                                            cacheWidth: (44 * 4).round(),
-                                            cacheHeight: (44 * 4).round(),
+                                        : CachedNetworkImage(
+                                            imageUrl:
+                                                friend.displayProfileImageUrl!,
+                                            cacheKey:
+                                                friend.profileImageCacheKey,
+                                            memCacheWidth: (44 * 4).round(),
+                                            memCacheHeight: (44 * 4).round(),
+                                            maxWidthDiskCache: (44 * 4).round(),
                                             fit: BoxFit.cover,
-                                            loadingBuilder:
-                                                (
-                                                  context,
-                                                  child,
-                                                  loadingProgress,
-                                                ) {
-                                                  if (loadingProgress == null) {
-                                                    return child;
-                                                  }
-                                                  return _buildInitialOrIcon(
-                                                    friend,
-                                                  );
-                                                },
-                                            errorBuilder:
-                                                (context, error, stackTrace) {
-                                                  return _buildInitialOrIcon(
-                                                    friend,
-                                                  );
-                                                },
+                                            placeholder: (_, __) =>
+                                                _buildInitialOrIcon(friend),
+                                            errorWidget: (_, __, ___) =>
+                                                _buildInitialOrIcon(friend),
                                           ),
                                   ),
                                 ),

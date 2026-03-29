@@ -35,6 +35,8 @@ NotificationRespDto _notificationDto() {
     id: 10,
     text: 'reply added',
     nickname: 'minchan',
+    userProfileKey: 'profiles/minchan.webp',
+    userProfileUrl: 'https://example.com/profiles/minchan.webp',
     type: NotificationRespDtoTypeEnum.COMMENT_REPLY_ADDED,
     isRead: false,
     categoryIdForPost: 77,
@@ -92,6 +94,14 @@ void main() {
         result.notifications.first.type,
         AppNotificationType.commentReplyAdded,
       );
+      expect(
+        result.notifications.first.userProfileUrl,
+        'https://example.com/profiles/minchan.webp',
+      );
+      expect(
+        result.notifications.first.userProfile,
+        'https://example.com/profiles/minchan.webp',
+      );
       expect(result.notifications.first.relatedId, 88);
       expect(result.notifications.first.replyCommentId, 99);
       expect(result.notifications.first.parentCommentId, 55);
@@ -114,6 +124,10 @@ void main() {
 
       expect(result, hasLength(1));
       expect(result.first.type, AppNotificationType.commentReplyAdded);
+      expect(
+        result.first.userProfile,
+        'https://example.com/profiles/minchan.webp',
+      );
       expect(result.first.relatedId, 88);
       expect(result.first.replyCommentId, 99);
       expect(result.first.parentCommentId, 55);

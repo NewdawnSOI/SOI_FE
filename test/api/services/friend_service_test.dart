@@ -2,15 +2,12 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/models/friend.dart';
+import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/friend_service.dart';
 import 'package:soi_api_client/api.dart';
 
 class _FakeFriendApi extends FriendAPIApi {
-  _FakeFriendApi({
-    this.onGetAllFriend,
-    this.onGetAllFriend1,
-    this.onBlockFriend,
-  });
+  _FakeFriendApi({this.onGetAllFriend, this.onGetAllFriend1});
 
   final Future<ApiResponseDtoListUserFindRespDto?> Function(
     String friendStatus,
@@ -20,8 +17,6 @@ class _FakeFriendApi extends FriendAPIApi {
     List<String> phoneNumbers,
   )?
   onGetAllFriend1;
-  final Future<ApiResponseDtoBoolean?> Function(FriendReqDto dto)?
-  onBlockFriend;
 
   @override
   Future<ApiResponseDtoListUserFindRespDto?> getAllFriend(
@@ -44,19 +39,16 @@ class _FakeFriendApi extends FriendAPIApi {
     }
     return handler(friendPhoneNums);
   }
-
-  @override
-  Future<ApiResponseDtoBoolean?> blockFriend(FriendReqDto friendReqDto) async {
-    final handler = onBlockFriend;
-    if (handler == null) {
-      throw UnimplementedError('onBlockFriend is not configured');
-    }
-    return handler(friendReqDto);
-  }
 }
 
 UserFindRespDto _userDto(int id, String nickname, String name) {
-  return UserFindRespDto(id: id, nickname: nickname, name: name, active: true);
+  return UserFindRespDto(
+    id: id,
+    nickname: nickname,
+    name: name,
+    profileCoverImageKey: 'covers/$nickname.webp',
+    active: true,
+  );
 }
 
 void main() {
@@ -101,6 +93,10 @@ void main() {
         ]);
         expect(results[0], hasLength(2));
         expect(results[1], hasLength(2));
+        expect(
+          (results[0] as List<User>).first.profileCoverImageKey,
+          'covers/friend_1.webp',
+        );
 
         final cachedFriends = await service.getAllFriends(userId: 7);
         expect(cachedFriends, hasLength(2));

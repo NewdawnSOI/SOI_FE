@@ -248,7 +248,6 @@ void main() {
         'api_user_id': 1,
         'api_phone_number': '01012345678',
         'api_access_token': 'jwt-token',
-        'api_cover_image_key': 'saved-cover-key',
       });
 
       final controller = UserController(
@@ -258,16 +257,19 @@ void main() {
             userId: 'minchan',
             name: '민찬',
             phoneNumber: '01012345678',
+            profileCoverImageKey: 'server-cover-key',
           ),
         ),
       );
 
       final result = await controller.tryAutoLogin();
+      final prefs = await SharedPreferences.getInstance();
 
       expect(result, isTrue);
       expect(SoiApiClient.instance.authToken, 'jwt-token');
       expect(controller.currentUser?.id, 1);
-      expect(controller.coverImageUrlKey, 'saved-cover-key');
+      expect(controller.coverImageUrlKey, 'server-cover-key');
+      expect(prefs.getString('api_cover_image_key'), 'server-cover-key');
     });
 
     test('blocks signup completion when JWT login is not issued', () async {

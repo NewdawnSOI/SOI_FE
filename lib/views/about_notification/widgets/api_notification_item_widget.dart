@@ -10,6 +10,7 @@ import '../../../api/models/notification.dart';
 class ApiNotificationItemWidget extends StatelessWidget {
   final AppNotification notification;
   final String? profileUrl;
+  final String? profileCacheKey;
   final String? imageUrl;
   final VoidCallback onTap;
   final VoidCallback? onConfirm;
@@ -19,6 +20,7 @@ class ApiNotificationItemWidget extends StatelessWidget {
     super.key,
     required this.notification,
     this.profileUrl,
+    this.profileCacheKey,
     this.imageUrl,
     required this.onTap,
     this.onConfirm, // 카테고리 초대 알림 확인 버튼 콜백
@@ -39,9 +41,7 @@ class ApiNotificationItemWidget extends StatelessWidget {
             Expanded(child: _buildNotificationText()),
             SizedBox(width: 12.w),
             if (notification.type == AppNotificationType.categoryInvite)
-              _buildConfirmButton(
-                tr('notification.confirm', context: context),
-              )
+              _buildConfirmButton(tr('notification.confirm', context: context))
             else if (notification.hasImage)
               _buildThumbnail(),
           ],
@@ -61,6 +61,7 @@ class ApiNotificationItemWidget extends StatelessWidget {
         child: profileUrl != null && profileUrl!.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: profileUrl!,
+                cacheKey: profileCacheKey,
                 width: 44,
                 height: 44,
                 memCacheWidth: (44 * 4).round(),

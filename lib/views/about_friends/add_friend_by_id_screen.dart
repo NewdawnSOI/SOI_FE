@@ -322,12 +322,18 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
   /// 프로필 이미지 presigned URL 미리 로드
   Future<void> _preloadProfileUrls(List<User> users) async {
     final mediaController = context.read<MediaController>();
+    final directUrls = <int, String?>{};
     final usersToResolve = users
-        .where(
-          (user) =>
-              user.profileImageKey?.isNotEmpty == true &&
-              !_profileUrlCache.containsKey(user.id),
-        )
+        .where((user) {
+          final directUrl = user.displayProfileImageUrl;
+          if (directUrl != null && directUrl.isNotEmpty) {
+            directUrls[user.id] = directUrl;
+            return false;
+          }
+
+          return user.profileImageCacheKey?.isNotEmpty == true &&
+              !_profileUrlCache.containsKey(user.id);
+        })
         .toList(growable: false);
 
     if (usersToResolve.isEmpty) {
@@ -338,7 +344,7 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
       usersToResolve.map((user) async {
         try {
           final url = await mediaController.getPresignedUrl(
-            user.profileImageKey!,
+            user.profileImageCacheKey!,
           );
           return MapEntry<int, String?>(user.id, url);
         } catch (e) {
@@ -353,6 +359,7 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
     }
 
     final resolvedUrls = <int, String?>{};
+    resolvedUrls.addAll(directUrls);
     for (final entry in resolvedEntries) {
       if (entry == null) {
         continue;
@@ -584,7 +591,8 @@ class _AddFriendByIdScreenState extends State<AddFriendByIdScreen> {
         final user = _results[index];
         final status = _friendshipStatus[user.id] ?? 'none';
         final isSending = _sending.contains(user.id);
-        final profileUrl = _profileUrlCache[user.id];
+        final profileUrl =
+            _profileUrlCache[user.id] ?? user.displayProfileImageUrl;
         return _UserResultTile(
           user: user,
           status: status,
@@ -653,6 +661,7 @@ class _UserResultTile extends StatelessWidget {
     return ClipOval(
       child: CachedNetworkImage(
         imageUrl: profileUrl!,
+        cacheKey: user.profileImageCacheKey,
         width: 44.w,
         height: 44.w,
         memCacheWidth: (44 * 2).round(),

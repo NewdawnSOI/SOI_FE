@@ -17,6 +17,9 @@ class UserRespDto {
     this.nickname,
     this.name,
     this.profileImageKey,
+    this.profileImageUrl,
+    this.profileCoverImageKey,
+    this.profileCoverImageUrl,
     this.birthDate,
     this.phoneNum,
   });
@@ -59,6 +62,30 @@ class UserRespDto {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
+  String? profileImageUrl;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? profileCoverImageKey;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? profileCoverImageUrl;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
   String? birthDate;
 
   ///
@@ -75,6 +102,9 @@ class UserRespDto {
     other.nickname == nickname &&
     other.name == name &&
     other.profileImageKey == profileImageKey &&
+    other.profileImageUrl == profileImageUrl &&
+    other.profileCoverImageKey == profileCoverImageKey &&
+    other.profileCoverImageUrl == profileCoverImageUrl &&
     other.birthDate == birthDate &&
     other.phoneNum == phoneNum;
 
@@ -85,11 +115,14 @@ class UserRespDto {
     (nickname == null ? 0 : nickname!.hashCode) +
     (name == null ? 0 : name!.hashCode) +
     (profileImageKey == null ? 0 : profileImageKey!.hashCode) +
+    (profileImageUrl == null ? 0 : profileImageUrl!.hashCode) +
+    (profileCoverImageKey == null ? 0 : profileCoverImageKey!.hashCode) +
+    (profileCoverImageUrl == null ? 0 : profileCoverImageUrl!.hashCode) +
     (birthDate == null ? 0 : birthDate!.hashCode) +
     (phoneNum == null ? 0 : phoneNum!.hashCode);
 
   @override
-  String toString() => 'UserRespDto[id=$id, nickname=$nickname, name=$name, profileImageKey=$profileImageKey, birthDate=$birthDate, phoneNum=$phoneNum]';
+  String toString() => 'UserRespDto[id=$id, nickname=$nickname, name=$name, profileImageKey=$profileImageKey, profileImageUrl=$profileImageUrl, profileCoverImageKey=$profileCoverImageKey, profileCoverImageUrl=$profileCoverImageUrl, birthDate=$birthDate, phoneNum=$phoneNum]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -112,6 +145,21 @@ class UserRespDto {
       json[r'profileImageKey'] = this.profileImageKey;
     } else {
       json[r'profileImageKey'] = null;
+    }
+    if (this.profileImageUrl != null) {
+      json[r'profileImageUrl'] = this.profileImageUrl;
+    } else {
+      json[r'profileImageUrl'] = null;
+    }
+    if (this.profileCoverImageKey != null) {
+      json[r'profileCoverImageKey'] = this.profileCoverImageKey;
+    } else {
+      json[r'profileCoverImageKey'] = null;
+    }
+    if (this.profileCoverImageUrl != null) {
+      json[r'profileCoverImageUrl'] = this.profileCoverImageUrl;
+    } else {
+      json[r'profileCoverImageUrl'] = null;
     }
     if (this.birthDate != null) {
       json[r'birthDate'] = this.birthDate;
@@ -149,6 +197,9 @@ class UserRespDto {
         nickname: mapValueOfType<String>(json, r'nickname'),
         name: mapValueOfType<String>(json, r'name'),
         profileImageKey: mapValueOfType<String>(json, r'profileImageKey'),
+        profileImageUrl: mapValueOfType<String>(json, r'profileImageUrl'),
+        profileCoverImageKey: mapValueOfType<String>(json, r'profileCoverImageKey'),
+        profileCoverImageUrl: mapValueOfType<String>(json, r'profileCoverImageUrl'),
         birthDate: mapValueOfType<String>(json, r'birthDate'),
         phoneNum: mapValueOfType<String>(json, r'phoneNum'),
       );

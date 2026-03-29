@@ -19,8 +19,8 @@ class SliceCommentRespDto {
     this.content = const [],
     this.number,
     this.sort,
-    this.numberOfElements,
     this.last,
+    this.numberOfElements,
     this.empty,
   });
 
@@ -72,7 +72,7 @@ class SliceCommentRespDto {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  int? numberOfElements;
+  bool? last;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -80,7 +80,7 @@ class SliceCommentRespDto {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  bool? last;
+  int? numberOfElements;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -98,8 +98,8 @@ class SliceCommentRespDto {
     _deepEquality.equals(other.content, content) &&
     other.number == number &&
     other.sort == sort &&
-    other.numberOfElements == numberOfElements &&
     other.last == last &&
+    other.numberOfElements == numberOfElements &&
     other.empty == empty;
 
   @override
@@ -111,12 +111,12 @@ class SliceCommentRespDto {
     (content.hashCode) +
     (number == null ? 0 : number!.hashCode) +
     (sort == null ? 0 : sort!.hashCode) +
-    (numberOfElements == null ? 0 : numberOfElements!.hashCode) +
     (last == null ? 0 : last!.hashCode) +
+    (numberOfElements == null ? 0 : numberOfElements!.hashCode) +
     (empty == null ? 0 : empty!.hashCode);
 
   @override
-  String toString() => 'SliceCommentRespDto[pageable=$pageable, first=$first, size=$size, content=$content, number=$number, sort=$sort, numberOfElements=$numberOfElements, last=$last, empty=$empty]';
+  String toString() => 'SliceCommentRespDto[pageable=$pageable, first=$first, size=$size, content=$content, number=$number, sort=$sort, last=$last, numberOfElements=$numberOfElements, empty=$empty]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -146,15 +146,15 @@ class SliceCommentRespDto {
     } else {
       json[r'sort'] = null;
     }
-    if (this.numberOfElements != null) {
-      json[r'numberOfElements'] = this.numberOfElements;
-    } else {
-      json[r'numberOfElements'] = null;
-    }
     if (this.last != null) {
       json[r'last'] = this.last;
     } else {
       json[r'last'] = null;
+    }
+    if (this.numberOfElements != null) {
+      json[r'numberOfElements'] = this.numberOfElements;
+    } else {
+      json[r'numberOfElements'] = null;
     }
     if (this.empty != null) {
       json[r'empty'] = this.empty;
@@ -189,8 +189,8 @@ class SliceCommentRespDto {
         content: CommentRespDto.listFromJson(json[r'content']),
         number: mapValueOfType<int>(json, r'number'),
         sort: SortObject.fromJson(json[r'sort']),
-        numberOfElements: mapValueOfType<int>(json, r'numberOfElements'),
         last: mapValueOfType<bool>(json, r'last'),
+        numberOfElements: mapValueOfType<int>(json, r'numberOfElements'),
         empty: mapValueOfType<bool>(json, r'empty'),
       );
     }

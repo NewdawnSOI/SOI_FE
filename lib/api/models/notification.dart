@@ -35,11 +35,22 @@ class AppNotification {
   /// 관련 사용자 닉네임/아이디 (표시용)
   final String? nickname;
 
-  /// 관련 사용자 프로필 이미지 Key(또는 URL)
+  /// 관련 사용자 프로필 이미지 키
   final String? userProfileKey;
 
-  /// 기존 UI 호환용 별칭 (userProfileKey와 동일)
-  String? get userProfile => userProfileKey;
+  /// 관련 사용자 프로필 이미지 URL
+  final String? userProfileUrl;
+
+  /// 기존 UI가 바로 렌더링할 수 있는 프로필 이미지 소스입니다.
+  /// 서버가 URL을 내려주면 우선 사용하고, key 자체가 URL인 레거시 응답일 때만 fallback으로 허용합니다.
+  String? get userProfile => userProfileImageUrl;
+
+  /// 화면이 즉시 렌더링할 수 있는 프로필 이미지 URL입니다.
+  String? get userProfileImageUrl =>
+      _resolveDisplayUrl(primary: userProfileUrl, fallbackKey: userProfileKey);
+
+  /// 프로필 이미지 캐시와 후속 URL 해상에 사용하는 안정 키입니다.
+  String? get userProfileCacheKey => _normalizeNonEmpty(userProfileKey);
 
   /// 관련 이미지 URL
   final String? imageUrl;
@@ -71,6 +82,7 @@ class AppNotification {
     this.name,
     this.nickname,
     this.userProfileKey,
+    this.userProfileUrl,
     this.imageUrl,
     this.type,
     this.isRead,
@@ -88,6 +100,7 @@ class AppNotification {
       name: dto.name,
       nickname: dto.nickname,
       userProfileKey: dto.userProfileKey,
+      userProfileUrl: dto.userProfileUrl,
       imageUrl: dto.imageUrl,
       type: _typeFromDto(dto.type),
       isRead: dto.isRead,
@@ -136,6 +149,7 @@ class AppNotification {
       userProfileKey:
           (json['userProfileKey'] as String?) ??
           (json['userProfile'] as String?),
+      userProfileUrl: json['userProfileUrl'] as String?,
       imageUrl: json['imageUrl'] as String?,
       type: _typeFromJsonValue(json['type']),
       isRead: json['isRead'] as bool?,
@@ -188,6 +202,7 @@ class AppNotification {
       'name': name,
       'nickname': nickname,
       'userProfileKey': userProfileKey,
+      'userProfileUrl': userProfileUrl,
       'imageUrl': imageUrl,
       'type': type?.value,
       'isRead': isRead,
@@ -206,7 +221,7 @@ class AppNotification {
 
   /// 사용자 프로필 유무 확인
   bool get hasUserProfile =>
-      userProfileKey != null && userProfileKey!.isNotEmpty;
+      userProfileImageUrl != null || userProfileCacheKey != null;
 
   /// copyWith 메서드
   AppNotification copyWith({
@@ -215,6 +230,7 @@ class AppNotification {
     String? name,
     String? nickname,
     String? userProfileKey,
+    String? userProfileUrl,
     String? imageUrl,
     AppNotificationType? type,
     bool? isRead,
@@ -229,6 +245,7 @@ class AppNotification {
       name: name ?? this.name,
       nickname: nickname ?? this.nickname,
       userProfileKey: userProfileKey ?? this.userProfileKey,
+      userProfileUrl: userProfileUrl ?? this.userProfileUrl,
       imageUrl: imageUrl ?? this.imageUrl,
       type: type ?? this.type,
       isRead: isRead ?? this.isRead,
@@ -237,6 +254,36 @@ class AppNotification {
       replyCommentId: replyCommentId ?? this.replyCommentId,
       parentCommentId: parentCommentId ?? this.parentCommentId,
     );
+  }
+
+  static String? _resolveDisplayUrl({
+    required String? primary,
+    required String? fallbackKey,
+  }) {
+    final normalizedPrimary = _normalizeNonEmpty(primary);
+    if (normalizedPrimary != null) {
+      return normalizedPrimary;
+    }
+
+    final normalizedFallback = _normalizeNonEmpty(fallbackKey);
+    if (normalizedFallback == null) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(normalizedFallback);
+    if (uri != null && uri.hasScheme) {
+      return normalizedFallback;
+    }
+
+    return null;
+  }
+
+  static String? _normalizeNonEmpty(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
   }
 
   @override

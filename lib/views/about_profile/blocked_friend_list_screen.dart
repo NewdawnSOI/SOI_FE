@@ -159,14 +159,14 @@ class _BlockedFriendListScreenState extends State<BlockedFriendListScreen> {
     final keyByUserId = <int, String>{};
 
     for (final user in users) {
-      final keyOrUrl = user.profileImageKey;
-      if (keyOrUrl == null || keyOrUrl.isEmpty) continue;
-
-      final uri = Uri.tryParse(keyOrUrl);
-      if (uri != null && uri.hasScheme) {
-        resolvedByUserId[user.id] = keyOrUrl;
+      final directUrl = user.displayProfileImageUrl;
+      if (directUrl != null && directUrl.isNotEmpty) {
+        resolvedByUserId[user.id] = directUrl;
         continue;
       }
+
+      final keyOrUrl = user.profileImageCacheKey;
+      if (keyOrUrl == null || keyOrUrl.isEmpty) continue;
 
       final cachedUrl = _presignedUrlCacheByKey[keyOrUrl];
       if (cachedUrl != null && cachedUrl.isNotEmpty) {
@@ -438,7 +438,7 @@ class _BlockedUserItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profileUrl = profileImageUrl ?? user.profileImageKey ?? '';
+    final profileUrl = profileImageUrl ?? user.displayProfileImageUrl ?? '';
 
     return Row(
       children: [
@@ -453,6 +453,7 @@ class _BlockedUserItem extends StatelessWidget {
               ? ClipOval(
                   child: CachedNetworkImage(
                     imageUrl: profileUrl,
+                    cacheKey: user.profileImageCacheKey,
                     fit: BoxFit.cover,
                     memCacheWidth: (44 * 4).round(),
                     memCacheHeight: (44 * 4).round(),

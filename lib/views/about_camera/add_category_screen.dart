@@ -219,7 +219,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
         _selectedFriendsById[friend.id] = SelectedFriendModel(
           uid: friend.id.toString(),
           name: friend.name,
-          profileImageUrl: friend.profileImageKey,
+          profileImageUrl: friend.displayProfileImageUrl,
         );
       }
     });
@@ -408,14 +408,17 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
   }
 
   Widget _buildFriendAvatar(User friend) {
-    final profileUrl = friend.profileImageKey;
+    final profileUrl = friend.displayProfileImageUrl;
     final hasProfileImage = profileUrl != null && profileUrl.isNotEmpty;
 
     if (hasProfileImage) {
       return CircleAvatar(
         radius: 23.r,
         backgroundColor: const Color(0xFF323232),
-        backgroundImage: CachedNetworkImageProvider(profileUrl),
+        backgroundImage: CachedNetworkImageProvider(
+          profileUrl,
+          cacheKey: friend.profileImageCacheKey,
+        ),
       );
     }
 

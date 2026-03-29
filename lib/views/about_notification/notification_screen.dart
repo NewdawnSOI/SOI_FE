@@ -517,7 +517,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
               final notification = notifications[notificationIndex];
               return ApiNotificationItemWidget(
                 notification: notification,
-                profileUrl: notification.userProfile,
+                profileUrl: notification.userProfileImageUrl,
+                profileCacheKey: notification.userProfileCacheKey,
                 imageUrl: notification.imageUrl,
                 onTap: () => _onNotificationTap(notification),
                 onConfirm:

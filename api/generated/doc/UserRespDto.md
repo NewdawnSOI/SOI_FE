@@ -12,6 +12,9 @@ Name | Type | Description | Notes
 **nickname** | **String** |  | [optional] 
 **name** | **String** |  | [optional] 
 **profileImageKey** | **String** |  | [optional] 
+**profileImageUrl** | **String** |  | [optional] 
+**profileCoverImageKey** | **String** |  | [optional] 
+**profileCoverImageUrl** | **String** |  | [optional] 
 **birthDate** | **String** |  | [optional] 
 **phoneNum** | **String** |  | [optional] 
 

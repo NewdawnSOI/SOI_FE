@@ -106,10 +106,12 @@ class ProfileDataService {
     required MediaController mediaController,
   }) async {
     final userInfo = await userController.getUser(userId);
-    final profileImageKey = userInfo?.profileImageKey;
+    String? profileImageUrl = userInfo?.displayProfileImageUrl;
+    final profileImageKey = userInfo?.profileImageCacheKey;
 
-    String? profileImageUrl;
-    if (profileImageKey != null && profileImageKey.isNotEmpty) {
+    if ((profileImageUrl == null || profileImageUrl.isEmpty) &&
+        profileImageKey != null &&
+        profileImageKey.isNotEmpty) {
       profileImageUrl = await mediaController.getPresignedUrl(profileImageKey);
     }
 

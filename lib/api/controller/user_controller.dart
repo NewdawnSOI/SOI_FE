@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soi/api/api_exception.dart';
@@ -153,12 +155,14 @@ class UserController extends ChangeNotifier {
         nickName: normalizedNickname,
         phoneNum: normalizedPhoneNumber,
       );
-      _currentUser = user;
+      _syncCurrentUserState(user);
 
       // 로그인 성공 시 상태 저장
       if (user != null) {
         await saveLoginState(userId: user.id, phoneNumber: user.phoneNumber);
+        await _persistCoverImageKey(_coverImageUrlKey);
       } else {
+        await _persistCoverImageKey(null);
         debugPrint('[UserController.login] 로그인 실패 code=404');
       }
 
@@ -169,7 +173,8 @@ class UserController extends ChangeNotifier {
       debugPrint(
         '[UserController.login] 로그인 실패 code=${e.statusCode ?? 404}, message=${e.message}',
       );
-      _currentUser = null;
+      _syncCurrentUserState(null);
+      await _persistCoverImageKey(null);
       _finishLoading(notify: false);
       notifyListeners();
       return null;
@@ -193,8 +198,7 @@ class UserController extends ChangeNotifier {
   /// 로그아웃
   /// 현재 로그인된 사용자를 로그아웃 처리합니다.
   Future<void> logout() async {
-    _currentUser = null;
-    _coverImageUrlKey = null;
+    _syncCurrentUserState(null);
     _clearError();
 
     // 저장된 로그인 상태도 삭제
@@ -203,13 +207,15 @@ class UserController extends ChangeNotifier {
   }
 
   /// 현재 사용자 정보 갱신
+  /// 서버 응답에 포함된 커버 이미지 키까지 함께 동기화해 UI와 로컬 세션을 같은 상태로 유지합니다.
   Future<void> refreshCurrentUser() async {
     if (!SoiApiClient.instance.isAuthenticated) return;
 
     _beginLoading();
     try {
       final user = await _userService.getCurrentUser();
-      _currentUser = user;
+      _syncCurrentUserState(user);
+      await _persistCoverImageKey(_coverImageUrlKey);
       _finishLoading(notify: false);
       notifyListeners();
     } catch (e) {
@@ -219,10 +225,12 @@ class UserController extends ChangeNotifier {
 
   /// 현재 사용자 설정 (외부에서 직접 설정 필요 시)
   void setCurrentUser(User? user) {
-    if (_currentUser == user) {
+    if (_currentUser == user &&
+        _coverImageUrlKey == user?.profileCoverImageKey) {
       return;
     }
-    _currentUser = user;
+    _syncCurrentUserState(user);
+    unawaited(_persistCoverImageKey(_coverImageUrlKey));
     notifyListeners();
   }
 
@@ -509,12 +517,24 @@ class UserController extends ChangeNotifier {
   }) async {
     _beginLoading();
     try {
-      await _userService.updateCoverImage(
+      final updatedUser = await _userService.updateCoverImage(
         userId: userId,
         coverImageKey: coverImageKey,
       );
-      _coverImageUrlKey = coverImageKey;
-      await _saveCoverImageKey(coverImageKey);
+      final resolvedUser = User(
+        id: updatedUser.id,
+        userId: updatedUser.userId,
+        name: updatedUser.name,
+        profileImageKey: updatedUser.profileImageKey,
+        profileImageUrl: updatedUser.profileImageUrl,
+        profileCoverImageKey: updatedUser.profileCoverImageKey ?? coverImageKey,
+        profileCoverImageUrl: updatedUser.profileCoverImageUrl,
+        birthDate: updatedUser.birthDate,
+        phoneNumber: updatedUser.phoneNumber,
+        active: updatedUser.active,
+      );
+      _syncCurrentUserState(resolvedUser);
+      await _persistCoverImageKey(_coverImageUrlKey);
       _finishLoading(notify: false);
       notifyListeners();
       return true;
@@ -524,10 +544,22 @@ class UserController extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveCoverImageKey(String key) async {
+  /// 현재 사용자와 커버 이미지 키를 한 번에 맞춰 controller 상태를 일관되게 유지합니다.
+  void _syncCurrentUserState(User? user) {
+    _currentUser = user;
+    _coverImageUrlKey = user?.profileCoverImageKey;
+  }
+
+  /// 로컬 세션이 서버 응답과 같은 커버 이미지 키를 재사용하도록 SharedPreferences를 갱신합니다.
+  Future<void> _persistCoverImageKey(String? key) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyCoverImageKey, key);
+      final normalizedKey = key?.trim();
+      if (normalizedKey == null || normalizedKey.isEmpty) {
+        await prefs.remove(_keyCoverImageKey);
+        return;
+      }
+      await prefs.setString(_keyCoverImageKey, normalizedKey);
     } catch (e) {
       debugPrint('[UserController] 커버 이미지 키 저장 실패: $e');
     }
@@ -731,11 +763,8 @@ class UserController extends ChangeNotifier {
 
       // 서버에서 현재 사용자 정보 조회
       final user = await _userService.getCurrentUser();
-      _currentUser = user;
-
-      // 커버 이미지 키 로드
-      final prefs = await SharedPreferences.getInstance();
-      _coverImageUrlKey = prefs.getString(_keyCoverImageKey);
+      _syncCurrentUserState(user);
+      await _persistCoverImageKey(_coverImageUrlKey);
 
       notifyListeners();
       debugPrint('[UserController] 자동 로그인 성공: ${user.name}');

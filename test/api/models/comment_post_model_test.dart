@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/models/comment.dart';
+import 'package:soi/api/models/notification.dart';
 import 'package:soi/api/models/post.dart';
+import 'package:soi/api/models/user.dart';
 import 'package:soi/utils/format_utils.dart';
 import 'package:soi_api_client/api.dart';
 
@@ -150,6 +152,83 @@ void main() {
         postFromDto.toJson()['createdAt'],
         expected?.toUtc().toIso8601String(),
       );
+    });
+  });
+
+  group('User model image resolution', () {
+    test('prefers explicit image urls and keeps keys for cache resolution', () {
+      const user = User(
+        id: 1,
+        userId: 'alice',
+        name: 'Alice',
+        profileImageKey: 'profiles/alice.webp',
+        profileImageUrl: 'https://example.com/profiles/alice.webp',
+        profileCoverImageKey: 'covers/alice.webp',
+        profileCoverImageUrl: 'https://example.com/covers/alice.webp',
+        phoneNumber: '01012345678',
+      );
+
+      expect(
+        user.displayProfileImageUrl,
+        'https://example.com/profiles/alice.webp',
+      );
+      expect(user.profileImageCacheKey, 'profiles/alice.webp');
+      expect(
+        user.displayCoverImageUrl,
+        'https://example.com/covers/alice.webp',
+      );
+      expect(user.profileCoverImageCacheKey, 'covers/alice.webp');
+    });
+
+    test('uses legacy url-shaped key only as display fallback', () {
+      const user = User(
+        id: 2,
+        userId: 'bob',
+        name: 'Bob',
+        profileImageKey: 'https://legacy.example.com/profiles/bob.webp',
+        phoneNumber: '01098765432',
+      );
+
+      expect(
+        user.displayProfileImageUrl,
+        'https://legacy.example.com/profiles/bob.webp',
+      );
+      expect(
+        user.profileImageCacheKey,
+        'https://legacy.example.com/profiles/bob.webp',
+      );
+    });
+  });
+
+  group('Notification model image resolution', () {
+    test('prefers explicit image urls and keeps keys for cache resolution', () {
+      const notification = AppNotification(
+        id: 1,
+        userProfileKey: 'profiles/alice.webp',
+        userProfileUrl: 'https://example.com/profiles/alice.webp',
+      );
+
+      expect(
+        notification.userProfileImageUrl,
+        'https://example.com/profiles/alice.webp',
+      );
+      expect(notification.userProfileCacheKey, 'profiles/alice.webp');
+      expect(
+        notification.userProfile,
+        'https://example.com/profiles/alice.webp',
+      );
+      expect(notification.hasUserProfile, isTrue);
+    });
+
+    test('treats raw keys as cache-only when no direct url is available', () {
+      const notification = AppNotification(
+        id: 2,
+        userProfileKey: 'profiles/cache-only.webp',
+      );
+
+      expect(notification.userProfileImageUrl, isNull);
+      expect(notification.userProfileCacheKey, 'profiles/cache-only.webp');
+      expect(notification.hasUserProfile, isTrue);
     });
   });
 }

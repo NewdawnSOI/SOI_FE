@@ -223,7 +223,7 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
     for (final friendId in _selectedFriendIds) {
       final friend = _findFriendById(friendId);
       final friendName = friend?.name ?? tr('common.unknown', context: context);
-      final profileUrl = friend?.profileImageKey;
+      final profileUrl = friend?.displayProfileImageUrl;
 
       selectedFriends.add(
         SelectedFriendModel(
@@ -473,7 +473,7 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
     required bool isAlreadyMember,
     required VoidCallback onTap,
   }) {
-    final profileUrl = friend.profileImageKey;
+    final profileUrl = friend.displayProfileImageUrl;
     final hasProfileImage = profileUrl != null && profileUrl.isNotEmpty;
 
     return GestureDetector(
@@ -490,7 +490,10 @@ class _FriendListAddScreenState extends State<FriendListAddScreen> {
                   ? CircleAvatar(
                       radius: 24.r,
                       backgroundColor: const Color(0xff323232),
-                      backgroundImage: CachedNetworkImageProvider(profileUrl),
+                      backgroundImage: CachedNetworkImageProvider(
+                        profileUrl,
+                        cacheKey: friend.profileImageCacheKey,
+                      ),
                     )
                   : CircleAvatar(
                       radius: 24.r,

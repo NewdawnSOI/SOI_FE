@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **name** | **String** |  | [optional] 
 **nickname** | **String** |  | [optional] 
 **userProfileKey** | **String** |  | [optional] 
+**userProfileUrl** | **String** |  | [optional] 
 **imageUrl** | **String** |  | [optional] 
 **type** | **String** |  | [optional] 
 **isRead** | **bool** |  | [optional] 
