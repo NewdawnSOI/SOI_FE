@@ -661,12 +661,54 @@ class AppPushCoordinator {
       _lastRegisteredBindingKey = null;
     }
 
-    await _requestPermission();
+    final hasPermission = await _ensureNotificationPermission(
+      promptIfNeeded: false,
+    );
+    if (!hasPermission) {
+      await processPendingNavigation();
+      return;
+    }
     final token = await _messaging.getToken();
     if (token != null && token.trim().isNotEmpty) {
       await _registerTokenForCurrentUser(token);
     }
     await processPendingNavigation();
+  }
+
+  /// 로그인이나 회원가입 같은 사용자 액션 직후에 시스템 알림 권한을 요청하고 토큰 동기화까지 이어갑니다.
+  Future<void> requestSystemPermissionAndSyncUser(int? userId) {
+    _syncQueue = _syncQueue.then(
+      (_) => _requestSystemPermissionAndSyncUserInternal(userId),
+    );
+    return _syncQueue;
+  }
+
+  /// 사용자 액션에서만 시스템 알림 권한 프롬프트를 띄우고 허용된 경우 현재 사용자 토큰을 등록합니다.
+  Future<void> _requestSystemPermissionAndSyncUserInternal(int? userId) async {
+    if (!supportsFirebaseMessaging) {
+      return;
+    }
+
+    _currentUserId = userId;
+    if (userId == null) {
+      return;
+    }
+
+    final hasPermission = await _ensureNotificationPermission(
+      promptIfNeeded: true,
+    );
+    if (!hasPermission) {
+      return;
+    }
+
+    final token = await _messaging.getToken();
+    if (token != null && token.trim().isNotEmpty) {
+      await _registerTokenForCurrentUser(token);
+    }
+
+    if (_isInitialized) {
+      await processPendingNavigation();
+    }
   }
 
   /// 현재 디바이스 토큰 삭제 함수.
@@ -699,15 +741,11 @@ class AppPushCoordinator {
       return null;
     }
 
-    if (_isInitialized) {
-      await _requestPermission();
-    } else {
-      await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
+    final hasPermission = await _ensureNotificationPermission(
+      promptIfNeeded: true,
+    );
+    if (!hasPermission) {
+      return null;
     }
 
     final token = await _messaging.getToken();
@@ -800,6 +838,29 @@ class AppPushCoordinator {
           AndroidFlutterLocalNotificationsPlugin
         >();
     await androidNotifications?.requestNotificationsPermission();
+  }
+
+  /// 현재 권한 상태를 조회하고 필요할 때만 시스템 권한 프롬프트를 표시합니다.
+  Future<bool> _ensureNotificationPermission({
+    required bool promptIfNeeded,
+  }) async {
+    final currentSettings = await _messaging.getNotificationSettings();
+    if (_isPermissionGranted(currentSettings)) {
+      return true;
+    }
+    if (!promptIfNeeded) {
+      return false;
+    }
+
+    await _requestPermission();
+    final requestedSettings = await _messaging.getNotificationSettings();
+    return _isPermissionGranted(requestedSettings);
+  }
+
+  /// 승인된 알림 권한만 토큰 등록 경로로 이어져 불필요한 시스템 프롬프트를 막습니다.
+  bool _isPermissionGranted(NotificationSettings settings) {
+    return settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
   }
 
   /// 현재 사용자 토큰 등록 함수.

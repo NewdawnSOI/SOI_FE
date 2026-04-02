@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:provider/provider.dart';
+import 'package:soi/api/controller/user_controller.dart';
+import 'package:soi/app/push/app_push_coordinator.dart';
 import 'package:soi/views/about_feed/feed_home.dart';
 import '../theme/theme.dart';
 import 'about_archiving/screens/api_archive_main_screen.dart';
@@ -12,8 +15,10 @@ import 'about_profile/profile_page.dart';
 import '../api/services/camera_service.dart';
 import '../utils/tab_reselect_registry.dart';
 
+/// 홈 탭 페이지뷰와 첫 진입 후속 액션을 조립해 인증 이후 메인 앱 진입점을 제공합니다.
 class HomePageNavigationBar extends StatefulWidget {
   final int currentPageIndex;
+  final bool requestPushPermissionOnEnter;
 
   /// 전역에서 홈 탭(Feed/Archive/Camera/Friend/Profile)을 바꾸기 위한 키입니다.
   ///
@@ -30,7 +35,11 @@ class HomePageNavigationBar extends StatefulWidget {
     _globalKey.currentState?._setCurrentPageIndex(index);
   }
 
-  const HomePageNavigationBar({super.key, required this.currentPageIndex});
+  const HomePageNavigationBar({
+    super.key,
+    required this.currentPageIndex,
+    this.requestPushPermissionOnEnter = false,
+  });
 
   @override
   State<HomePageNavigationBar> createState() => _HomePageNavigationBarState();
@@ -41,6 +50,7 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
   late final PageController _pageController; // 페이지 뷰 컨트롤러
   static const _inactiveColor = Color(0xff535252);
   static const _activeColor = Color(0xffffffff);
+  bool _didRequestPushPermissionOnEnter = false;
 
   void _setCurrentPageIndex(int index) {
     if (!mounted) return;
@@ -55,6 +65,7 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
     _pageController = PageController(
       initialPage: _currentPageIndex,
     ); // 페이지 컨트롤러 초기화
+    _schedulePushPermissionRequestOnEntry();
     unawaited(CameraService.instance.prepareSessionIfPermitted());
   }
 
@@ -62,6 +73,39 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// 로그인/회원가입 직후 홈에 들어온 경우 첫 프레임에서만 OS 푸시 권한 요청을 시작합니다.
+  void _schedulePushPermissionRequestOnEntry() {
+    if (!widget.requestPushPermissionOnEnter ||
+        _didRequestPushPermissionOnEnter) {
+      return;
+    }
+    _didRequestPushPermissionOnEnter = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final userId = context.read<UserController>().currentUserId;
+      if (userId == null) {
+        return;
+      }
+
+      unawaited(_requestPushPermissionForUser(userId));
+    });
+  }
+
+  /// 홈 진입 직후 현재 로그인 사용자 토큰 동기화까지 한 번에 이어서 처리합니다.
+  Future<void> _requestPushPermissionForUser(int userId) async {
+    try {
+      await AppPushCoordinator.instance.requestSystemPermissionAndSyncUser(
+        userId,
+      );
+    } catch (error) {
+      debugPrint(
+        '[HomePageNavigationBar] push permission request skipped: $error',
+      );
+    }
   }
 
   /// 페이지 이동 함수

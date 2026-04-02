@@ -134,8 +134,12 @@ class _AuthFinalScreenState extends State<AuthFinalScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              const HomePageNavigationBar(currentPageIndex: 0),
+          builder: (context) => HomePageNavigationBar(
+            key: HomePageNavigationBar.rootKey,
+            currentPageIndex: 0,
+            requestPushPermissionOnEnter: true,
+          ),
+          settings: const RouteSettings(name: '/home_navigation_screen'),
         ),
         (route) => false,
       );

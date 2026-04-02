@@ -91,7 +91,7 @@ extension AppDelegate {
 
 // MARK: - Notification Setup
 extension AppDelegate {
-  /// 전화번호 인증용 silent push와 일반 알림 권한 요청을 함께 시작해 APNs 토큰 확보를 보장합니다.
+  /// 전화번호 인증용 APNs 등록은 앱 시작 시 유지하고 사용자 알림 권한 요청은 Flutter 사용자 액션 시점으로 넘깁니다.
   private func configureNotifications(for application: UIApplication) {
     // 백그라운드 fetch 설정
     if #available(iOS 13.0, *) {
@@ -101,22 +101,9 @@ extension AppDelegate {
     // 권한 요청 및 델리게이트 설정
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
-      requestNotificationAuthorization(application)
       application.registerForRemoteNotifications()
     } else {
       application.registerForRemoteNotifications()
-    }
-  }
-  
-  /// 사용자 알림 허용 여부와 무관하게 전화번호 인증용 APNs 등록은 계속 유지합니다.
-  private func requestNotificationAuthorization(_ application: UIApplication) {
-    let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound, .provisional]
-    UNUserNotificationCenter.current().requestAuthorization(options: authOptions) { granted, error in
-      if granted {
-        print("Notification permission granted")
-      } else {
-        print("Notification permission denied: \(error?.localizedDescription ?? "Unknown error")")
-      }
     }
   }
   

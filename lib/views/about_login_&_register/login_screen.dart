@@ -11,6 +11,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../../app/push/app_push_coordinator.dart';
 import '../../theme/theme.dart';
 import '../../utils/snackbar_utils.dart';
+import '../home_navigator_screen.dart';
 import 'widgets/common/continue_button.dart';
 import 'widgets/common/custom_text_field.dart';
 import 'widgets/common/page_title.dart';
@@ -254,6 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// 로그인 성공 후 홈으로 이동하고 홈 첫 진입에서 푸시 권한 요청을 이어받게 합니다.
   Future<void> _submitLogin() async {
     if (_isSubmitting) return;
 
@@ -337,10 +339,18 @@ class _LoginScreenState extends State<LoginScreen> {
     _showErrorSnackBar(defaultMessage);
   }
 
+  /// 로그인 성공 직후 홈 라우트를 다시 만들고 첫 진입용 푸시 권한 플래그를 전달합니다.
   void _goHomePage() {
-    Navigator.pushNamedAndRemoveUntil(
+    Navigator.pushAndRemoveUntil(
       context,
-      '/home_navigation_screen',
+      MaterialPageRoute<void>(
+        builder: (context) => HomePageNavigationBar(
+          key: HomePageNavigationBar.rootKey,
+          currentPageIndex: 0,
+          requestPushPermissionOnEnter: true,
+        ),
+        settings: const RouteSettings(name: '/home_navigation_screen'),
+      ),
       (route) => false,
     );
   }

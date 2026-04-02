@@ -14,6 +14,8 @@ class PhoneInputPage extends StatelessWidget {
   final Function(String) onChanged;
   final String selectedCountryCode;
   final ValueChanged<String> onCountryChanged;
+  final int? maxLength;
+  final String? errorText;
   final PageController? pageController;
 
   const PhoneInputPage({
@@ -22,6 +24,8 @@ class PhoneInputPage extends StatelessWidget {
     required this.onChanged,
     required this.selectedCountryCode,
     required this.onCountryChanged,
+    this.maxLength,
+    this.errorText,
     required this.pageController,
   });
 
@@ -93,6 +97,7 @@ class PhoneInputPage extends StatelessWidget {
                           hintText: tr('register.phone_hint', context: context),
                           keyboardType: TextInputType.phone,
                           textAlign: TextAlign.start,
+                          maxLength: maxLength,
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                           ],
@@ -103,6 +108,21 @@ class PhoneInputPage extends StatelessWidget {
                           ),
                           onChanged: onChanged,
                         ),
+                        if (errorText != null) ...[
+                          SizedBox(height: 8.h),
+                          SizedBox(
+                            width: 239.w,
+                            child: Text(
+                              errorText!,
+                              style: TextStyle(
+                                color: const Color(0xFFFF8D8D),
+                                fontSize: 12.sp,
+                                fontFamily: 'Pretendard',
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

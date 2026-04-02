@@ -8,6 +8,7 @@ import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/utils/username_validator.dart';
 import 'package:soi/utils/snackbar_utils.dart';
 import 'package:soi/views/about_login_&_register/widgets/pages/agreement_page.dart';
+import 'package:soi/views/about_login_&_register/services/register_phone_number_service.dart';
 import 'package:soi/views/about_login_&_register/widgets/pages/phone_input_page.dart';
 import 'package:soi/views/about_login_&_register/widgets/pages/sms_code_page.dart';
 import 'auth_final_screen.dart';
@@ -27,12 +28,6 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  static const Map<String, String> _dialCodesByCountry = {
-    'KR': '+82',
-    'US': '+1',
-    'MX': '+52',
-  };
-
   final PageController _pageController = PageController();
 
   // 자동 인증을 위한 Timer
@@ -76,6 +71,7 @@ class _AuthScreenState extends State<AuthScreen> {
   // 중복 아이디 체크를 위한 변수
   String? _idErrorKey;
   bool? _isIdAvailable;
+  String? _phoneErrorKey;
   Timer? debounceTimer;
 
   // 약관 동의 상태 변수들
@@ -256,15 +252,15 @@ class _AuthScreenState extends State<AuthScreen> {
               // 3. 전화번호 입력 페이지
               PhoneInputPage(
                 controller: phoneController,
-                onChanged: (value) {
-                  pageReady[2].value = value.isNotEmpty;
-                },
+                onChanged: _handlePhoneInputChanged,
                 selectedCountryCode: _selectedCountryCode,
-                onCountryChanged: (value) {
-                  setState(() {
-                    _selectedCountryCode = value;
-                  });
-                },
+                onCountryChanged: _handleCountryChanged,
+                maxLength: RegisterPhoneNumberService.maxInputLength(
+                  countryCode: _selectedCountryCode,
+                ),
+                errorText: _phoneErrorKey == null
+                    ? null
+                    : tr(_phoneErrorKey!, context: context),
                 pageController: _pageController,
               ),
               // 인증번호 입력 페이지
@@ -534,6 +530,34 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
+  /// 전화번호 입력값을 국가별 규칙으로 검증해 버튼 활성화와 에러 메시지를 함께 갱신합니다.
+  void _handlePhoneInputChanged(String value) {
+    final validationError = RegisterPhoneNumberService.validatePhone(
+      rawValue: value,
+      countryCode: _selectedCountryCode,
+    );
+
+    setState(() {
+      _phoneErrorKey = validationError?.translationKey;
+    });
+    pageReady[2].value = value.trim().isNotEmpty && validationError == null;
+  }
+
+  /// 국가가 바뀌면 같은 입력값도 다시 해석해야 하므로 전화번호 검증 결과를 즉시 재계산합니다.
+  void _handleCountryChanged(String countryCode) {
+    final validationError = RegisterPhoneNumberService.validatePhone(
+      rawValue: phoneController.text,
+      countryCode: countryCode,
+    );
+
+    setState(() {
+      _selectedCountryCode = countryCode;
+      _phoneErrorKey = validationError?.translationKey;
+    });
+    pageReady[2].value =
+        phoneController.text.trim().isNotEmpty && validationError == null;
+  }
+
   /// Firebase 인증 요청 결과에 따라 SMS 입력 페이지로 이동 또는 SMS 입력 페이지 건너뛰기를 분기합니다.
   ///
   /// Parameters:
@@ -547,6 +571,19 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     _autoVerifyTimer?.cancel();
+
+    final validationError = RegisterPhoneNumberService.validatePhone(
+      rawValue: phoneController.text,
+      countryCode: _selectedCountryCode,
+    );
+    if (validationError != null) {
+      final errorKey = validationError.translationKey;
+      setState(() {
+        _phoneErrorKey = errorKey;
+      });
+      SnackBarUtils.showSnackBar(context, tr(errorKey, context: context));
+      return;
+    }
 
     // 서버 API는 로컬 번호를, Firebase SMS는 국가 코드가 포함된 E.164 번호를 각각 사용합니다.
     final formattedPhoneForApi = _formatPhoneNumberForApi(
@@ -785,47 +822,18 @@ class _AuthScreenState extends State<AuthScreen> {
     bool withCountryCode = false,
   }) {
     final source = (rawValue ?? phoneNumber).trim();
+    final fallbackSource = source.isNotEmpty ? source : phoneController.text;
 
-    final digitsOnly = source.isNotEmpty
-        ? source.replaceAll(RegExp(r'\D'), '')
-        : phoneController.text.replaceAll(RegExp(r'\D'), '');
-
-    if (digitsOnly.isEmpty) {
-      return '';
+    if (withCountryCode) {
+      return RegisterPhoneNumberService.formatE164Phone(
+        rawValue: fallbackSource,
+        countryCode: _selectedCountryCode,
+      );
     }
-
-    switch (_selectedCountryCode) {
-      case 'KR':
-        var normalized = digitsOnly;
-        if (normalized.startsWith('82') && normalized.length > 10) {
-          normalized = normalized.substring(2);
-        }
-        final localNumber = normalized.startsWith('0')
-            ? normalized
-            : '0$normalized';
-        if (!withCountryCode) {
-          return localNumber;
-        }
-        final e164Number = localNumber.startsWith('0')
-            ? localNumber.substring(1)
-            : localNumber;
-        return '+82$e164Number';
-      case 'US':
-        var normalized = digitsOnly;
-        if (normalized.startsWith('1') && normalized.length > 10) {
-          normalized = normalized.substring(1);
-        }
-        return withCountryCode ? '+1$normalized' : normalized;
-      case 'MX':
-        var normalized = digitsOnly;
-        if (normalized.startsWith('52') && normalized.length > 11) {
-          normalized = normalized.substring(2);
-        }
-        return withCountryCode ? '+52$normalized' : normalized;
-      default:
-        final dialCode = _dialCodesByCountry[_selectedCountryCode] ?? '+82';
-        return withCountryCode ? '$dialCode$digitsOnly' : digitsOnly;
-    }
+    return RegisterPhoneNumberService.formatLocalPhone(
+      rawValue: fallbackSource,
+      countryCode: _selectedCountryCode,
+    );
   }
 
   void _navigateToAuthFinal() {
