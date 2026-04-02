@@ -43,6 +43,59 @@ void main() {
       expect(AppPushCoordinator.resolveDisplayBody(payload), '새 카테고리에 초대했습니다.');
     });
 
+    test('decodeNotificationPayload parses server envelope payload', () {
+      final payload = AppPushCoordinator.decodeNotificationPayload('''
+        {
+          "title": "카테고리 초대",
+          "body": "새 카테고리에 초대했습니다.",
+          "data": {
+            "notificationId": "51",
+            "type": "CATEGORY_INVITED",
+            "categoryId": "99",
+            "categoryInviteId": "77",
+            "nickname": "김훈진",
+            "body": "새 카테고리에 초대했습니다.",
+            "imageUrl": "https://example.com/post.jpg"
+          }
+        }
+        ''');
+
+      expect(payload, isNotNull);
+      expect(payload?.notificationId, 51);
+      expect(payload?.type, AppNotificationType.categoryInvite);
+      expect(payload?.categoryId, 99);
+      expect(payload?.categoryInviteId, 77);
+      expect(payload?.nickname, '김훈진');
+      expect(payload?.imageUrl, 'https://example.com/post.jpg');
+      expect(payload?.title, '카테고리 초대');
+      expect(payload?.body, '새 카테고리에 초대했습니다.');
+      expect(AppPushCoordinator.resolveDisplayTitle(payload!), '김훈진');
+      expect(AppPushCoordinator.resolveDisplayBody(payload), '새 카테고리에 초대했습니다.');
+    });
+
+    test('decodeNotificationPayload serializes back to server envelope', () {
+      final payload = AppPushCoordinator.decodeNotificationPayload('''
+        {
+          "notificationId": 31,
+          "type": "COMMENT_REPLY_ADDED",
+          "categoryId": 7,
+          "postId": 11,
+          "text": "reply arrived"
+        }
+        ''');
+
+      expect(payload, isNotNull);
+      final json = payload!.toJson();
+      final data = Map<String, dynamic>.from(json['data'] as Map);
+
+      expect(json['body'], 'reply arrived');
+      expect(data['notificationId'], 31);
+      expect(data['type'], 'COMMENT_REPLY_ADDED');
+      expect(data['categoryId'], 7);
+      expect(data['postId'], 11);
+      expect(data['body'], 'reply arrived');
+    });
+
     test(
       'decodeNotificationPayload returns null for malformed payload json',
       () {

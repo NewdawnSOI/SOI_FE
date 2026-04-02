@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:soi/views/about_login/widgets/pages/birth_date_page.dart';
+import 'package:soi/views/about_login_&_register/widgets/pages/birth_date_page.dart';
 
 class _InMemoryAssetLoader extends AssetLoader {
   const _InMemoryAssetLoader();
