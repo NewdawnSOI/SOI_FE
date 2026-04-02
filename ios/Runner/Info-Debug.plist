@@ -29,12 +29,12 @@
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-				<string>app-1-1074708164096-ios-f6a0558949723c8c4d32e5</string>
-			</array>
-		</dict>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+					<string>app-1-669720508169-ios-eba335a7f756db264145d8</string>
+				</array>
+			</dict>
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
@@ -61,7 +61,7 @@
 	<key>FLTEnableWideGamut</key>
 	<false/>
 	<key>FirebaseAppDelegateProxyEnabled</key>
-	<true/>
+	<false/>
 	<key>FirebaseAuthCAPTCHAFallbackEnabled</key>
 	<false/>
 	<key>FirebaseAuthReCAPTCHABypassEnabled</key>
@@ -99,6 +99,7 @@
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
 	<key>UIDeviceFamily</key>

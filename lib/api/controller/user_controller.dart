@@ -180,6 +180,9 @@ class UserController extends ChangeNotifier {
   /// 에러 메시지
   String? get errorMessage => _errorMessage;
 
+  /// Firebase 전화번호 인증이 즉시 완료된 경우 화면이 SMS 단계를 건너뛸 수 있게 상태를 노출합니다.
+  bool get isPhoneVerificationCompleted => _userService.isPhoneNumberVerified;
+
   // ============================================
   // SMS 인증
   // ============================================
@@ -201,9 +204,16 @@ class UserController extends ChangeNotifier {
 
     try {
       return await _userService.sendSmsVerification(normalizedPhoneNumber);
+    } on SoiApiException catch (e) {
+      _finishLoading(errorMessage: e.message);
+      rethrow;
     } catch (e) {
-      _finishLoading(errorMessage: 'SMS 인증 요청 실패: $e');
-      return false;
+      final wrapped = SoiApiException(
+        message: 'SMS 인증 요청 실패: $e',
+        originalException: e,
+      );
+      _finishLoading(errorMessage: wrapped.message);
+      throw wrapped;
     } finally {
       if (_isLoading) {
         _finishLoading();
@@ -233,9 +243,16 @@ class UserController extends ChangeNotifier {
         normalizedPhoneNumber,
         normalizedCode,
       );
+    } on SoiApiException catch (e) {
+      _finishLoading(errorMessage: e.message);
+      rethrow;
     } catch (e) {
-      _finishLoading(errorMessage: '인증 코드 확인 실패: $e');
-      return false;
+      final wrapped = SoiApiException(
+        message: '인증 코드 확인 실패: $e',
+        originalException: e,
+      );
+      _finishLoading(errorMessage: wrapped.message);
+      throw wrapped;
     } finally {
       if (_isLoading) {
         _finishLoading();

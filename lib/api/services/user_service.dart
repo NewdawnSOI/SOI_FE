@@ -6,6 +6,7 @@ import 'package:soi_api_client/api.dart';
 import '../api_client.dart';
 import '../api_exception.dart';
 import '../models/models.dart';
+import '../../utils/firebase_phone_auth_service.dart';
 
 /// 사용자 및 인증 관련 API 래퍼 서비스
 ///
@@ -53,6 +54,10 @@ class UserService {
   /// 기본적으로 SoiApiClient의 userApi를 사용하지만, 필요에 따라 커스텀 구현을 주입할 수 있도록 설계되었습니다.
   final UserAPIApi _userApi;
 
+  /// Firebase 기반 전화번호 인증 상태를 유지하는 단일 서비스 인스턴스입니다.
+  final FirebasePhoneVerificationService _phoneVerificationService =
+      FirebasePhoneVerificationService();
+
   /// 인증 토큰 관리 콜백
   final void Function(String token) _setAuthToken;
 
@@ -75,6 +80,10 @@ class UserService {
        _setAuthToken = onAuthTokenIssued ?? SoiApiClient.instance.setAuthToken,
        _clearAuthToken =
            onAuthTokenCleared ?? SoiApiClient.instance.clearAuthToken;
+
+  /// 회원가입 화면이 Firebase 즉시 인증 완료 여부를 조회할 수 있게 현재 상태를 노출합니다.
+  bool get isPhoneNumberVerified =>
+      _phoneVerificationService.isCurrentPhoneVerified;
 
   /// 인증 API 호출의 단계와 상태만 debug 로그로 남겨 실제 실패 지점을 좁힙니다.
   void _debugLogAuthStage(
@@ -185,15 +194,18 @@ class UserService {
   /// - [bool]: false - SMS 발송 실패 (예: API에서 false 반환)
   Future<bool> sendSmsVerification(String phoneNum) async {
     try {
-      // 전화번호 정규화
       final normalizedPhoneNum = _normalizeText(phoneNum);
-
-      // 인증 없이 SMS 인증 발송 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
-      // _buildUnauthenticatedAuthApi(): 인증이 필요 없는 API 인스턴스를 생성하는 헬퍼 함수입니다.
-      final result = await _buildUnauthenticatedAuthApi().authSMS(
+      return await _phoneVerificationService.sendVerificationCode(
         normalizedPhoneNum,
       );
-      return result ?? false;
+
+      // 임시 Firebase 전화번호 인증 전환 전 API 호출 코드입니다.
+      // final result = await _buildUnauthenticatedAuthApi().authSMS(
+      //   normalizedPhoneNum,
+      // );
+      // return result ?? false;
+    } on SoiApiException {
+      rethrow;
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {
@@ -215,18 +227,22 @@ class UserService {
   /// - [bool]: false - 인증 실패 (코드 불일치)
   Future<bool> verifySmsCode(String phoneNum, String code) async {
     try {
-      final normalizedPhoneNum = _normalizeText(phoneNum); // 전화번호 정규화
-      final normalizedCode = _normalizeText(code); // 인증 코드 정규화
-
-      // 인증 코드 확인을 위한 DTO 객체를 생성합니다.
-      final dto = AuthCheckReqDto(
-        phoneNum: normalizedPhoneNum,
-        code: normalizedCode,
+      final normalizedPhoneNum = _normalizeText(phoneNum);
+      final normalizedCode = _normalizeText(code);
+      return await _phoneVerificationService.verifyCode(
+        normalizedPhoneNum,
+        normalizedCode,
       );
 
-      // 인증 없이 전화번호 인증 확인 API를 호출하기 위해 별도의 AuthControllerApi 인스턴스를 생성합니다.
-      final result = await _buildUnauthenticatedAuthApi().checkAuthSMS(dto);
-      return result ?? false;
+      // 임시 Firebase 전화번호 인증 전환 전 API 호출 코드입니다.
+      // final dto = AuthCheckReqDto(
+      //   phoneNum: normalizedPhoneNum,
+      //   code: normalizedCode,
+      // );
+      // final result = await _buildUnauthenticatedAuthApi().checkAuthSMS(dto);
+      // return result ?? false;
+    } on SoiApiException {
+      rethrow;
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {

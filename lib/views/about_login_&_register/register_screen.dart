@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/utils/username_validator.dart';
 import 'package:soi/utils/snackbar_utils.dart';
@@ -22,7 +23,7 @@ class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
   @override
-  _AuthScreenState createState() => _AuthScreenState();
+  State<AuthScreen> createState() => _AuthScreenState();
 }
 
 class _AuthScreenState extends State<AuthScreen> {
@@ -41,6 +42,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool userExists = false;
   bool isVerified = false;
   bool isCheckingUser = false;
+  bool _isRequestingSms = false;
 
   // 입력 데이터
   String phoneNumber = '';
@@ -173,6 +175,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   @override
+  /// 회원가입 각 단계를 PageView로 조립하고 전화번호 인증 흐름까지 한 화면에서 연결합니다.
   Widget build(BuildContext context) {
     // 화면 크기 정보
     final double screenHeight = MediaQuery.of(context).size.height;
@@ -268,8 +271,11 @@ class _AuthScreenState extends State<AuthScreen> {
               SmsCodePage(
                 controller: smsController,
                 onChanged: (value) {
-                  // 인증번호 입력 여부에 따라 상태 변경 (API는 5자리)
-                  pageReady[3].value = value.length == 5;
+                  // 기존 API 인증번호는 5자리 기준으로 완료 상태를 판단했습니다.
+                  // pageReady[3].value = value.length == 5;
+
+                  // Firebase 인증번호는 기본 6자리여서 입력 가능 상태를 6자리 기준으로 맞춥니다.
+                  pageReady[3].value = value.length == 6;
 
                   // 인증 완료 후, 사용자가 인증번호를 변경하면 상태 초기화
                   if (isVerified) {
@@ -278,26 +284,33 @@ class _AuthScreenState extends State<AuthScreen> {
                     });
                   }
                 },
-                onResendPressed: () async {
-                  try {
-                    final formattedPhone = _formatPhoneNumberForApi(
-                      withCountryCode: true,
-                    );
-                    phoneNumber = formattedPhone;
-
-                    await _userController
-                        .requestSmsVerification(formattedPhone)
-                        .onError((error, stackTrace) {
-                          throw Exception('SMS 재전송 실패: $error');
-                        });
-                  } catch (e) {
-                    SnackBarUtils.showSnackBar(
-                      context,
-                      '인증번호 재전송 중 오류가 발생했습니다.',
-                    );
-                    debugPrint('재전송 예외: $e');
-                  }
-                },
+                // 기존 API 재전송 흐름은 화면에서 아래처럼 직접 요청/에러 처리를 수행했습니다.
+                // onResendPressed: () async {
+                //   try {
+                //     final formattedPhone = _formatPhoneNumberForApi(
+                //       withCountryCode: true,
+                //     );
+                //     phoneNumber = formattedPhone;
+                //
+                //     await _userController
+                //         .requestSmsVerification(formattedPhone)
+                //         .onError((error, stackTrace) {
+                //           throw Exception('SMS 재전송 실패: $error');
+                //         });
+                //   } catch (e) {
+                //     SnackBarUtils.showSnackBar(
+                //       context,
+                //       '인증번호 재전송 중 오류가 발생했습니다.',
+                //     );
+                //     debugPrint('재전송 예외: $e');
+                //   }
+                // },
+                //
+                // Firebase 인증 흐름에서는 재전송도 동일한 메서드로 처리하므로,
+                // 버튼에서 직접 재인증 요청을 수행하도록 합니다.
+                onResendPressed: () =>
+                    _requestPhoneVerification(isResend: true),
+                isBusy: _isRequestingSms,
                 pageController: _pageController,
               ),
               // 3. 아이디 입력 페이지
@@ -410,7 +423,9 @@ class _AuthScreenState extends State<AuthScreen> {
             child: ValueListenableBuilder<bool>(
               valueListenable: pageReady[currentPage],
               builder: (context, ready, child) {
+                final bool isBusy = isCheckingUser || _isRequestingSms;
                 final bool isEnabled =
+                    !isBusy &&
                     ready &&
                     (currentPage != 4 ||
                         idErrorMessage == null ||
@@ -436,41 +451,51 @@ class _AuthScreenState extends State<AuthScreen> {
                               );
                               break;
                             case 2: // 전화번호
-                              final formattedPhone = _formatPhoneNumberForApi(
-                                rawValue: phoneController.text,
-                                withCountryCode: true,
-                              );
-                              phoneNumber = formattedPhone;
-                              try {
-                                final isSuccess = await _userController
-                                    .requestSmsVerification(formattedPhone);
-
-                                if (isSuccess) {
-                                  _pageController.nextPage(
-                                    duration: Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                  );
-                                } else {
-                                  if (mounted) {
-                                    SnackBarUtils.showSnackBar(
-                                      context,
-                                      'SMS 발송에 실패했습니다. 다시 시도해주세요.',
-                                    );
-                                  }
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  SnackBarUtils.showSnackBar(
-                                    context,
-                                    'SMS 발송 중 오류가 발생했습니다.',
-                                  );
-                                }
-                                debugPrint('SMS 발송 예외: $e');
-                              }
+                              // 기존 API 전화번호 인증 로직
+                              // final formattedPhone = _formatPhoneNumberForApi(
+                              //   rawValue: phoneController.text,
+                              //   withCountryCode: true,
+                              // );
+                              // phoneNumber = formattedPhone;
+                              // try {
+                              //   final isSuccess = await _userController
+                              //       .requestSmsVerification(formattedPhone);
+                              //
+                              //   if (isSuccess) {
+                              //     _pageController.nextPage(
+                              //       duration: const Duration(milliseconds: 300),
+                              //       curve: Curves.easeInOut,
+                              //     );
+                              //   } else {
+                              //     if (mounted) {
+                              //       SnackBarUtils.showSnackBar(
+                              //         context,
+                              //         'SMS 발송에 실패했습니다. 다시 시도해주세요.',
+                              //       );
+                              //     }
+                              //   }
+                              // } catch (e) {
+                              //   if (mounted) {
+                              //     SnackBarUtils.showSnackBar(
+                              //       context,
+                              //       'SMS 발송 중 오류가 발생했습니다.',
+                              //     );
+                              //   }
+                              //   debugPrint('SMS 발송 예외: $e');
+                              // }
+                              //
+                              // Firebase 인증 흐름에서는 전화번호 인증 요청도 별도 메서드로 분리하여 처리합니다.
+                              await _requestPhoneVerification();
                               break;
                             case 3: // 인증코드
                               smsCode = smsController.text;
-                              if (smsCode.length == 5) {
+                              // 기존 API 인증번호는 5자리 입력일 때만 검증을 시작했습니다.
+                              // if (smsCode.length == 5) {
+                              //   await _performManualVerification(smsCode);
+                              // }
+                              if (smsCode.length == 6 ||
+                                  _userController
+                                      .isPhoneVerificationCompleted) {
                                 await _performManualVerification(smsCode);
                               }
                               break;
@@ -509,9 +534,150 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  /// API를 통한 SMS 인증 코드 확인 함수
+  /// Firebase 인증 요청 결과에 따라 SMS 입력 페이지로 이동 또는 SMS 입력 페이지 건너뛰기를 분기합니다.
+  ///
+  /// Parameters:
+  /// - [isResend]: 재전송 요청 여부 (기본값: false)
+  ///
+  /// Returns:
+  /// - `Future<void>`: 인증 요청 처리 완료를 나타내는 Future
+  Future<void> _requestPhoneVerification({bool isResend = false}) async {
+    if (_isRequestingSms) {
+      return;
+    }
+
+    _autoVerifyTimer?.cancel();
+
+    // 서버 API는 로컬 번호를, Firebase SMS는 국가 코드가 포함된 E.164 번호를 각각 사용합니다.
+    final formattedPhoneForApi = _formatPhoneNumberForApi(
+      rawValue: phoneController.text,
+    );
+    final formattedPhoneForFirebase = _formatPhoneNumberForApi(
+      rawValue: phoneController.text,
+      withCountryCode: true,
+    );
+
+    // userController.userCreate API에 전달할 전화번호를 저장합니다.
+    // 이 값은 Firebase 인증과 별도로 서버 API에 전달될 때 사용됩니다.
+    phoneNumber = formattedPhoneForApi;
+
+    setState(() {
+      _isRequestingSms = true;
+    });
+
+    try {
+      final isSuccess = await _userController.requestSmsVerification(
+        formattedPhoneForFirebase,
+      );
+      if (!mounted) return;
+
+      if (!isSuccess) {
+        SnackBarUtils.showSnackBar(
+          context,
+          _userController.errorMessage ??
+              (isResend
+                  ? '인증번호 재전송 중 오류가 발생했습니다.'
+                  : 'SMS 발송에 실패했습니다. 다시 시도해주세요.'),
+        );
+        return;
+      }
+
+      smsController.clear();
+      setState(() {
+        isVerified = _userController.isPhoneVerificationCompleted;
+        pageReady[3].value = false;
+      });
+
+      // 이미 Firebase 인증이 완료된 상태라면 SMS 입력 페이지로 이동하지 않고 바로 다음 단계로 넘어갑니다.
+      if (_userController.isPhoneVerificationCompleted) {
+        await _handleSuccessfulPhoneVerification();
+        return;
+      }
+
+      // SMS 입력 페이지로 이동합니다.
+      // 재전송 시에는 이미 같은 페이지에 있으므로 이동하지 않습니다.
+      if (!isResend) {
+        await _pageController.nextPage(
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+
+      // SMS 입력 페이지로 이동한 후,
+      // Firebase 인증이 자동으로 완료되는지 주기적으로 확인하는 타이머를 시작합니다.
+      _startAutoVerificationWatcher();
+    } catch (e) {
+      if (!mounted) return;
+      SnackBarUtils.showSnackBar(
+        context,
+        _resolveAuthErrorMessage(
+          e,
+          fallback: isResend
+              ? '인증번호 재전송 중 오류가 발생했습니다.'
+              : 'SMS 발송 중 오류가 발생했습니다.',
+        ),
+      );
+      debugPrint(isResend ? '재전송 예외: $e' : 'SMS 발송 예외: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRequestingSms = false;
+        });
+      } else {
+        _isRequestingSms = false;
+      }
+    }
+  }
+
+  /// SMS 입력 대기 중 Firebase 즉시 인증이 완료되면 다음 회원가입 단계로 자동 이동시킵니다.
+  void _startAutoVerificationWatcher() {
+    _autoVerifyTimer?.cancel();
+    _autoVerifyTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || currentPage != 3) {
+        timer.cancel();
+        return;
+      }
+
+      if (!_userController.isPhoneVerificationCompleted) {
+        return;
+      }
+
+      timer.cancel();
+
+      // Firebase 인증이 완료된 상태라면 SMS 입력 페이지로 이동하지 않고 바로 다음 단계로 넘어갑니다.
+      unawaited(_handleSuccessfulPhoneVerification());
+    });
+  }
+
+  /// 전화번호 인증이 완료되면 상태와 페이지를 정리하고 아이디 입력 단계로 이동합니다.
+  Future<void> _handleSuccessfulPhoneVerification() async {
+    _autoVerifyTimer?.cancel();
+    if (!mounted) return;
+
+    setState(() {
+      isCheckingUser = false;
+      isVerified = true;
+      pageReady[3].value = true;
+    });
+
+    SnackBarUtils.showSnackBar(context, '인증이 완료되었습니다.');
+    FocusScope.of(context).unfocus();
+    await _pageController.animateToPage(
+      4,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  /// 사용자가 입력한 SMS 코드를 Firebase verificationId와 조합해 최종 인증 여부를 확정합니다.
   Future<void> _performManualVerification(String code) async {
     if (isCheckingUser) return;
+    _autoVerifyTimer?.cancel();
+
+    if (_userController.isPhoneVerificationCompleted) {
+      await _handleSuccessfulPhoneVerification();
+      return;
+    }
 
     setState(() {
       isCheckingUser = true;
@@ -526,21 +692,26 @@ class _AuthScreenState extends State<AuthScreen> {
       );
 
       if (!mounted) return;
+      // 기존 API 검증 성공 시에는 여기서 바로 상태 갱신과 페이지 이동을 처리했습니다.
+      // if (isSuccess) {
+      //   setState(() {
+      //     isCheckingUser = false;
+      //     isVerified = true;
+      //   });
+      //
+      //   if (mounted) {
+      //     SnackBarUtils.showSnackBar(context, '인증이 완료되었습니다.');
+      //   }
+      //
+      //   FocusScope.of(context).unfocus();
+      //   _pageController.nextPage(
+      //     duration: const Duration(milliseconds: 300),
+      //     curve: Curves.easeInOut,
+      //   );
+      // }
       if (isSuccess) {
-        setState(() {
-          isCheckingUser = false;
-          isVerified = true;
-        });
-
-        if (mounted) {
-          SnackBarUtils.showSnackBar(context, '인증이 완료되었습니다.');
-        }
-
-        FocusScope.of(context).unfocus();
-        _pageController.nextPage(
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+        // Firebase 인증이 완료된 상태라면 SMS 입력 페이지로 이동하지 않고 바로 다음 단계로 넘어갑니다.
+        await _handleSuccessfulPhoneVerification();
       } else {
         setState(() {
           isCheckingUser = false;
@@ -557,16 +728,41 @@ class _AuthScreenState extends State<AuthScreen> {
         isVerified = false;
       });
 
-      final errorMessage = e.toString().replaceFirst('Exception: ', '').trim();
-      if (mounted) {
-        SnackBarUtils.showSnackBar(
-          context,
-          errorMessage.isNotEmpty ? errorMessage : '인증 확인 중 오류가 발생했습니다.',
-        );
-      }
-
+      // 기존 API 예외 처리에서는 화면에 보여줄 메시지를 직접 가공했습니다.
+      // final errorMessage = e.toString().replaceFirst('Exception: ', '').trim();
+      // if (mounted) {
+      //   SnackBarUtils.showSnackBar(
+      //     context,
+      //     errorMessage.isNotEmpty ? errorMessage : '인증 확인 중 오류가 발생했습니다.',
+      //   );
+      // }
+      SnackBarUtils.showSnackBar(
+        context,
+        _resolveAuthErrorMessage(e, fallback: '인증 확인 중 오류가 발생했습니다.'),
+      );
       debugPrint('인증 확인 중 예외: $e');
     }
+  }
+
+  /// 인증 흐름 예외를 화면 메시지로 바꿔 사용자가 실패 원인을 바로 확인할 수 있게 합니다.
+  String _resolveAuthErrorMessage(Object error, {required String fallback}) {
+    if (error is SoiApiException) {
+      final message = error.message.trim();
+      if (message.isNotEmpty) {
+        return message;
+      }
+    }
+
+    final rawMessage = error.toString().trim();
+    if (rawMessage.isEmpty) {
+      return fallback;
+    }
+
+    final normalized = rawMessage
+        .replaceFirst('Exception: ', '')
+        .replaceFirst('SoiApiException: ', '')
+        .trim();
+    return normalized.isEmpty ? fallback : normalized;
   }
 
   // 전체 동의 상태 업데이트 함수
@@ -574,6 +770,16 @@ class _AuthScreenState extends State<AuthScreen> {
     agreeAll = agreeServiceTerms && agreePrivacyTerms && agreeMarketingInfo;
   }
 
+  /// 전화번호 입력값을 서버 API용 로컬 번호 또는 Firebase용 E.164 번호로 정규화합니다.
+  ///
+  /// Parameters:
+  /// - [rawValue]: 변환할 원본 전화번호 문자열 (기본값: phoneNumber 상태값)
+  /// - [withCountryCode]: 국가 코드 포함 여부 (기본값: false)
+  ///
+  /// Returns:
+  /// - [String]: API 요구사항에 맞게 변환된 전화번호 문자열
+  ///   - 국가 코드 포함 시: +821012345678 같은 E.164 형식
+  ///   - 국가 코드 미포함 시: 01012345678 같은 로컬 형식
   String _formatPhoneNumberForApi({
     String? rawValue,
     bool withCountryCode = false,
@@ -594,7 +800,16 @@ class _AuthScreenState extends State<AuthScreen> {
         if (normalized.startsWith('82') && normalized.length > 10) {
           normalized = normalized.substring(2);
         }
-        return withCountryCode ? '+82$normalized' : normalized;
+        final localNumber = normalized.startsWith('0')
+            ? normalized
+            : '0$normalized';
+        if (!withCountryCode) {
+          return localNumber;
+        }
+        final e164Number = localNumber.startsWith('0')
+            ? localNumber.substring(1)
+            : localNumber;
+        return '+82$e164Number';
       case 'US':
         var normalized = digitsOnly;
         if (normalized.startsWith('1') && normalized.length > 10) {

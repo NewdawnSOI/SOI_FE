@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../common/page_title.dart';
@@ -9,6 +10,7 @@ class SmsCodePage extends StatelessWidget {
   final TextEditingController controller;
   final Function(String) onChanged;
   final VoidCallback onResendPressed;
+  final bool isBusy;
   final PageController? pageController;
 
   const SmsCodePage({
@@ -16,6 +18,7 @@ class SmsCodePage extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.onResendPressed,
+    this.isBusy = false,
     required this.pageController,
   });
 
@@ -50,9 +53,7 @@ class SmsCodePage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                PageTitle(
-                  title: tr('register.sms_title', context: context),
-                ),
+                PageTitle(title: tr('register.sms_title', context: context)),
                 SizedBox(height: 24.h),
                 CustomTextField(
                   controller: controller,
@@ -60,10 +61,14 @@ class SmsCodePage extends StatelessWidget {
                   keyboardType: TextInputType.number,
                   borderRadius: 16.5,
                   contentPadding: EdgeInsets.only(bottom: 7.h),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
                   onChanged: onChanged,
                 ),
                 TextButton(
-                  onPressed: onResendPressed,
+                  onPressed: isBusy ? null : onResendPressed,
                   child: RichText(
                     text: TextSpan(
                       text: tr('register.sms_resend', context: context),

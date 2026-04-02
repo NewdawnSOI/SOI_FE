@@ -201,6 +201,21 @@ void main() {
       expect(result, isTrue);
     });
 
+    test('rethrows SMS verification errors so UI can show the exact reason', () async {
+      final controller = UserController(
+        userService: _FakeUserService(
+          onSendSmsVerification: (_) async => throw const SoiApiException(
+            message: '앱 검증에 실패했습니다.',
+          ),
+        ),
+      );
+
+      expect(
+        controller.requestSmsVerification('+821066784110'),
+        throwsA(isA<SoiApiException>()),
+      );
+    });
+
     test('returns null when combined login throws NotFoundException', () async {
       final controller = UserController(
         userService: _FakeUserService(

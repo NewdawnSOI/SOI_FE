@@ -5,16 +5,8 @@ import 'package:soi_api_client/api.dart';
 
 /// 인증 전용 엔드포인트를 테스트 더블로 대체해 서비스 예외 분기를 검증합니다.
 class _FakeAuthApi extends AuthControllerApi {
-  _FakeAuthApi({
-    this.onAuthSMS,
-    this.onCheckAuthSMS,
-    this.onCreateUser,
-    this.onIdCheck,
-    this.onLogin,
-  });
+  _FakeAuthApi({this.onCreateUser, this.onIdCheck, this.onLogin});
 
-  final Future<bool?> Function(String phoneNum)? onAuthSMS;
-  final Future<bool?> Function(AuthCheckReqDto dto)? onCheckAuthSMS;
   final Future<ApiResponseDtoUserRespDto?> Function(UserCreateReqDto dto)?
   onCreateUser;
   final Future<ApiResponseDtoBoolean?> Function(String userId)? onIdCheck;
@@ -22,20 +14,12 @@ class _FakeAuthApi extends AuthControllerApi {
 
   @override
   Future<bool?> authSMS(String phoneNum) async {
-    final handler = onAuthSMS;
-    if (handler == null) {
-      throw UnimplementedError('onAuthSMS is not configured');
-    }
-    return handler(phoneNum);
+    throw UnimplementedError('authSMS is not configured');
   }
 
   @override
   Future<bool?> checkAuthSMS(AuthCheckReqDto authCheckReqDto) async {
-    final handler = onCheckAuthSMS;
-    if (handler == null) {
-      throw UnimplementedError('onCheckAuthSMS is not configured');
-    }
-    return handler(authCheckReqDto);
+    throw UnimplementedError('checkAuthSMS is not configured');
   }
 
   @override
@@ -285,48 +269,6 @@ void main() {
 
       expect(issuedToken, 'jwt-token');
       expect(result?.id, 1);
-    });
-
-    test(
-      'uses unauthenticated auth api for sms verification request',
-      () async {
-        final service = UserService(
-          authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
-          userApi: _FakeUserApi(onGetUser: () async => null),
-          buildUnauthenticatedAuthApi: () => _FakeAuthApi(
-            onAuthSMS: (phoneNum) async {
-              expect(phoneNum, '+821012345678');
-              return true;
-            },
-          ),
-          onAuthTokenIssued: (_) {},
-          onAuthTokenCleared: () {},
-        );
-
-        final result = await service.sendSmsVerification('+821012345678');
-
-        expect(result, isTrue);
-      },
-    );
-
-    test('uses unauthenticated auth api for sms code verification', () async {
-      final service = UserService(
-        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
-        userApi: _FakeUserApi(onGetUser: () async => null),
-        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
-          onCheckAuthSMS: (dto) async {
-            expect(dto.phoneNum, '+821012345678');
-            expect(dto.code, '12345');
-            return true;
-          },
-        ),
-        onAuthTokenIssued: (_) {},
-        onAuthTokenCleared: () {},
-      );
-
-      final result = await service.verifySmsCode('+821012345678', '12345');
-
-      expect(result, isTrue);
     });
 
     test('uses unauthenticated auth api for user creation', () async {

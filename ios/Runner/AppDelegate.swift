@@ -1,11 +1,13 @@
 import UIKit
 import Flutter
 import FirebaseCore
+import FirebaseAuth
 import FirebaseMessaging
 import UserNotifications
 import AVFoundation
 
 @main
+/// 앱 부트스트랩과 Firebase/APNs 브리징을 한곳에서 관리해 Flutter와 iOS 인증 흐름을 연결합니다.
 @objc class AppDelegate: FlutterAppDelegate {
 
   // audioRecorder를 strong reference로 유지
@@ -30,7 +32,9 @@ import AVFoundation
   }
   
   // MARK: - APNs Token Registration
+  /// APNs 토큰을 Messaging과 Auth에 모두 전달해 푸시와 전화번호 인증 검증이 같은 토큰을 사용하게 합니다.
   override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    Auth.auth().setAPNSToken(deviceToken, type: .unknown)
     Messaging.messaging().apnsToken = deviceToken
     handleAPNsTokenRegistration(deviceToken)
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
@@ -42,7 +46,14 @@ import AVFoundation
   }
   
   // MARK: - Notification Handling
+  /// Auth 전용 silent push는 먼저 Firebase Auth가 consume하게 해 앱 검증 폴백을 줄입니다.
   override func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+    if Auth.auth().canHandleNotification(userInfo) {
+      completionHandler(.noData)
+      return
+    }
+
+    Messaging.messaging().appDidReceiveMessage(userInfo)
     handleRemoteNotification(userInfo)
     super.application(
       application,
@@ -52,7 +63,12 @@ import AVFoundation
   }
   
   // MARK: - URL Handling
+  /// reCAPTCHA 복귀 URL을 Firebase Auth에 먼저 전달해 전화번호 인증 흐름을 완료합니다.
   override func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+    if Auth.auth().canHandle(url) {
+      return true
+    }
+
     return super.application(app, open: url, options: options)
   }
 }
@@ -75,6 +91,7 @@ extension AppDelegate {
 
 // MARK: - Notification Setup
 extension AppDelegate {
+  /// 전화번호 인증용 silent push와 일반 알림 권한 요청을 함께 시작해 APNs 토큰 확보를 보장합니다.
   private func configureNotifications(for application: UIApplication) {
     // 백그라운드 fetch 설정
     if #available(iOS 13.0, *) {
@@ -85,19 +102,18 @@ extension AppDelegate {
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
       requestNotificationAuthorization(application)
+      application.registerForRemoteNotifications()
     } else {
       application.registerForRemoteNotifications()
     }
   }
   
+  /// 사용자 알림 허용 여부와 무관하게 전화번호 인증용 APNs 등록은 계속 유지합니다.
   private func requestNotificationAuthorization(_ application: UIApplication) {
     let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound, .provisional]
     UNUserNotificationCenter.current().requestAuthorization(options: authOptions) { granted, error in
       if granted {
         print("Notification permission granted")
-        DispatchQueue.main.async {
-          application.registerForRemoteNotifications()
-        }
       } else {
         print("Notification permission denied: \(error?.localizedDescription ?? "Unknown error")")
       }
