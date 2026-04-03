@@ -98,6 +98,7 @@ class _ResolvedCurrentUserImage extends StatefulWidget {
       _ResolvedCurrentUserImageState();
 }
 
+/// 선택된 사용자 이미지는 즉시 반영하고, key 기반 최신 URL 조회는 프레임 이후에 안전하게 이어갑니다.
 class _ResolvedCurrentUserImageState extends State<_ResolvedCurrentUserImage> {
   String? _resolvedImageUrl;
   int _requestToken = 0;
@@ -106,7 +107,7 @@ class _ResolvedCurrentUserImageState extends State<_ResolvedCurrentUserImage> {
   void initState() {
     super.initState();
     _resolvedImageUrl = _resolveImmediateImageUrl();
-    _refreshResolvedImageUrl();
+    _scheduleResolvedImageRefresh();
   }
 
   @override
@@ -121,8 +122,18 @@ class _ResolvedCurrentUserImageState extends State<_ResolvedCurrentUserImage> {
           _resolvedImageUrl = nextImmediateImageUrl;
         });
       }
-      _refreshResolvedImageUrl();
+      _scheduleResolvedImageRefresh();
     }
+  }
+
+  /// presigned URL 조회는 build phase 밖에서 시작해 Provider 알림이 현재 프레임을 끊지 않게 합니다.
+  void _scheduleResolvedImageRefresh() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _refreshResolvedImageUrl();
+    });
   }
 
   /// 선택된 이미지 URL이 즉시 사용 가능한 경우 반환합니다.

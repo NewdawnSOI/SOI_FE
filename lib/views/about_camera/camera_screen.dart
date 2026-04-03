@@ -1122,6 +1122,8 @@ class _CameraScreenState extends State<CameraScreen>
     );
   }
 
+  /// 카메라 화면은 키보드 표시 시에도 프리뷰 레이아웃을 직접 유지하며,
+  /// 모드별 입력/촬영 UI를 한 곳에서 조립합니다.
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -1133,6 +1135,7 @@ class _CameraScreenState extends State<CameraScreen>
     );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: Color(0xff000000),
       appBar: const CameraAppBar(),
       body: SafeArea(

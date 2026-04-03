@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+// == 패키지 ==
 import 'package:app_links/app_links.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -20,6 +21,7 @@ import 'package:soi/api/controller/audio_controller.dart';
 import 'package:soi/api/controller/friend_controller.dart' as api_friend;
 import 'package:soi/api/controller/user_controller.dart';
 
+// == API ==
 import 'api/api.dart' as api;
 import 'app/app_constants.dart';
 import 'app/app_container_builder.dart';

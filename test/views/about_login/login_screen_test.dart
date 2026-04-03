@@ -79,11 +79,12 @@ Widget _buildTestApp(api.UserController userController) {
               locale: easyContext.locale,
               supportedLocales: easyContext.supportedLocales,
               localizationsDelegates: easyContext.localizationDelegates,
-              routes: {
-                '/home_navigation_screen': (_) =>
-                    const Scaffold(body: Text('HOME')),
-              },
-              home: const LoginScreen(),
+              home: LoginScreen(
+                homeRouteBuilder: (_) => MaterialPageRoute<void>(
+                  builder: (_) => const Scaffold(body: Text('HOME')),
+                  settings: const RouteSettings(name: '/home_navigation_screen'),
+                ),
+              ),
             ),
           ),
         );

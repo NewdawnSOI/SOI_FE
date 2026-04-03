@@ -16,8 +16,11 @@ import 'widgets/common/continue_button.dart';
 import 'widgets/common/custom_text_field.dart';
 import 'widgets/common/page_title.dart';
 
+/// 닉네임과 전화번호 로그인을 처리하고, 성공 시 홈 진입 라우팅까지 이어주는 화면입니다.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.homeRouteBuilder});
+
+  final Route<void> Function(BuildContext context)? homeRouteBuilder;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -343,15 +346,25 @@ class _LoginScreenState extends State<LoginScreen> {
   void _goHomePage() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute<void>(
-        builder: (context) => HomePageNavigationBar(
-          key: HomePageNavigationBar.rootKey,
-          currentPageIndex: 0,
-          requestPushPermissionOnEnter: true,
-        ),
-        settings: const RouteSettings(name: '/home_navigation_screen'),
-      ),
+      _buildHomeRoute(),
       (route) => false,
+    );
+  }
+
+  /// 로그인 이후 도착 화면 생성을 한 곳에 모아 두어 테스트가 실제 홈 전체를 띄우지 않고도 흐름을 검증하게 합니다.
+  Route<void> _buildHomeRoute() {
+    final routeBuilder = widget.homeRouteBuilder;
+    if (routeBuilder != null) {
+      return routeBuilder(context);
+    }
+
+    return MaterialPageRoute<void>(
+      builder: (context) => HomePageNavigationBar(
+        key: HomePageNavigationBar.rootKey,
+        currentPageIndex: 0,
+        requestPushPermissionOnEnter: true,
+      ),
+      settings: const RouteSettings(name: '/home_navigation_screen'),
     );
   }
 

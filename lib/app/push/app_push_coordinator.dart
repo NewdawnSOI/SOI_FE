@@ -483,15 +483,15 @@ StyleInformation _buildAndroidStyleInformation(
   );
 }
 
-/// 앱 푸시 흐름 관리자.
-///
-/// 특징:
-/// - FCM 설정과 로컬 알림 연결.
-/// - 로그인 사용자와 디바이스 토큰 맞춤.
-/// - 대기 중 푸시 이동 처리와 중복 방지.
+/// 앱 푸시 코디네이터 클래스.
+/// - 앱에서 푸시 알림과 관련된 모든 로직을 담당하는 클래스입니다.
+/// - 푸시 권한 요청, 토큰 관리, 포그라운드 알림 표시, 알림 탭 처리, 백그라운드 푸시 처리 등 푸시와 관련된 모든 기능을 한 곳에서 관리합니다.
+/// - 페이지 네비게이션은 [NotificationNavigationHandler]에 위임해서 푸시 데이터에 따라 적절한 화면으로 이동하는 로직을 담당하게 합니다.
 ///
 /// 필드:
 /// - [instance]: 앱 전체에서 함께 쓰는 객체.
+///   - 싱글턴 패턴으로 구현되어 있어서 앱 어디서든 AppPushCoordinator.instance으로 접근해서 같은 객체를 공유할 수 있습니다.
+///   - 푸시 알림과 관련된 상태와 로직을 **한 곳에서 관리하기 위해** 싱글턴 패턴을 사용합니다.
 /// - [channelId]: 공용 알림 채널 ID.
 /// - [_messaging]: Firebase 메시징 객체.
 /// - [_localNotifications]: 앱 안 로컬 알림 객체.
@@ -511,6 +511,9 @@ StyleInformation _buildAndroidStyleInformation(
 /// - [_lastHandledPayloadAt]: 마지막으로 처리한 시각.
 class AppPushCoordinator {
   /// 싱글턴 생성자.
+  /// - 외부에서 생성자 호출을 막고 [instance]를 통해서만 접근하도록 함.
+  /// - 싱글턴 패턴이란, 앱 전체에서 하나의 인스턴스만 만들어서 공유하는 디자인 패턴입니다.
+  /// - 푸시 알림과 관련된 상태와 로직을 "한 곳에서 관리하기 위해" 싱글턴 패턴을 사용합니다.
   AppPushCoordinator._();
 
   /// 앱 전체 공용 인스턴스.

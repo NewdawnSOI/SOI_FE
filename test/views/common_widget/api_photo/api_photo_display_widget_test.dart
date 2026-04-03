@@ -3,15 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:soi/api/controller/comment_controller.dart';
 import 'package:soi/api/controller/media_controller.dart';
-import 'package:soi/api/models/comment.dart';
 import 'package:soi/api/models/post.dart';
+import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/media_service.dart';
 import 'package:soi/views/common_widget/about_comment/pending_api_voice_comment.dart';
 import 'package:soi/views/common_widget/api_photo/api_photo_display_widget.dart';
 import 'package:soi_api_client/api.dart';
 
+class _NoopCommentApi extends CommentAPIApi {}
+
 class _NoopMediaApi extends APIApi {}
+
+/// 포토 디스플레이 테스트에서 댓글 캐시 조회만 제공하는 최소 댓글 컨트롤러입니다.
+class _FakeCommentController extends CommentController {
+  _FakeCommentController()
+    : super(commentService: CommentService(commentApi: _NoopCommentApi()));
+}
 
 /// 포토 디스플레이 테스트에서 presigned URL 응답을 제어하는 미디어 컨트롤러입니다.
 class _FakeMediaController extends MediaController {
@@ -62,8 +71,13 @@ Widget _buildHarness({
   required MediaController mediaController,
   required Post post,
 }) {
-  return ChangeNotifierProvider<MediaController>.value(
-    value: mediaController,
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<CommentController>(
+        create: (_) => _FakeCommentController(),
+      ),
+      ChangeNotifierProvider<MediaController>.value(value: mediaController),
+    ],
     child: ScreenUtilInit(
       designSize: const Size(393, 852),
       builder: (_, __) => MaterialApp(
@@ -73,8 +87,6 @@ Widget _buildHarness({
               post: post,
               categoryId: 1,
               categoryName: 'category',
-              postTagComments: const <int, List<Comment>>{},
-              postComments: const <int, List<Comment>>{},
               onProfileImageDragged: (_, __) {},
               onToggleAudio: (_) {},
               pendingVoiceComments: const <int, PendingApiCommentMarker>{},
