@@ -1,20 +1,25 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import '../../../api/controller/comment_controller.dart';
+import '../../../api/controller/friend_controller.dart';
 import '../../../api/controller/media_controller.dart';
+import '../../../api/controller/post_controller.dart';
 import '../../../api/controller/user_controller.dart';
 import '../../../utils/snackbar_utils.dart';
 import '../../../api/media_processing/waveform_codec.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
+import '../../about_feed/manager/feed_data_manager.dart';
+import '../report/report_bottom_sheet.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
 import 'comment_camera_bottom_sheet_widget.dart';
 import 'comment_text_input_widget.dart';
-import 'widget/about_comment_list_sheet/comment_row_in_list.dart';
+import 'widgets/about_comment_list_sheet/comment_row_in_list.dart';
 
 /// 댓글 리스트를 보여주는 바텀 시트
 /// Comment.dart(Model)을 사용하여 댓글 정보를 표시합니다.
@@ -64,6 +69,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   late final TextEditingController _replyDraftController;
   late final FocusNode _replyDraftFocusNode;
   late List<Comment> _comments;
+  final GlobalKey _sheetStackKey = GlobalKey(debugLabel: 'comment_sheet_stack');
   final GlobalKey _commentListViewportKey = GlobalKey(
     debugLabel: 'comment_list_viewport',
   );
@@ -71,33 +77,38 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   final Set<String> _expandedReplyParentKeys = <String>{};
   bool _isHydratingComments = false;
 
-  // 특정 댓글 스레드를 수동으로 강조 표시하기 위한 키입니다.
-  // null이면 선택된 댓글 기준으로 자동 강조 표시합니다.
+  /// 특정 댓글 스레드를 수동으로 강조 표시하기 위한 키입니다.
+  /// null이면 선택된 댓글 기준으로 자동 강조 표시합니다.
   String? _manuallyHighlightedThreadKey;
 
-  // 현재 대댓글 입력 모드로 진입한 상태에서, 답글 대상 댓글을 나타내는 변수입니다.
-  // null이면 대댓글 입력 모드가 아닌 상태입니다.
+  /// 현재 대댓글 입력 모드로 진입한 상태에서, 답글 대상 댓글을 나타내는 변수입니다.
+  /// null이면 대댓글 입력 모드가 아닌 상태입니다.
   Comment? _replyTargetComment;
 
-  // 카메라/미디어 첨부 시트에서 답글 대상 댓글을 참조하기 위한 변수입니다.
-  // 대댓글 입력 모드로 진입했을 때의 답글 대상을 참조합니다.
+  /// 카메라/미디어 첨부 시트에서 답글 대상 댓글을 참조하기 위한 변수입니다.
+  /// 대댓글 입력 모드로 진입했을 때의 답글 대상을 참조합니다.
   Comment? _attachmentReplyTarget;
 
-  // 대댓글 입력 모드로 진입했는지 여부를 나타내는 플래그입니다.
-  // 이 플래그가 true인 상태에서 입력 필드에 텍스트가 없는 경우에도 대댓글 입력 모드가 유지됩니다.
+  /// 대댓글 입력 모드로 진입했는지 여부를 나타내는 플래그입니다.
+  /// 이 플래그가 true인 상태에서 입력 필드에 텍스트가 없는 경우에도 대댓글 입력 모드가 유지됩니다.
   bool _isReplyDraftArmed = false;
 
-  // 텍스트 입력 모드로 진입했는지 여부를 나타내는 플래그입니다.
+  /// 텍스트 입력 모드로 진입했는지 여부를 나타내는 플래그입니다.
   bool _isTextInputMode = false;
 
-  // 첨부 기능 시트(카메라, 음성)가 열려있는지 여부를 나타내는 플래그입니다.
+  /// 첨부 기능 시트(카메라, 음성)가 열려있는지 여부를 나타내는 플래그입니다.
   bool _isOpeningAttachmentSheet = false;
 
-  // 텍스트 입력 모드로 진입했을 때, 입력 필드에 초기값으로 들어갈 텍스트입니다.
+  /// 텍스트 입력 모드로 진입했을 때, 입력 필드에 초기값으로 들어갈 텍스트입니다.
   String _pendingInitialReplyText = '';
 
-  // 댓글 리스트에서 각 댓글 사이에 들어가는 구분선 위젯의 수직 패딩입니다.
+  /// 댓글 리스트에서 각 댓글 사이에 들어가는 구분선 위젯의 수직 패딩입니다.
   int _textInputSession = 0;
+
+  /// 인라인 액션 드로어가 열려있는 댓글의 키입니다.
+  /// 한 번에 한 댓글의 드로어만 열리도록 관리합니다.
+  String? _expandedActionCommentKey;
+  Rect? _expandedActionAnchorRect;
 
   /// 외부에서 전달된 선택 키에서 댓글 식별 숫자를 추출합니다.
   int? _selectedCommentNumericId(String? selectedCommentId) {
@@ -107,6 +118,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     return int.tryParse(parts.last);
   }
 
+  /// 댓글 객체가 저장된 댓글인지 확인하고, 저장된 댓글이 아니면 null을 반환하는 함수입니다.
   Comment? _persistedCommentOrNull(Comment? comment) {
     if (comment == null) {
       return null;
@@ -117,6 +129,17 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     return comment;
   }
 
+  /// 저장된 댓글 정보를 찾기 위한 함수입니다.
+  /// - 직접 전달된 댓글이 저장된 댓글인지 먼저 확인하고,
+  ///   그렇지 않은 경우에는 API에서 댓글 리스트를 조회하여 matcher 함수를 사용해 저장된 댓글을 찾습니다.
+  ///
+  /// Parameters:
+  /// - [directComment]: 댓글 저장 요청의 API 응답에서 직접 전달된 댓글 객체입니다. 이 객체가 저장된 댓글인지 먼저 확인합니다.
+  /// - [matcher]: API에서 조회한 댓글 리스트에서 저장된 댓글을 찾기 위한 함수입니다. 댓글 리스트를 입력으로 받아서 저장된 댓글을 반환해야 합니다.
+  ///
+  /// Returns:
+  /// - [Comment]: 저장된 댓글 객체입니다. 저장된 댓글을 찾지 못한 경우에는 StateError를 던집니다.
+  ///
   Future<Comment> _resolvePersistedComment({
     required Comment? directComment,
     required Comment? Function(List<Comment> comments) matcher,
@@ -216,6 +239,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     return null;
   }
 
+  /// 저장된 미디어 댓글을 찾는 함수입니다.
+  /// - 댓글 리스트에서 현재 로그인한 사용자가 작성한 댓글 중에서, 대댓글인 경우에는 답글 대상과 스레드 관계가 일치하는 댓글을 찾습니다.
   Comment? _findSavedMediaReplyComment({
     required List<Comment> comments,
     required int userId,
@@ -363,6 +388,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       setState(() {
         _comments = hydratedComments.toList();
         _expandedReplyParentKeys.clear();
+        _expandedActionCommentKey = null;
+        _expandedActionAnchorRect = null;
         _expandSelectedReplyParentIfNeeded();
         _isHydratingComments = false;
       });
@@ -417,6 +444,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _isReplyDraftArmed = true;
       _isTextInputMode = false;
       _pendingInitialReplyText = '';
+      _expandedActionCommentKey = null;
+      _expandedActionAnchorRect = null;
     });
 
     _replyDraftController.clear();
@@ -442,6 +471,65 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _commentKeyId(comment),
       () => GlobalKey(debugLabel: 'comment_${_commentKeyId(comment)}'),
     );
+  }
+
+  /// 현재 로그인 사용자가 작성한 댓글인지 userId 기준으로 판별합니다.
+  bool _isOwnedByCurrentUser(Comment comment) {
+    final currentUserId = context.read<UserController>().currentUser?.id;
+    return currentUserId != null &&
+        comment.userId != null &&
+        comment.userId == currentUserId;
+  }
+
+  /// 롱프레스된 댓글의 위치를 시트 좌표로 환산해 팝업 메뉴 앵커를 갱신합니다.
+  Rect? _resolveCommentAnchorRect(Comment comment) {
+    final stackContext = _sheetStackKey.currentContext;
+    final commentContext = _keyForComment(comment).currentContext;
+    if (stackContext == null || commentContext == null) {
+      return null;
+    }
+
+    final stackBox = stackContext.findRenderObject() as RenderBox?;
+    final commentBox = commentContext.findRenderObject() as RenderBox?;
+    if (stackBox == null || commentBox == null) {
+      return null;
+    }
+
+    final topLeft = stackBox.globalToLocal(
+      commentBox.localToGlobal(Offset.zero),
+    );
+    return topLeft & commentBox.size;
+  }
+
+  /// 팝업 메뉴는 한 번에 한 댓글만 열리도록 현재 열린 키와 앵커 위치를 함께 관리합니다.
+  void _setExpandedActionComment(Comment comment) {
+    final nextKey = _commentKeyId(comment);
+    final nextAnchorRect = _resolveCommentAnchorRect(comment);
+    if (nextAnchorRect == null || !mounted) {
+      return;
+    }
+
+    if (_expandedActionCommentKey == nextKey &&
+        _expandedActionAnchorRect == nextAnchorRect) {
+      return;
+    }
+
+    setState(() {
+      _expandedActionCommentKey = nextKey;
+      _expandedActionAnchorRect = nextAnchorRect;
+    });
+  }
+
+  /// 팝업 메뉴는 외부 탭, 스크롤, 액션 완료 시 즉시 닫힙니다.
+  void _collapseExpandedActionComment() {
+    if (_expandedActionCommentKey == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _expandedActionCommentKey = null;
+      _expandedActionAnchorRect = null;
+      _expandedActionAnchorRect = null;
+    });
   }
 
   Future<void> _scrollCommentAboveActionBar(
@@ -554,6 +642,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _isReplyDraftArmed = false;
       _isTextInputMode = false;
       _pendingInitialReplyText = '';
+      _expandedActionCommentKey = null;
+      _expandedActionAnchorRect = null;
     });
     _replyDraftController.clear();
     _replyDraftFocusNode.unfocus();
@@ -925,6 +1015,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _isReplyDraftArmed = false;
       _isTextInputMode = false;
       _pendingInitialReplyText = '';
+      _expandedActionCommentKey = null;
+      _expandedActionAnchorRect = null;
     });
     _notifyCommentsUpdated();
   }
@@ -1035,7 +1127,11 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     );
   }
 
-  /// 대댓글의 부모 원댓글을 명시적 parentId로 찾고, 없을 때만 기존 리스트 순서 추론을 사용합니다.
+  /// 대댓글인 경우, 댓글 리스트에서 부모 댓글을 찾아 반환하는 함수입니다.
+  /// - 댓글이 대댓글이 아닌 경우에는 자기 자신을 반환합니다.
+  /// - 댓글이 대댓글인데 명시적인 부모 ID(threadParentId)가 있는 경우에는 해당 ID를 가진 댓글을 찾아 반환합니다.
+  /// - 명시적인 부모 ID가 없거나 해당 ID를 가진 댓글을 찾지 못한 경우에는,
+  ///   댓글 리스트에서 해당 댓글보다 앞에 위치한 댓글들을 역순으로 탐색하여 가장 가까운 부모 댓글(대댓글이 아닌 댓글)을 찾아 반환합니다.
   Comment? _findParentComment(Comment comment) {
     if (!comment.isReply) return comment;
 
@@ -1100,6 +1196,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _expandedReplyParentKeys.add(parentKey); // 해당 스레드의 대댓글을 펼칩니다.
       _manuallyHighlightedThreadKey =
           parentKey; // 대댓글이 펼쳐질 때 해당 스레드를 수동으로 강조 표시하도록 설정합니다.
+      _expandedActionCommentKey = null;
+      _expandedActionAnchorRect = null;
     });
   }
 
@@ -1115,7 +1213,372 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       if (_manuallyHighlightedThreadKey == parentKey) {
         _manuallyHighlightedThreadKey = null;
       }
+      _expandedActionCommentKey = null;
+      _expandedActionAnchorRect = null;
     });
+  }
+
+  /// 댓글 작성자 신고는 기존 신고 사유 바텀시트 흐름을 그대로 재사용합니다.
+  Future<void> _reportCommentAuthor(Comment comment) async {
+    _collapseExpandedActionComment();
+    final result = await ReportBottomSheet.show(context);
+    if (result == null || !mounted) {
+      return;
+    }
+    _showSnackBar(tr('common.report_submit_success'));
+  }
+
+  /// 댓글 작성자 차단은 기존 차단 확인과 피드 반영 흐름을 댓글 시트에서도 재사용합니다.
+  Future<void> _blockCommentAuthor(Comment comment) async {
+    _collapseExpandedActionComment();
+
+    final userController = context.read<UserController>();
+    final friendController = context.read<FriendController>();
+    final feedDataManager = context.read<FeedDataManager>();
+    final postController = context.read<PostController>();
+    final messenger = ScaffoldMessenger.of(context);
+    final currentUser = userController.currentUser;
+    if (currentUser == null) {
+      SnackBarUtils.showWithMessenger(messenger, tr('common.login_required'));
+      return;
+    }
+
+    final shouldBlock = await _showBlockConfirmation();
+    if (shouldBlock != true || !mounted) {
+      return;
+    }
+
+    final nickname = (comment.nickname ?? '').trim();
+    if (nickname.isEmpty) {
+      SnackBarUtils.showWithMessenger(
+        messenger,
+        tr('common.user_info_unavailable'),
+      );
+      return;
+    }
+
+    final targetUser = await userController.getUserByNickname(nickname);
+    if (targetUser == null) {
+      SnackBarUtils.showWithMessenger(
+        messenger,
+        tr('common.user_info_unavailable'),
+      );
+      return;
+    }
+
+    final ok = await friendController.blockFriend(
+      requesterId: currentUser.id,
+      receiverId: targetUser.id,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    if (ok) {
+      feedDataManager.removePostsByNickname(nickname);
+      postController.notifyPostsChanged();
+      SnackBarUtils.showWithMessenger(messenger, tr('common.block_success'));
+      return;
+    }
+
+    SnackBarUtils.showWithMessenger(messenger, tr('common.block_failed'));
+  }
+
+  /// 댓글 삭제는 현재 시트 목록과 controller 캐시를 같은 결과로 동기화합니다.
+  Future<void> _deleteComment(Comment comment) async {
+    final targetId = comment.id;
+    if (targetId == null) {
+      _showSnackBar(tr('comments.delete_unavailable'));
+      return;
+    }
+
+    final commentController = context.read<CommentController>();
+    try {
+      final success = await commentController.deleteComment(targetId);
+      if (!mounted) {
+        return;
+      }
+
+      if (!success) {
+        _showSnackBar(tr('comments.delete_failed'));
+        return;
+      }
+
+      _removeDeletedCommentFromLocalState(comment);
+      _showSnackBar(tr('comments.delete_success'));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(tr('comments.delete_error'));
+    }
+  }
+
+  /// 부모 댓글 삭제 시 같은 스레드의 자식도 함께 제거해 고아 대댓글이 남지 않도록 정리합니다.
+  void _removeDeletedCommentFromLocalState(Comment comment) {
+    final deletedKey = _commentKeyId(comment);
+    final deletedThreadId = _replyThreadParentId(comment);
+
+    setState(() {
+      if (comment.isReply) {
+        final parentComment = _findParentComment(comment);
+        if (parentComment != null) {
+          final parentIndex = _indexOfComment(parentComment);
+          if (parentIndex >= 0) {
+            final currentParent = _comments[parentIndex];
+            _comments[parentIndex] = currentParent.copyWith(
+              replyCommentCount: ((currentParent.replyCommentCount ?? 1) - 1)
+                  .clamp(0, 1 << 20),
+            );
+          }
+        }
+        _comments.removeWhere((candidate) => candidate.id == comment.id);
+      } else {
+        _comments.removeWhere(
+          (candidate) =>
+              candidate.id == comment.id ||
+              (candidate.isReply &&
+                  deletedThreadId != null &&
+                  candidate.threadParentId == deletedThreadId),
+        );
+        _expandedReplyParentKeys.remove(deletedKey);
+      }
+
+      if (_replyTargetComment?.id == comment.id ||
+          _replyThreadParentId(_replyTargetComment) == deletedThreadId) {
+        _replyTargetComment = null;
+        _attachmentReplyTarget = null;
+        _isReplyDraftArmed = false;
+        _isTextInputMode = false;
+        _pendingInitialReplyText = '';
+      }
+      if (_manuallyHighlightedThreadKey == deletedKey) {
+        _manuallyHighlightedThreadKey = null;
+      }
+      _expandedActionCommentKey = null;
+      _expandedActionAnchorRect = null;
+    });
+
+    context.read<CommentController>().replaceCommentsCache(
+      postId: widget.postId,
+      comments: _comments,
+    );
+    _notifyCommentsUpdated();
+  }
+
+  /// 댓글 차단 전 사용자 확인을 받아 실수로 차단하는 상황을 막습니다.
+  Future<bool?> _showBlockConfirmation() {
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: const Color(0xff323232),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: 17.sp),
+              Text(
+                tr('common.block_confirm'),
+                style: TextStyle(
+                  color: const Color(0xFFF8F8F8),
+                  fontSize: 19.78.sp,
+                  fontFamily: 'Pretendard Variable',
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 12.sp),
+              SizedBox(
+                height: 38.sp,
+                width: 344.sp,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(sheetContext).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xfff5f5f5),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.2.r),
+                    ),
+                  ),
+                  child: Text(
+                    tr('common.yes'),
+                    style: TextStyle(
+                      fontFamily: 'Pretendard',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 17.8.sp,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: 13.sp),
+              SizedBox(
+                height: 38.sp,
+                width: 344.sp,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(sheetContext).pop(false),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF323232),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14.2.r),
+                    ),
+                  ),
+                  child: Text(
+                    tr('common.no'),
+                    style: TextStyle(
+                      fontFamily: 'Pretendard',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 17.8.sp,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: 30.sp),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 현재 팝업이 열려있는 댓글을 찾아 팝업 메뉴 액션 분기를 계산합니다.
+  Comment? _expandedActionComment() {
+    final expandedKey = _expandedActionCommentKey;
+    if (expandedKey == null) {
+      return null;
+    }
+
+    return _comments.cast<Comment?>().firstWhere(
+      (comment) => comment != null && _commentKeyId(comment) == expandedKey,
+      orElse: () => null,
+    );
+  }
+
+  /// 롱프레스 팝업 메뉴는 시트 레이아웃을 밀지 않고 댓글 위에 겹쳐서 렌더링합니다.
+  Widget _buildExpandedActionPopup() {
+    final anchorRect = _expandedActionAnchorRect;
+    final comment = _expandedActionComment();
+    if (anchorRect == null || comment == null) {
+      return const SizedBox.shrink();
+    }
+
+    const horizontalMargin = 16.0;
+    final menuWidth = _isOwnedByCurrentUser(comment) ? 140.w : 188.w;
+    final popupLeft = (anchorRect.right - menuWidth).clamp(
+      horizontalMargin,
+      MediaQuery.of(context).size.width - menuWidth - horizontalMargin,
+    );
+    final popupTop = anchorRect.bottom - 4.sp;
+
+    return Positioned(
+      left: popupLeft,
+      top: popupTop,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, (1 - value) * -12.sp),
+              child: Transform.scale(
+                scale: 0.96 + (0.04 * value),
+                alignment: Alignment.topRight,
+                child: child,
+              ),
+            ),
+          );
+        },
+        child: Material(
+          color: Colors.transparent,
+          child: _isOwnedByCurrentUser(comment)
+              ? _buildPopupActionButton(
+                  label: tr('comments.delete'),
+                  onTap: () => _deleteComment(comment),
+                  isDestructive: true,
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildPopupActionButton(
+                      label: tr('common.report'),
+                      onTap: () => _reportCommentAuthor(comment),
+                    ),
+                    SizedBox(width: 10.sp),
+                    _buildPopupActionButton(
+                      label: tr('common.block'),
+                      onTap: () => _blockCommentAuthor(comment),
+                      isDestructive: true,
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// 팝업 메뉴를 빌드하는 위젯 함수.
+  /// isDestructive 플래그에 따라 스타일이 달라지며, 삭제 액션인 경우 아이콘과 강조된 텍스트 스타일이 적용됩니다.
+  ///
+  /// Parameters:
+  /// - [label]: 버튼에 표시될 텍스트입니다.
+  /// - [onTap]: 버튼이 탭되었을 때 실행될 콜백 함수입니다.
+  /// - [isDestructive]: 이 버튼이 파괴적인 액션(예: 삭제)을 나타내는지 여부입니다. 기본값은 false입니다.
+  ///
+  /// Returns:
+  /// - [Widget]: 스타일이 적용된 팝업 액션 버튼 위젯입니다.
+  Widget _buildPopupActionButton({
+    required String label,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    final isDeleteAction = isDestructive && label == tr('comments.delete');
+    return SizedBox(
+      height: 45.sp,
+      child: TextButton(
+        onPressed: onTap,
+        style: TextButton.styleFrom(
+          backgroundColor: const Color(0xFF323232),
+
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14.r),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 16.sp),
+        ),
+        // 댓글 삭제 액션 팝업을 띄우는 부분
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            if (isDeleteAction) ...[
+              Image.asset(
+                'assets/trash_red.png',
+                width: 16.w,
+                height: 16.h,
+                fit: BoxFit.contain,
+              ),
+              SizedBox(width: 12.sp),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: isDeleteAction ? 15.sp : 13.sp,
+                fontWeight: isDeleteAction ? FontWeight.w500 : FontWeight.w600,
+                color: isDeleteAction ? const Color(0xFFFF0000) : null,
+                fontFamily: 'Pretendard',
+                letterSpacing: isDeleteAction ? 0 : -0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showSnackBar(String message) {
@@ -1178,133 +1641,153 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Container(
-        width: double.infinity,
-        height: sheetHeight,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1c1c1c),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24.8),
-            topRight: Radius.circular(24.8),
-          ),
-        ),
-        padding: EdgeInsets.only(bottom: 10.sp),
-        child: Column(
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _collapseExpandedActionComment,
+        child: Stack(
+          key: _sheetStackKey,
           children: [
-            SizedBox(height: 20.sp),
-            Text(
-              tr('comments.title', context: context),
-              style: TextStyle(
-                color: const Color(0xFFF8F8F8),
-                fontSize: 18.sp,
-                fontFamily: 'Pretendard Variable',
-                fontWeight: FontWeight.w700,
+            Container(
+              width: double.infinity,
+              height: sheetHeight,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1c1c1c),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24.8),
+                  topRight: Radius.circular(24.8),
+                ),
+              ),
+              padding: EdgeInsets.only(bottom: 10.sp),
+              child: Column(
+                children: [
+                  SizedBox(height: 20.sp),
+                  Text(
+                    tr('comments.title', context: context),
+                    style: TextStyle(
+                      color: const Color(0xFFF8F8F8),
+                      fontSize: 18.sp,
+                      fontFamily: 'Pretendard Variable',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 15.sp),
+                  if (_isHydratingComments)
+                    const LinearProgressIndicator(
+                      minHeight: 2,
+                      color: Color(0xFFF8F8F8),
+                      backgroundColor: Color(0xFF323232),
+                    ),
+                  _buildCommentList(),
+                  _buildCommentActionBar(),
+                ],
               ),
             ),
-            SizedBox(height: 15.sp),
-            if (_isHydratingComments)
-              const LinearProgressIndicator(
-                minHeight: 2,
-                color: Color(0xFFF8F8F8),
-                backgroundColor: Color(0xFF323232),
-              ),
-            _buildCommentList(),
-            //SizedBox(height: 10.sp),
-            _buildCommentActionBar(),
+            if (_expandedActionCommentKey != null) _buildExpandedActionPopup(),
           ],
         ),
       ),
     );
   }
 
+  /// 스크롤 시작 시 열린 액션 드로어를 닫아 한 번에 한 메뉴만 유지합니다.
+  bool _handleCommentListScrollNotification(ScrollNotification notification) {
+    if (notification is UserScrollNotification &&
+        notification.direction != ScrollDirection.idle) {
+      _collapseExpandedActionComment();
+    }
+    return false;
+  }
+
   Widget _buildCommentList() {
-    // 선택된 댓글이 속한 스레드를 강조 표시하기 위한 키를 계산합니다.
     final highlightedThreadKey = _highlightThreadKey(widget.selectedCommentId);
     final visibleComments = _visibleComments();
     return Expanded(
       child: Container(
         key: _commentListViewportKey,
-        child: _comments.isEmpty
-            ? LayoutBuilder(
-                builder: (context, constraints) {
-                  return ListView(
-                    controller: _scrollController,
-                    physics: const BouncingScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
-                    ),
-                    children: [
-                      SizedBox(
-                        height: constraints.maxHeight,
-                        child: Center(
-                          child: Text(
-                            tr('comments.empty', context: context),
-                            style: TextStyle(
-                              color: const Color(0xFF9E9E9E),
-                              fontSize: 16.sp,
-                              fontFamily: 'Pretendard',
-                              fontWeight: FontWeight.w500,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _handleCommentListScrollNotification,
+          child: _comments.isEmpty
+              ? LayoutBuilder(
+                  builder: (context, constraints) {
+                    return ListView(
+                      controller: _scrollController,
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      children: [
+                        SizedBox(
+                          height: constraints.maxHeight,
+                          child: Center(
+                            child: Text(
+                              tr('comments.empty', context: context),
+                              style: TextStyle(
+                                color: const Color(0xFF9E9E9E),
+                                fontSize: 16.sp,
+                                fontFamily: 'Pretendard',
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ),
+                      ],
+                    );
+                  },
+                )
+              : ListView.separated(
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  primary: false,
+                  itemCount: visibleComments.length,
+                  separatorBuilder: (_, index) {
+                    final current = visibleComments[index];
+                    final next = visibleComments[index + 1];
+                    return _buildCommentSeparator(
+                      current: current,
+                      next: next,
+                      currentHighlighted: _belongsToHighlightedThread(
+                        current,
+                        highlightedThreadKey,
                       ),
-                    ],
-                  );
-                },
-              )
-            : ListView.separated(
-                controller: _scrollController,
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
+                      nextHighlighted: _belongsToHighlightedThread(
+                        next,
+                        highlightedThreadKey,
+                      ),
+                    );
+                  },
+                  itemBuilder: (context, index) {
+                    final comment = visibleComments[index];
+                    final commentKey = _commentKeyId(comment);
+                    final isHighlighted = _belongsToHighlightedThread(
+                      comment,
+                      highlightedThreadKey,
+                    );
+                    return KeyedSubtree(
+                      key: _keyForComment(comment),
+                      child: ApiCommentRow(
+                        comment: comment,
+                        isHighlighted: isHighlighted,
+                        isActionExpanded:
+                            _expandedActionCommentKey == commentKey,
+                        onLongPress: () => _setExpandedActionComment(comment),
+                        onReplyTap: (target) =>
+                            _showReplyInput(replyTarget: target),
+                        showHideRepliesButton:
+                            !comment.isReply &&
+                            (comment.replyCommentCount ?? 0) > 0 &&
+                            _expandedReplyParentKeys.contains(commentKey),
+                        showViewMoreRepliesButton:
+                            !comment.isReply &&
+                            (comment.replyCommentCount ?? 0) > 0 &&
+                            !_expandedReplyParentKeys.contains(commentKey),
+                        onHideRepliesTap: _hideRepliesForComment,
+                        onViewMoreRepliesTap: _showRepliesForComment,
+                      ),
+                    );
+                  },
                 ),
-                primary: false,
-                itemCount: visibleComments.length,
-                separatorBuilder: (_, index) {
-                  final current = visibleComments[index];
-                  final next = visibleComments[index + 1];
-                  return _buildCommentSeparator(
-                    current: current,
-                    next: next,
-                    currentHighlighted: _belongsToHighlightedThread(
-                      current,
-                      highlightedThreadKey,
-                    ),
-                    nextHighlighted: _belongsToHighlightedThread(
-                      next,
-                      highlightedThreadKey,
-                    ),
-                  );
-                },
-                itemBuilder: (context, index) {
-                  final comment = visibleComments[index];
-                  final isHighlighted = _belongsToHighlightedThread(
-                    comment,
-                    highlightedThreadKey,
-                  );
-                  return KeyedSubtree(
-                    key: _keyForComment(comment),
-                    child: ApiCommentRow(
-                      comment: comment,
-                      isHighlighted: isHighlighted,
-                      onReplyTap: (target) =>
-                          _showReplyInput(replyTarget: target),
-                      showHideRepliesButton:
-                          !comment.isReply &&
-                          (comment.replyCommentCount ?? 0) > 0 &&
-                          _expandedReplyParentKeys.contains(
-                            _commentKeyId(comment),
-                          ),
-                      showViewMoreRepliesButton:
-                          !comment.isReply &&
-                          (comment.replyCommentCount ?? 0) > 0 &&
-                          !_expandedReplyParentKeys.contains(
-                            _commentKeyId(comment),
-                          ),
-                      onHideRepliesTap: _hideRepliesForComment,
-                      onViewMoreRepliesTap: _showRepliesForComment,
-                    ),
-                  );
-                },
-              ),
+        ),
       ),
     );
   }

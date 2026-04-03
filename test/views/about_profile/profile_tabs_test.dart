@@ -27,7 +27,7 @@ import 'package:soi/views/about_profile/profile_page.dart';
 import 'package:soi/views/about_profile/widgets/profile_main_header.dart';
 import 'package:soi/views/about_profile/widgets/profile_main_tab_views.dart';
 import 'package:soi/views/about_profile/widgets/threaded_comment_row.dart';
-import 'package:soi/views/common_widget/about_comment/widget/about_comment_list_sheet/comment_row_in_list.dart';
+import 'package:soi/views/common_widget/about_comment/widgets/about_comment_list_sheet/comment_row_in_list.dart';
 import 'package:soi_api_client/api.dart';
 
 class _InMemoryAssetLoader extends AssetLoader {
@@ -62,6 +62,7 @@ class _InMemoryAssetLoader extends AssetLoader {
         'hide_replies': '답글 숨기기',
         'add_comment': '댓글을 입력하세요',
         'save_failed': '댓글 저장에 실패했습니다.',
+        'delete': '댓글 삭제',
       },
     };
   }
@@ -973,6 +974,33 @@ void main() {
       );
       expect(networkImage.imageUrl, 'https://example.com/profiles/current.png');
       expect(networkImage.cacheKey, 'profiles/current.png');
+    });
+
+    testWidgets('댓글 행 자체는 팝업 메뉴 텍스트를 레이아웃 안에 직접 렌더링하지 않는다', (tester) async {
+      await _setPhoneSurface(tester);
+
+      await tester.pumpWidget(
+        _buildHarness(
+          userController: _FakeUserController(currentUser: _fakeUser),
+          child: ApiCommentRow(
+            comment: Comment(
+              id: 10,
+              userId: _fakeUserId,
+              nickname: _fakeUserIdStr,
+              text: '내 댓글',
+              type: CommentType.text,
+              createdAt: DateTime(2025, 3, 4),
+            ),
+            isActionExpanded: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('내 댓글'), findsOneWidget);
+      expect(find.text('댓글 삭제'), findsNothing);
+      expect(find.text('신고'), findsNothing);
+      expect(find.text('차단'), findsNothing);
     });
   });
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../api/models/comment.dart';
-import '../../common_widget/about_comment/widget/about_comment_list_sheet/comment_row_in_list.dart';
+import '../../common_widget/about_comment/widgets/about_comment_list_sheet/comment_row_in_list.dart';
 
 /// 프로필 탭에서만 쓰는 댓글 행으로, 공용 댓글 레이아웃에 프로필 탭 전용 액션 표시 정책만 덧입힙니다.
 class ThreadedCommentRow extends StatelessWidget {

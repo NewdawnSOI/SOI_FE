@@ -25,6 +25,9 @@ class _InMemoryAssetLoader extends AssetLoader {
       'common': {
         'login_required': '로그인이 필요합니다.',
         'user_info_unavailable': '사용자 정보를 불러올 수 없습니다.',
+        'report': '신고',
+        'block': '차단',
+        'report_submit_success': '신고가 접수되었습니다.',
       },
       'comments': {
         'title': '댓글',
@@ -34,6 +37,11 @@ class _InMemoryAssetLoader extends AssetLoader {
         'add_comment': '댓글을 입력하세요',
         'empty': '댓글이 없습니다.',
         'save_failed': '댓글 저장에 실패했습니다.',
+        'delete': '댓글 삭제',
+        'delete_unavailable': '삭제할 수 없는 댓글입니다.',
+        'delete_success': '댓글이 삭제되었습니다.',
+        'delete_failed': '댓글 삭제에 실패했습니다.',
+        'delete_error': '댓글 삭제 중 오류가 발생했습니다.',
       },
     };
   }
@@ -72,6 +80,8 @@ class _CapturingCommentController extends CommentController {
   int? capturedReplyUserId;
   String? capturedText;
   CommentType? capturedType;
+  int? deletedCommentId;
+  List<Comment>? replacedCacheComments;
 
   @override
   /// 시트가 저장 요청에 사용하는 답글 payload를 캡처하고 성공 응답을 돌려줍니다.
@@ -97,6 +107,20 @@ class _CapturingCommentController extends CommentController {
     capturedText = text;
     capturedType = type;
     return CommentCreationResult(success: true, comment: createdComment);
+  }
+
+  @override
+  Future<bool> deleteComment(int commentId) async {
+    deletedCommentId = commentId;
+    return true;
+  }
+
+  @override
+  void replaceCommentsCache({
+    required int postId,
+    required List<Comment> comments,
+  }) {
+    replacedCacheComments = List<Comment>.from(comments);
   }
 }
 
@@ -304,5 +328,162 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.text('대댓글'), findsOneWidget);
     expect(updatedComments?.map((comment) => comment.id), [100, 200]);
+  });
+
+  testWidgets('long press expands inline action drawer and only one stays open', (
+    tester,
+  ) async {
+    await _setPhoneSurface(tester);
+
+    final currentUser = User(
+      id: 999,
+      userId: 'me',
+      name: '테스트 유저',
+      phoneNumber: '01099999999',
+    );
+    final myComment = Comment(
+      id: 100,
+      userId: currentUser.id,
+      nickname: currentUser.userId,
+      text: '내 댓글',
+      createdAt: DateTime(2026, 3, 1),
+      type: CommentType.text,
+    );
+    final otherComment = Comment(
+      id: 200,
+      userId: 123,
+      nickname: 'other',
+      text: '남의 댓글',
+      createdAt: DateTime(2026, 3, 2),
+      type: CommentType.text,
+    );
+
+    await tester.pumpWidget(
+      _buildHarness(
+        userController: _FakeUserController(currentUser: currentUser),
+        commentController: _CapturingCommentController(createdComment: myComment),
+        child: ApiVoiceCommentListSheet(
+          postId: 77,
+          initialComments: [myComment, otherComment],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.text('내 댓글'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('댓글 삭제'), findsOneWidget);
+    expect(find.text('신고'), findsNothing);
+    expect(find.text('차단'), findsNothing);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+
+    await tester.longPress(find.text('남의 댓글'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('댓글 삭제'), findsNothing);
+    expect(find.text('신고'), findsOneWidget);
+    expect(find.text('차단'), findsOneWidget);
+  });
+
+  testWidgets('tapping outside closes expanded inline action drawer', (
+    tester,
+  ) async {
+    await _setPhoneSurface(tester);
+
+    final currentUser = User(
+      id: 999,
+      userId: 'me',
+      name: '테스트 유저',
+      phoneNumber: '01099999999',
+    );
+    final comment = Comment(
+      id: 100,
+      userId: currentUser.id,
+      nickname: currentUser.userId,
+      text: '내 댓글',
+      createdAt: DateTime(2026, 3, 1),
+      type: CommentType.text,
+    );
+
+    await tester.pumpWidget(
+      _buildHarness(
+        userController: _FakeUserController(currentUser: currentUser),
+        commentController: _CapturingCommentController(createdComment: comment),
+        child: ApiVoiceCommentListSheet(
+          postId: 77,
+          initialComments: [comment],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.text('내 댓글'));
+    await tester.pumpAndSettle();
+    expect(find.text('댓글 삭제'), findsOneWidget);
+
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    expect(find.text('댓글 삭제'), findsNothing);
+  });
+
+  testWidgets('deleting my comment removes it from sheet and syncs cache', (
+    tester,
+  ) async {
+    await _setPhoneSurface(tester);
+
+    final currentUser = User(
+      id: 999,
+      userId: 'me',
+      name: '테스트 유저',
+      phoneNumber: '01099999999',
+    );
+    final myComment = Comment(
+      id: 100,
+      userId: currentUser.id,
+      nickname: currentUser.userId,
+      text: '삭제할 댓글',
+      createdAt: DateTime(2026, 3, 1),
+      type: CommentType.text,
+    );
+    final otherComment = Comment(
+      id: 200,
+      userId: 123,
+      nickname: 'other',
+      text: '남는 댓글',
+      createdAt: DateTime(2026, 3, 2),
+      type: CommentType.text,
+    );
+    final commentController = _CapturingCommentController(
+      createdComment: myComment,
+    );
+    List<Comment>? updatedComments;
+
+    await tester.pumpWidget(
+      _buildHarness(
+        userController: _FakeUserController(currentUser: currentUser),
+        commentController: commentController,
+        child: ApiVoiceCommentListSheet(
+          postId: 77,
+          initialComments: [myComment, otherComment],
+          onCommentsUpdated: (comments) => updatedComments = comments,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.text('삭제할 댓글'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('댓글 삭제'));
+    await tester.pumpAndSettle();
+
+    expect(commentController.deletedCommentId, 100);
+    expect(find.text('삭제할 댓글'), findsNothing);
+    expect(find.text('남는 댓글'), findsOneWidget);
+    expect(updatedComments?.map((comment) => comment.id), [200]);
+    expect(commentController.replacedCacheComments?.map((comment) => comment.id), [
+      200,
+    ]);
   });
 }
