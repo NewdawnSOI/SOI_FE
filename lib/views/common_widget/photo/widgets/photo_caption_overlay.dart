@@ -3,7 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../first_line_ellipsis_text.dart';
-import 'api_photo_circle_avatar.dart';
+import 'photo_circle_avatar.dart';
 
 class ApiPhotoCaptionOverlay extends StatelessWidget {
   ///

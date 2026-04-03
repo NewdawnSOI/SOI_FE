@@ -12,7 +12,7 @@ import 'package:soi/api/models/comment_creation_result.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/user_service.dart';
-import 'package:soi/views/common_widget/about_comment/api_voice_comment_list_sheet.dart';
+import 'package:soi/views/common_widget/about_comment/comment_list_bottom_sheet.dart';
 import 'package:soi_api_client/api.dart';
 
 /// 댓글 시트 테스트에 필요한 번역 키만 메모리에서 제공합니다.
@@ -238,72 +238,71 @@ void main() {
     },
   );
 
-  testWidgets(
-    'hydrates full thread after opening with partial comments',
-    (tester) async {
-      await _setPhoneSurface(tester);
+  testWidgets('hydrates full thread after opening with partial comments', (
+    tester,
+  ) async {
+    await _setPhoneSurface(tester);
 
-      final currentUser = User(
-        id: 999,
-        userId: 'me',
-        name: '테스트 유저',
-        phoneNumber: '01099999999',
-      );
-      final parentComment = Comment(
-        id: 100,
-        userId: 40,
-        nickname: 'writer',
-        text: '원댓글',
-        replyCommentCount: 1,
-        createdAt: DateTime(2026, 3, 1),
-        type: CommentType.text,
-        locationX: 0.2,
-        locationY: 0.3,
-      );
-      final replyComment = Comment(
-        id: 200,
-        threadParentId: 100,
-        userId: 50,
-        nickname: 'reply',
-        replyUserName: 'writer',
-        text: '대댓글',
-        createdAt: DateTime(2026, 3, 2),
-        type: CommentType.reply,
-      );
-      final commentController = _CapturingCommentController(
-        createdComment: replyComment,
-      );
+    final currentUser = User(
+      id: 999,
+      userId: 'me',
+      name: '테스트 유저',
+      phoneNumber: '01099999999',
+    );
+    final parentComment = Comment(
+      id: 100,
+      userId: 40,
+      nickname: 'writer',
+      text: '원댓글',
+      replyCommentCount: 1,
+      createdAt: DateTime(2026, 3, 1),
+      type: CommentType.text,
+      locationX: 0.2,
+      locationY: 0.3,
+    );
+    final replyComment = Comment(
+      id: 200,
+      threadParentId: 100,
+      userId: 50,
+      nickname: 'reply',
+      replyUserName: 'writer',
+      text: '대댓글',
+      createdAt: DateTime(2026, 3, 2),
+      type: CommentType.reply,
+    );
+    final commentController = _CapturingCommentController(
+      createdComment: replyComment,
+    );
 
-      List<Comment>? updatedComments;
+    List<Comment>? updatedComments;
 
-      await tester.pumpWidget(
-        _buildHarness(
-          userController: _FakeUserController(currentUser: currentUser),
-          commentController: commentController,
-          child: ApiVoiceCommentListSheet(
-            postId: 77,
-            initialComments: [parentComment],
-            selectedCommentId: 'reply_${replyComment.id}',
-            loadFullComments: (_) async {
-              await Future<void>.delayed(const Duration(milliseconds: 20));
-              return [parentComment, replyComment];
-            },
-            onCommentsUpdated: (comments) => updatedComments = comments,
-          ),
+    await tester.pumpWidget(
+      _buildHarness(
+        userController: _FakeUserController(currentUser: currentUser),
+        commentController: commentController,
+        child: ApiVoiceCommentListSheet(
+          postId: 77,
+          initialComments: [parentComment],
+          selectedCommentId: 'reply_${replyComment.id}',
+          loadFullComments: (_) async {
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            return [parentComment, replyComment];
+          },
+          onCommentsUpdated: (comments) => updatedComments = comments,
         ),
-      );
+      ),
+    );
 
-      await tester.pump();
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
-      expect(find.text('원댓글'), findsOneWidget);
-      expect(find.text('대댓글'), findsNothing);
+    await tester.pump();
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.text('원댓글'), findsOneWidget);
+    expect(find.text('대댓글'), findsNothing);
 
-      await tester.pump(const Duration(milliseconds: 20));
-      await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.pumpAndSettle();
 
-      expect(find.byType(LinearProgressIndicator), findsNothing);
-      expect(find.text('대댓글'), findsOneWidget);
-      expect(updatedComments?.map((comment) => comment.id), [100, 200]);
-    },
-  );
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text('대댓글'), findsOneWidget);
+    expect(updatedComments?.map((comment) => comment.id), [100, 200]);
+  });
 }

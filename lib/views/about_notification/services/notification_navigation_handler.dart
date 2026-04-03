@@ -9,8 +9,8 @@ import 'package:soi/api/models/post.dart';
 import 'package:soi/app/app_constants.dart';
 import 'package:soi/app/push/app_push_payload.dart';
 import 'package:soi/utils/snackbar_utils.dart';
-import 'package:soi/views/about_archiving/screens/archive_detail/api_category_photos_screen.dart';
-import 'package:soi/views/about_archiving/screens/archive_detail/api_photo_detail_screen.dart';
+import 'package:soi/views/about_archiving/screens/archive_detail/category_photos_screen.dart';
+import 'package:soi/views/about_archiving/screens/archive_detail/photo_detail_screen.dart';
 import 'package:soi/views/about_notification/widgets/category_invite_confirm_sheet.dart';
 
 enum PushNavigationAction {

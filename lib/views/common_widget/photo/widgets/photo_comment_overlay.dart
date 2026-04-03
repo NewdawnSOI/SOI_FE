@@ -4,11 +4,11 @@ import 'package:provider/provider.dart';
 import '../../../../api/controller/user_controller.dart';
 import '../../../../api/models/comment.dart';
 import '../../../../utils/position_converter.dart';
-import '../../about_comment/pending_api_voice_comment.dart';
+import '../../about_comment/comment_for_pending.dart';
 import '../../user/current_user_image_builder.dart';
-import '../services/api_photo_tag_geometry_service.dart';
+import '../services/photo_tag_geometry_service.dart';
 import '../tag_pointer.dart';
-import 'api_photo_circle_avatar.dart';
+import 'photo_circle_avatar.dart';
 
 typedef ApiPhotoCommentTapCallback =
     void Function({

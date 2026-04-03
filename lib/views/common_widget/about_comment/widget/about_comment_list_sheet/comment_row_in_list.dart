@@ -14,11 +14,11 @@ import '../../../../../api/models/comment.dart';
 import '../../../../../utils/format_utils.dart';
 import '../../../../about_feed/manager/feed_data_manager.dart';
 import '../../../report/report_bottom_sheet.dart';
-import '../../../api_photo/services/api_photo_waveform_parser_service.dart';
-import '../../../api_photo/widgets/api_photo_circle_avatar.dart';
+import '../../../photo/services/photo_waveform_parser_service.dart';
+import '../../../photo/widgets/photo_circle_avatar.dart';
 import '../../../user/current_user_image_builder.dart';
-import 'api_comment_media_preview.dart';
-import 'api_waveform_playback_bar.dart';
+import 'comment_media_preview.dart';
+import 'waveform_playback_bar.dart';
 
 /// 댓글 하나를 보여주는 위젯
 /// 댓글의 타입에 따라 텍스트, 오디오, 이미지/동영상 미리보기 등을 표시합니다.

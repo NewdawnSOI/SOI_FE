@@ -9,7 +9,7 @@ import '../../../api/controller/user_controller.dart';
 import '../../../api/models/report.dart';
 import '../../../utils/snackbar_utils.dart';
 import '../../../api/models/post.dart';
-import '../../../views/about_feed/manager/feed_data_manager.dart';
+import '../../about_feed/manager/feed_data_manager.dart';
 import '../../../utils/format_utils.dart';
 import '../about_more_menu/more_menu_button_widget.dart';
 import '../report/report_bottom_sheet.dart';

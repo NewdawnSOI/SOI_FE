@@ -14,7 +14,7 @@ import '../../../api/services/media_service.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
 import 'comment_camera_bottom_sheet_widget.dart';
 import 'comment_text_input_widget.dart';
-import 'widget/about_comment_list_sheet/api_comment_row.dart';
+import 'widget/about_comment_list_sheet/comment_row_in_list.dart';
 
 /// 댓글 리스트를 보여주는 바텀 시트
 /// Comment.dart(Model)을 사용하여 댓글 정보를 표시합니다.

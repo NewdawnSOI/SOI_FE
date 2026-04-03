@@ -7,7 +7,7 @@ import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/media_service.dart';
-import 'package:soi/views/about_archiving/widgets/archive_card_widget/api_archive_profile_row_widget.dart';
+import 'package:soi/views/about_archiving/widgets/archive_card_widget/archive_profile_row_widget.dart';
 import 'package:soi_api_client/api.dart';
 
 class _NoopMediaApi extends APIApi {}

@@ -7,7 +7,7 @@ import '../../../../api/controller/category_controller.dart';
 import '../../../../api/controller/user_controller.dart';
 import '../../../../api/models/category.dart';
 import '../../../../theme/theme.dart';
-import '../../widgets/archive_card_widget/api_archive_card_widget.dart';
+import '../../widgets/archive_card_widget/archive_card_widget.dart';
 import '../../../../api/controller/category_search_controller.dart';
 import 'archive_category_view_state.dart';
 

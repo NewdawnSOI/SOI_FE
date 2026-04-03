@@ -21,11 +21,11 @@ import '../../../../api/controller/media_controller.dart';
 import '../../../../api/controller/audio_controller.dart';
 import '../../../../utils/position_converter.dart';
 import '../../../../utils/snackbar_utils.dart';
-import '../../../common_widget/api_photo/api_photo_card_widget.dart';
-import '../../../common_widget/api_photo/api_user_info_widget.dart';
-import '../../../common_widget/about_comment/pending_api_voice_comment.dart';
+import '../../../common_widget/photo/photo_card_widget.dart';
+import '../../../common_widget/photo/user_info_widget.dart';
+import '../../../common_widget/about_comment/comment_for_pending.dart';
 import '../../../common_widget/about_comment/comment_composer_v2_widget.dart';
-import '../../../common_widget/about_comment/api_voice_comment_list_sheet.dart';
+import '../../../common_widget/about_comment/comment_list_bottom_sheet.dart';
 import '../../../../api/models/friend.dart';
 
 /// API 기반 사진 상세 화면

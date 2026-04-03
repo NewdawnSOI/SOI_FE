@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soi/views/about_archiving/screens/archive_detail/services/api_category_photos_header_service.dart';
+import 'package:soi/views/about_archiving/screens/archive_detail/services/category_photos_header_service.dart';
 
 /// 헤더 디자인 상수를 테스트에서 재사용할 기본 토큰 묶음입니다.
 const CategoryPhotosHeaderTokens _tokens = CategoryPhotosHeaderTokens(

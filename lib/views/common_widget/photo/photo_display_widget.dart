@@ -12,17 +12,17 @@ import '../../../utils/snackbar_utils.dart';
 import '../../../api/controller/comment_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/models/post.dart';
-import '../../about_archiving/screens/archive_detail/api_category_photos_screen.dart';
-import '../about_comment/api_voice_comment_list_sheet.dart';
-import '../about_comment/pending_api_voice_comment.dart';
-import 'api_audio_control_widget.dart';
-import 'services/api_photo_tag_geometry_service.dart';
-import 'services/api_photo_waveform_parser_service.dart';
+import '../../about_archiving/screens/archive_detail/category_photos_screen.dart';
+import '../about_comment/comment_list_bottom_sheet.dart';
+import '../about_comment/comment_for_pending.dart';
+import 'audio_control_widget.dart';
+import 'services/photo_tag_geometry_service.dart';
+import 'services/photo_waveform_parser_service.dart';
 import 'tag_pointer.dart';
-import 'widgets/api_photo_caption_overlay.dart';
-import 'widgets/api_photo_comment_overlay.dart';
-import 'widgets/api_photo_delete_action_popup.dart';
-import 'widgets/api_photo_media_content.dart';
+import 'widgets/photo_caption_overlay.dart';
+import 'widgets/photo_comment_overlay.dart';
+import 'widgets/photo_delete_action_popup.dart';
+import 'widgets/photo_media_content.dart';
 
 Widget _heroFlightShuttleBuilder(
   BuildContext flightContext,

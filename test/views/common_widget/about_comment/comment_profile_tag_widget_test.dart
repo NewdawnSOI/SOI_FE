@@ -9,8 +9,8 @@ import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/media_service.dart';
 import 'package:soi/views/common_widget/about_comment/comment_profile_tag_widget.dart';
 import 'package:soi/views/common_widget/about_comment/comment_save_payload.dart';
-import 'package:soi/views/common_widget/about_comment/pending_api_voice_comment.dart';
-import 'package:soi/views/common_widget/api_photo/tag_pointer.dart';
+import 'package:soi/views/common_widget/about_comment/comment_for_pending.dart';
+import 'package:soi/views/common_widget/photo/tag_pointer.dart';
 import 'package:soi_api_client/api.dart';
 
 class _NoopMediaApi extends APIApi {}

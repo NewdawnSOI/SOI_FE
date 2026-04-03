@@ -7,8 +7,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../../api/models/category.dart' as api;
-import '../../services/api_category_photos_header_service.dart';
-import '../../../../widgets/archive_card_widget/api_archive_profile_row_widget.dart';
+import '../../services/category_photos_header_service.dart';
+import '../../../../widgets/archive_card_widget/archive_profile_row_widget.dart';
 
 /// 카테고리 사진 화면의 헤더를 구성하는 위젯
 /// 스크롤에 따라 크기가 변하는 SliverPersistentHeader로 구현되어, 카테고리 이름과 사진, 멤버 수 등을 보여줌

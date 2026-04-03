@@ -15,11 +15,11 @@ import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/media_service.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi/views/common_widget/about_comment/comment_media_tag_preview_widget.dart';
-import 'package:soi/views/common_widget/about_comment/api_voice_comment_list_sheet.dart';
-import 'package:soi/views/common_widget/about_comment/pending_api_voice_comment.dart';
-import 'package:soi/views/common_widget/api_photo/api_photo_card_widget.dart';
-import 'package:soi/views/common_widget/api_photo/api_photo_display_widget.dart';
-import 'package:soi/views/common_widget/api_photo/tag_pointer.dart';
+import 'package:soi/views/common_widget/about_comment/comment_list_bottom_sheet.dart';
+import 'package:soi/views/common_widget/about_comment/comment_for_pending.dart';
+import 'package:soi/views/common_widget/photo/photo_card_widget.dart';
+import 'package:soi/views/common_widget/photo/photo_display_widget.dart';
+import 'package:soi/views/common_widget/photo/tag_pointer.dart';
 import 'package:soi_api_client/api.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 

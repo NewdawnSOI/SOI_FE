@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soi/views/common_widget/api_photo/services/api_photo_waveform_parser_service.dart';
+import 'package:soi/views/common_widget/photo/services/photo_waveform_parser_service.dart';
 
 void main() {
   group('ApiPhotoWaveformParserService', () {

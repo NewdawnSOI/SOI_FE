@@ -18,11 +18,11 @@ import '../../../../api/models/user.dart';
 import '../../../../theme/theme.dart';
 import '../../../../utils/app_route_observer.dart';
 import '../../../../utils/video_thumbnail_cache.dart';
-import 'api_photo_detail_screen.dart';
-import 'widgets/category_photos_header+body/api_category_header_image_prefetch.dart';
-import 'widgets/category_photos_header+body/api_category_photos_body_slivers.dart';
-import 'widgets/category_photos_header+body/api_category_photos_header.dart';
-import 'services/api_category_photos_screen_service.dart';
+import 'photo_detail_screen.dart';
+import 'widgets/category_photos_header+body/category_header_image_prefetch.dart';
+import 'widgets/category_photos_header+body/category_photos_body_slivers.dart';
+import 'widgets/category_photos_header+body/category_photos_header.dart';
+import 'services/category_photos_screen_service.dart';
 
 import 'package:flutter/foundation.dart' as foundation show kDebugMode;
 

@@ -11,12 +11,12 @@ import '../../../api/models/post.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/controller/audio_controller.dart';
 import '../../../utils/analytics_service.dart';
-import 'api_photo_display_widget.dart';
-import 'api_user_info_widget.dart';
+import 'photo_display_widget.dart';
+import 'user_info_widget.dart';
 import '../about_comment/comment_composer_v2_widget.dart';
 import '../about_comment/comment_media_tag_preview_widget.dart';
-import '../about_comment/api_voice_comment_list_sheet.dart';
-import '../about_comment/pending_api_voice_comment.dart';
+import '../about_comment/comment_list_bottom_sheet.dart';
+import '../about_comment/comment_for_pending.dart';
 import '../report/report_bottom_sheet.dart';
 import 'tag_pointer.dart';
 

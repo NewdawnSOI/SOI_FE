@@ -9,10 +9,10 @@ import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import '../../../api/media_processing/waveform_codec.dart';
-import '../api_photo/tag_pointer.dart';
-import '../api_photo/widgets/api_photo_circle_avatar.dart';
+import '../photo/tag_pointer.dart';
+import '../photo/widgets/photo_circle_avatar.dart';
 import '../user/current_user_image_builder.dart';
-import 'pending_api_voice_comment.dart';
+import 'comment_for_pending.dart';
 import 'comment_save_payload.dart';
 
 /// 댓글 프로필 태그 위젯

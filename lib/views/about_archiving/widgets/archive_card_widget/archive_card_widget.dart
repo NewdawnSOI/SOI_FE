@@ -10,9 +10,9 @@ import '../../../../api/controller/user_controller.dart';
 import '../../../../api/controller/friend_controller.dart';
 import '../../../../api/models/category.dart' as api_category;
 import '../../../../api/models/friend.dart';
-import '../../screens/archive_detail/api_category_photos_screen.dart';
-import '../../screens/archive_detail/widgets/category_photos_header+body/api_category_header_image_prefetch.dart';
-import 'api_archive_profile_row_widget.dart';
+import '../../screens/archive_detail/category_photos_screen.dart';
+import '../../screens/archive_detail/widgets/category_photos_header+body/category_header_image_prefetch.dart';
+import 'archive_profile_row_widget.dart';
 import 'archive_card_models.dart';
 import 'archive_card_placeholders.dart';
 

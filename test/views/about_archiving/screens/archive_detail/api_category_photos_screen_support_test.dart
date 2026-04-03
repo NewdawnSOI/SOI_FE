@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/models/post.dart';
-import 'package:soi/views/about_archiving/screens/archive_detail/services/api_category_photos_screen_service.dart';
+import 'package:soi/views/about_archiving/screens/archive_detail/services/category_photos_screen_service.dart';
 
 /// 화면 지원 로직 테스트에서 사용할 최소 Post 모델을 생성합니다.
 Post _post({required int id, String nickName = 'user', DateTime? createdAt}) {

@@ -5,7 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:soi/views/about_archiving/screens/archive_detail/api_photo_detail_screen.dart';
+import 'package:soi/views/about_archiving/screens/archive_detail/photo_detail_screen.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/post.dart';
 import '../../../utils/video_thumbnail_cache.dart';

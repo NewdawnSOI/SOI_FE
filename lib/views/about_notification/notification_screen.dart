@@ -9,7 +9,7 @@ import '../../api/controller/notification_controller.dart' as api;
 import '../../api/controller/user_controller.dart';
 import '../../api/models/notification.dart';
 import 'services/notification_navigation_handler.dart';
-import 'widgets/api_notification_item_widget.dart';
+import 'widgets/notification_item_widget.dart';
 
 /// 알림 메인 화면 (API 버전)
 class NotificationScreen extends StatefulWidget {
