@@ -1,5 +1,6 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 
@@ -17,6 +18,25 @@ class SoiImageProbeResult {
   final int height;
 
   double get aspectRatio => height == 0 ? 0 : width / height;
+}
+
+/// 이미지 압축 요청을 isolate 간에 안전하게 전달해 UI isolate 블로킹을 피합니다.
+class _CompressImageRequest {
+  const _CompressImageRequest({
+    required this.inputPath,
+    required this.outputPath,
+    required this.quality,
+    required this.maxWidth,
+    required this.maxHeight,
+    required this.format,
+  });
+
+  final String inputPath;
+  final String outputPath;
+  final int quality;
+  final int maxWidth;
+  final int maxHeight;
+  final SoiImageOutputFormat format;
 }
 
 /// 패키지 API를 한 객체에 모아 테스트와 앱 통합에서 같은 계약을 재사용합니다.
@@ -48,8 +68,8 @@ class SoiMediaNativeClient {
   /// - [inputPath]: 압축할 이미지 파일의 경로
   /// - [outputPath]: 압축된 이미지 파일이 저장될 경로
   /// - [quality]: 압축 품질 (0-100)
-  /// - [minWidth]: 최소 너비 (비율 유지하며 이보다 작아지지 않도록)
-  /// - [minHeight]: 최소 높이 (비율 유지하며 이보다 작아지지 않도록)
+  /// - [minWidth]: 레거시 이름이지만 실제로는 출력 이미지의 최대 너비 bound
+  /// - [minHeight]: 레거시 이름이지만 실제로는 출력 이미지의 최대 높이 bound
   /// - [format]: 출력 이미지 포맷 (기본값: webp)
   ///
   /// Returns:
@@ -63,14 +83,24 @@ class SoiMediaNativeClient {
     required int minHeight,
     SoiImageOutputFormat format = SoiImageOutputFormat.webp,
   }) async {
-    // C 압축 엔트리포인트를 감싸 파일 경로와 enum 값을 native ABI에 맞게 넘깁니다.
-    final ok = _compressImageSync(
-      inputPath: inputPath,
-      outputPath: outputPath,
-      quality: quality,
-      minWidth: minWidth,
-      minHeight: minHeight,
-      format: format,
+    if (inputPath.isEmpty || outputPath.isEmpty) {
+      return null;
+    }
+    if (minWidth < 0 || minHeight < 0) {
+      return null;
+    }
+
+    final ok = await Isolate.run(
+      () => _compressImageSync(
+        _CompressImageRequest(
+          inputPath: inputPath,
+          outputPath: outputPath,
+          quality: quality.clamp(0, 100),
+          maxWidth: minWidth,
+          maxHeight: minHeight,
+          format: format,
+        ),
+      ),
     );
     if (!ok) {
       return null;
@@ -84,7 +114,10 @@ class SoiMediaNativeClient {
 
   /// sampleWaveform는 짧은 C 루프로 균일 샘플링을 수행해 Dart 측 할당과 반복문 비용을 줄입니다.
   List<double> sampleWaveform(List<double> source, int maxLength) {
-    if (source.isEmpty || maxLength <= 0 || source.length <= maxLength) {
+    if (source.isEmpty || maxLength <= 0) {
+      return const <double>[];
+    }
+    if (source.length <= maxLength) {
       return List<double>.from(source);
     }
 
@@ -119,9 +152,10 @@ class SoiMediaNativeClient {
     int decimals = 4,
     SoiWaveformEncodingFormat format = SoiWaveformEncodingFormat.json,
   }) {
-    if (waveformData.isEmpty) {
+    if (waveformData.isEmpty || maxSamples <= 0) {
       return '';
     }
+    RangeError.checkValueInInterval(decimals, 0, 20, 'decimals');
 
     final sampled = sampleWaveform(waveformData, maxSamples);
     final rounded = sampled
@@ -167,39 +201,22 @@ class SoiMediaNativeClient {
 /// C ABI에 맞는 네이티브 함수 호출을 수행하는 내부 메소드입니다.
 /// 앱 레이어에서는 compressImage 메소드로 이 기능을 사용해야 합니다.
 ///
-/// Parameters:
-/// - [inputPath]: 압축할 이미지 파일의 경로
-/// - [outputPath]: 압축된 이미지 파일이 저장될 경로
-/// - [quality]: 압축 품질 (0-100)
-/// - [minWidth]: 최소 너비 (비율 유지하며 이보다 작아지지 않도록)
-/// - [minHeight]: 최소 높이 (비율 유지하며 이보다 작아지지 않도록)
-/// - [format]: 출력 이미지 포맷 (webp, jpeg, png)
-///
-/// Returns:
-/// - [true]: 압축 성공
-/// - [false]: 압축 실패
-bool _compressImageSync({
-  required String inputPath,
-  required String outputPath,
-  required int quality,
-  required int minWidth,
-  required int minHeight,
-  required SoiImageOutputFormat format,
-}) {
+/// request는 직렬화 가능한 값만 담아 별도 isolate에서도 같은 native ABI를 호출하게 합니다.
+bool _compressImageSync(_CompressImageRequest request) {
   // 입력 경로를 C ABI에 맞는 UTF-8 문자열로 변환
-  final nativeInputPath = inputPath.toNativeUtf8();
+  final nativeInputPath = request.inputPath.toNativeUtf8();
 
   // 출력 경로를 C ABI에 맞는 UTF-8 문자열로 변환
-  final nativeOutputPath = outputPath.toNativeUtf8();
+  final nativeOutputPath = request.outputPath.toNativeUtf8();
   try {
     // C 압축 엔트리포인트를 감싸 파일 경로와 enum 값을 native ABI에 맞게 넘깁니다.
     return bindings.soi_compress_image(
           nativeInputPath.cast(),
           nativeOutputPath.cast(),
-          quality,
-          minWidth,
-          minHeight,
-          format.index,
+          request.quality,
+          request.maxWidth,
+          request.maxHeight,
+          request.format.index,
         ) ==
         1;
   } finally {

@@ -35,6 +35,11 @@ void main() {
       expect(sampled, <double>[0, 2, 4]);
     });
 
+    test('sampleWaveform returns empty for non-positive target length', () {
+      expect(client.sampleWaveform(<double>[0, 1, 2], 0), isEmpty);
+      expect(client.sampleWaveform(<double>[0, 1, 2], -1), isEmpty);
+    });
+
     test('encodeWaveform and decodeWaveform keep request compatibility', () {
       final encoded = client.encodeWaveform(<double>[
         0.123456,
@@ -44,6 +49,19 @@ void main() {
       expect(encoded, '[0.1235,0.9877]');
       expect(client.decodeWaveform(encoded), <double>[0.1235, 0.9877]);
       expect(client.decodeWaveform('0.1, 0.2, 0.3'), <double>[0.1, 0.2, 0.3]);
+      expect(client.decodeWaveform('[0.1, invalid, 0.3]'), <double>[0.1, 0.3]);
+    });
+
+    test('encodeWaveform rejects invalid precision and sample count', () {
+      expect(client.encodeWaveform(<double>[0.1, 0.2], maxSamples: 0), isEmpty);
+      expect(
+        () => client.encodeWaveform(
+          <double>[0.1, 0.2],
+          maxSamples: 2,
+          decimals: -1,
+        ),
+        throwsRangeError,
+      );
     });
 
     test('compressImage writes a native webp file', () async {
@@ -75,6 +93,17 @@ void main() {
       final outputProbe = await client.probeImage(compressed.path);
       expect(outputProbe?.width, 8);
       expect(outputProbe?.height, 6);
+    });
+
+    test('compressImage returns null for invalid request values', () async {
+      final result = await client.compressImage(
+        inputPath: '',
+        outputPath: '',
+        quality: 80,
+        minWidth: -1,
+        minHeight: 100,
+      );
+      expect(result, isNull);
     });
   });
 }

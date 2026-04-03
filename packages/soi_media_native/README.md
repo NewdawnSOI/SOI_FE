@@ -1,49 +1,50 @@
 # soi_media_native
 
-A new Dart FFI package project.
+Native image and waveform helpers used by SOI media flows.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter
-[FFI package](https://flutter.dev/to/ffi-package),
-a specialized package that includes native code directly invoked with Dart FFI.
+- Probe PNG, JPEG, and WebP dimensions without decoding the full image
+- Compress images through a bundled native pipeline using `stb` and `libwebp`
+- Sample long waveform arrays in native code for upload-friendly payloads
+- Encode and decode waveform payloads in JSON or CSV-compatible formats
 
-## Project structure
+## Public API
 
-This template uses the following structure:
+`SoiMediaNativeClient` exposes three main capabilities:
 
-* `src`: Contains the native source code, and a CmakeFile.txt file for building
-  that source code into a dynamic library.
+- `probeImage(path)` returns `SoiImageProbeResult?`
+- `compressImage(...)` writes a compressed file and returns `File?`
+- `sampleWaveform(...)`, `encodeWaveform(...)`, `decodeWaveform(...)`
 
-* `lib`: Contains the Dart code that defines the API of the plugin, and which
-  calls into the native code using `dart:ffi`.
+`compressImage` keeps the historical parameter names `minWidth` and `minHeight`
+for compatibility with the app layer, but the native pipeline treats them as
+the maximum output bounds while preserving aspect ratio.
 
-* `bin`: Contains the `build.dart` that performs the external native builds.
+## Development
 
-## Building and bundling native code
+Install dependencies and run package checks from the package root:
 
-`build.dart` does the building of native components.
+```bash
+dart pub get
+dart analyze
+flutter test
+```
 
-Bundling is done by Flutter based on the output from `build.dart`.
+## Native build details
 
-## Binding to native code
+The package uses a Dart build hook at [hook/build.dart](hook/build.dart) to
+compile:
 
-To use the native code, bindings in Dart are needed.
-To avoid writing these by hand, they are generated from the header file
-(`src/soi_media_native.h`) by `package:ffigen`.
-Regenerate the bindings by running `dart run ffigen --config ffigen.yaml`.
+- `src/soi_media_native.c`
+- the required `libwebp` encoder/decoder sources
+- `stb` headers for probing, decoding, resizing, and file output helpers
 
-## Invoking native code
+Bindings are generated from [src/soi_media_native.h](src/soi_media_native.h):
 
-Very short-running native functions can be directly invoked from any isolate.
-For example, see `sum` in `lib/soi_media_native.dart`.
+```bash
+dart run ffigen --config ffigen.yaml
+```
 
-Longer-running functions should be invoked on a helper isolate to avoid
-dropping frames in Flutter applications.
-For example, see `sumAsync` in `lib/soi_media_native.dart`.
-
-## Flutter help
-
-For help getting started with Flutter, view our
-[online documentation](https://docs.flutter.dev), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+`compressImage` runs the native call on a helper isolate so large image work
+does not block the UI isolate.
