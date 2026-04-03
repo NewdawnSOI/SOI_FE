@@ -127,15 +127,11 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     super.dispose();
   }
 
-  /// 피드 탭 재선택 시: 첫 게시물로 이동 + 강제 새로고침
+  /// 피드 아이콘을 다시 누르면 현재 위치와 상관없이 첫 게시물로 복귀하고 강제 새로고침을 시작합니다.
   void _onFeedTabReselected() {
     if (!mounted) return;
     if (_feedPageController.hasClients) {
-      _feedPageController.animateToPage(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
+      _feedPageController.jumpToPage(0);
     }
     if (_feedDataManager != null) {
       unawaited(

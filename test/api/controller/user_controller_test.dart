@@ -29,8 +29,14 @@ class _FakeUserService extends UserService {
          onAuthTokenCleared: () {},
        );
 
-  final Future<bool> Function(String phoneNumber)? onSendSmsVerification;
-  final Future<bool> Function(String phoneNumber, String code)? onVerifySmsCode;
+  final Future<bool> Function(String phoneNumber, {required bool useFirebase})?
+  onSendSmsVerification;
+  final Future<bool> Function(
+    String phoneNumber,
+    String code, {
+    required bool useFirebase,
+  })?
+  onVerifySmsCode;
   final Future<User?> Function({String? nickName, String? phoneNum})? onLogin;
   final Future<User> Function()? onGetCurrentUser;
   final Future<User> Function({
@@ -67,21 +73,28 @@ class _FakeUserService extends UserService {
   }
 
   @override
-  Future<bool> sendSmsVerification(String phoneNum) async {
+  Future<bool> sendSmsVerification(
+    String phoneNum, {
+    bool useFirebase = true,
+  }) async {
     final handler = onSendSmsVerification;
     if (handler == null) {
       throw UnimplementedError('onSendSmsVerification is not configured');
     }
-    return handler(phoneNum);
+    return handler(phoneNum, useFirebase: useFirebase);
   }
 
   @override
-  Future<bool> verifySmsCode(String phoneNum, String code) async {
+  Future<bool> verifySmsCode(
+    String phoneNum,
+    String code, {
+    bool useFirebase = true,
+  }) async {
     final handler = onVerifySmsCode;
     if (handler == null) {
       throw UnimplementedError('onVerifySmsCode is not configured');
     }
-    return handler(phoneNum, code);
+    return handler(phoneNum, code, useFirebase: useFirebase);
   }
 
   @override
@@ -168,8 +181,9 @@ void main() {
     test('trims whitespace before requesting SMS verification', () async {
       final controller = UserController(
         userService: _FakeUserService(
-          onSendSmsVerification: (phoneNumber) async {
+          onSendSmsVerification: (phoneNumber, {required useFirebase}) async {
             expect(phoneNumber, '+821066784110');
+            expect(useFirebase, isTrue);
             return true;
           },
         ),
@@ -185,9 +199,10 @@ void main() {
     test('trims whitespace before verifying SMS code', () async {
       final controller = UserController(
         userService: _FakeUserService(
-          onVerifySmsCode: (phoneNumber, code) async {
+          onVerifySmsCode: (phoneNumber, code, {required useFirebase}) async {
             expect(phoneNumber, '+821066784110');
             expect(code, '12345');
+            expect(useFirebase, isTrue);
             return true;
           },
         ),
@@ -201,20 +216,56 @@ void main() {
       expect(result, isTrue);
     });
 
-    test('rethrows SMS verification errors so UI can show the exact reason', () async {
-      final controller = UserController(
-        userService: _FakeUserService(
-          onSendSmsVerification: (_) async => throw const SoiApiException(
-            message: '앱 검증에 실패했습니다.',
+    test(
+      'rethrows SMS verification errors so UI can show the exact reason',
+      () async {
+        final controller = UserController(
+          userService: _FakeUserService(
+            onSendSmsVerification: (_, {required useFirebase}) async =>
+                throw const SoiApiException(message: '앱 검증에 실패했습니다.'),
           ),
-        ),
-      );
+        );
 
-      expect(
-        controller.requestSmsVerification('+821066784110'),
-        throwsA(isA<SoiApiException>()),
-      );
-    });
+        expect(
+          controller.requestSmsVerification('+821066784110'),
+          throwsA(isA<SoiApiException>()),
+        );
+      },
+    );
+
+    test(
+      'passes API verification flag through when Firebase is disabled',
+      () async {
+        final controller = UserController(
+          userService: _FakeUserService(
+            onSendSmsVerification: (phoneNumber, {required useFirebase}) async {
+              expect(phoneNumber, '01066784110');
+              expect(useFirebase, isFalse);
+              return true;
+            },
+            onVerifySmsCode: (phoneNumber, code, {required useFirebase}) async {
+              expect(phoneNumber, '01066784110');
+              expect(code, '12345');
+              expect(useFirebase, isFalse);
+              return true;
+            },
+          ),
+        );
+
+        final sent = await controller.requestSmsVerification(
+          ' 01066784110 ',
+          useFirebase: false,
+        );
+        final verified = await controller.verifySmsCode(
+          ' 01066784110 ',
+          ' 12345 ',
+          useFirebase: false,
+        );
+
+        expect(sent, isTrue);
+        expect(verified, isTrue);
+      },
+    );
 
     test('returns null when combined login throws NotFoundException', () async {
       final controller = UserController(

@@ -11,6 +11,7 @@ class SmsCodePage extends StatelessWidget {
   final Function(String) onChanged;
   final VoidCallback onResendPressed;
   final bool isBusy;
+  final int maxCodeLength;
   final PageController? pageController;
 
   const SmsCodePage({
@@ -19,6 +20,7 @@ class SmsCodePage extends StatelessWidget {
     required this.onChanged,
     required this.onResendPressed,
     this.isBusy = false,
+    this.maxCodeLength = 6,
     required this.pageController,
   });
 
@@ -63,7 +65,7 @@ class SmsCodePage extends StatelessWidget {
                   contentPadding: EdgeInsets.only(bottom: 7.h),
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(6),
+                    LengthLimitingTextInputFormatter(maxCodeLength),
                   ],
                   onChanged: onChanged,
                 ),

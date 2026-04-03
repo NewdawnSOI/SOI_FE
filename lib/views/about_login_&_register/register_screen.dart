@@ -84,6 +84,20 @@ class _AuthScreenState extends State<AuthScreen> {
   late UserController _userController;
   bool _isControllerInitialized = false;
 
+  /// 선택 국가에 따라 한국 번호는 서버 SMS 인증을, 그 외는 Firebase 인증을 사용합니다.
+  bool get _usesApiPhoneVerification =>
+      RegisterPhoneNumberService.usesApiSmsVerification(
+        countryCode: _selectedCountryCode,
+      );
+
+  /// 현재 선택 국가가 요구하는 인증번호 자리수를 버튼 활성화와 입력 제한에 함께 사용합니다.
+  int get _expectedSmsCodeLength => _usesApiPhoneVerification ? 5 : 6;
+
+  /// Firebase 자동 인증 완료 상태는 해외 번호 흐름에서만 의미가 있으므로 현재 채널에 맞게 읽습니다.
+  bool get _isCurrentPhoneVerificationCompleted =>
+      !_usesApiPhoneVerification &&
+      _userController.isPhoneVerificationCompleted;
+
   @override
   void initState() {
     super.initState();
@@ -266,12 +280,9 @@ class _AuthScreenState extends State<AuthScreen> {
               // 인증번호 입력 페이지
               SmsCodePage(
                 controller: smsController,
+                maxCodeLength: _expectedSmsCodeLength,
                 onChanged: (value) {
-                  // 기존 API 인증번호는 5자리 기준으로 완료 상태를 판단했습니다.
-                  // pageReady[3].value = value.length == 5;
-
-                  // Firebase 인증번호는 기본 6자리여서 입력 가능 상태를 6자리 기준으로 맞춥니다.
-                  pageReady[3].value = value.length == 6;
+                  pageReady[3].value = value.length == _expectedSmsCodeLength;
 
                   // 인증 완료 후, 사용자가 인증번호를 변경하면 상태 초기화
                   if (isVerified) {
@@ -485,13 +496,8 @@ class _AuthScreenState extends State<AuthScreen> {
                               break;
                             case 3: // 인증코드
                               smsCode = smsController.text;
-                              // 기존 API 인증번호는 5자리 입력일 때만 검증을 시작했습니다.
-                              // if (smsCode.length == 5) {
-                              //   await _performManualVerification(smsCode);
-                              // }
-                              if (smsCode.length == 6 ||
-                                  _userController
-                                      .isPhoneVerificationCompleted) {
+                              if (smsCode.length == _expectedSmsCodeLength ||
+                                  _isCurrentPhoneVerificationCompleted) {
                                 await _performManualVerification(smsCode);
                               }
                               break;
@@ -536,11 +542,14 @@ class _AuthScreenState extends State<AuthScreen> {
       rawValue: value,
       countryCode: _selectedCountryCode,
     );
+    _resetPendingPhoneVerification();
 
     setState(() {
       _phoneErrorKey = validationError?.translationKey;
+      isVerified = false;
     });
     pageReady[2].value = value.trim().isNotEmpty && validationError == null;
+    pageReady[3].value = false;
   }
 
   /// 국가가 바뀌면 같은 입력값도 다시 해석해야 하므로 전화번호 검증 결과를 즉시 재계산합니다.
@@ -549,16 +558,19 @@ class _AuthScreenState extends State<AuthScreen> {
       rawValue: phoneController.text,
       countryCode: countryCode,
     );
+    _resetPendingPhoneVerification();
 
     setState(() {
       _selectedCountryCode = countryCode;
       _phoneErrorKey = validationError?.translationKey;
+      isVerified = false;
     });
     pageReady[2].value =
         phoneController.text.trim().isNotEmpty && validationError == null;
+    pageReady[3].value = false;
   }
 
-  /// Firebase 인증 요청 결과에 따라 SMS 입력 페이지로 이동 또는 SMS 입력 페이지 건너뛰기를 분기합니다.
+  /// 선택 국가에 맞는 인증 채널로 SMS를 요청하고 필요 시 SMS 입력 또는 자동 완료 흐름으로 분기합니다.
   ///
   /// Parameters:
   /// - [isResend]: 재전송 요청 여부 (기본값: false)
@@ -570,7 +582,7 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
 
-    _autoVerifyTimer?.cancel();
+    _resetPendingPhoneVerification(); // 전화번호나 국가가 바뀌면 이전 인증 채널의 대기 상태를 비워 다음 요청과 섞이지 않게 합니다.
 
     final validationError = RegisterPhoneNumberService.validatePhone(
       rawValue: phoneController.text,
@@ -597,6 +609,10 @@ class _AuthScreenState extends State<AuthScreen> {
     // userController.userCreate API에 전달할 전화번호를 저장합니다.
     // 이 값은 Firebase 인증과 별도로 서버 API에 전달될 때 사용됩니다.
     phoneNumber = formattedPhoneForApi;
+    final useFirebase = !_usesApiPhoneVerification;
+    final verificationPhoneNumber = useFirebase
+        ? formattedPhoneForFirebase
+        : formattedPhoneForApi;
 
     setState(() {
       _isRequestingSms = true;
@@ -604,7 +620,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       final isSuccess = await _userController.requestSmsVerification(
-        formattedPhoneForFirebase,
+        verificationPhoneNumber,
+        useFirebase: useFirebase,
       );
       if (!mounted) return;
 
@@ -621,12 +638,11 @@ class _AuthScreenState extends State<AuthScreen> {
 
       smsController.clear();
       setState(() {
-        isVerified = _userController.isPhoneVerificationCompleted;
+        isVerified = _isCurrentPhoneVerificationCompleted;
         pageReady[3].value = false;
       });
 
-      // 이미 Firebase 인증이 완료된 상태라면 SMS 입력 페이지로 이동하지 않고 바로 다음 단계로 넘어갑니다.
-      if (_userController.isPhoneVerificationCompleted) {
+      if (_isCurrentPhoneVerificationCompleted) {
         await _handleSuccessfulPhoneVerification();
         return;
       }
@@ -640,9 +656,9 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       }
 
-      // SMS 입력 페이지로 이동한 후,
-      // Firebase 인증이 자동으로 완료되는지 주기적으로 확인하는 타이머를 시작합니다.
-      _startAutoVerificationWatcher();
+      if (useFirebase) {
+        _startAutoVerificationWatcher();
+      }
     } catch (e) {
       if (!mounted) return;
       SnackBarUtils.showSnackBar(
@@ -666,8 +682,19 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  /// 전화번호나 국가가 바뀌면 이전 인증 채널의 대기 상태를 비워 다음 요청과 섞이지 않게 합니다.
+  void _resetPendingPhoneVerification() {
+    _autoVerifyTimer?.cancel();
+    smsController.clear();
+    _userController.resetPhoneVerificationState();
+  }
+
   /// SMS 입력 대기 중 Firebase 즉시 인증이 완료되면 다음 회원가입 단계로 자동 이동시킵니다.
   void _startAutoVerificationWatcher() {
+    if (_usesApiPhoneVerification) {
+      return;
+    }
+
     _autoVerifyTimer?.cancel();
     _autoVerifyTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || currentPage != 3) {
@@ -675,13 +702,12 @@ class _AuthScreenState extends State<AuthScreen> {
         return;
       }
 
-      if (!_userController.isPhoneVerificationCompleted) {
+      if (!_isCurrentPhoneVerificationCompleted) {
         return;
       }
 
       timer.cancel();
 
-      // Firebase 인증이 완료된 상태라면 SMS 입력 페이지로 이동하지 않고 바로 다음 단계로 넘어갑니다.
       unawaited(_handleSuccessfulPhoneVerification());
     });
   }
@@ -706,12 +732,12 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  /// 사용자가 입력한 SMS 코드를 Firebase verificationId와 조합해 최종 인증 여부를 확정합니다.
+  /// 사용자가 입력한 SMS 코드를 현재 국가가 선택한 인증 채널에 전달해 최종 인증 여부를 확정합니다.
   Future<void> _performManualVerification(String code) async {
     if (isCheckingUser) return;
     _autoVerifyTimer?.cancel();
 
-    if (_userController.isPhoneVerificationCompleted) {
+    if (_isCurrentPhoneVerificationCompleted) {
       await _handleSuccessfulPhoneVerification();
       return;
     }
@@ -723,31 +749,17 @@ class _AuthScreenState extends State<AuthScreen> {
     smsCode = code;
 
     try {
+      final useFirebase = !_usesApiPhoneVerification;
       final isSuccess = await _userController.verifySmsCode(
-        _formatPhoneNumberForApi(withCountryCode: true),
+        useFirebase
+            ? _formatPhoneNumberForApi(withCountryCode: true)
+            : _formatPhoneNumberForApi(),
         smsCode,
+        useFirebase: useFirebase,
       );
 
       if (!mounted) return;
-      // 기존 API 검증 성공 시에는 여기서 바로 상태 갱신과 페이지 이동을 처리했습니다.
-      // if (isSuccess) {
-      //   setState(() {
-      //     isCheckingUser = false;
-      //     isVerified = true;
-      //   });
-      //
-      //   if (mounted) {
-      //     SnackBarUtils.showSnackBar(context, '인증이 완료되었습니다.');
-      //   }
-      //
-      //   FocusScope.of(context).unfocus();
-      //   _pageController.nextPage(
-      //     duration: const Duration(milliseconds: 300),
-      //     curve: Curves.easeInOut,
-      //   );
-      // }
       if (isSuccess) {
-        // Firebase 인증이 완료된 상태라면 SMS 입력 페이지로 이동하지 않고 바로 다음 단계로 넘어갑니다.
         await _handleSuccessfulPhoneVerification();
       } else {
         setState(() {

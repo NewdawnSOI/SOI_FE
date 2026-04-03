@@ -147,7 +147,7 @@ class ProfileDataService {
   }
 
   /// 이 메서드는 사진 용량을 줄여서 더 가볍게 만들어요.
-  /// EXIF 방향도 먼저 픽셀에 반영해 커버/프로필 이미지가 뒤집혀 보이지 않게 맞춥니다.
+  /// EXIF 방향이 있는 업로드는 먼저 픽셀 기준으로 다시 저장해 플랫폼별 회전/반전 차이를 없앱니다.
   Future<File> compressProfileImage(File file) async {
     final preparedFile = await _normalizeUploadImageOrientation(file);
     try {
@@ -178,21 +178,21 @@ class ProfileDataService {
     }
   }
 
-  /// 업로드 전에 EXIF 방향을 픽셀에 구워 커버/프로필 이미지가 상하 반전되지 않게 정규화합니다.
+  /// 원본 바이트의 EXIF 방향을 먼저 읽고, 디코더가 바로 세운 픽셀을 새 파일로 고정해 업로드 결과를 안정화합니다.
   Future<File> _normalizeUploadImageOrientation(File file) async {
     try {
       final bytes = await file.readAsBytes();
+      final orientation = _readEncodedImageOrientation(bytes);
+      if (orientation == null || orientation == 1) {
+        return file;
+      }
+
       final decodedImage = img.decodeImage(bytes);
       if (decodedImage == null) {
         return file;
       }
 
-      final orientation = decodedImage.exif.imageIfd.orientation;
-      if (orientation == null || orientation == 1) {
-        return file;
-      }
-
-      final normalizedImage = img.bakeOrientation(decodedImage);
+      final normalizedImage = _clearDecodedImageOrientation(decodedImage);
       final normalizedBytes = img.encodeJpg(normalizedImage, quality: 95);
       final normalizedPath =
           '${file.parent.path}/profile_upright_${DateTime.now().microsecondsSinceEpoch}.jpg';
@@ -203,6 +203,19 @@ class ProfileDataService {
       debugPrint('프로필 이미지 방향 정규화 오류: $error');
       return file;
     }
+  }
+
+  /// JPEG 원본의 EXIF 방향은 디코더가 픽셀에 반영하기 전에 별도로 읽어야 재인코딩 필요 여부를 판별할 수 있습니다.
+  int? _readEncodedImageOrientation(Uint8List bytes) {
+    return img.decodeJpgExif(bytes)?.imageIfd.orientation;
+  }
+
+  /// 디코딩된 이미지는 이미 표시 방향 기준 픽셀을 가지므로, EXIF 방향 태그만 제거해 업로드 결과를 고정합니다.
+  img.Image _clearDecodedImageOrientation(img.Image decodedImage) {
+    final normalizedImage = img.Image.from(decodedImage);
+    normalizedImage.exif = img.ExifData.from(decodedImage.exif);
+    normalizedImage.exif.imageIfd.orientation = null;
+    return normalizedImage;
   }
 
   /// 압축 성공 뒤에는 임시 정규화 파일만 정리해 업로드 캐시가 불필요하게 남지 않게 합니다.

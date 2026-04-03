@@ -77,5 +77,20 @@ void main() {
         RegisterPhoneValidationError.invalidMx,
       );
     });
+
+    test('chooses API SMS only for Korean numbers', () {
+      expect(
+        RegisterPhoneNumberService.usesApiSmsVerification(countryCode: 'KR'),
+        isTrue,
+      );
+      expect(
+        RegisterPhoneNumberService.usesApiSmsVerification(countryCode: 'US'),
+        isFalse,
+      );
+      expect(
+        RegisterPhoneNumberService.usesApiSmsVerification(countryCode: 'MX'),
+        isFalse,
+      );
+    });
   });
 }

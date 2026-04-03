@@ -183,12 +183,18 @@ class UserController extends ChangeNotifier {
   /// Firebase 전화번호 인증이 즉시 완료된 경우 화면이 SMS 단계를 건너뛸 수 있게 상태를 노출합니다.
   bool get isPhoneVerificationCompleted => _userService.isPhoneNumberVerified;
 
+  /// 전화번호 인증 채널이나 입력 번호가 바뀌면 이전 인증 상태를 비워 현재 시도와 섞이지 않게 합니다.
+  void resetPhoneVerificationState() {
+    _userService.resetPhoneVerificationState();
+  }
+
   // ============================================
   // SMS 인증
   // ============================================
 
   /// SMS 인증 요청
   /// [phoneNumber]로 인증 SMS를 전송합니다.
+  /// 한국 번호는 API, 그 외는 Firebase를 선택할 수 있게 호출 옵션을 전달받습니다.
   ///
   /// Parameters:
   ///   - [phoneNumber]: 인증할 전화번호 (String)
@@ -197,13 +203,19 @@ class UserController extends ChangeNotifier {
   ///   - true: 요청 성공
   ///   - false: 요청 실패
 
-  Future<bool> requestSmsVerification(String phoneNumber) async {
+  Future<bool> requestSmsVerification(
+    String phoneNumber, {
+    bool useFirebase = true,
+  }) async {
     final normalizedPhoneNumber = phoneNumber.trim();
 
     _beginLoading();
 
     try {
-      return await _userService.sendSmsVerification(normalizedPhoneNumber);
+      return await _userService.sendSmsVerification(
+        normalizedPhoneNumber,
+        useFirebase: useFirebase,
+      );
     } on SoiApiException catch (e) {
       _finishLoading(errorMessage: e.message);
       rethrow;
@@ -223,6 +235,7 @@ class UserController extends ChangeNotifier {
 
   /// 인증 코드 확인
   /// [phoneNumber]와 [code]를 사용하여 인증 코드를 확인합니다.
+  /// 한국 번호는 API, 그 외는 Firebase를 선택할 수 있게 호출 옵션을 전달받습니다.
   ///
   /// Parameters:
   ///   - [phoneNumber]: 인증할 전화번호 (String)
@@ -232,7 +245,11 @@ class UserController extends ChangeNotifier {
   ///   - true: 확인 성공
   ///   - false: 확인 실패
 
-  Future<bool> verifySmsCode(String phoneNumber, String code) async {
+  Future<bool> verifySmsCode(
+    String phoneNumber,
+    String code, {
+    bool useFirebase = true,
+  }) async {
     final normalizedPhoneNumber = phoneNumber.trim();
     final normalizedCode = code.trim();
 
@@ -242,6 +259,7 @@ class UserController extends ChangeNotifier {
       return await _userService.verifySmsCode(
         normalizedPhoneNumber,
         normalizedCode,
+        useFirebase: useFirebase,
       );
     } on SoiApiException catch (e) {
       _finishLoading(errorMessage: e.message);

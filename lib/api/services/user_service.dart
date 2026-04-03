@@ -55,8 +55,7 @@ class UserService {
   final UserAPIApi _userApi;
 
   /// Firebase 기반 전화번호 인증 상태를 유지하는 단일 서비스 인스턴스입니다.
-  final FirebasePhoneVerificationService _phoneVerificationService =
-      FirebasePhoneVerificationService();
+  final FirebasePhoneVerificationService _phoneVerificationService;
 
   /// 인증 토큰 관리 콜백
   final void Function(String token) _setAuthToken;
@@ -68,8 +67,8 @@ class UserService {
   UserService({
     AuthControllerApi? authApi,
     UserAPIApi? userApi,
-
     AuthControllerApi Function()? buildUnauthenticatedAuthApi,
+    FirebasePhoneVerificationService? phoneVerificationService,
     void Function(String token)? onAuthTokenIssued,
     void Function()? onAuthTokenCleared,
   }) : _buildUnauthenticatedAuthApi =
@@ -77,6 +76,8 @@ class UserService {
            (() =>
                authApi ?? SoiApiClient.instance.createUnauthenticatedAuthApi()),
        _userApi = userApi ?? SoiApiClient.instance.userApi,
+       _phoneVerificationService =
+           phoneVerificationService ?? FirebasePhoneVerificationService(),
        _setAuthToken = onAuthTokenIssued ?? SoiApiClient.instance.setAuthToken,
        _clearAuthToken =
            onAuthTokenCleared ?? SoiApiClient.instance.clearAuthToken;
@@ -84,6 +85,11 @@ class UserService {
   /// 회원가입 화면이 Firebase 즉시 인증 완료 여부를 조회할 수 있게 현재 상태를 노출합니다.
   bool get isPhoneNumberVerified =>
       _phoneVerificationService.isCurrentPhoneVerified;
+
+  /// 전화번호 인증 채널이 바뀌어도 이전 Firebase verification 상태가 재사용되지 않게 비웁니다.
+  void resetPhoneVerificationState() {
+    _phoneVerificationService.reset();
+  }
 
   /// 인증 API 호출의 단계와 상태만 debug 로그로 남겨 실제 실패 지점을 좁힙니다.
   void _debugLogAuthStage(
@@ -184,6 +190,7 @@ class UserService {
   /// SMS 인증 코드 발송
   ///
   /// [phoneNum]으로 SMS 인증 코드를 발송합니다.
+  /// 한국 번호는 서버 API를, 그 외 번호는 Firebase를 타도록 상위 레이어가 선택할 수 있습니다.
   /// 성공 시 true 반환, 실패 시 예외를 throw합니다.
   ///
   /// Parameters:
@@ -192,18 +199,22 @@ class UserService {
   /// Returns:
   /// - [bool]: true - SMS 발송 성공
   /// - [bool]: false - SMS 발송 실패 (예: API에서 false 반환)
-  Future<bool> sendSmsVerification(String phoneNum) async {
+  Future<bool> sendSmsVerification(
+    String phoneNum, {
+    bool useFirebase = true,
+  }) async {
     try {
       final normalizedPhoneNum = _normalizeText(phoneNum);
-      return await _phoneVerificationService.sendVerificationCode(
+      if (useFirebase) {
+        return await _phoneVerificationService.sendVerificationCode(
+          normalizedPhoneNum,
+        );
+      }
+
+      final result = await _buildUnauthenticatedAuthApi().authSMS(
         normalizedPhoneNum,
       );
-
-      // 임시 Firebase 전화번호 인증 전환 전 API 호출 코드입니다.
-      // final result = await _buildUnauthenticatedAuthApi().authSMS(
-      //   normalizedPhoneNum,
-      // );
-      // return result ?? false;
+      return result ?? false;
     } on SoiApiException {
       rethrow;
     } on ApiException catch (e) {
@@ -217,6 +228,7 @@ class UserService {
 
   /// SMS 인증 코드 확인
   /// [phoneNum]과 [code]를 함께 전달하여 인증 코드를 확인합니다.
+  /// 한국 번호는 서버 API를, 그 외 번호는 Firebase를 타도록 상위 레이어가 선택할 수 있습니다.
   ///
   /// parameters:
   /// - [phoneNum]: 인증할 전화번호
@@ -225,22 +237,27 @@ class UserService {
   /// returns:
   /// - [bool]: true - 인증 성공
   /// - [bool]: false - 인증 실패 (코드 불일치)
-  Future<bool> verifySmsCode(String phoneNum, String code) async {
+  Future<bool> verifySmsCode(
+    String phoneNum,
+    String code, {
+    bool useFirebase = true,
+  }) async {
     try {
       final normalizedPhoneNum = _normalizeText(phoneNum);
       final normalizedCode = _normalizeText(code);
-      return await _phoneVerificationService.verifyCode(
-        normalizedPhoneNum,
-        normalizedCode,
-      );
+      if (useFirebase) {
+        return await _phoneVerificationService.verifyCode(
+          normalizedPhoneNum,
+          normalizedCode,
+        );
+      }
 
-      // 임시 Firebase 전화번호 인증 전환 전 API 호출 코드입니다.
-      // final dto = AuthCheckReqDto(
-      //   phoneNum: normalizedPhoneNum,
-      //   code: normalizedCode,
-      // );
-      // final result = await _buildUnauthenticatedAuthApi().checkAuthSMS(dto);
-      // return result ?? false;
+      final dto = AuthCheckReqDto(
+        phoneNum: normalizedPhoneNum,
+        code: normalizedCode,
+      );
+      final result = await _buildUnauthenticatedAuthApi().checkAuthSMS(dto);
+      return result ?? false;
     } on SoiApiException {
       rethrow;
     } on ApiException catch (e) {

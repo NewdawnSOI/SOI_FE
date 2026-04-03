@@ -1,12 +1,21 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/services/user_service.dart';
+import 'package:soi/utils/firebase_phone_auth_service.dart';
 import 'package:soi_api_client/api.dart';
 
 /// 인증 전용 엔드포인트를 테스트 더블로 대체해 서비스 예외 분기를 검증합니다.
 class _FakeAuthApi extends AuthControllerApi {
-  _FakeAuthApi({this.onCreateUser, this.onIdCheck, this.onLogin});
+  _FakeAuthApi({
+    this.onAuthSms,
+    this.onCheckAuthSms,
+    this.onCreateUser,
+    this.onIdCheck,
+    this.onLogin,
+  });
 
+  final Future<bool?> Function(String phoneNum)? onAuthSms;
+  final Future<bool?> Function(AuthCheckReqDto dto)? onCheckAuthSms;
   final Future<ApiResponseDtoUserRespDto?> Function(UserCreateReqDto dto)?
   onCreateUser;
   final Future<ApiResponseDtoBoolean?> Function(String userId)? onIdCheck;
@@ -14,12 +23,20 @@ class _FakeAuthApi extends AuthControllerApi {
 
   @override
   Future<bool?> authSMS(String phoneNum) async {
-    throw UnimplementedError('authSMS is not configured');
+    final handler = onAuthSms;
+    if (handler == null) {
+      throw UnimplementedError('onAuthSms is not configured');
+    }
+    return handler(phoneNum);
   }
 
   @override
   Future<bool?> checkAuthSMS(AuthCheckReqDto authCheckReqDto) async {
-    throw UnimplementedError('checkAuthSMS is not configured');
+    final handler = onCheckAuthSms;
+    if (handler == null) {
+      throw UnimplementedError('onCheckAuthSms is not configured');
+    }
+    return handler(authCheckReqDto);
   }
 
   @override
@@ -49,6 +66,35 @@ class _FakeAuthApi extends AuthControllerApi {
       throw UnimplementedError('onLogin is not configured');
     }
     return handler(loginReqDto);
+  }
+}
+
+/// Firebase 전화번호 인증 의존성을 테스트에서 제어해 API/Firebase 분기를 독립적으로 검증합니다.
+class _FakePhoneVerificationService extends FirebasePhoneVerificationService {
+  _FakePhoneVerificationService({
+    this.onSendVerificationCode,
+    this.onVerifyCode,
+  });
+
+  final Future<bool> Function(String phoneNumber)? onSendVerificationCode;
+  final Future<bool> Function(String phoneNumber, String code)? onVerifyCode;
+
+  @override
+  Future<bool> sendVerificationCode(String phoneNumber) async {
+    final handler = onSendVerificationCode;
+    if (handler == null) {
+      throw UnimplementedError('onSendVerificationCode is not configured');
+    }
+    return handler(phoneNumber);
+  }
+
+  @override
+  Future<bool> verifyCode(String phoneNumber, String smsCode) async {
+    final handler = onVerifyCode;
+    if (handler == null) {
+      throw UnimplementedError('onVerifyCode is not configured');
+    }
+    return handler(phoneNumber, smsCode);
   }
 }
 
@@ -96,6 +142,74 @@ class _FakeUserApi extends UserAPIApi {
 
 void main() {
   group('UserService login error mapping', () {
+    test(
+      'uses Firebase verification service when useFirebase is true',
+      () async {
+        final service = UserService(
+          authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+          userApi: _FakeUserApi(onGetUser: () async => null),
+          phoneVerificationService: _FakePhoneVerificationService(
+            onSendVerificationCode: (phoneNumber) async {
+              expect(phoneNumber, '+14155551234');
+              return true;
+            },
+            onVerifyCode: (phoneNumber, code) async {
+              expect(phoneNumber, '+14155551234');
+              expect(code, '654321');
+              return true;
+            },
+          ),
+          onAuthTokenIssued: (_) {},
+          onAuthTokenCleared: () {},
+        );
+
+        final sent = await service.sendSmsVerification('+14155551234');
+        final verified = await service.verifySmsCode('+14155551234', '654321');
+
+        expect(sent, isTrue);
+        expect(verified, isTrue);
+      },
+    );
+
+    test('uses unauthenticated auth api for API SMS verification', () async {
+      final service = UserService(
+        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+        userApi: _FakeUserApi(onGetUser: () async => null),
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+          onAuthSms: (phoneNum) async {
+            expect(phoneNum, '01066784110');
+            return true;
+          },
+          onCheckAuthSms: (dto) async {
+            expect(dto.phoneNum, '01066784110');
+            expect(dto.code, '12345');
+            return true;
+          },
+        ),
+        phoneVerificationService: _FakePhoneVerificationService(
+          onSendVerificationCode: (_) async =>
+              throw StateError('firebase should not be used'),
+          onVerifyCode: (_, __) async =>
+              throw StateError('firebase should not be used'),
+        ),
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
+      );
+
+      final sent = await service.sendSmsVerification(
+        '01066784110',
+        useFirebase: false,
+      );
+      final verified = await service.verifySmsCode(
+        '01066784110',
+        '12345',
+        useFirebase: false,
+      );
+
+      expect(sent, isTrue);
+      expect(verified, isTrue);
+    });
+
     test(
       'maps socket transport ApiException(400) to NetworkException',
       () async {
