@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../comment_text_input_widget.dart';
 
 /// 댓글 시트 입력바의 액션 버튼과 텍스트 입력 필드를 담당하는 위젯입니다.
+/// - 댓글 시트의 하단에 고정되어, 사용자가 댓글을 작성하거나 미디어 첨부 등의 액션을 수행할 수 있도록 합니다.
 ///
 /// fields:
 /// - [isTextInputMode]: 현재 텍스트 입력 모드인지 여부입니다.

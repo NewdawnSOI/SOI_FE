@@ -58,7 +58,7 @@ class ApiVoiceCommentListSheet extends StatefulWidget {
 class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   /// 시트의 높이를 설정하는 변수
   /// - 화면 높이의 60%로 설정되어, 댓글 리스트와 액션 바가 적절히 배치될 수 있도록 합니다.
-  static const double _sheetHeightFactor = 0.6;
+  static const double _sheetHeightFactor = 0.5;
 
   /// 댓글 저장 직후 서버 응답에 id나 필요한 필드가 바로 안 들어올 때,
   /// 댓글 목록을 다시 조회해서 “방금 저장된 댓글”을 찾으려는 **최대 재시도 횟수**
@@ -584,6 +584,14 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       await onResult(result);
     } finally {
       _isOpeningAttachmentSheet = false;
+
+      // 시트가 닫힌 후에도 포커스가 남아있을 수 있어, 다음 프레임에서 포커스를 정리합니다.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        FocusScope.of(context).unfocus();
+      });
     }
   }
 
