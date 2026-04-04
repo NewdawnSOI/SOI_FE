@@ -289,17 +289,17 @@ class _FriendListItem extends StatelessWidget {
                     imageUrl: member.profileImageUrl!,
                     cacheKey: member.profileImageKey,
                     useOldImageOnUrlChange: member.profileImageKey != null,
-                    width: 40.w,
-                    height: 40.w,
-                    fit: BoxFit.fill,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
                     memCacheWidth: (40 * 3).round(),
                     maxWidthDiskCache: (40 * 3).round(),
                     placeholder: (context, url) => Shimmer.fromColors(
                       baseColor: Colors.grey.shade600,
                       highlightColor: Colors.grey.shade400,
                       child: Container(
-                        width: 40.w,
-                        height: 40.h,
+                        width: 40,
+                        height: 40,
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white,
@@ -307,8 +307,8 @@ class _FriendListItem extends StatelessWidget {
                       ),
                     ),
                     errorWidget: (context, url, error) => Container(
-                      width: 40.w,
-                      height: 40.h,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: const Color(0xFFd9d9d9),
@@ -322,8 +322,8 @@ class _FriendListItem extends StatelessWidget {
                   ),
                 )
               : Container(
-                  width: 40.w,
-                  height: 40.w,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFFd9d9d9),

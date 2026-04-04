@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
@@ -323,9 +324,17 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     return topLeft & commentBox.size;
   }
 
-  /// 팝업 메뉴는 한 번에 한 댓글만 열리도록 현재 열린 키와 앵커 위치를 함께 관리합니다.
+  /// 팝업 메뉴는 한 번에 한 댓글만 열리도록 현재 열린 댓글의 키와 앵커 위치를 함께 관리합니다.
+  /// - 앵커 위치란? 팝업 메뉴가 열릴 때, 해당 댓글 행의 어느 위치를 기준으로 메뉴가 열릴지를 결정하는 좌표입니다.
+  ///
+  /// Parameters:
+  /// - [comment]: 팝업 메뉴를 열고자 하는 댓글입니다. 이 댓글의 위치를 기준으로 메뉴가 열립니다.
   void _setExpandedActionComment(Comment comment) {
-    final nextKey = _commentKeyId(comment);
+    final nextKey = _commentKeyId(comment); // 댓글의 고유 키를 생성합니다.
+
+    // 댓글의 위치를 좌표로 환산해 앵커 위치를 계산합니다.
+    // 반환값이 Rect 형태이며, Rect는 좌표와 크기를 포함하는 사각형을 나타냅니다.
+    // 이 Rect는 팝업 메뉴가 열릴 때 기준이 되는 위치와 영역을 정의합니다.
     final nextAnchorRect = _resolveCommentAnchorRect(comment);
     if (nextAnchorRect == null || !mounted) {
       return;
@@ -336,6 +345,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       return;
     }
 
+    HapticFeedback.selectionClick(); // 액션 메뉴가 열릴 때 햅틱 피드백을 제공합니다.
     setState(() {
       _expandedActionCommentKey = nextKey;
       _expandedActionAnchorRect = nextAnchorRect;
