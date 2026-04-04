@@ -292,9 +292,8 @@ class _FriendListItem extends StatelessWidget {
                     width: 40.w,
                     height: 40.w,
                     fit: BoxFit.fill,
-                    memCacheWidth: (40 * 4).round(),
-                    memCacheHeight: (40 * 4).round(),
-                    maxWidthDiskCache: (40 * 4).round(),
+                    memCacheWidth: (40 * 3).round(),
+                    maxWidthDiskCache: (40 * 3).round(),
                     placeholder: (context, url) => Shimmer.fromColors(
                       baseColor: Colors.grey.shade600,
                       highlightColor: Colors.grey.shade400,

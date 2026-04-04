@@ -175,9 +175,8 @@ class _FriendListCardState extends State<FriendListCard> {
                                                 friend.displayProfileImageUrl!,
                                             cacheKey:
                                                 friend.profileImageCacheKey,
-                                            memCacheWidth: (44 * 4).round(),
-                                            memCacheHeight: (44 * 4).round(),
-                                            maxWidthDiskCache: (44 * 4).round(),
+                                            memCacheWidth: (44 * 3).round(),
+                                            maxWidthDiskCache: (44 * 3).round(),
                                             fit: BoxFit.cover,
                                             placeholder: (_, __) =>
                                                 _buildInitialOrIcon(friend),
