@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
-import 'comment_for_pending.dart';
+import 'model/comment_pending_model.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
 import 'comment_camera_bottom_sheet_widget.dart';
 import 'comment_base_bar_widget.dart';
@@ -14,16 +14,16 @@ import 'comment_save_payload.dart';
 import 'comment_text_input_widget.dart';
 
 /// 댓글 작성 모드를 나타내는 열거형입니다.
-/// - [base]: 댓글 작성의 진입점이 되는 기본 모드입니다. CommentBaseBarWidget을 보여줍니다.
-/// - [typing]: 텍스트 댓글 작성 모드입니다. CommentTextInputWidget을 보여줍니다.
-/// - [placing]: 댓글 배치 모드입니다. 댓글 작성 중인 댓글의 정보를 기반으로 CommentProfileTagWidget을 보여줍니다.
+/// - [base]: 댓글 작성의 진입점이 되는 기본 모드입니다. [CommentBaseBarWidget]을 보여줍니다.
+/// - [typing]: 텍스트 댓글 작성 모드입니다. [CommentTextInputWidget]을 보여줍니다.
+/// - [placing]: 댓글 배치 모드입니다. 댓글 작성 중인 댓글의 정보를 기반으로 [CommentProfileTagWidget]을 보여줍니다.
 enum _CommentComposerMode { base, typing, placing }
 
 /// 댓글 입력 위젯입니다.
 /// 댓글 작성의 진입점이 되는 기본 바 UI에서 시작하여, 텍스트 입력 모드와 댓글 배치 모드로 전환할 수 있습니다.
 /// - 댓글 작성의 진입점이 되는 기본 바 UI에서는 카메라 버튼, 텍스트 입력 영역, 마이크 버튼이 제공됩니다.
-/// - 텍스트 입력 영역을 탭하면 텍스트 입력 모드로 전환되어 CommentTextInputWidget이 표시됩니다.
-/// - 텍스트 입력 모드에서 텍스트를 제출하면 댓글 배치 모드로 전환되어 CommentProfileTagWidget이 표시됩니다
+/// - 텍스트 입력 영역을 탭하면 텍스트 입력 모드로 전환되어 [CommentTextInputWidget]이 표시됩니다.
+/// - 텍스트 입력 모드에서 텍스트를 제출하면 댓글 배치 모드로 전환되어 [CommentProfileTagWidget]이 표시됩니다
 ///
 /// fields:
 /// - [postId]: 댓글이 작성될 게시글의 ID입니다.
@@ -308,7 +308,7 @@ class _CommentInputWidgetState extends State<CommentInputWidget> {
       alignment: Alignment.center,
       child: CommentProfileTagWidget(
         payload: payload,
-        avatarSize: kPendingCommentAvatarSize,
+        avatarSize: kPendingCommentAvatarSize, //
         resolveDropRelativePosition: _resolveDropPosition,
         onSaveProgress: (progress) {
           widget.onCommentSaveProgress(widget.postId, progress);

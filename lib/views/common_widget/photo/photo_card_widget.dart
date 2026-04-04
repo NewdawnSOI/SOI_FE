@@ -11,14 +11,15 @@ import '../../../api/models/post.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/controller/audio_controller.dart';
 import '../../../utils/analytics_service.dart';
+import '../../../utils/position_converter.dart';
 import 'photo_display_widget.dart';
 import 'user_info_widget.dart';
 import '../about_comment/comment_input_widget.dart';
+import '../about_comment/comment_tag_bubble.dart';
 import '../about_comment/comment_media_tag_preview_widget.dart';
 import '../about_comment/comment_list_bottom_sheet.dart';
-import '../about_comment/comment_for_pending.dart';
+import '../about_comment/model/comment_pending_model.dart';
 import '../report/report_bottom_sheet.dart';
-import 'tag_pointer.dart';
 
 /// 사진 카드 위젯.
 /// 사진과 작성자 정보를 보여주고, 댓글 작성과 댓글 태그 기능을 제공합니다.
@@ -225,7 +226,22 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
 
   /// 음성 댓글을 드래그해서 사진에 태그할 때의 위치를 반환합니다.
   Offset? _resolveDropRelativePosition(int postId) {
-    return widget.pendingVoiceComments[postId]?.relativePosition;
+    final pendingMarker = widget.pendingVoiceComments[postId];
+    if (pendingMarker == null) {
+      return null;
+    }
+
+    return PositionConverter.toRelativePosition(
+      CommentTagBubble.pointerTipFromCircleCenter(
+        circleCenter: PositionConverter.toAbsolutePosition(
+          pendingMarker.relativePosition,
+          Size(354.w, 500.h),
+        ),
+        contentSize: kPendingCommentAvatarSize,
+        padding: kPendingCommentTagPadding,
+      ),
+      Size(354.w, 500.h),
+    );
   }
 
   @override
@@ -343,10 +359,10 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   data.collapsedContentSize +
                   ((data.expandedContentSize - data.collapsedContentSize) *
                       progress);
-              final diameter = TagBubble.diameterForContent(
+              final diameter = CommentTagBubble.diameterForContent(
                 contentSize: contentSize,
               );
-              final totalHeight = TagBubble.totalHeightForContent(
+              final totalHeight = CommentTagBubble.totalHeightForContent(
                 contentSize: contentSize,
               );
               final topLeft = Offset(
@@ -372,7 +388,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   behavior: HitTestBehavior.opaque,
                   onTap: data.onDismiss,
                   onLongPress: data.onLongPress,
-                  child: TagBubble(
+                  child: CommentTagBubble(
                     contentSize: contentSize,
                     child: CommentMediaTagPreviewWidget(
                       key: ValueKey('overlay_media_${data.tagKey}'),

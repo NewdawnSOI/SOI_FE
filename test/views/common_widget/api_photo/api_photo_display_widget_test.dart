@@ -8,7 +8,7 @@ import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/models/post.dart';
 import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/media_service.dart';
-import 'package:soi/views/common_widget/about_comment/comment_for_pending.dart';
+import 'package:soi/views/common_widget/about_comment/model/comment_pending_model.dart';
 import 'package:soi/views/common_widget/photo/photo_display_widget.dart';
 import 'package:soi_api_client/api.dart';
 

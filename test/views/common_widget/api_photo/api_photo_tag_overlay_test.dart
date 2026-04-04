@@ -16,10 +16,10 @@ import 'package:soi/api/services/media_service.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi/views/common_widget/about_comment/comment_media_tag_preview_widget.dart';
 import 'package:soi/views/common_widget/about_comment/comment_list_bottom_sheet.dart';
-import 'package:soi/views/common_widget/about_comment/comment_for_pending.dart';
+import 'package:soi/views/common_widget/about_comment/comment_tag_bubble.dart';
+import 'package:soi/views/common_widget/about_comment/model/comment_pending_model.dart';
 import 'package:soi/views/common_widget/photo/photo_card_widget.dart';
 import 'package:soi/views/common_widget/photo/photo_display_widget.dart';
-import 'package:soi/views/common_widget/photo/tag_pointer.dart';
 import 'package:soi_api_client/api.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -201,10 +201,10 @@ void main() {
       await tester.pumpWidget(buildHarness(comments: [mediaComment(y: 0.02)]));
       await tester.pump();
 
-      expect(find.byType(TagBubble), findsOneWidget);
+      expect(find.byType(CommentTagBubble), findsOneWidget);
       expect(find.byType(CommentMediaTagPreviewWidget), findsNothing);
 
-      await tester.tap(find.byType(TagBubble));
+      await tester.tap(find.byType(CommentTagBubble));
       await tester.pump();
 
       expect(find.byType(CommentMediaTagPreviewWidget), findsOneWidget);
@@ -272,7 +272,7 @@ void main() {
     await tester.pumpWidget(buildHarness(comments: [mediaComment(y: 0.3)]));
     await tester.pump();
 
-    await tester.tap(find.byType(TagBubble));
+    await tester.tap(find.byType(CommentTagBubble));
     await tester.pump();
 
     expect(find.byType(CommentMediaTagPreviewWidget), findsOneWidget);
@@ -290,7 +290,7 @@ void main() {
     await tester.pumpWidget(buildHarness(comments: [mediaComment(y: 0.25)]));
     await tester.pump();
 
-    await tester.tap(find.byType(TagBubble));
+    await tester.tap(find.byType(CommentTagBubble));
     await tester.pump();
 
     expect(find.byType(CommentMediaTagPreviewWidget), findsOneWidget);
@@ -320,7 +320,7 @@ void main() {
       await tester.pumpWidget(buildHarness(comments: [unavailableComment]));
       await tester.pump();
 
-      await tester.tap(find.byType(TagBubble));
+      await tester.tap(find.byType(CommentTagBubble));
       await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.byType(CommentMediaTagPreviewWidget), findsNothing);

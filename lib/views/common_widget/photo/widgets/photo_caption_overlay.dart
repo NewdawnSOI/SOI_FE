@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../about_comment/comment_circle_avatar.dart';
 import '../first_line_ellipsis_text.dart';
-import 'photo_circle_avatar.dart';
 
 class ApiPhotoCaptionOverlay extends StatelessWidget {
   ///
@@ -79,10 +79,11 @@ class ApiPhotoCaptionOverlay extends StatelessWidget {
                         ),
                       ),
                     )
-                  : ApiPhotoCircleAvatar(
-                      imageUrl: profileImageUrl,
-                      size: avatarSize,
-                      cacheKey: profileImageCacheKey,
+                  : CommentProfileTagAvatar(
+                      targetUserId: null,
+                      fallbackImageUrl: profileImageUrl,
+                      fallbackImageKey: profileImageCacheKey,
+                      avatarSize: avatarSize,
                     ),
             ),
             SizedBox(width: 12.w),

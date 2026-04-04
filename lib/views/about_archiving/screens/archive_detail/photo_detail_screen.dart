@@ -23,7 +23,7 @@ import '../../../../utils/position_converter.dart';
 import '../../../../utils/snackbar_utils.dart';
 import '../../../common_widget/photo/photo_card_widget.dart';
 import '../../../common_widget/photo/user_info_widget.dart';
-import '../../../common_widget/about_comment/comment_for_pending.dart';
+import '../../../common_widget/about_comment/model/comment_pending_model.dart';
 import '../../../common_widget/about_comment/comment_input_widget.dart';
 import '../../../common_widget/about_comment/comment_list_bottom_sheet.dart';
 import '../../../../api/models/friend.dart';
@@ -712,7 +712,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   void _onProfileImageDragged(int postId, Offset absolutePosition) {
     // 표시 프레임(354x500)과 동일한 좌표계를 사용해 위치를 변환합니다.
     final imageSize = Size(354.w, 500.h);
-    // 포인터 끝점 기준 좌표를 상대 위치로 변환
+    // pending 태그 원형 중심 좌표를 사진 상대 위치로 변환합니다.
     final relativePosition = PositionConverter.toRelativePosition(
       absolutePosition,
       imageSize,

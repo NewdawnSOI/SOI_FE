@@ -14,7 +14,7 @@ import '../../../api/models/comment_creation_result.dart';
 import '../../../utils/position_converter.dart';
 import '../../../api/media_processing/waveform_codec.dart';
 import '../../../utils/snackbar_utils.dart';
-import '../../common_widget/about_comment/comment_for_pending.dart';
+import '../../common_widget/about_comment/model/comment_pending_model.dart';
 
 /// 게시물별 음성/텍스트 댓글 상태를 관리하는 매니저 클래스
 /// 피드 화면에서 각 게시물에 대해 음성/텍스트 댓글의 활성화 상태, 저장 상태, 대기 중인 댓글 정보 등을 관리하여,
@@ -667,7 +667,7 @@ class VoiceCommentStateManager {
   void onProfileImageDragged(int postId, Offset absolutePosition) {
     final imageSize = Size(354.w, 500.h);
 
-    // 포인터 끝점 기준 좌표를 상대 위치로 변환
+    // pending 태그 원형 중심 좌표를 사진 상대 위치로 변환합니다.
     final relativePosition = PositionConverter.toRelativePosition(
       absolutePosition,
       imageSize,

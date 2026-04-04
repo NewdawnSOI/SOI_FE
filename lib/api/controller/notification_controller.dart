@@ -88,6 +88,7 @@ class NotificationController extends ChangeNotifier {
       _setLoading(false);
       return result;
     } catch (e) {
+      debugPrint('[NotificationController] getAllNotifications error: $e');
       _setError('알림 조회 실패: $e');
       _setLoading(false);
       return const NotificationGetAllResult();

@@ -14,13 +14,13 @@ import '../../../api/models/comment.dart';
 import '../../../api/models/post.dart';
 import '../../about_archiving/screens/archive_detail/category_photos_screen.dart';
 import '../about_comment/comment_list_bottom_sheet.dart';
-import '../about_comment/comment_for_pending.dart';
+import '../about_comment/comment_overlay.dart';
+import '../about_comment/comment_tag_bubble.dart';
+import '../about_comment/model/comment_pending_model.dart';
 import 'audio_control_widget.dart';
 import 'services/photo_tag_geometry_service.dart';
 import 'services/photo_waveform_parser_service.dart';
-import 'tag_pointer.dart';
 import 'widgets/photo_caption_overlay.dart';
-import 'widgets/photo_comment_overlay.dart';
 import 'widgets/photo_delete_action_popup.dart';
 import 'widgets/photo_media_content.dart';
 
@@ -953,12 +953,13 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                     builderContext.findRenderObject() as RenderBox?;
                 if (renderBox == null) return;
                 final localPosition = renderBox.globalToLocal(details.offset);
-                final tipOffset = TagBubble.pointerTipOffset(
+                final centerOffset = CommentTagBubble.circleCenterOffset(
                   contentSize: _avatarSize,
+                  padding: kPendingCommentTagPadding,
                 );
                 widget.onProfileImageDragged(
                   widget.post.id,
-                  localPosition + tipOffset,
+                  localPosition + centerOffset,
                 );
               },
               builder: (context, candidateData, rejectedData) {
@@ -1055,7 +1056,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                           ),
                         ),
                       Positioned.fill(
-                        child: ApiPhotoCommentOverlay(
+                        child: CommentOverlay(
                           comments: _overlayComments,
                           pendingMarker:
                               widget.pendingVoiceComments[widget.post.id],

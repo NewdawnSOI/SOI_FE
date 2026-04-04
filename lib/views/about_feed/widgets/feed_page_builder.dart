@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../common_widget/about_comment/comment_for_pending.dart';
+import '../../common_widget/about_comment/model/comment_pending_model.dart';
 import '../../common_widget/about_comment/comment_list_bottom_sheet.dart';
 import '../../common_widget/about_comment/comment_input_widget.dart';
 import '../../common_widget/photo/photo_card_widget.dart';

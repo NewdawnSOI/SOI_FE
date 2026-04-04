@@ -1,16 +1,22 @@
 import 'dart:ui';
 
-const double kPendingCommentTagSize = 33.0;
+/// pending 상태의 프로필 태그의 크기를 정의하는 변수
+const double kPendingCommentTagSize = 53.01;
+
+/// pending 상태 댓글 태그의 회색 배경과 내부 프로필 이미지 사이의 간격을 정의하는 변수
 const double kPendingCommentTagPadding = 3.0;
+
+/// pending 댓글 태그의 배경 색상을 정의하는 변수
 const Color kPendingCommentTagBackgroundColor = Color(0xFF595959);
+
+/// Pending 댓글에서 프로필 이미지를 표시할 때, 이미지가 원형으로 잘리도록 하기 위해 사용하는 반지름입니다.
 const double kPendingCommentAvatarSize =
     kPendingCommentTagSize - (kPendingCommentTagPadding * 2);
 
-/// API 버전 pending 댓글 UI 마커 정보
-/// - 음성 댓글 녹음 중이거나 텍스트 댓글 입력 중인 상태에서, 댓글이 작성 중인 위치에 표시할 마커 정보
-/// - UI에서 마커 위치는 포인터 끝점 기준 상대 좌표로 관리하며, 프로필 이미지 URL 키와 음성 댓글 녹음 진행률도 포함
+/// API 버전 pending 댓글 UI 마커 정보입니다.
+/// - 드래그 중이거나 저장 중인 pending 태그의 원형 중심 좌표와 진행 상태를 함께 보관합니다.
 typedef PendingApiCommentMarker = ({
-  Offset relativePosition, // 포인터 끝점 기준 상대 좌표
+  Offset relativePosition, // 원형 버블 중심 기준 상대 좌표
   String? profileImageUrlKey,
   double? progress,
 });

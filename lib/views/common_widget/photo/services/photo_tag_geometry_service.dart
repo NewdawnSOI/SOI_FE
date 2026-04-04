@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import '../../../../api/models/comment.dart';
-import '../tag_pointer.dart';
+import '../../about_comment/comment_tag_bubble.dart';
 
 class ApiPhotoTagGeometryService {
   const ApiPhotoTagGeometryService._();
@@ -11,8 +11,12 @@ class ApiPhotoTagGeometryService {
     Size containerSize,
     double contentSize,
   ) {
-    final diameter = TagBubble.diameterForContent(contentSize: contentSize);
-    final tipOffset = TagBubble.pointerTipOffset(contentSize: contentSize);
+    final diameter = CommentTagBubble.diameterForContent(
+      contentSize: contentSize,
+    );
+    final tipOffset = CommentTagBubble.pointerTipOffset(
+      contentSize: contentSize,
+    );
     final minX = diameter / 2;
     final maxX = containerSize.width - diameter / 2;
     final minY = tipOffset.dy;
@@ -25,15 +29,21 @@ class ApiPhotoTagGeometryService {
     Offset tipAnchor,
     double contentSize,
   ) {
-    final tipOffset = TagBubble.pointerTipOffset(contentSize: contentSize);
-    final diameter = TagBubble.diameterForContent(contentSize: contentSize);
+    final tipOffset = CommentTagBubble.pointerTipOffset(
+      contentSize: contentSize,
+    );
+    final diameter = CommentTagBubble.diameterForContent(
+      contentSize: contentSize,
+    );
     final left = tipAnchor.dx - tipOffset.dx;
     final top = tipAnchor.dy - tipOffset.dy;
     return Offset(left + (diameter / 2), top + (diameter / 2));
   }
 
   static Offset tagTopLeftFromTipAnchor(Offset tipAnchor, double contentSize) {
-    final tipOffset = TagBubble.pointerTipOffset(contentSize: contentSize);
+    final tipOffset = CommentTagBubble.pointerTipOffset(
+      contentSize: contentSize,
+    );
     return Offset(tipAnchor.dx - tipOffset.dx, tipAnchor.dy - tipOffset.dy);
   }
 
