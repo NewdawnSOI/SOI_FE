@@ -182,12 +182,12 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       _userController = userController;
       _userListener ??= _handleUserProfileChanged;
       _userController?.addListener(_userListener!);
-      _handleUserProfileChanged();
+      _schedulePostFrameUserStateSync();
     }
 
     _ensureArchiveCategoriesWarm();
 
-    unawaited(_loadNotificationBadgeState());
+    _schedulePostFrameNotificationBadgeLoad();
 
     // 프로필 이미지 URL은 UserController 리스너에서 관리
   }
@@ -223,6 +223,26 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       context,
       listen: false,
     );
+  }
+
+  /// 초기 의존성 연결 직후의 사용자 상태 반영은 첫 프레임 이후에 실행해 빌드 중 setState를 피합니다.
+  void _schedulePostFrameUserStateSync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _handleUserProfileChanged();
+    });
+  }
+
+  /// 알림 배지 초기 조회는 첫 프레임 이후에 시작해 Provider 알림이 빌드 단계와 겹치지 않게 합니다.
+  void _schedulePostFrameNotificationBadgeLoad() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_loadNotificationBadgeState());
+    });
   }
 
   /// 카테고리 목록이 로드되면 각 카테고리의 포스트를 백그라운드에서 프리페칭
@@ -573,7 +593,9 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       },
       child: Scaffold(
         backgroundColor: AppTheme.lightTheme.colorScheme.surface,
-        resizeToAvoidBottomInset: true,
+
+        // 키보드로 인한 리사이즈 방지 (검색창과 편집 모드 입력창이 키보드에 가려지는 것을 방지)
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           centerTitle: true,
           leadingWidth: 90.w,

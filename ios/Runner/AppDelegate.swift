@@ -145,6 +145,7 @@ extension AppDelegate {
     guard let messenger = self.registrar(forPlugin: "native_recorder")?.messenger() else { return }
 
     let audioChannel = FlutterMethodChannel(name: "native_recorder", binaryMessenger: messenger)
+    let hapticChannel = FlutterMethodChannel(name: "com.soi.haptics", binaryMessenger: messenger)
 
     // 프로퍼티에 저장하여 생명주기 동안 유지
     self.audioRecorder = NativeAudioRecorder()
@@ -157,6 +158,11 @@ extension AppDelegate {
         return
       }
       self.handleAudioRecorderMethodCall(call, result: result, recorder: audioRecorder)
+    }
+
+    hapticChannel.setMethodCallHandler { [weak self] (call, result) in
+      guard let self = self else { return }
+      self.handleHapticMethodCall(call, result: result)
     }
   }
   
@@ -182,6 +188,30 @@ extension AppDelegate {
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  /// 햅틱 채널은 댓글 롱프레스 같은 UI 피드백을 iOS 탭틱 엔진으로 전달합니다.
+  private func handleHapticMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "playCommentLongPress":
+      playCommentLongPressHaptic()
+      result(nil)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// 댓글 롱프레스에는 medium impact를 사용해 빠르고 또렷한 탭틱을 제공합니다.
+  private func playCommentLongPressHaptic() {
+    let generator = UIImpactFeedbackGenerator(style: .medium)
+    generator.prepare()
+
+    if #available(iOS 13.0, *) {
+      generator.impactOccurred(intensity: 1.0)
+      return
+    }
+
+    generator.impactOccurred()
   }
 }
 

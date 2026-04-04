@@ -147,91 +147,98 @@ class _HomePageNavigationBarState extends State<HomePageNavigationBar> {
   /// 루트 Scaffold의 body 높이를 키보드에 의해 다시 줄이지 않습니다.
   @override
   Widget build(BuildContext context) {
+    final isKeyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+
     return Scaffold(
       backgroundColor: Colors.black,
       resizeToAvoidBottomInset: false, // 키보드에 의해 body 높이가 줄어드는 것을 방지
-      bottomNavigationBar: Container(
-        margin: EdgeInsets.only(top: 10.h),
-        height: 70.h,
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(backgroundColor: Colors.black),
-          child: NavigationBar(
-            indicatorColor: Colors.transparent,
-            backgroundColor: AppTheme.lightTheme.colorScheme.surface,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-            onDestinationSelected: (int index) {
-              _moveToPage(index); // 페이지 이동 함수 호출
-            },
-            selectedIndex: _currentPageIndex,
-            destinations: <Widget>[
-              NavigationDestination(
-                icon: _buildNavSvgIcon(
-                  'assets/home_navi.svg',
-                  _inactiveColor,
-                  width: 26.sp,
-                  height: 23.sp,
+      bottomNavigationBar: isKeyboardVisible
+          ? null
+          : Container(
+              margin: EdgeInsets.only(top: 10.h),
+              height: 70.h,
+              child: NavigationBarTheme(
+                data: NavigationBarThemeData(backgroundColor: Colors.black),
+                child: NavigationBar(
+                  indicatorColor: Colors.transparent,
+                  backgroundColor: AppTheme.lightTheme.colorScheme.surface,
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+                  onDestinationSelected: (int index) {
+                    _moveToPage(index); // 페이지 이동 함수 호출
+                  },
+                  selectedIndex: _currentPageIndex,
+                  destinations: <Widget>[
+                    NavigationDestination(
+                      icon: _buildNavSvgIcon(
+                        'assets/home_navi.svg',
+                        _inactiveColor,
+                        width: 26.sp,
+                        height: 23.sp,
+                      ),
+                      selectedIcon: _buildNavSvgIcon(
+                        'assets/home_navi.svg',
+                        _activeColor,
+                        width: 26.sp,
+                        height: 23.sp,
+                      ),
+                      label: '',
+                    ),
+                    NavigationDestination(
+                      icon: _buildNavSvgIcon(
+                        'assets/update_navi.svg',
+                        _inactiveColor,
+                      ),
+                      selectedIcon: _buildNavSvgIcon(
+                        'assets/update_navi.svg',
+                        _activeColor,
+                      ),
+                      label: '',
+                    ),
+                    NavigationDestination(
+                      icon: _buildNavSvgIcon(
+                        'assets/add_navi.svg',
+                        _inactiveColor,
+                      ),
+                      selectedIcon: _buildNavSvgIcon(
+                        'assets/add_navi.svg',
+                        _activeColor,
+                      ),
+                      label: '',
+                    ),
+                    NavigationDestination(
+                      icon: _buildNavSvgIcon(
+                        'assets/friend_navi.svg',
+                        _inactiveColor,
+                        width: 29.sp,
+                        height: 22.sp,
+                      ),
+                      selectedIcon: _buildNavSvgIcon(
+                        'assets/friend_navi.svg',
+                        _activeColor,
+                        width: 29.sp,
+                        height: 22.sp,
+                      ),
+                      label: '',
+                    ),
+                    NavigationDestination(
+                      icon: _buildNavSvgIcon(
+                        'assets/profile_navi.svg',
+                        _inactiveColor,
+                        width: 28.sp,
+                        height: 28.sp,
+                      ),
+                      selectedIcon: _buildNavSvgIcon(
+                        'assets/profile_navi.svg',
+                        _activeColor,
+                        width: 28.sp,
+                        height: 28.sp,
+                      ),
+                      label: '',
+                    ),
+                  ],
                 ),
-                selectedIcon: _buildNavSvgIcon(
-                  'assets/home_navi.svg',
-                  _activeColor,
-                  width: 26.sp,
-                  height: 23.sp,
-                ),
-                label: '',
               ),
-              NavigationDestination(
-                icon: _buildNavSvgIcon(
-                  'assets/update_navi.svg',
-                  _inactiveColor,
-                ),
-                selectedIcon: _buildNavSvgIcon(
-                  'assets/update_navi.svg',
-                  _activeColor,
-                ),
-                label: '',
-              ),
-              NavigationDestination(
-                icon: _buildNavSvgIcon('assets/add_navi.svg', _inactiveColor),
-                selectedIcon: _buildNavSvgIcon(
-                  'assets/add_navi.svg',
-                  _activeColor,
-                ),
-                label: '',
-              ),
-              NavigationDestination(
-                icon: _buildNavSvgIcon(
-                  'assets/friend_navi.svg',
-                  _inactiveColor,
-                  width: 29.sp,
-                  height: 22.sp,
-                ),
-                selectedIcon: _buildNavSvgIcon(
-                  'assets/friend_navi.svg',
-                  _activeColor,
-                  width: 29.sp,
-                  height: 22.sp,
-                ),
-                label: '',
-              ),
-              NavigationDestination(
-                icon: _buildNavSvgIcon(
-                  'assets/profile_navi.svg',
-                  _inactiveColor,
-                  width: 28.sp,
-                  height: 28.sp,
-                ),
-                selectedIcon: _buildNavSvgIcon(
-                  'assets/profile_navi.svg',
-                  _activeColor,
-                  width: 28.sp,
-                  height: 28.sp,
-                ),
-                label: '',
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
       body: ValueListenableBuilder<bool>(
         valueListenable: CameraScreen.isVideoRecordingNotifier,
         builder: (context, isVideoRecording, child) {

@@ -2,7 +2,6 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
@@ -10,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../../../api/controller/audio_controller.dart';
 import '../../../../../api/models/comment.dart';
 import '../../../../../utils/format_utils.dart';
+import '../../../../../utils/ios_haptic_feedback_service.dart';
 import '../../comment_circle_avatar.dart';
 import '../../../photo/services/photo_waveform_parser_service.dart';
 import '../../../user/current_user_image_builder.dart';
@@ -340,8 +340,10 @@ class ApiCommentRow extends StatelessWidget {
       onLongPressStart: (_) {
         // 플랫폼별로 체감이 안정적인 햅틱만 사용해 롱프레스 시작 피드백을 제공합니다.
         if (defaultTargetPlatform == TargetPlatform.iOS) {
-          HapticFeedback.vibrate();
+          // iOS에서는 시스템 햅틱을 사용해 안정적인 피드백을 제공합니다.
+          IOSHapticFeedbackService.playCommentLongPress();
         } else {
+          // iOS 외 플랫폼에서는 가벼운 진동으로 피드백을 제공합니다.
           Feedback.forLongPress(context);
         }
       },

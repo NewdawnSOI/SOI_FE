@@ -107,6 +107,7 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
   ) {
     final layout = _resolveLayout(context, shrinkOffset);
     final backgroundWithHero = _buildHeaderBackground(layout);
+    final isSingleMember = category.totalUserCount == 1;
 
     return RepaintBoundary(
       child: ClipRect(
@@ -225,14 +226,18 @@ class _CategoryPhotosHeaderDelegate extends SliverPersistentHeaderDelegate {
                     if (category.totalUserCount > 0)
                       Material(
                         color: const Color(0xFF323232),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16.r),
-                        ),
+                        shape: isSingleMember
+                            ? const CircleBorder()
+                            : RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16.r),
+                              ),
                         child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 5.99.w,
-                            vertical: 3.99.h,
-                          ),
+                          padding: isSingleMember
+                              ? EdgeInsets.all(3.99.r)
+                              : EdgeInsets.symmetric(
+                                  horizontal: 5.99.w,
+                                  vertical: 3.99.h,
+                                ),
                           child: ApiArchiveProfileRowWidget(
                             avatarSize: (26.94).sp,
                             profileImageUrls: category.usersProfileUrl,
