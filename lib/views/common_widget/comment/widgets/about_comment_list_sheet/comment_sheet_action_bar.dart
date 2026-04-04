@@ -80,21 +80,21 @@ class ApiCommentSheetActionBar extends StatelessWidget {
                 KeyedSubtree(
                   key: const ValueKey('comment_action_bar'),
                   child: Container(
-                    width: 353.sp,
-                    height: 46.sp,
+                    width: 353,
+                    height: 46,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0B0B0B),
-                      borderRadius: BorderRadius.circular(52.r),
+                      color: const Color(0xFF000000).withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(52),
                     ),
-                    padding: EdgeInsets.symmetric(horizontal: 10.sp),
                     child: Row(
                       children: [
+                        SizedBox(width: 5),
                         IconButton(
                           onPressed: onCameraPressed,
                           padding: EdgeInsets.zero,
                           icon: Container(
-                            width: 32.sp,
-                            height: 32.sp,
+                            width: 32,
+                            height: 32,
                             decoration: const ShapeDecoration(
                               color: Color(0xFF323232),
                               shape: CircleBorder(),
@@ -102,14 +102,14 @@ class ApiCommentSheetActionBar extends StatelessWidget {
                             child: Center(
                               child: Image.asset(
                                 'assets/camera_mode.png',
-                                width: 17.78.sp,
+                                width: (17.78).sp,
                                 height: 16.sp,
                                 fit: BoxFit.contain,
                               ),
                             ),
                           ),
                         ),
-                        SizedBox(width: 12.sp),
+                        //SizedBox(width: 12),
                         Expanded(
                           child: Align(
                             alignment: Alignment.centerLeft,
@@ -126,7 +126,7 @@ class ApiCommentSheetActionBar extends StatelessWidget {
                                     FocusScope.of(context).unfocus(),
                                 style: TextStyle(
                                   color: const Color(0xFFF8F8F8),
-                                  fontSize: 16.sp,
+                                  fontSize: 16,
                                   fontFamily: 'Pretendard Variable',
                                   fontWeight: FontWeight.w200,
                                   letterSpacing: -1.14,
@@ -138,7 +138,7 @@ class ApiCommentSheetActionBar extends StatelessWidget {
                                   hintText: tr('comments.add_comment'),
                                   hintStyle: TextStyle(
                                     color: const Color(0xFFF8F8F8),
-                                    fontSize: 16.sp,
+                                    fontSize: 16,
                                     fontFamily: 'Pretendard Variable',
                                     fontWeight: FontWeight.w200,
                                     letterSpacing: -1.14,
@@ -153,8 +153,8 @@ class ApiCommentSheetActionBar extends StatelessWidget {
                           padding: EdgeInsets.zero,
                           icon: Image.asset(
                             'assets/record_icon.png',
-                            width: 36.sp,
-                            height: 36.sp,
+                            width: 36,
+                            height: 36,
                           ),
                         ),
                       ],

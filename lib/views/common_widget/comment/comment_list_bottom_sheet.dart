@@ -921,6 +921,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                     onHideRepliesTap: _hideRepliesForComment,
                     onViewMoreRepliesTap: _showRepliesForComment,
                   ),
+                  // 액션 바는 댓글 리스트와 별도 레이어로 배치해, 스크롤과 입력 모드 전환 시에도 안정적으로 위치를 유지합니다.
                   ApiCommentSheetActionBar(
                     isTextInputMode: _isTextInputMode,
                     textInputSession: _textInputSession,

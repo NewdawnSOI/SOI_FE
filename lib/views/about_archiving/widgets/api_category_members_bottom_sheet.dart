@@ -10,14 +10,9 @@ import 'package:soi/api/controller/media_controller.dart';
 import '../../../api/models/category.dart';
 import '../../common_widget/user/current_user_image_builder.dart';
 
-/// API 버전 카테고리 멤버들을 보여주는 바텀시트
-///
-/// 바텀시트가 열릴 때 최신 카테고리 정보를 서버에서 가져와
-/// 새로운 presigned URL로 프로필 이미지를 표시합니다.
-///
-/// Parameters:
-///   - [category]: 표시할 카테고리 정보
-///   - [onAddFriendPressed]: 친구 추가 버튼이 눌렸을 때 호출되는
+typedef _CategoryMemberProfile = ({String url, String? cacheKey, String? key});
+
+/// 카테고리 멤버 목록과 추가 액션을 동일한 바텀시트에서 보여줍니다.
 class ApiCategoryMembersBottomSheet extends StatefulWidget {
   final Category category;
   final VoidCallback? onAddFriendPressed;
@@ -33,33 +28,31 @@ class ApiCategoryMembersBottomSheet extends StatefulWidget {
       _ApiCategoryMembersBottomSheetState();
 }
 
+/// 멤버 프로필 URL 준비 상태와 그리드 렌더링을 함께 관리하는 바텀시트 상태입니다.
 class _ApiCategoryMembersBottomSheetState
     extends State<ApiCategoryMembersBottomSheet> {
-  // presigned URL 캐시
+  static const double _avatarSize = 60;
+  static const double _avatarIconSize = 44;
+  static const int _gridCrossAxisCount = 4;
+
   final Map<String, String> _presignedUrlCache = {};
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // 빌드 완료 후 presigned URL 로드
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadPresignedUrls();
+      unawaited(_loadPresignedUrls());
     });
   }
 
-  /// 모든 프로필 이미지의 presigned URL을 미리 로드
+  /// 멤버 프로필 key에 대응하는 presigned URL을 한 번에 받아 캐시에 저장합니다.
   Future<void> _loadPresignedUrls() async {
-    // MediaController 가져오기
     final mediaController = Provider.of<MediaController>(
       context,
       listen: false,
     );
-
-    // 프로필 key 목록
-    final profileImageKeys = widget.category.usersProfileKey;
-
-    final unresolvedKeys = profileImageKeys
+    final unresolvedKeys = widget.category.usersProfileKey
         .map((key) => key.trim())
         .where((key) => key.isNotEmpty && !_presignedUrlCache.containsKey(key))
         .toList(growable: false);
@@ -89,43 +82,31 @@ class _ApiCategoryMembersBottomSheetState
     }
   }
 
-  /// 인덱스별 즉시 렌더용 URL을 읽어 프로필 이미지를 빠르게 보여줍니다.
-  String? _profileImageUrlAt(int index) {
-    if (index < 0 || index >= widget.category.usersProfileUrl.length) {
-      return null;
-    }
-    final normalized = widget.category.usersProfileUrl[index].trim();
-    return normalized.isEmpty ? null : normalized;
-  }
-
-  /// 인덱스별 key를 읽어 fresh presigned URL 재발급과 캐시 키 계산에 사용합니다.
-  String? _profileImageKeyAt(int index) {
-    if (index < 0 || index >= widget.category.usersProfileKey.length) {
-      return null;
-    }
-    final normalized = widget.category.usersProfileKey[index].trim();
-    return normalized.isEmpty ? null : normalized;
-  }
-
-  /// key로 갱신된 URL이 있으면 우선 사용하고, 없으면 즉시 사용 가능한 URL을 그대로 사용합니다.
-  String _resolveDisplayProfileUrl(int index) {
-    final key = _profileImageKeyAt(index);
+  /// 인덱스 위치의 멤버 프로필 정보를 정규화해 즉시 URL과 캐시 키를 함께 제공합니다.
+  _CategoryMemberProfile _profileAt(int index) {
+    final key = _valueAt(widget.category.usersProfileKey, index);
+    final immediateUrl = _valueAt(widget.category.usersProfileUrl, index);
     final resolvedUrl = key == null ? null : _presignedUrlCache[key];
-    if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
-      return resolvedUrl;
-    }
 
-    return _profileImageUrlAt(index) ?? '';
+    return (
+      url: resolvedUrl?.isNotEmpty == true ? resolvedUrl! : immediateUrl ?? '',
+      cacheKey: key ?? _cacheKeyFromUrl(immediateUrl),
+      key: key,
+    );
   }
 
-  /// key가 있을 때는 그것을 캐시 식별자로 사용해 presigned URL이 갱신돼도 같은 이미지를 재사용합니다.
-  String? _resolveProfileCacheKey(int index) {
-    final key = _profileImageKeyAt(index);
-    if (key != null) {
-      return key;
+  /// 리스트 범위를 넘지 않는 값만 꺼내고 공백 문자열은 null로 정규화합니다.
+  String? _valueAt(List<String> values, int index) {
+    if (index < 0 || index >= values.length) {
+      return null;
     }
 
-    final profileUrl = _profileImageUrlAt(index);
+    final normalized = values[index].trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  /// key가 없는 외부 URL은 host/path 기반 캐시 키로 정규화합니다.
+  String? _cacheKeyFromUrl(String? profileUrl) {
     if (profileUrl == null) {
       return null;
     }
@@ -148,11 +129,7 @@ class _ApiCategoryMembersBottomSheetState
 
   @override
   Widget build(BuildContext context) {
-    // 멤버 총 수
     final totalMemberCount = widget.category.totalUserCount;
-
-    // 멤버 닉네임 목록
-    final memberNickNames = widget.category.nickNames;
     final hasImmediateProfileUrls = widget.category.usersProfileUrl.any(
       (url) => url.trim().isNotEmpty,
     );
@@ -169,7 +146,6 @@ class _ApiCategoryMembersBottomSheetState
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(height: 7.h),
-          // 핸들바
           Container(
             width: 56.w,
             height: 2.9.h,
@@ -181,10 +157,9 @@ class _ApiCategoryMembersBottomSheetState
 
           SizedBox(height: 24.h),
 
-          // 멤버 목록 (로딩 중이면 shimmer 표시)
           _isLoading && !hasImmediateProfileUrls
               ? _buildLoadingGrid(totalMemberCount)
-              : _buildMembersGrid(context, totalMemberCount, memberNickNames),
+              : _buildMembersGrid(totalMemberCount),
 
           SizedBox(height: 20.h),
         ],
@@ -192,119 +167,99 @@ class _ApiCategoryMembersBottomSheetState
     );
   }
 
-  /// 로딩 중 그리드 (shimmer)
+  /// 멤버 셀과 추가 버튼이 같은 레이아웃 규칙을 쓰도록 공통 그리드를 조립합니다.
+  Widget _buildGrid({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 20.w),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _gridCrossAxisCount,
+          childAspectRatio: 0.8,
+          mainAxisSpacing: 16.h,
+          crossAxisSpacing: 12.w,
+        ),
+        itemCount: itemCount,
+        itemBuilder: itemBuilder,
+      ),
+    );
+  }
+
+  /// 프로필 URL이 준비되기 전에는 셀 모양을 유지한 shimmer 그리드를 보여줍니다.
   Widget _buildLoadingGrid(int totalMemberCount) {
     final itemCount = totalMemberCount + 1;
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20.w),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          childAspectRatio: 0.8,
-          mainAxisSpacing: 16.h,
-          crossAxisSpacing: 12.w,
-        ),
-        itemCount: itemCount,
-        itemBuilder: (context, index) {
-          if (index == totalMemberCount) {
-            return _buildAddFriendButton(context);
-          }
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildMemberShimmer(),
-              SizedBox(height: (5.86).h),
-              Container(
-                width: 40.w,
-                height: 12.h,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
-                  borderRadius: BorderRadius.circular(4.r),
-                ),
+    return _buildGrid(
+      itemCount: itemCount,
+      itemBuilder: (context, index) {
+        if (index == totalMemberCount) {
+          return _buildAddFriendButton(context);
+        }
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildMemberShimmer(),
+            SizedBox(height: (5.86).h),
+            Container(
+              width: 40.w,
+              height: 12.h,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade700,
+                borderRadius: BorderRadius.circular(4.r),
               ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  /// 멤버 그리드 위젯
-  Widget _buildMembersGrid(
-    BuildContext context,
-    int totalMemberCount,
-    List<String> memberNickNames,
-  ) {
-    // 친구 추가 버튼 포함 총 아이템 수
-    // +1 친구 추가 버튼 --> 추가하기 버튼을 위해서
+  /// 카테고리 멤버와 추가 버튼을 같은 그리드에서 순서대로 렌더링합니다.
+  Widget _buildMembersGrid(int totalMemberCount) {
     final itemCount = totalMemberCount + 1;
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20.w),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          childAspectRatio: 0.8,
-          mainAxisSpacing: 16.h,
-          crossAxisSpacing: 12.w,
-        ),
-        itemCount: itemCount,
-        itemBuilder: (context, index) {
-          // 마지막 아이템은 친구 추가 버튼
-          if (index == totalMemberCount) {
-            return _buildAddFriendButton(context);
-          }
+    return _buildGrid(
+      itemCount: itemCount,
+      itemBuilder: (context, index) {
+        if (index == totalMemberCount) {
+          return _buildAddFriendButton(context);
+        }
 
-          // 멤버 닉네임을 index별로 순서대로 가지고 오기
-          final memberNickName = index < memberNickNames.length
-              ? memberNickNames[index]
-              : '';
-          final profileUrl = _resolveDisplayProfileUrl(index);
-          final cacheKey = _resolveProfileCacheKey(index);
-          final profileImageKey = _profileImageKeyAt(index);
+        final memberNickname = _valueAt(widget.category.nickNames, index) ?? '';
+        final profile = _profileAt(index);
 
-          return _buildMemberItem(
-            profileUrl,
-            memberNickName,
-            cacheKey: cacheKey,
-            profileImageKey: profileImageKey,
-          );
-        },
-      ),
+        return _buildMemberItem(
+          memberNickname: memberNickname,
+          profile: profile,
+        );
+      },
     );
   }
 
-  /// 개별 멤버 아이템
-  Widget _buildMemberItem(
-    String profileUrl,
-    String memberNickName, {
-    String? cacheKey,
-    String? profileImageKey,
+  /// 개별 멤버 셀은 아바타와 닉네임만 책임지도록 단순하게 유지합니다.
+  Widget _buildMemberItem({
+    required String memberNickname,
+    required _CategoryMemberProfile profile,
   }) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // 프로필 이미지
         _CategoryMemberAvatar(
-          memberNickname: memberNickName,
-          fallbackProfileUrl: profileUrl,
-          fallbackCacheKey: cacheKey,
-          fallbackProfileKey: profileImageKey,
+          memberNickname: memberNickname,
+          fallbackProfileUrl: profile.url,
+          fallbackCacheKey: profile.cacheKey,
+          fallbackProfileKey: profile.key,
           isLoading: _isLoading,
           shimmerBuilder: _buildMemberShimmer,
           fallbackBuilder: _buildBasicMemberIcon,
         ),
-
         SizedBox(height: (5.86).h),
-
-        // 이름 (임시)
         Text(
-          memberNickName,
+          memberNickname,
           style: TextStyle(
             color: Colors.white,
             fontSize: 12.sp,
@@ -320,14 +275,12 @@ class _ApiCategoryMembersBottomSheetState
     );
   }
 
-  /// 친구 추가 버튼
+  /// 친구 추가 버튼은 시트를 닫은 뒤 상위 액션을 다음 마이크로태스크에서 실행합니다.
   Widget _buildAddFriendButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // 바텀시트 닫기
         Navigator.pop(context);
 
-        // 친구 추가 콜백 호출 (다음 프레임에서 실행)
         if (widget.onAddFriendPressed != null) {
           Future.microtask(widget.onAddFriendPressed!);
         }
@@ -335,10 +288,9 @@ class _ApiCategoryMembersBottomSheetState
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // + 버튼
           Container(
-            width: 60,
-            height: 60,
+            width: _avatarSize,
+            height: _avatarSize,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
               color: Color(0xFFffffff),
@@ -346,8 +298,8 @@ class _ApiCategoryMembersBottomSheetState
             child: Center(
               child: Image.asset(
                 'assets/plus_icon.png',
-                width: 25.5,
-                height: 25.5,
+                width: 25.5.w,
+                height: 25.5.w,
                 fit: BoxFit.cover,
               ),
             ),
@@ -355,7 +307,6 @@ class _ApiCategoryMembersBottomSheetState
 
           SizedBox(height: 8.h),
 
-          // 텍스트
           Text(
             'category.members.add',
             style: TextStyle(
@@ -371,14 +322,14 @@ class _ApiCategoryMembersBottomSheetState
     );
   }
 
-  /// Shimmer 로딩 위젯
+  /// 프로필 이미지가 준비되기 전의 원형 placeholder를 제공합니다.
   Widget _buildMemberShimmer() {
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade700,
       highlightColor: Colors.grey.shade500,
       child: Container(
-        width: 60,
-        height: 60,
+        width: _avatarSize,
+        height: _avatarSize,
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.white,
@@ -387,16 +338,20 @@ class _ApiCategoryMembersBottomSheetState
     );
   }
 
-  /// 기본 프로필 이미지 (fallback)
+  /// 이미지가 없거나 로드 실패했을 때 공통 기본 아바타를 보여줍니다.
   Widget _buildBasicMemberIcon() {
     return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
+      width: _avatarSize,
+      height: _avatarSize,
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
         color: Color(0xFFd9d9d9),
       ),
-      child: const Icon(Icons.person, color: Colors.white, size: 44),
+      child: const Icon(
+        Icons.person,
+        color: Colors.white,
+        size: _avatarIconSize,
+      ),
     );
   }
 }
@@ -436,17 +391,21 @@ class _CategoryMemberAvatar extends StatelessWidget {
 
         return ClipOval(
           child: SizedBox(
-            width: 60,
-            height: 60,
+            width: _ApiCategoryMembersBottomSheetState._avatarSize,
+            height: _ApiCategoryMembersBottomSheetState._avatarSize,
             child: profileUrl.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: profileUrl,
                     cacheKey: resolvedCacheKey,
                     useOldImageOnUrlChange: resolvedCacheKey != null,
                     fit: BoxFit.cover,
-                    memCacheWidth: (60 * 4).round(),
-                    memCacheHeight: (60 * 4).round(),
-                    maxWidthDiskCache: (60 * 4).round(),
+                    memCacheWidth:
+                        (_ApiCategoryMembersBottomSheetState._avatarSize * 3)
+                            .round(),
+
+                    maxWidthDiskCache:
+                        (_ApiCategoryMembersBottomSheetState._avatarSize * 3)
+                            .round(),
                     placeholder: (context, url) => shimmerBuilder(),
                     errorWidget: (context, url, error) {
                       debugPrint(
@@ -465,7 +424,7 @@ class _CategoryMemberAvatar extends StatelessWidget {
   }
 }
 
-/// ApiCategoryMembersBottomSheet를 표시하는 헬퍼 함수
+/// 카테고리 멤버 시트를 공통 옵션으로 띄워 호출부를 단순하게 유지합니다.
 void showApiCategoryMembersBottomSheet(
   BuildContext context, {
   required Category category,
