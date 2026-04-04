@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
@@ -10,20 +7,33 @@ import '../../../api/controller/friend_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/controller/post_controller.dart';
 import '../../../api/controller/user_controller.dart';
-import '../../../utils/snackbar_utils.dart';
 import '../../../api/media_processing/waveform_codec.dart';
 import '../../../api/models/comment.dart';
-import '../../../api/services/media_service.dart';
+import '../../../utils/snackbar_utils.dart';
 import '../../about_feed/manager/feed_data_manager.dart';
-import '../report/report_bottom_sheet.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
 import 'comment_camera_bottom_sheet_widget.dart';
-import 'comment_text_input_widget.dart';
-import 'widgets/about_comment_list_sheet/comment_row_in_list.dart';
+import 'services/about_comment_list_sheet/comment_sheet_moderation_service.dart';
+import 'services/about_comment_list_sheet/comment_persistence_service.dart';
+import 'services/about_comment_list_sheet/comment_sheet_submission_service.dart';
+import 'services/about_comment_list_sheet/comment_thread_service.dart';
+import 'widgets/about_comment_list_sheet/comment_sheet_action_bar.dart';
+import 'widgets/about_comment_list_sheet/comment_sheet_action_popup.dart';
+import 'widgets/about_comment_list_sheet/comment_sheet_list_view.dart';
 
-/// 댓글 리스트를 보여주는 바텀 시트
-/// Comment.dart(Model)을 사용하여 댓글 정보를 표시합니다.
-/// API의 CommentRespDto와 달리, Comment 모델은 UI/도메인 레이어에서 사용하기 위한 모델입니다.
+/// 댓글 리스트를 보여주는 바텀 시트 위젯입니다.
+/// - 댓글 작성, 삭제, 신고, 차단 등의 액션을 포함한 완전한 댓글 인터랙션 플로우를 제공합니다.
+/// - API에서 제공하는 댓글 데이터를 앱 내부 모델로 변환하여 사용합니다.
+///   - API의 CommentRespDto는 앱 내부에서 Comment 모델로 변환되어 사용됩니다.
+/// - 댓글 스레드 구조를 지원하며, 원댓글과 대댓글을 구분하여 표시하고 관리합니다.
+///
+/// fields:
+/// - [postId]: 댓글이 속한 포스트의 ID입니다.
+/// - [initialComments]
+///   - 시트가 처음 열릴 때 표시할 댓글 리스트입니다.
+///   - API에서 제공하는 댓글 데이터를 앱 내부 모델로 변환하여 사용합니다.
+/// - [loadFullComments]: 시트가 열린 후, 댓글 리스트를 완전한 스레드 구조로 갱신하기 위한 비동기 로더입니다.
+/// - [selectedCommentId]: 시트가 열릴 때 자동으로 스크롤한 후, 강조하여 표시할 댓글의 ID입니다.
 class ApiVoiceCommentListSheet extends StatefulWidget {
   final int postId;
   final List<Comment> initialComments;
@@ -46,35 +56,47 @@ class ApiVoiceCommentListSheet extends StatefulWidget {
 }
 
 class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
-  // 시트 높이는 화면 높이의 60%로 설정합니다. (디자인 시안 기준)
+  /// 시트의 높이를 설정하는 변수
+  /// - 화면 높이의 60%로 설정되어, 댓글 리스트와 액션 바가 적절히 배치될 수 있도록 합니다.
   static const double _sheetHeightFactor = 0.6;
 
-  // 댓글 리스트에서 각 댓글 사이에 들어가는 구분선 위젯의 수직 패딩입니다. (댓글과 댓글 사이의 간격을 조절하는 용도)
-  static const double _commentDividerVerticalPadding = 20.0;
-  static const Color _commentHighlightColor = Color(0x3B000000);
-
-  // 댓글 저장을 시도할 때, 저장된 댓글 정보를 찾기 위해 API에서 댓글 리스트를 조회하는 최대 시도 횟수입니다.
-  // API 응답이 지연되거나 불완전한 경우에도 저장된 댓글 정보를 최대한 복원하기 위한 전략의 일환으로 사용됩니다.
+  /// 댓글 저장 직후 서버 응답에 id나 필요한 필드가 바로 안 들어올 때,
+  /// 댓글 목록을 다시 조회해서 “방금 저장된 댓글”을 찾으려는 **최대 재시도 횟수**
+  /// - 저장 API 응답이 불완전할 수 있는 상황을 대비합니다.
+  /// - 이 횟수만큼 댓글 목록을 재조회해서 저장된 댓글이 나타나는지 확인합니다.
   static const int _savedCommentLookupAttempts = 4;
 
-  // 저장된 댓글을 찾기 위해 각 시도 사이에 기다리는 지연 시간입니다.
-  // API 응답이 지연되거나 불완전한 경우에도 저장된 댓글 정보를 최대한 복원하기 위한 전략의 일환으로 사용됩니다.
+  /// 댓글 저장 직후 서버 응답에 id나 필요한 필드가 바로 안 들어올 때,
+  /// 댓글 목록을 다시 조회해서 “방금 저장된 댓글”을 찾으려는 **재시도 간격 시간**
+  /// - 저장 API 응답이 불완전할 수 있는 상황을 대비합니다.
+  /// - 이 간격마다 댓글 목록을 재조회해서 저장된 댓글이 나타나는지 확인합니다.
   static const Duration _savedCommentLookupDelay = Duration(milliseconds: 180);
 
-  // 음성 댓글의 웨이브폼 데이터는 최대 30개 샘플로 줄여서 서버에 전송합니다.
+  /// 음성 댓글의 웨이브폼 데이터는 최대 30개 샘플로 줄여서 서버에 전송합니다.
   static const int _maxWaveformSamples = 30;
+
+  /// 웨이브폼 데이터 인코딩/디코딩을 담당하는 공용 인스턴스입니다.
   static final WaveformCodec _waveformCodec = WaveformCodec();
 
   late final ScrollController _scrollController;
   late final TextEditingController _replyDraftController;
   late final FocusNode _replyDraftFocusNode;
+
+  /// 댓글 리스트 상태를 관리하는 변수입니다. API에서 제공하는 댓글 데이터를 앱 내부 모델로 변환하여 사용합니다.
   late List<Comment> _comments;
+
   final GlobalKey _sheetStackKey = GlobalKey(debugLabel: 'comment_sheet_stack');
   final GlobalKey _commentListViewportKey = GlobalKey(
     debugLabel: 'comment_list_viewport',
   );
+
+  /// 댓글 키와 해당 댓글 행의 GlobalKey를 매핑하는 맵입니다. 댓글 스레드 상태와 팝업 앵커 계산에 사용됩니다.
   final Map<String, GlobalKey> _commentKeys = <String, GlobalKey>{};
+
+  /// 펼쳐진 대댓글 스레드의 부모 댓글 키 집합입니다. 스레드 펼침 상태를 관리하는 데 사용됩니다.
   final Set<String> _expandedReplyParentKeys = <String>{};
+
+  /// 댓글이 완전히 로드되어 스레드 상태로 갱신 중인지 여부를 나타내는 플래그입니다.
   bool _isHydratingComments = false;
 
   /// 특정 댓글 스레드를 수동으로 강조 표시하기 위한 키입니다.
@@ -99,10 +121,10 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   /// 첨부 기능 시트(카메라, 음성)가 열려있는지 여부를 나타내는 플래그입니다.
   bool _isOpeningAttachmentSheet = false;
 
-  /// 텍스트 입력 모드로 진입했을 때, 입력 필드에 초기값으로 들어갈 텍스트입니다.
+  /// 텍스트 입력 모드 전환 시 새 입력창에 넘길 초기 답글 텍스트입니다.
   String _pendingInitialReplyText = '';
 
-  /// 댓글 리스트에서 각 댓글 사이에 들어가는 구분선 위젯의 수직 패딩입니다.
+  /// 입력 위젯 교체 시 AnimatedSwitcher key를 갱신하는 세션 카운터입니다.
   int _textInputSession = 0;
 
   /// 인라인 액션 드로어가 열려있는 댓글의 키입니다.
@@ -110,235 +132,25 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   String? _expandedActionCommentKey;
   Rect? _expandedActionAnchorRect;
 
-  /// 외부에서 전달된 선택 키에서 댓글 식별 숫자를 추출합니다.
-  int? _selectedCommentNumericId(String? selectedCommentId) {
-    if (selectedCommentId == null) return null;
-    final parts = selectedCommentId.split('_');
-    if (parts.length < 2) return null;
-    return int.tryParse(parts.last);
+  /// 현재 답글/첨부 흐름에서 참조해야 하는 활성 답글 대상을 반환합니다.
+  Comment? get _activeReplyTarget =>
+      _replyTargetComment ?? _attachmentReplyTarget;
+
+  /// 답글 입력 상태를 기본값으로 되돌려 다음 액션으로 안전하게 전환합니다.
+  void _resetReplyComposerState({bool clearAttachmentTarget = true}) {
+    _replyTargetComment = null;
+    if (clearAttachmentTarget) {
+      _attachmentReplyTarget = null;
+    }
+    _isReplyDraftArmed = false;
+    _isTextInputMode = false;
+    _pendingInitialReplyText = '';
   }
 
-  /// 댓글 객체가 저장된 댓글인지 확인하고, 저장된 댓글이 아니면 null을 반환하는 함수입니다.
-  Comment? _persistedCommentOrNull(Comment? comment) {
-    if (comment == null) {
-      return null;
-    }
-    if (comment.id == null || comment.userId == null) {
-      return null;
-    }
-    return comment;
-  }
-
-  /// 저장된 댓글 정보를 찾기 위한 함수입니다.
-  /// - 직접 전달된 댓글이 저장된 댓글인지 먼저 확인하고,
-  ///   그렇지 않은 경우에는 API에서 댓글 리스트를 조회하여 matcher 함수를 사용해 저장된 댓글을 찾습니다.
-  ///
-  /// Parameters:
-  /// - [directComment]: 댓글 저장 요청의 API 응답에서 직접 전달된 댓글 객체입니다. 이 객체가 저장된 댓글인지 먼저 확인합니다.
-  /// - [matcher]: API에서 조회한 댓글 리스트에서 저장된 댓글을 찾기 위한 함수입니다. 댓글 리스트를 입력으로 받아서 저장된 댓글을 반환해야 합니다.
-  ///
-  /// Returns:
-  /// - [Comment]: 저장된 댓글 객체입니다. 저장된 댓글을 찾지 못한 경우에는 StateError를 던집니다.
-  ///
-  Future<Comment> _resolvePersistedComment({
-    required Comment? directComment,
-    required Comment? Function(List<Comment> comments) matcher,
-  }) async {
-    final persistedDirect = _persistedCommentOrNull(directComment);
-    if (persistedDirect != null) {
-      return persistedDirect;
-    }
-
-    final commentController = context.read<CommentController>();
-    for (var attempt = 0; attempt < _savedCommentLookupAttempts; attempt++) {
-      final comments = await commentController.getComments(
-        postId: widget.postId,
-      );
-      final matched = _persistedCommentOrNull(matcher(comments));
-      if (matched != null) {
-        return matched;
-      }
-      if (attempt < _savedCommentLookupAttempts - 1) {
-        await Future<void>.delayed(_savedCommentLookupDelay);
-      }
-    }
-
-    throw StateError('저장된 댓글의 id/userId를 확인하지 못했습니다.');
-  }
-
-  Comment? _findSavedTextComment({
-    required List<Comment> comments,
-    required int userId,
-    required String text,
-    required Comment? replyTarget,
-  }) {
-    final trimmedText = text.trim();
-    final targetReplyUserName = (replyTarget?.nickname ?? '').trim();
-    final targetParentId = _replyThreadParentId(replyTarget);
-
-    for (final comment in comments.reversed) {
-      if (comment.userId != userId) {
-        continue;
-      }
-
-      final isExpectedType = replyTarget != null
-          ? comment.isReply
-          : comment.isText;
-      if (!isExpectedType) {
-        continue;
-      }
-
-      if ((comment.text ?? '').trim() != trimmedText) {
-        continue;
-      }
-
-      if (targetParentId != null && comment.threadParentId != targetParentId) {
-        continue;
-      }
-
-      if (replyTarget != null &&
-          targetReplyUserName.isNotEmpty &&
-          (comment.replyUserName ?? '').trim() != targetReplyUserName) {
-        continue;
-      }
-
-      return comment;
-    }
-
-    return null;
-  }
-
-  Comment? _findSavedAudioReplyComment({
-    required List<Comment> comments,
-    required int userId,
-    required Comment replyTarget,
-    required int durationMs,
-  }) {
-    final targetReplyUserName = (replyTarget.nickname ?? '').trim();
-    final targetParentId = _replyThreadParentId(replyTarget);
-
-    for (final comment in comments.reversed) {
-      if (!comment.isReply || comment.userId != userId) {
-        continue;
-      }
-
-      if (targetParentId != null && comment.threadParentId != targetParentId) {
-        continue;
-      }
-
-      if (targetReplyUserName.isNotEmpty &&
-          (comment.replyUserName ?? '').trim() != targetReplyUserName) {
-        continue;
-      }
-
-      if ((comment.duration ?? 0) == durationMs) {
-        return comment;
-      }
-    }
-
-    return null;
-  }
-
-  /// 저장된 미디어 댓글을 찾는 함수입니다.
-  /// - 댓글 리스트에서 현재 로그인한 사용자가 작성한 댓글 중에서, 대댓글인 경우에는 답글 대상과 스레드 관계가 일치하는 댓글을 찾습니다.
-  Comment? _findSavedMediaReplyComment({
-    required List<Comment> comments,
-    required int userId,
-    required Comment replyTarget,
-    required String fileKey,
-  }) {
-    final targetReplyUserName = (replyTarget.nickname ?? '').trim();
-    final targetParentId = _replyThreadParentId(replyTarget);
-
-    for (final comment in comments.reversed) {
-      if (!comment.isReply || comment.userId != userId) {
-        continue;
-      }
-
-      if (targetParentId != null && comment.threadParentId != targetParentId) {
-        continue;
-      }
-
-      if (targetReplyUserName.isNotEmpty &&
-          (comment.replyUserName ?? '').trim() != targetReplyUserName) {
-        continue;
-      }
-
-      if ((comment.fileKey ?? '').trim() == fileKey) {
-        return comment;
-      }
-    }
-
-    return null;
-  }
-
-  /// 선택 키와 안정적인 댓글 ID를 함께 사용해 현재 목록의 대상 댓글을 찾습니다.
-  Comment? _selectedComment(String? selectedCommentId) {
-    if (selectedCommentId == null) return null;
-
-    final exactMatch = _comments.cast<Comment?>().firstWhere(
-      (comment) =>
-          comment != null && _commentKeyId(comment) == selectedCommentId,
-      orElse: () => null,
-    );
-    if (exactMatch != null) {
-      return exactMatch;
-    }
-
-    final numericId = _selectedCommentNumericId(selectedCommentId);
-    if (numericId == null) return null;
-
-    return _comments.cast<Comment?>().firstWhere(
-      (comment) =>
-          comment != null &&
-          (comment.id == numericId || comment.hashCode == numericId),
-      orElse: () => null,
-    );
-  }
-
-  /// 선택된 댓글이 속한 스레드의 기준 키를 계산해 강조 표시와 스크롤에 재사용합니다.
-  ///
-  /// Parameters:
-  /// - [selectedCommentId]: 외부에서 전달된 선택 댓글 키입니다.
-  String? _highlightThreadKey(String? selectedCommentId) {
-    if (_manuallyHighlightedThreadKey != null) {
-      return _manuallyHighlightedThreadKey;
-    }
-
-    // 선택 키에 대응하는 댓글을 찾아옵니다.
-    final selectedComment = _selectedComment(selectedCommentId);
-    if (selectedComment == null) return null;
-
-    // 선택된 댓글이 속한 스레드를 강조 표시하기 위한 키를 계산합니다.
-    // 대댓글인 경우 부모 댓글을 찾아서 그 댓글을 기준으로 스레드를 펼칠지 말지를 결정합니다.
-    final anchorComment = selectedComment.isReply
-        ? _findParentComment(selectedComment) ?? selectedComment
-        : selectedComment;
-    return _commentKeyId(anchorComment);
-  }
-
-  /// 특정 댓글이 강조 표시된 스레드에 속하는지 여부를 판단하는 함수입니다.
-  /// 댓글이 선택된 댓글과 같은 스레드에 속해있다면 true를 반환합니다.
-  ///
-  /// Parameters:
-  /// - [comment]: 검사할 댓글 객체입니다.
-  /// - [anchorKey]: 선택된 댓글이 속한 스레드의 키입니다. 이 키를 기준으로 댓글이 같은 스레드에 속하는지 판단합니다.
-  bool _belongsToHighlightedThread(Comment comment, String? anchorKey) {
-    if (anchorKey == null) return false;
-    if (_commentKeyId(comment) == anchorKey) {
-      return true;
-    }
-    if (!comment.isReply) {
-      return false;
-    }
-
-    final parentComment = _findParentComment(comment); // 댓글의 부모 댓글을 찾습니다.
-    if (parentComment == null) {
-      return false;
-    }
-    // 부모 댓글의 키가 anchorKey와 일치하는지 확인합니다.
-    // 이렇게 하면, 선택된 댓글이 대댓글인 경우에도 그 부모 댓글을 기준으로 스레드를 강조 표시할 수 있습니다.
-    return _commentKeyId(parentComment) == anchorKey;
+  /// 인라인 액션 팝업 상태를 정리해 한 번에 하나의 메뉴만 유지합니다.
+  void _clearExpandedActionState() {
+    _expandedActionCommentKey = null;
+    _expandedActionAnchorRect = null;
   }
 
   @override
@@ -411,26 +223,37 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
-  /// 댓글 리스트가 처음 열릴 때, 선택된 댓글이 있으면 해당 댓글로 스크롤하는 함수
+  /// 선택 댓글이 있으면 시트가 열린 직후 해당 댓글을 하단 액션 바 위로 맞춰 스크롤합니다.
   void _scrollToSelectedComment() {
     if (widget.selectedCommentId == null) return;
 
-    final targetComment = _selectedComment(widget.selectedCommentId);
+    final targetComment = ApiCommentThreadService.selectedComment(
+      widget.selectedCommentId,
+      _comments,
+    );
     if (targetComment == null) return;
 
     _scrollCommentAboveActionBar(targetComment, animated: false);
   }
 
+  /// 선택된 대댓글이 보이도록 부모 스레드를 먼저 펼칩니다.
   void _expandSelectedReplyParentIfNeeded() {
-    final targetComment = _selectedComment(widget.selectedCommentId);
+    final targetComment = ApiCommentThreadService.selectedComment(
+      widget.selectedCommentId,
+      _comments,
+    );
     if (targetComment == null || !targetComment.isReply) return;
 
-    final parentComment = _findParentComment(targetComment);
+    final parentComment = ApiCommentThreadService.findParentComment(
+      targetComment,
+      _comments,
+    );
     if (parentComment == null) return;
 
     _expandedReplyParentKeys.add(_commentKeyId(parentComment));
   }
 
+  /// 답글 입력 모드로 전환하고 포커스를 이동시켜 즉시 입력을 시작할 수 있게 합니다.
   void _showReplyInput({Comment? replyTarget}) {
     if (replyTarget != null &&
         (replyTarget.id == null || replyTarget.userId == null)) {
@@ -444,8 +267,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _isReplyDraftArmed = true;
       _isTextInputMode = false;
       _pendingInitialReplyText = '';
-      _expandedActionCommentKey = null;
-      _expandedActionAnchorRect = null;
+      _clearExpandedActionState();
     });
 
     _replyDraftController.clear();
@@ -460,12 +282,12 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     });
   }
 
-  /// 댓글을 현재 스레드 관계 기준으로 구분할 수 있는 안정적인 키로 변환합니다.
+  /// 댓글 키는 스레드/선택/팝업 상태를 연결하는 안정적인 식별자입니다.
   String _commentKeyId(Comment comment) {
-    final idPart = comment.id?.toString() ?? 'hash_${comment.hashCode}';
-    return '${comment.type.name}_$idPart';
+    return ApiCommentThreadService.commentKeyId(comment);
   }
 
+  /// 댓글 행 GlobalKey를 재사용해 스크롤과 팝업 앵커 계산 대상 위젯을 추적합니다.
   GlobalKey _keyForComment(Comment comment) {
     return _commentKeys.putIfAbsent(
       _commentKeyId(comment),
@@ -526,12 +348,11 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       return;
     }
     setState(() {
-      _expandedActionCommentKey = null;
-      _expandedActionAnchorRect = null;
-      _expandedActionAnchorRect = null;
+      _clearExpandedActionState();
     });
   }
 
+  /// 특정 댓글이 액션 바 아래에 가려지지 않도록 리스트를 보정 스크롤합니다.
   Future<void> _scrollCommentAboveActionBar(
     Comment targetComment, {
     bool animated = true,
@@ -579,6 +400,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _scrollController.jumpTo(nextOffset);
   }
 
+  /// reply draft 포커스가 사라졌을 때 빈 입력 상태면 답글 모드를 자동 해제합니다.
   void _handleReplyDraftFocusChanged() {
     if (_replyDraftFocusNode.hasFocus ||
         // 입력 모드로 진입한 상태에서 포커스가 잠시 다른 곳으로 갔다가 다시 돌아오는 경우를 방지하기 위해,
@@ -609,6 +431,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     });
   }
 
+  /// 인라인 답글 draft에 텍스트가 생기면 전용 텍스트 입력 모드로 승격합니다.
   void _handleReplyDraftChanged(String value) {
     if (!_isReplyDraftArmed || _isTextInputMode || value.isEmpty) {
       return;
@@ -632,74 +455,41 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
+  /// 답글 입력과 첨부 타겟 상태를 닫고 composer를 기본 상태로 되돌립니다.
   void _hideReplyInput() {
     if (!mounted) {
       return;
     }
     setState(() {
-      _replyTargetComment = null;
-      _attachmentReplyTarget = null;
-      _isReplyDraftArmed = false;
-      _isTextInputMode = false;
-      _pendingInitialReplyText = '';
-      _expandedActionCommentKey = null;
-      _expandedActionAnchorRect = null;
+      _resetReplyComposerState();
+      _clearExpandedActionState();
     });
     _replyDraftController.clear();
     _replyDraftFocusNode.unfocus();
   }
 
-  /// 텍스트 댓글과 답글 저장 요청을 보내고, 저장된 댓글을 현재 스레드에 반영합니다.
+  /// 텍스트 댓글 저장 후 재조회 매칭까지 마쳐 현재 스레드 상태에 반영합니다.
   Future<void> _submitTextComment(String text) async {
-    final currentUser = context.read<UserController>().currentUser;
-    if (currentUser == null) {
-      _showSnackBar(tr('common.login_required'));
-      throw StateError('login_required');
-    }
-
-    final replyTarget = _replyTargetComment;
-
-    // 답글 저장 요청에 필요한 payload를 생성하는 함수입니다. replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
-    final replyPayload = _buildReplyPayload(replyTarget);
-    final result = await context.read<CommentController>().createComment(
-      postId: widget.postId,
-      userId: currentUser.id,
-
-      // parentId는 원댓글의 id를 전달합니디.
-      parentId: replyPayload.parentId,
-
-      // replyUserId는 대댓글인 경우에만 전달됩니다. 원댓글 저장 요청인 경우에는 null로 전달됩니다.
-      replyUserId: replyPayload.replyUserId,
-      text: text,
-      type: replyTarget != null ? CommentType.reply : CommentType.text,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (!result.success) {
-      _showSnackBar(tr('comments.save_failed'));
-      throw StateError('comment_save_failed');
-    }
-
     try {
-      final savedComment = await _resolvePersistedComment(
-        directComment: result.comment,
-        matcher: (comments) => _findSavedTextComment(
-          comments: comments,
-          userId: currentUser.id,
-          text: text,
-          replyTarget: replyTarget,
-        ),
+      final saveResult = await CommentSheetSubmissionService.submitTextComment(
+        userController: context.read<UserController>(),
+        commentController: context.read<CommentController>(),
+        postId: widget.postId,
+        text: text,
+        replyTarget: _replyTargetComment,
+        savedCommentLookupAttempts: _savedCommentLookupAttempts,
+        savedCommentLookupDelay: _savedCommentLookupDelay,
+        replyThreadParentId: (comment) =>
+            ApiCommentThreadService.replyThreadParentId(comment, _comments),
+        showSnackBar: _showSnackBar,
       );
       if (!mounted) {
         return;
       }
       _insertSavedComment(
-        savedComment,
-        replyTarget: replyTarget,
-        currentUserProfileKey: currentUser.profileImageKey,
+        saveResult.savedComment,
+        replyTarget: saveResult.replyTarget,
+        currentUserProfileKey: saveResult.currentUserProfileKey,
       );
     } catch (_) {
       if (mounted) {
@@ -709,18 +499,14 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
-  /// 카메라 아이콘을 탭했을 때 호출되는 함수입니다.
-  /// 대댓글 입력 모드가 활성화되어 있고, 답글 대상 댓글이 있는 경우에만 동작합니다.
+  /// 카메라 시트에서 생성한 미디어를 현재 답글 타겟 스레드로 저장합니다.
   Future<void> _handleCameraPressed() async {
-    final replyTarget = _replyTargetComment ?? _attachmentReplyTarget;
+    final replyTarget = _activeReplyTarget;
     if (replyTarget == null) {
       return;
     }
 
-    // 카메라/미디어 첨부 시트 열기 함수입니다.
-    // openSheet 콜백에서 시트를 열고, onResult 콜백에서 시트가 반환한 결과를 처리합니다.
     await _openAttachmentSheet<CommentCameraSheetResult>(
-      // 카메라 시트를 여는 함수입니다. 녹화가 완료되면 onResult 콜백이 호출됩니다.
       openSheet: () {
         return showModalBottomSheet<CommentCameraSheetResult>(
           context: context,
@@ -732,9 +518,6 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
         );
       },
 
-      // 카메라 시트에서 결과가 반환되었을 때 호출되는 콜백 함수입니다.
-      // 시트에서 반환된 결과를 사용하여 댓글을 서버에 업로드하고, 댓글 리스트에 추가합니다.
-      // 여기서 미리 캡처해둔 replyTarget을 사용하여, 시트가 열렸을 때의 답글 대상을 정확히 참조합니다.
       onResult: (result) async {
         await _submitMediaComment(
           replyTarget: replyTarget,
@@ -745,18 +528,15 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     );
   }
 
+  /// 녹음 시트에서 생성한 오디오를 현재 답글 타겟 스레드로 저장합니다.
   Future<void> _handleMicPressed() async {
-    final replyTarget = _replyTargetComment ?? _attachmentReplyTarget;
+    final replyTarget = _activeReplyTarget;
     if (replyTarget == null) {
       return;
     }
 
-    //
     await _openAttachmentSheet<CommentAudioSheetResult>(
-      // openSheet과 onResult 콜백에서 replyTarget이 변경되는 것을 방지하기 위해,
-      // replyTarget을 로컬 변수로 고정합니다.
       openSheet: () {
-        // 음성 녹음 시트를 여는 함수입니다. 녹음이 완료되면 onResult 콜백이 호출됩니다.
         return showModalBottomSheet<CommentAudioSheetResult>(
           context: context,
           isScrollControlled: true,
@@ -767,8 +547,6 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
         );
       },
       onResult: (result) async {
-        // 녹음이 완료된 후, 결과를 처리하는 함수입니다. 녹음 결과를 서버에 업로드하고 댓글로 등록합니다.
-        // 여기서, 미리 캡처해둔 replyTarget을 사용하여, 녹음이 완료된 시점의 답글 대상을 정확히 참조합니다.
         await _submitAudioComment(
           replyTarget: replyTarget,
           audioPath: result.audioPath,
@@ -779,6 +557,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     );
   }
 
+  /// 첨부 시트 중복 오픈을 막고, 결과가 있으면 상위 저장 플로우로 전달합니다.
   Future<void> _openAttachmentSheet<T>({
     required Future<T?> Function() openSheet,
     required Future<void> Function(T result) onResult,
@@ -801,89 +580,38 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
-  /// 음성 답글 저장 요청을 원댓글 스레드 기준 payload로 보내고, 결과를 리스트에 반영합니다.
+  /// 음성 파일 업로드와 댓글 저장을 하나의 답글 플로우로 연결합니다.
   Future<void> _submitAudioComment({
     required Comment replyTarget,
     required String audioPath,
     required List<double> waveformData,
     required int durationMs,
   }) async {
-    final currentUser = context.read<UserController>().currentUser;
-    final mediaController = context.read<MediaController>();
-    if (currentUser == null) {
-      _showSnackBar(tr('common.login_required'));
-      return;
-    }
-
-    final trimmedAudioPath = audioPath.trim();
-    if (trimmedAudioPath.isEmpty) {
-      _showSnackBar(tr('comments.save_failed'));
-      return;
-    }
-
-    final audioFile = File(trimmedAudioPath);
-    if (!await audioFile.exists()) {
-      _showSnackBar(tr('comments.save_failed'));
-      return;
-    }
-
-    final multipartFile = await mediaController.fileToMultipart(audioFile);
-    final audioKey = await mediaController.uploadCommentAudio(
-      file: multipartFile,
-      userId: currentUser.id,
-      postId: widget.postId,
-    );
-
-    if (!mounted || audioKey == null || audioKey.isEmpty) {
-      _showSnackBar(tr('comments.save_failed'));
-      return;
-    }
-
-    final encodedWaveform = _encodeWaveformForRequest(waveformData);
-
-    // 답글 저장 요청에 필요한 payload를 생성하는 함수입니다. replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
-    final replyPayload = _buildReplyPayload(replyTarget);
-    final result = await context.read<CommentController>().createComment(
-      postId: widget.postId,
-      userId: currentUser.id,
-
-      // parentId는 원댓글의 id를 전달합니디.
-      parentId: replyPayload.parentId,
-
-      // replyUserId는 대댓글인 경우에만 전달됩니다. 원댓글 저장 요청인 경우에는 null로 전달됩니다.
-      replyUserId: replyPayload.replyUserId,
-      audioKey: audioKey,
-      waveformData: encodedWaveform,
-      duration: durationMs,
-      type: CommentType.reply,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (!result.success) {
-      _showSnackBar(tr('comments.save_failed'));
-      return;
-    }
-
     try {
-      final savedComment = await _resolvePersistedComment(
-        directComment: result.comment,
-        matcher: (comments) => _findSavedAudioReplyComment(
-          comments: comments,
-          userId: currentUser.id,
-          replyTarget: replyTarget,
-          durationMs: durationMs,
-        ),
+      final saveResult = await CommentSheetSubmissionService.submitAudioComment(
+        userController: context.read<UserController>(),
+        commentController: context.read<CommentController>(),
+        mediaController: context.read<MediaController>(),
+        waveformCodec: _waveformCodec,
+        maxWaveformSamples: _maxWaveformSamples,
+        postId: widget.postId,
+        replyTarget: replyTarget,
+        audioPath: audioPath,
+        waveformData: waveformData,
+        durationMs: durationMs,
+        savedCommentLookupAttempts: _savedCommentLookupAttempts,
+        savedCommentLookupDelay: _savedCommentLookupDelay,
+        replyThreadParentId: (comment) =>
+            ApiCommentThreadService.replyThreadParentId(comment, _comments),
+        showSnackBar: _showSnackBar,
       );
       if (!mounted) {
         return;
       }
       _insertSavedComment(
-        savedComment,
-        replyTarget: replyTarget,
-        currentUserProfileKey: currentUser.profileImageKey,
+        saveResult.savedComment,
+        replyTarget: saveResult.replyTarget,
+        currentUserProfileKey: saveResult.currentUserProfileKey,
       );
     } catch (_) {
       if (mounted) {
@@ -892,89 +620,34 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
-  /// 미디어 답글 저장 요청을 원댓글 스레드 기준 payload로 보내고, 결과를 리스트에 반영합니다.
+  /// 이미지/비디오 업로드와 댓글 저장을 하나의 답글 플로우로 연결합니다.
   Future<void> _submitMediaComment({
     required Comment replyTarget,
     required String localFilePath,
     required bool isVideo,
   }) async {
-    final currentUser = context.read<UserController>().currentUser;
-    final mediaController = context.read<MediaController>();
-    if (currentUser == null) {
-      _showSnackBar(tr('common.login_required'));
-      return;
-    }
-
-    final trimmedPath = localFilePath.trim();
-    if (trimmedPath.isEmpty) {
-      _showSnackBar(tr('comments.save_failed'));
-      return;
-    }
-
-    final mediaFile = File(trimmedPath);
-    if (!await mediaFile.exists()) {
-      _showSnackBar(tr('comments.save_failed'));
-      return;
-    }
-
-    final multipartFile = await mediaController.fileToMultipart(mediaFile);
-    final mediaType = isVideo ? MediaType.video : MediaType.image;
-    final uploadedKeys = await mediaController.uploadMedia(
-      files: [multipartFile],
-      types: [mediaType],
-      usageTypes: [MediaUsageType.comment],
-      userId: currentUser.id,
-      refId: widget.postId,
-      usageCount: 1,
-    );
-
-    if (!mounted || uploadedKeys.isEmpty || uploadedKeys.first.isEmpty) {
-      _showSnackBar(tr('comments.save_failed'));
-      return;
-    }
-
-    final fileKey = uploadedKeys.first;
-
-    // 답글 저장 요청에 필요한 payload를 생성하는 함수입니다. replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
-    final replyPayload = _buildReplyPayload(replyTarget);
-    final result = await context.read<CommentController>().createComment(
-      postId: widget.postId,
-      userId: currentUser.id,
-
-      // 원댓글의 id를 전달합니다.
-      parentId: replyPayload.parentId,
-      // replyUserId는 대댓글인 경우에만 전달됩니다. 원댓글 저장 요청인 경우에는 null로 전달됩니다.
-      replyUserId: replyPayload.replyUserId,
-      fileKey: fileKey,
-      type: CommentType.reply,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (!result.success) {
-      _showSnackBar(tr('comments.save_failed'));
-      return;
-    }
-
     try {
-      final savedComment = await _resolvePersistedComment(
-        directComment: result.comment,
-        matcher: (comments) => _findSavedMediaReplyComment(
-          comments: comments,
-          userId: currentUser.id,
-          replyTarget: replyTarget,
-          fileKey: fileKey,
-        ),
+      final saveResult = await CommentSheetSubmissionService.submitMediaComment(
+        userController: context.read<UserController>(),
+        commentController: context.read<CommentController>(),
+        mediaController: context.read<MediaController>(),
+        postId: widget.postId,
+        replyTarget: replyTarget,
+        localFilePath: localFilePath,
+        isVideo: isVideo,
+        savedCommentLookupAttempts: _savedCommentLookupAttempts,
+        savedCommentLookupDelay: _savedCommentLookupDelay,
+        replyThreadParentId: (comment) =>
+            ApiCommentThreadService.replyThreadParentId(comment, _comments),
+        showSnackBar: _showSnackBar,
       );
       if (!mounted) {
         return;
       }
       _insertSavedComment(
-        savedComment,
-        replyTarget: replyTarget,
-        currentUserProfileKey: currentUser.profileImageKey,
+        saveResult.savedComment,
+        replyTarget: saveResult.replyTarget,
+        currentUserProfileKey: saveResult.currentUserProfileKey,
       );
     } catch (_) {
       if (mounted) {
@@ -983,23 +656,36 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
+  /// 저장된 댓글을 스레드 순서에 맞게 삽입하고 부모 reply count와 입력 상태를 함께 갱신합니다.
   void _insertSavedComment(
     Comment savedComment, {
     required Comment? replyTarget,
     required String? currentUserProfileKey,
   }) {
-    final normalizedComment = _normalizeCommentForThread(
-      savedComment,
-      replyTarget: replyTarget,
-      currentUserProfileKey: currentUserProfileKey,
-    );
+    final normalizedComment =
+        ApiCommentPersistenceService.normalizeCommentForThread(
+          comment: savedComment,
+          replyTarget: replyTarget,
+          currentUserProfileKey: currentUserProfileKey,
+          replyThreadParentId: (comment) =>
+              ApiCommentThreadService.replyThreadParentId(comment, _comments),
+        );
 
-    final insertIndex = _resolveInsertIndex(replyTarget);
+    final insertIndex = ApiCommentThreadService.resolveInsertIndex(
+      _comments,
+      replyTarget,
+    );
     setState(() {
       if (replyTarget != null) {
-        final parentComment = _findParentComment(replyTarget);
+        final parentComment = ApiCommentThreadService.findParentComment(
+          replyTarget,
+          _comments,
+        );
         if (parentComment != null) {
-          final parentIndex = _indexOfComment(parentComment);
+          final parentIndex = ApiCommentThreadService.indexOfComment(
+            _comments,
+            parentComment,
+          );
           if (parentIndex >= 0) {
             final currentParent = _comments[parentIndex];
             _comments[parentIndex] = currentParent.copyWith(
@@ -1010,200 +696,31 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
         }
       }
       _comments.insert(insertIndex, normalizedComment);
-      _replyTargetComment = null;
-      _attachmentReplyTarget = null;
-      _isReplyDraftArmed = false;
-      _isTextInputMode = false;
-      _pendingInitialReplyText = '';
-      _expandedActionCommentKey = null;
-      _expandedActionAnchorRect = null;
+      _resetReplyComposerState();
+      _clearExpandedActionState();
     });
     _notifyCommentsUpdated();
   }
 
-  /// 답글 대상이 속한 원댓글 스레드 ID를 우선 사용하고, 없을 때만 기존 순서 추론으로 보완합니다.
-  int? _replyThreadParentId(Comment? comment) {
-    if (comment == null) {
-      return null;
-    }
-
-    return comment.threadParentId ??
-        _findParentComment(comment)?.threadParentId ??
-        (!comment.isReply ? comment.id : null);
-  }
-
-  /// 답글 저장 요청에 필요한 payload를 생성하는 함수입니다.
-  /// replyTarget이 null이면 원댓글 저장 요청으로 처리됩니다.
-  ({int parentId, int replyUserId}) _buildReplyPayload(Comment? replyTarget) {
-    if (replyTarget == null) {
-      return (parentId: 0, replyUserId: 0);
-    }
-
-    // 원댓글 저장 요청인 경우 parentId와 replyUserId는 0으로 처리됩니다.
-    // 대댓글 저장 요청인 경우, parentId는 원댓글의 id를, replyUserId는 답글 대상 댓글의 작성자 id를 전달합니다.
-    return (
-      parentId: _replyThreadParentId(replyTarget) ?? replyTarget.id ?? 0,
-      replyUserId: replyTarget.userId ?? 0,
-    );
-  }
-
-  /// 저장 직후 리스트에 삽입할 댓글에 스레드 관계와 사용자 표시 정보를 보강합니다.
-  Comment _normalizeCommentForThread(
-    Comment comment, {
-    required Comment? replyTarget,
-    required String? currentUserProfileKey,
-  }) {
-    final normalizedReplyUserName =
-        (comment.replyUserName ?? '').trim().isNotEmpty
-        ? comment.replyUserName
-        : replyTarget?.nickname;
-    final normalizedProfileUrl =
-        (comment.userProfileUrl ?? '').trim().isNotEmpty
-        ? comment.userProfileUrl
-        : currentUserProfileKey;
-    final normalizedProfileKey =
-        (comment.userProfileKey ?? '').trim().isNotEmpty
-        ? comment.userProfileKey
-        : currentUserProfileKey;
-    final normalizedThreadParentId = replyTarget != null
-        ? _replyThreadParentId(replyTarget)
-        : (comment.threadParentId ?? comment.id);
-
-    return comment.copyWith(
-      threadParentId: normalizedThreadParentId,
-      replyUserName: normalizedReplyUserName,
-      userProfileUrl: normalizedProfileUrl,
-      userProfileKey: normalizedProfileKey,
-      createdAt: comment.createdAt ?? DateTime.now(),
-      type: replyTarget != null ? CommentType.reply : comment.type,
-    );
-  }
-
-  /// 음성 댓글 업로드용 웨이브폼을 공통 코덱으로 JSON 문자열에 맞춰 압축합니다.
-  String _encodeWaveformForRequest(List<double>? waveformData) {
-    return _waveformCodec.encodeOrEmpty(
-      waveformData,
-      maxSamples: _maxWaveformSamples,
-    );
-  }
-
-  /// 새 댓글이 현재 스레드 순서를 유지하도록 삽입 위치를 계산합니다.
-  int _resolveInsertIndex(Comment? replyTarget) {
-    if (replyTarget == null) {
-      return _comments.length;
-    }
-
-    final targetIndex = _indexOfComment(replyTarget);
-    if (targetIndex < 0) {
-      return _comments.length;
-    }
-
-    if (replyTarget.isReply) {
-      return targetIndex + 1;
-    }
-
-    var insertIndex = targetIndex + 1;
-    final targetParentId = _replyThreadParentId(replyTarget);
-    while (insertIndex < _comments.length &&
-        _comments[insertIndex].isReply &&
-        _comments[insertIndex].threadParentId == targetParentId) {
-      insertIndex++;
-    }
-    return insertIndex;
-  }
-
-  /// 리스트 안에서 같은 댓글을 다시 찾을 때 스레드 관계와 댓글 ID를 함께 비교합니다.
-  int _indexOfComment(Comment target) {
-    return _comments.indexWhere(
-      (comment) =>
-          comment.isReply == target.isReply &&
-          (comment.id == target.id ||
-              (comment.id == null &&
-                  target.id == null &&
-                  comment.hashCode == target.hashCode)) &&
-          (comment.threadParentId == target.threadParentId ||
-              comment.threadParentId == null ||
-              target.threadParentId == null),
-    );
-  }
-
-  /// 대댓글인 경우, 댓글 리스트에서 부모 댓글을 찾아 반환하는 함수입니다.
-  /// - 댓글이 대댓글이 아닌 경우에는 자기 자신을 반환합니다.
-  /// - 댓글이 대댓글인데 명시적인 부모 ID(threadParentId)가 있는 경우에는 해당 ID를 가진 댓글을 찾아 반환합니다.
-  /// - 명시적인 부모 ID가 없거나 해당 ID를 가진 댓글을 찾지 못한 경우에는,
-  ///   댓글 리스트에서 해당 댓글보다 앞에 위치한 댓글들을 역순으로 탐색하여 가장 가까운 부모 댓글(대댓글이 아닌 댓글)을 찾아 반환합니다.
-  Comment? _findParentComment(Comment comment) {
-    if (!comment.isReply) return comment;
-
-    final explicitParentId = comment.threadParentId;
-    if (explicitParentId != null) {
-      final explicitParent = _comments.cast<Comment?>().firstWhere(
-        (candidate) =>
-            candidate != null &&
-            !candidate.isReply &&
-            candidate.threadParentId == explicitParentId,
-        orElse: () => null,
-      );
-      if (explicitParent != null) {
-        return explicitParent;
-      }
-    }
-
-    final targetIndex = _indexOfComment(comment);
-    if (targetIndex < 0) return null;
-    for (var index = targetIndex - 1; index >= 0; index--) {
-      final candidate = _comments[index];
-      if (!candidate.isReply) {
-        return candidate;
-      }
-    }
-
-    return null;
-  }
-
-  /// 현재 펼쳐진 스레드 상태를 기준으로 실제 렌더링할 댓글 목록만 추립니다.
-  List<Comment> _visibleComments() {
-    final visible = <Comment>[];
-
-    for (final comment in _comments) {
-      if (!comment.isReply) {
-        visible.add(comment);
-        continue;
-      }
-
-      final parentComment = _findParentComment(comment);
-      final isExpanded =
-          parentComment == null ||
-          _expandedReplyParentKeys.contains(_commentKeyId(parentComment));
-      if (isExpanded) {
-        visible.add(comment);
-      }
-    }
-
-    return visible;
-  }
-
+  /// 특정 스레드를 펼치고 해당 스레드를 수동 강조 대상으로 고정합니다.
   void _showRepliesForComment(Comment comment) {
-    // 대댓글인 경우 부모 댓글을 찾아서 그 댓글을 기준으로 스레드를 펼칠지 말지를 결정합니다.
     final parentComment = comment.isReply
-        ? _findParentComment(comment)
+        ? ApiCommentThreadService.findParentComment(comment, _comments)
         : comment;
     if (parentComment == null || !mounted) return;
 
-    // parentKey를 기준으로 대댓글이 펼쳐질지 말지가 결정됩니다.
     final parentKey = _commentKeyId(parentComment);
     setState(() {
-      _expandedReplyParentKeys.add(parentKey); // 해당 스레드의 대댓글을 펼칩니다.
-      _manuallyHighlightedThreadKey =
-          parentKey; // 대댓글이 펼쳐질 때 해당 스레드를 수동으로 강조 표시하도록 설정합니다.
-      _expandedActionCommentKey = null;
-      _expandedActionAnchorRect = null;
+      _expandedReplyParentKeys.add(parentKey);
+      _manuallyHighlightedThreadKey = parentKey;
+      _clearExpandedActionState();
     });
   }
 
+  /// 특정 스레드를 접고, 수동 강조가 그 스레드였다면 함께 해제합니다.
   void _hideRepliesForComment(Comment comment) {
     final parentComment = comment.isReply
-        ? _findParentComment(comment)
+        ? ApiCommentThreadService.findParentComment(comment, _comments)
         : comment;
     if (parentComment == null || !mounted) return;
 
@@ -1213,117 +730,63 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       if (_manuallyHighlightedThreadKey == parentKey) {
         _manuallyHighlightedThreadKey = null;
       }
-      _expandedActionCommentKey = null;
-      _expandedActionAnchorRect = null;
+      _clearExpandedActionState();
     });
   }
 
-  /// 댓글 작성자 신고는 기존 신고 사유 바텀시트 흐름을 그대로 재사용합니다.
+  /// 댓글 작성자 신고는 기존 신고 바텀시트 흐름을 그대로 재사용합니다.
   Future<void> _reportCommentAuthor(Comment comment) async {
-    _collapseExpandedActionComment();
-    final result = await ReportBottomSheet.show(context);
-    if (result == null || !mounted) {
-      return;
-    }
-    _showSnackBar(tr('common.report_submit_success'));
-  }
-
-  /// 댓글 작성자 차단은 기존 차단 확인과 피드 반영 흐름을 댓글 시트에서도 재사용합니다.
-  Future<void> _blockCommentAuthor(Comment comment) async {
-    _collapseExpandedActionComment();
-
-    final userController = context.read<UserController>();
-    final friendController = context.read<FriendController>();
-    final feedDataManager = context.read<FeedDataManager>();
-    final postController = context.read<PostController>();
-    final messenger = ScaffoldMessenger.of(context);
-    final currentUser = userController.currentUser;
-    if (currentUser == null) {
-      SnackBarUtils.showWithMessenger(messenger, tr('common.login_required'));
-      return;
-    }
-
-    final shouldBlock = await _showBlockConfirmation();
-    if (shouldBlock != true || !mounted) {
-      return;
-    }
-
-    final nickname = (comment.nickname ?? '').trim();
-    if (nickname.isEmpty) {
-      SnackBarUtils.showWithMessenger(
-        messenger,
-        tr('common.user_info_unavailable'),
-      );
-      return;
-    }
-
-    final targetUser = await userController.getUserByNickname(nickname);
-    if (targetUser == null) {
-      SnackBarUtils.showWithMessenger(
-        messenger,
-        tr('common.user_info_unavailable'),
-      );
-      return;
-    }
-
-    final ok = await friendController.blockFriend(
-      requesterId: currentUser.id,
-      receiverId: targetUser.id,
+    await CommentSheetModerationService.reportCommentAuthor(
+      context: context,
+      collapseExpandedActionComment: _collapseExpandedActionComment,
+      showSnackBar: _showSnackBar,
     );
-    if (!mounted) {
-      return;
-    }
-
-    if (ok) {
-      feedDataManager.removePostsByNickname(nickname);
-      postController.notifyPostsChanged();
-      SnackBarUtils.showWithMessenger(messenger, tr('common.block_success'));
-      return;
-    }
-
-    SnackBarUtils.showWithMessenger(messenger, tr('common.block_failed'));
   }
 
-  /// 댓글 삭제는 현재 시트 목록과 controller 캐시를 같은 결과로 동기화합니다.
+  /// 댓글 작성자 차단 후 피드/포스트 캐시를 함께 갱신해 화면 잔존 데이터를 정리합니다.
+  Future<void> _blockCommentAuthor(Comment comment) async {
+    await CommentSheetModerationService.blockCommentAuthor(
+      context: context,
+      comment: comment,
+      userController: context.read<UserController>(),
+      friendController: context.read<FriendController>(),
+      feedDataManager: context.read<FeedDataManager>(),
+      postController: context.read<PostController>(),
+      collapseExpandedActionComment: _collapseExpandedActionComment,
+    );
+  }
+
+  /// 댓글 삭제 성공 시 시트 목록과 controller 캐시를 같은 결과로 동기화합니다.
   Future<void> _deleteComment(Comment comment) async {
-    final targetId = comment.id;
-    if (targetId == null) {
-      _showSnackBar(tr('comments.delete_unavailable'));
-      return;
-    }
-
-    final commentController = context.read<CommentController>();
-    try {
-      final success = await commentController.deleteComment(targetId);
-      if (!mounted) {
-        return;
-      }
-
-      if (!success) {
-        _showSnackBar(tr('comments.delete_failed'));
-        return;
-      }
-
-      _removeDeletedCommentFromLocalState(comment);
-      _showSnackBar(tr('comments.delete_success'));
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      _showSnackBar(tr('comments.delete_error'));
-    }
+    await CommentSheetModerationService.deleteComment(
+      comment: comment,
+      commentController: context.read<CommentController>(),
+      onDeleted: mounted
+          ? () => _removeDeletedCommentFromLocalState(comment)
+          : null,
+      showSnackBar: _showSnackBar,
+    );
   }
 
-  /// 부모 댓글 삭제 시 같은 스레드의 자식도 함께 제거해 고아 대댓글이 남지 않도록 정리합니다.
+  /// 댓글 삭제 결과를 로컬 리스트에 반영하고, 부모 삭제 시 자식 스레드도 함께 정리합니다.
   void _removeDeletedCommentFromLocalState(Comment comment) {
     final deletedKey = _commentKeyId(comment);
-    final deletedThreadId = _replyThreadParentId(comment);
+    final deletedThreadId = ApiCommentThreadService.replyThreadParentId(
+      comment,
+      _comments,
+    );
 
     setState(() {
       if (comment.isReply) {
-        final parentComment = _findParentComment(comment);
+        final parentComment = ApiCommentThreadService.findParentComment(
+          comment,
+          _comments,
+        );
         if (parentComment != null) {
-          final parentIndex = _indexOfComment(parentComment);
+          final parentIndex = ApiCommentThreadService.indexOfComment(
+            _comments,
+            parentComment,
+          );
           if (parentIndex >= 0) {
             final currentParent = _comments[parentIndex];
             _comments[parentIndex] = currentParent.copyWith(
@@ -1345,18 +808,17 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       }
 
       if (_replyTargetComment?.id == comment.id ||
-          _replyThreadParentId(_replyTargetComment) == deletedThreadId) {
-        _replyTargetComment = null;
-        _attachmentReplyTarget = null;
-        _isReplyDraftArmed = false;
-        _isTextInputMode = false;
-        _pendingInitialReplyText = '';
+          ApiCommentThreadService.replyThreadParentId(
+                _replyTargetComment,
+                _comments,
+              ) ==
+              deletedThreadId) {
+        _resetReplyComposerState();
       }
       if (_manuallyHighlightedThreadKey == deletedKey) {
         _manuallyHighlightedThreadKey = null;
       }
-      _expandedActionCommentKey = null;
-      _expandedActionAnchorRect = null;
+      _clearExpandedActionState();
     });
 
     context.read<CommentController>().replaceCommentsCache(
@@ -1366,274 +828,33 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _notifyCommentsUpdated();
   }
 
-  /// 댓글 차단 전 사용자 확인을 받아 실수로 차단하는 상황을 막습니다.
-  Future<bool?> _showBlockConfirmation() {
-    return showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: const Color(0xff323232),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(height: 17.sp),
-              Text(
-                tr('common.block_confirm'),
-                style: TextStyle(
-                  color: const Color(0xFFF8F8F8),
-                  fontSize: 19.78.sp,
-                  fontFamily: 'Pretendard Variable',
-                  fontWeight: FontWeight.w700,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 12.sp),
-              SizedBox(
-                height: 38.sp,
-                width: 344.sp,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(sheetContext).pop(true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xfff5f5f5),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14.2.r),
-                    ),
-                  ),
-                  child: Text(
-                    tr('common.yes'),
-                    style: TextStyle(
-                      fontFamily: 'Pretendard',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 17.8.sp,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 13.sp),
-              SizedBox(
-                height: 38.sp,
-                width: 344.sp,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(sheetContext).pop(false),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF323232),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14.2.r),
-                    ),
-                  ),
-                  child: Text(
-                    tr('common.no'),
-                    style: TextStyle(
-                      fontFamily: 'Pretendard',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 17.8.sp,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 30.sp),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  /// 현재 팝업이 열려있는 댓글을 찾아 팝업 메뉴 액션 분기를 계산합니다.
-  Comment? _expandedActionComment() {
-    final expandedKey = _expandedActionCommentKey;
-    if (expandedKey == null) {
-      return null;
-    }
-
-    return _comments.cast<Comment?>().firstWhere(
-      (comment) => comment != null && _commentKeyId(comment) == expandedKey,
-      orElse: () => null,
-    );
-  }
-
-  /// 롱프레스 팝업 메뉴는 시트 레이아웃을 밀지 않고 댓글 위에 겹쳐서 렌더링합니다.
-  Widget _buildExpandedActionPopup() {
-    final anchorRect = _expandedActionAnchorRect;
-    final comment = _expandedActionComment();
-    if (anchorRect == null || comment == null) {
-      return const SizedBox.shrink();
-    }
-
-    const horizontalMargin = 16.0;
-    final menuWidth = _isOwnedByCurrentUser(comment) ? 140.w : 188.w;
-    final popupLeft = (anchorRect.right - menuWidth).clamp(
-      horizontalMargin,
-      MediaQuery.of(context).size.width - menuWidth - horizontalMargin,
-    );
-    final popupTop = anchorRect.bottom - 4.sp;
-
-    return Positioned(
-      left: popupLeft,
-      top: popupTop,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) {
-          return Opacity(
-            opacity: value,
-            child: Transform.translate(
-              offset: Offset(0, (1 - value) * -12.sp),
-              child: Transform.scale(
-                scale: 0.96 + (0.04 * value),
-                alignment: Alignment.topRight,
-                child: child,
-              ),
-            ),
-          );
-        },
-        child: Material(
-          color: Colors.transparent,
-          child: _isOwnedByCurrentUser(comment)
-              ? _buildPopupActionButton(
-                  label: tr('comments.delete'),
-                  onTap: () => _deleteComment(comment),
-                  isDestructive: true,
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildPopupActionButton(
-                      label: tr('common.report'),
-                      onTap: () => _reportCommentAuthor(comment),
-                    ),
-                    SizedBox(width: 10.sp),
-                    _buildPopupActionButton(
-                      label: tr('common.block'),
-                      onTap: () => _blockCommentAuthor(comment),
-                      isDestructive: true,
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  /// 팝업 메뉴를 빌드하는 위젯 함수.
-  /// isDestructive 플래그에 따라 스타일이 달라지며, 삭제 액션인 경우 아이콘과 강조된 텍스트 스타일이 적용됩니다.
-  ///
-  /// Parameters:
-  /// - [label]: 버튼에 표시될 텍스트입니다.
-  /// - [onTap]: 버튼이 탭되었을 때 실행될 콜백 함수입니다.
-  /// - [isDestructive]: 이 버튼이 파괴적인 액션(예: 삭제)을 나타내는지 여부입니다. 기본값은 false입니다.
-  ///
-  /// Returns:
-  /// - [Widget]: 스타일이 적용된 팝업 액션 버튼 위젯입니다.
-  Widget _buildPopupActionButton({
-    required String label,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-  }) {
-    final isDeleteAction = isDestructive && label == tr('comments.delete');
-    return SizedBox(
-      height: 45.sp,
-      child: TextButton(
-        onPressed: onTap,
-        style: TextButton.styleFrom(
-          backgroundColor: const Color(0xFF323232),
-
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14.r),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 16.sp),
-        ),
-        // 댓글 삭제 액션 팝업을 띄우는 부분
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            if (isDeleteAction) ...[
-              Image.asset(
-                'assets/trash_red.png',
-                width: 16.w,
-                height: 16.h,
-                fit: BoxFit.contain,
-              ),
-              SizedBox(width: 12.sp),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: isDeleteAction ? 15.sp : 13.sp,
-                fontWeight: isDeleteAction ? FontWeight.w500 : FontWeight.w600,
-                color: isDeleteAction ? const Color(0xFFFF0000) : null,
-                fontFamily: 'Pretendard',
-                letterSpacing: isDeleteAction ? 0 : -0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSnackBar(String message) {
-    SnackBarUtils.showSnackBar(context, message);
-  }
-
   void _notifyCommentsUpdated() {
     widget.onCommentsUpdated?.call(List<Comment>.unmodifiable(_comments));
   }
 
-  /// 같은 스레드 안에서 이어지는 댓글 사이만 구분선을 접어 표시합니다.
-  Widget _buildCommentSeparator({
-    required Comment current,
-    required Comment next,
-    required bool currentHighlighted,
-    required bool nextHighlighted,
-  }) {
-    final sharesThread =
-        current.threadParentId != null &&
-        current.threadParentId == next.threadParentId;
-
-    // 같은 스레드로 이어지는 항목이면 답글 묶음으로 간주해 선을 숨깁니다.
-    if (next.isReply && sharesThread) {
-      return Container(
-        width: double.infinity,
-        height: 15.sp,
-        color: currentHighlighted || nextHighlighted
-            ? _commentHighlightColor
-            : Colors.transparent,
-      );
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: double.infinity,
-          height: _commentDividerVerticalPadding.sp,
-          color: currentHighlighted
-              ? _commentHighlightColor
-              : Colors.transparent,
-        ),
-        const Divider(color: Color(0xFF323232), thickness: 1, height: 1),
-        Container(
-          width: double.infinity,
-          height: _commentDividerVerticalPadding.sp,
-          color: nextHighlighted ? _commentHighlightColor : Colors.transparent,
-        ),
-      ],
-    );
+  /// 시트 내부 상태 변화 메시지는 공통 스낵바 유틸로 일관되게 노출합니다.
+  void _showSnackBar(String message) {
+    SnackBarUtils.showSnackBar(context, message);
   }
 
   @override
   Widget build(BuildContext context) {
     final sheetHeight = MediaQuery.of(context).size.height * _sheetHeightFactor;
+    final highlightedThreadKey = ApiCommentThreadService.highlightThreadKey(
+      manualHighlightedThreadKey: _manuallyHighlightedThreadKey,
+      selectedCommentId: widget.selectedCommentId,
+      comments: _comments,
+    );
+    final visibleComments = ApiCommentThreadService.visibleComments(
+      _comments,
+      _expandedReplyParentKeys,
+    );
+    final expandedActionComment = _expandedActionCommentKey == null
+        ? null
+        : _comments.cast<Comment?>().firstWhere(
+            (comment) => _commentKeyId(comment!) == _expandedActionCommentKey,
+            orElse: () => null,
+          );
 
     return AnimatedPadding(
       duration: const Duration(milliseconds: 180),
@@ -1677,227 +898,58 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                       color: Color(0xFFF8F8F8),
                       backgroundColor: Color(0xFF323232),
                     ),
-                  _buildCommentList(),
-                  _buildCommentActionBar(),
+                  ApiCommentSheetListView(
+                    viewportKey: _commentListViewportKey,
+                    scrollController: _scrollController,
+                    comments: _comments,
+                    visibleComments: visibleComments,
+                    highlightedThreadKey: highlightedThreadKey,
+                    expandedReplyParentKeys: _expandedReplyParentKeys,
+                    expandedActionCommentKey: _expandedActionCommentKey,
+                    commentKeyBuilder: _commentKeyId,
+                    isCommentHighlighted: (comment, anchorKey) =>
+                        ApiCommentThreadService.belongsToHighlightedThread(
+                          comment: comment,
+                          anchorKey: anchorKey,
+                          comments: _comments,
+                        ),
+                    keyForComment: _keyForComment,
+                    onScrollStarted: _collapseExpandedActionComment,
+                    onLongPressComment: _setExpandedActionComment,
+                    onReplyTap: (target) =>
+                        _showReplyInput(replyTarget: target),
+                    onHideRepliesTap: _hideRepliesForComment,
+                    onViewMoreRepliesTap: _showRepliesForComment,
+                  ),
+                  ApiCommentSheetActionBar(
+                    isTextInputMode: _isTextInputMode,
+                    textInputSession: _textInputSession,
+                    replyTargetId: _replyTargetComment?.id,
+                    pendingInitialReplyText: _pendingInitialReplyText,
+                    isReplyDraftArmed: _isReplyDraftArmed,
+                    replyDraftController: _replyDraftController,
+                    replyDraftFocusNode: _replyDraftFocusNode,
+                    onReplyDraftChanged: _handleReplyDraftChanged,
+                    onCameraPressed: _handleCameraPressed,
+                    onMicPressed: _handleMicPressed,
+                    onSubmitText: _submitTextComment,
+                    onEditingCancelled: _hideReplyInput,
+                  ),
                 ],
               ),
             ),
-            if (_expandedActionCommentKey != null) _buildExpandedActionPopup(),
+            if (_expandedActionAnchorRect != null &&
+                expandedActionComment != null)
+              ApiCommentSheetActionPopup(
+                anchorRect: _expandedActionAnchorRect!,
+                isOwnedByCurrentUser: _isOwnedByCurrentUser(
+                  expandedActionComment,
+                ),
+                onDelete: () => _deleteComment(expandedActionComment),
+                onReport: () => _reportCommentAuthor(expandedActionComment),
+                onBlock: () => _blockCommentAuthor(expandedActionComment),
+              ),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// 스크롤 시작 시 열린 액션 드로어를 닫아 한 번에 한 메뉴만 유지합니다.
-  bool _handleCommentListScrollNotification(ScrollNotification notification) {
-    if (notification is UserScrollNotification &&
-        notification.direction != ScrollDirection.idle) {
-      _collapseExpandedActionComment();
-    }
-    return false;
-  }
-
-  Widget _buildCommentList() {
-    final highlightedThreadKey = _highlightThreadKey(widget.selectedCommentId);
-    final visibleComments = _visibleComments();
-    return Expanded(
-      child: Container(
-        key: _commentListViewportKey,
-        child: NotificationListener<ScrollNotification>(
-          onNotification: _handleCommentListScrollNotification,
-          child: _comments.isEmpty
-              ? LayoutBuilder(
-                  builder: (context, constraints) {
-                    return ListView(
-                      controller: _scrollController,
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                      children: [
-                        SizedBox(
-                          height: constraints.maxHeight,
-                          child: Center(
-                            child: Text(
-                              tr('comments.empty', context: context),
-                              style: TextStyle(
-                                color: const Color(0xFF9E9E9E),
-                                fontSize: 16.sp,
-                                fontFamily: 'Pretendard',
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                )
-              : ListView.separated(
-                  controller: _scrollController,
-                  physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
-                  ),
-                  primary: false,
-                  itemCount: visibleComments.length,
-                  separatorBuilder: (_, index) {
-                    final current = visibleComments[index];
-                    final next = visibleComments[index + 1];
-                    return _buildCommentSeparator(
-                      current: current,
-                      next: next,
-                      currentHighlighted: _belongsToHighlightedThread(
-                        current,
-                        highlightedThreadKey,
-                      ),
-                      nextHighlighted: _belongsToHighlightedThread(
-                        next,
-                        highlightedThreadKey,
-                      ),
-                    );
-                  },
-                  itemBuilder: (context, index) {
-                    final comment = visibleComments[index];
-                    final commentKey = _commentKeyId(comment);
-                    final isHighlighted = _belongsToHighlightedThread(
-                      comment,
-                      highlightedThreadKey,
-                    );
-                    return KeyedSubtree(
-                      key: _keyForComment(comment),
-                      child: ApiCommentRow(
-                        comment: comment,
-                        isHighlighted: isHighlighted,
-                        isActionExpanded:
-                            _expandedActionCommentKey == commentKey,
-                        onLongPress: () => _setExpandedActionComment(comment),
-                        onReplyTap: (target) =>
-                            _showReplyInput(replyTarget: target),
-                        showHideRepliesButton:
-                            !comment.isReply &&
-                            (comment.replyCommentCount ?? 0) > 0 &&
-                            _expandedReplyParentKeys.contains(commentKey),
-                        showViewMoreRepliesButton:
-                            !comment.isReply &&
-                            (comment.replyCommentCount ?? 0) > 0 &&
-                            !_expandedReplyParentKeys.contains(commentKey),
-                        onHideRepliesTap: _hideRepliesForComment,
-                        onViewMoreRepliesTap: _showRepliesForComment,
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ),
-    );
-  }
-
-  /// CommentListSheet 내부에 있는 댓글 추가 액션 바
-  Widget _buildCommentActionBar() {
-    return Center(
-      child: SizedBox(
-        height: 52.sp,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          transitionBuilder: (child, animation) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          child: _isTextInputMode
-              ? KeyedSubtree(
-                  key: ValueKey(
-                    'reply_input_${_replyTargetComment?.id ?? 0}_$_textInputSession',
-                  ),
-                  child: CommentTextInputWidget(
-                    initialText: _pendingInitialReplyText,
-                    onSubmitText: _submitTextComment,
-                    onEditingCancelled: _hideReplyInput,
-                    hintText: tr('comments.add_comment'),
-                  ),
-                )
-              : KeyedSubtree(
-                  key: const ValueKey('comment_action_bar'),
-                  child: Container(
-                    width: 353.sp,
-                    height: 46.sp,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0B0B0B),
-                      borderRadius: BorderRadius.circular(52.r),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 10.sp),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          onPressed: _handleCameraPressed,
-                          padding: EdgeInsets.zero,
-                          icon: Container(
-                            width: 32.sp,
-                            height: 32.sp,
-                            decoration: ShapeDecoration(
-                              color: const Color(0xFF323232),
-                              shape: const CircleBorder(),
-                            ),
-                            child: Center(
-                              child: Image.asset(
-                                'assets/camera_mode.png',
-                                width: (17.78).sp,
-                                height: 16.sp,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12.sp),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: IgnorePointer(
-                              ignoring: !_isReplyDraftArmed,
-                              child: TextField(
-                                controller: _replyDraftController,
-                                focusNode: _replyDraftFocusNode,
-                                autofocus: false,
-                                minLines: 1,
-                                maxLines: 1,
-                                onChanged: _handleReplyDraftChanged,
-                                onTapOutside: (_) =>
-                                    FocusScope.of(context).unfocus(),
-                                style: TextStyle(
-                                  color: const Color(0xFFF8F8F8),
-                                  fontSize: 16.sp,
-                                  fontFamily: 'Pretendard Variable',
-                                  fontWeight: FontWeight.w200,
-                                  letterSpacing: -1.14,
-                                ),
-                                cursorColor: Colors.white,
-                                decoration: InputDecoration(
-                                  isCollapsed: true,
-                                  border: InputBorder.none,
-                                  hintText: tr('comments.add_comment'),
-                                  hintStyle: TextStyle(
-                                    color: const Color(0xFFF8F8F8),
-                                    fontSize: 16.sp,
-                                    fontFamily: 'Pretendard Variable',
-                                    fontWeight: FontWeight.w200,
-                                    letterSpacing: -1.14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: _handleMicPressed,
-                          padding: EdgeInsets.zero,
-                          icon: Image.asset(
-                            'assets/record_icon.png',
-                            width: 36.sp,
-                            height: 36.sp,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
         ),
       ),
     );
