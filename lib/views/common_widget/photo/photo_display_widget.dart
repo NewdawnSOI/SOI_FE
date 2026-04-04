@@ -631,6 +631,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     _notifyExpandedMediaOverlay(null);
   }
 
+  /// 확장된 미디어 오버레이를 표시하기 위해 필요한 데이터를 계산하고, 상위 위젯에 전달하는 함수입니다.
   void _emitExpandedMediaOverlay({
     required String tagKey,
     required Comment comment,
@@ -671,6 +672,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     _clearExpandedMediaOverlay();
   }
 
+  /// 댓글 태그가 탭되어 확장된 미디어 오버레이를 표시할 때 필요한 데이터를 계산하고, 상위 위젯에 전달하는 함수입니다.
   void _showExpandedMediaOverlay({
     required String tagKey,
     required Comment comment,
@@ -683,6 +685,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
           _avatarSize,
         );
 
+    // 확장된 미디어 오버레이를 표시하기 위해 필요한 데이터를 계산하고, 상위 위젯에 전달합니다.
     _emitExpandedMediaOverlay(
       tagKey: tagKey,
       comment: comment,
@@ -693,6 +696,14 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     );
   }
 
+  /// 댓글 태그를 탭했을 때의 행동을 처리하는 함수입니다. 댓글의 타입과 현재 오버레이 상태에 따라 다른 행동을 수행합니다.
+  /// - 댓글이 포토 타입인 경우:
+  ///   - 해당 댓글이 확장 가능한 미디어 댓글인지 확인합니다.
+  ///     - 확장이 불가능한 경우: 댓글 시트를 엽니다.
+  ///     - 확장 가능한 경우: 현재 오버레이가 해당 댓글의 태그인지 확인합니다. 이미 확장된 태그를 탭한 경우, 오버레이를 축소합니다.
+  /// - 댓글이 포토 타입이 아닌 경우:
+  ///   - 현재 확장된 미디어 태그가 있다면 축소합니다.
+  ///   - 댓글 시트를 엽니다.
   void _handleCommentTap({
     required Comment comment,
     required String key,
@@ -717,6 +728,9 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
       setState(() {
         _expandedMediaTagKey = key;
       });
+
+      // 미디어 태그 오버레이를 확장된 상태로 표시합니다.
+      // 이때, 오버레이가 탭된 태그에 맞게 표시되도록 필요한 데이터를 전달합니다.
       _showExpandedMediaOverlay(
         tagKey: key,
         comment: comment,
