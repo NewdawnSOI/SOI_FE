@@ -10,6 +10,7 @@ import '../../../../../api/models/comment.dart';
 import '../../../../../utils/format_utils.dart';
 import '../../comment_circle_avatar.dart';
 import '../../../photo/services/photo_waveform_parser_service.dart';
+import '../../../user/current_user_image_builder.dart';
 import 'comment_media_preview.dart';
 import 'waveform_playback_bar.dart';
 
@@ -505,12 +506,19 @@ class _CommentRowAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CommentProfileTagAvatar(
+    return CurrentUserImageBuilder(
+      imageKind: CurrentUserImageKind.profile,
       targetUserId: commentUserId,
       targetUserHandle: commentNickname,
       fallbackImageUrl: fallbackProfileUrl,
       fallbackImageKey: fallbackProfileKey,
-      avatarSize: size,
+      builder: (context, imageUrl, cacheKey) {
+        return CommentCircleAvatar(
+          imageUrl: imageUrl,
+          size: size,
+          cacheKey: cacheKey,
+        );
+      },
     );
   }
 }

@@ -12,7 +12,7 @@ import 'package:soi/api/models/comment_creation_result.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/user_service.dart';
-import 'package:soi/views/common_widget/about_comment/comment_list_bottom_sheet.dart';
+import 'package:soi/views/common_widget/comment/comment_list_bottom_sheet.dart';
 import 'package:soi_api_client/api.dart';
 
 /// 댓글 시트 테스트에 필요한 번역 키만 메모리에서 제공합니다.
@@ -330,61 +330,64 @@ void main() {
     expect(updatedComments?.map((comment) => comment.id), [100, 200]);
   });
 
-  testWidgets('long press expands inline action drawer and only one stays open', (
-    tester,
-  ) async {
-    await _setPhoneSurface(tester);
+  testWidgets(
+    'long press expands inline action drawer and only one stays open',
+    (tester) async {
+      await _setPhoneSurface(tester);
 
-    final currentUser = User(
-      id: 999,
-      userId: 'me',
-      name: '테스트 유저',
-      phoneNumber: '01099999999',
-    );
-    final myComment = Comment(
-      id: 100,
-      userId: currentUser.id,
-      nickname: currentUser.userId,
-      text: '내 댓글',
-      createdAt: DateTime(2026, 3, 1),
-      type: CommentType.text,
-    );
-    final otherComment = Comment(
-      id: 200,
-      userId: 123,
-      nickname: 'other',
-      text: '남의 댓글',
-      createdAt: DateTime(2026, 3, 2),
-      type: CommentType.text,
-    );
+      final currentUser = User(
+        id: 999,
+        userId: 'me',
+        name: '테스트 유저',
+        phoneNumber: '01099999999',
+      );
+      final myComment = Comment(
+        id: 100,
+        userId: currentUser.id,
+        nickname: currentUser.userId,
+        text: '내 댓글',
+        createdAt: DateTime(2026, 3, 1),
+        type: CommentType.text,
+      );
+      final otherComment = Comment(
+        id: 200,
+        userId: 123,
+        nickname: 'other',
+        text: '남의 댓글',
+        createdAt: DateTime(2026, 3, 2),
+        type: CommentType.text,
+      );
 
-    await tester.pumpWidget(
-      _buildHarness(
-        userController: _FakeUserController(currentUser: currentUser),
-        commentController: _CapturingCommentController(createdComment: myComment),
-        child: ApiVoiceCommentListSheet(
-          postId: 77,
-          initialComments: [myComment, otherComment],
+      await tester.pumpWidget(
+        _buildHarness(
+          userController: _FakeUserController(currentUser: currentUser),
+          commentController: _CapturingCommentController(
+            createdComment: myComment,
+          ),
+          child: ApiVoiceCommentListSheet(
+            postId: 77,
+            initialComments: [myComment, otherComment],
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    await tester.longPress(find.text('내 댓글'));
-    await tester.pumpAndSettle();
+      await tester.longPress(find.text('내 댓글'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('댓글 삭제'), findsOneWidget);
-    expect(find.text('신고'), findsNothing);
-    expect(find.text('차단'), findsNothing);
-    expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(find.text('댓글 삭제'), findsOneWidget);
+      expect(find.text('신고'), findsNothing);
+      expect(find.text('차단'), findsNothing);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
 
-    await tester.longPress(find.text('남의 댓글'));
-    await tester.pumpAndSettle();
+      await tester.longPress(find.text('남의 댓글'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('댓글 삭제'), findsNothing);
-    expect(find.text('신고'), findsOneWidget);
-    expect(find.text('차단'), findsOneWidget);
-  });
+      expect(find.text('댓글 삭제'), findsNothing);
+      expect(find.text('신고'), findsOneWidget);
+      expect(find.text('차단'), findsOneWidget);
+    },
+  );
 
   testWidgets('tapping outside closes expanded inline action drawer', (
     tester,
@@ -410,10 +413,7 @@ void main() {
       _buildHarness(
         userController: _FakeUserController(currentUser: currentUser),
         commentController: _CapturingCommentController(createdComment: comment),
-        child: ApiVoiceCommentListSheet(
-          postId: 77,
-          initialComments: [comment],
-        ),
+        child: ApiVoiceCommentListSheet(postId: 77, initialComments: [comment]),
       ),
     );
     await tester.pumpAndSettle();
@@ -482,8 +482,9 @@ void main() {
     expect(find.text('삭제할 댓글'), findsNothing);
     expect(find.text('남는 댓글'), findsOneWidget);
     expect(updatedComments?.map((comment) => comment.id), [200]);
-    expect(commentController.replacedCacheComments?.map((comment) => comment.id), [
-      200,
-    ]);
+    expect(
+      commentController.replacedCacheComments?.map((comment) => comment.id),
+      [200],
+    );
   });
 }

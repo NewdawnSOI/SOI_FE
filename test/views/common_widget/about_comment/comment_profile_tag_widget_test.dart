@@ -7,10 +7,10 @@ import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/media_service.dart';
-import 'package:soi/views/common_widget/about_comment/comment_profile_tag_widget.dart';
-import 'package:soi/views/common_widget/about_comment/comment_save_payload.dart';
-import 'package:soi/views/common_widget/about_comment/comment_tag_bubble.dart';
-import 'package:soi/views/common_widget/about_comment/model/comment_pending_model.dart';
+import 'package:soi/views/common_widget/comment/comment_profile_tag_widget.dart';
+import 'package:soi/views/common_widget/comment/comment_save_payload.dart';
+import 'package:soi/views/common_widget/comment/comment_tag_bubble.dart';
+import 'package:soi/views/common_widget/comment/model/comment_pending_model.dart';
 import 'package:soi_api_client/api.dart';
 
 class _NoopMediaApi extends APIApi {}
@@ -96,33 +96,13 @@ void main() {
     SoiApiClient.instance.clearAuthToken();
   });
 
-  testWidgets('placing tag keeps a 53.01 by 53.01 visible bubble', (tester) async {
+  testWidgets('placing tag keeps a 33 by 33 visible bubble', (tester) async {
     await tester.pumpWidget(
       _buildHarness(mediaController: _FakeMediaController()),
     );
 
     final tagSize = tester.getSize(find.byType(CommentTagBubble));
     expect(tagSize.width, moreOrLessEquals(kPendingCommentTagSize));
-  });
-
-  test('pending tag center converts back to persisted tip anchor', () {
-    final circleCenter = const Offset(100, 150);
-    final tipAnchor = CommentTagBubble.pointerTipFromCircleCenter(
-      circleCenter: circleCenter,
-      contentSize: kPendingCommentAvatarSize,
-      padding: kPendingCommentTagPadding,
-    );
-
-    final centerOffset = CommentTagBubble.circleCenterOffset(
-      contentSize: kPendingCommentAvatarSize,
-      padding: kPendingCommentTagPadding,
-    );
-    final tipOffset = CommentTagBubble.pointerTipOffset(
-      contentSize: kPendingCommentAvatarSize,
-      padding: kPendingCommentTagPadding,
-    );
-
-    expect(tipAnchor, circleCenter + (tipOffset - centerOffset));
   });
 
   testWidgets(

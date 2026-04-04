@@ -11,7 +11,7 @@ import '../../../utils/snackbar_utils.dart';
 import '../../../api/models/post.dart';
 import '../../about_feed/manager/feed_data_manager.dart';
 import '../../../utils/format_utils.dart';
-import '../about_more_menu/more_menu_button_widget.dart';
+import '../more_menu/more_menu_button_widget.dart';
 import '../report/report_bottom_sheet.dart';
 
 enum _UserAction { report, block }

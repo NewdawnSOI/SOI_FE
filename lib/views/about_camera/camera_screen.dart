@@ -1133,6 +1133,9 @@ class _CameraScreenState extends State<CameraScreen>
       currentZoomValue: currentZoomValue,
       onZoomSelected: (value, label) => _setZoomLevel(value, label),
     );
+    final keyboardInset = isTextMode
+        ? 0.0
+        : MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -1142,9 +1145,7 @@ class _CameraScreenState extends State<CameraScreen>
         child: AnimatedPadding(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
+          padding: EdgeInsets.only(bottom: keyboardInset),
           child: SingleChildScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Column(

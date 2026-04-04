@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import '../../../../api/models/comment.dart';
-import '../../about_comment/comment_tag_bubble.dart';
+import '../../comment/comment_tag_bubble.dart';
 
 class ApiPhotoTagGeometryService {
   const ApiPhotoTagGeometryService._();

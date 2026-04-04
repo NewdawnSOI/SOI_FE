@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soi/views/common_widget/about_comment/comment_save_payload.dart';
+import 'package:soi/views/common_widget/comment/comment_save_payload.dart';
 
 void main() {
   group('CommentSavePayload', () {

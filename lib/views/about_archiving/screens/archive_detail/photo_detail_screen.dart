@@ -23,9 +23,9 @@ import '../../../../utils/position_converter.dart';
 import '../../../../utils/snackbar_utils.dart';
 import '../../../common_widget/photo/photo_card_widget.dart';
 import '../../../common_widget/photo/user_info_widget.dart';
-import '../../../common_widget/about_comment/model/comment_pending_model.dart';
-import '../../../common_widget/about_comment/comment_input_widget.dart';
-import '../../../common_widget/about_comment/comment_list_bottom_sheet.dart';
+import '../../../common_widget/comment/model/comment_pending_model.dart';
+import '../../../common_widget/comment/comment_input_widget.dart';
+import '../../../common_widget/comment/comment_list_bottom_sheet.dart';
 import '../../../../api/models/friend.dart';
 
 /// API 기반 사진 상세 화면

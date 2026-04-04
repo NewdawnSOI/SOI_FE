@@ -27,7 +27,7 @@ import 'package:soi/views/about_profile/profile_page.dart';
 import 'package:soi/views/about_profile/widgets/profile_main_header.dart';
 import 'package:soi/views/about_profile/widgets/profile_main_tab_views.dart';
 import 'package:soi/views/about_profile/widgets/threaded_comment_row.dart';
-import 'package:soi/views/common_widget/about_comment/widgets/about_comment_list_sheet/comment_row_in_list.dart';
+import 'package:soi/views/common_widget/comment/widgets/about_comment_list_sheet/comment_row_in_list.dart';
 import 'package:soi_api_client/api.dart';
 
 class _InMemoryAssetLoader extends AssetLoader {

@@ -234,6 +234,7 @@ Future<void> _showLocalNotification(
 /// 반환값:
 /// - [AppPushPayload]: 앱에서 쓰기 쉽게 바꾼 푸시 데이터.
 AppPushPayload _payloadFromRemoteMessage(RemoteMessage message) {
+  debugPrint('[Push] raw data: ${message.data}');
   return AppPushPayload.fromData(
     // 원본 data 맵을 그대로 넘겨서 필요한 값들을 AppPushPayload에서 추출하도록 함.
     message.data,

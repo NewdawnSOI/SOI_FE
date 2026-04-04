@@ -11,14 +11,13 @@ import '../../../api/models/post.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/controller/audio_controller.dart';
 import '../../../utils/analytics_service.dart';
-import '../../../utils/position_converter.dart';
 import 'photo_display_widget.dart';
 import 'user_info_widget.dart';
-import '../about_comment/comment_input_widget.dart';
-import '../about_comment/comment_tag_bubble.dart';
-import '../about_comment/comment_media_tag_preview_widget.dart';
-import '../about_comment/comment_list_bottom_sheet.dart';
-import '../about_comment/model/comment_pending_model.dart';
+import '../comment/comment_input_widget.dart';
+import '../comment/comment_tag_bubble.dart';
+import '../comment/comment_media_tag_preview_widget.dart';
+import '../comment/comment_list_bottom_sheet.dart';
+import '../comment/model/comment_pending_model.dart';
 import '../report/report_bottom_sheet.dart';
 
 /// 사진 카드 위젯.
@@ -226,22 +225,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
 
   /// 음성 댓글을 드래그해서 사진에 태그할 때의 위치를 반환합니다.
   Offset? _resolveDropRelativePosition(int postId) {
-    final pendingMarker = widget.pendingVoiceComments[postId];
-    if (pendingMarker == null) {
-      return null;
-    }
-
-    return PositionConverter.toRelativePosition(
-      CommentTagBubble.pointerTipFromCircleCenter(
-        circleCenter: PositionConverter.toAbsolutePosition(
-          pendingMarker.relativePosition,
-          Size(354.w, 500.h),
-        ),
-        contentSize: kPendingCommentAvatarSize,
-        padding: kPendingCommentTagPadding,
-      ),
-      Size(354.w, 500.h),
-    );
+    return widget.pendingVoiceComments[postId]?.relativePosition;
   }
 
   @override

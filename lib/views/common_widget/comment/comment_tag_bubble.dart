@@ -1,7 +1,21 @@
 import 'package:flutter/material.dart';
 
-const double kCommentTagPadding = 4.0;
+/// 댓글 태그 자체의 크기를 정의합니다.
+/// - 이 값은 댓글 태그의 원형 배경과 포인터를 포함한 전체 크기를 결정하는 데 사용됩니다.
+const double kCommentTagSize = 33.0;
+
+/// 댓글 태그의 아바타 이미지 크기를 정의합니다.
+/// - 표준 댓글 태그에서는 27x27 크기를 사용합니다.
+const double kCommentTagAvatarSize = 27.0;
+
+/// 댓글 태그의 콘텐츠와 태그 외곽 사이의 기본 패딩입니다.
+const double kCommentTagPadding = (kCommentTagSize - kCommentTagAvatarSize) / 2;
+
+/// 댓글 태그의 포인터 높이입니다.
 const double kCommentTagPointerHeight = 27.0;
+
+/// 댓글 태그의 포인터가 원형 배경과 겹치는 부분의 크기입니다.
+/// - 이 값은 포인터가 배경과 자연스럽게 연결되도록 조정하는 데 사용됩니다.
 const double kCommentTagPointerOverlap = 2.0;
 
 /// 댓글 아바타 태그의 원형 배경과 포인터 기준 좌표계를 공통으로 계산합니다.
@@ -31,16 +45,9 @@ class CommentTagBubble extends StatelessWidget {
     return contentSize + (padding * 2);
   }
 
-  /// 콘텐츠 크기에 맞는 원형 버블의 중심 오프셋을 계산합니다.
-  static Offset circleCenterOffset({
-    required double contentSize,
-    double padding = kCommentTagPadding,
-  }) {
-    final diameter = diameterForContent(
-      contentSize: contentSize,
-      padding: padding,
-    );
-    return Offset(diameter / 2, diameter / 2);
+  /// 표준 댓글 태그의 원형 외곽 지름을 반환합니다.
+  static double standardDiameter() {
+    return diameterForContent(contentSize: kCommentTagAvatarSize);
   }
 
   /// 콘텐츠 크기에 따른 태그 전체 높이 계산 메서드
@@ -68,27 +75,6 @@ class CommentTagBubble extends StatelessWidget {
       padding: padding,
     );
     return Offset(diameter / 2, diameter + pointerHeight - pointerOverlap);
-  }
-
-  /// 원형 중심 좌표를 기존 댓글 좌표계의 포인터 끝점 좌표로 변환합니다.
-  static Offset pointerTipFromCircleCenter({
-    required Offset circleCenter,
-    required double contentSize,
-    double padding = kCommentTagPadding,
-    double pointerHeight = kCommentTagPointerHeight,
-    double pointerOverlap = kCommentTagPointerOverlap,
-  }) {
-    final centerOffset = circleCenterOffset(
-      contentSize: contentSize,
-      padding: padding,
-    );
-    final tipOffset = pointerTipOffset(
-      contentSize: contentSize,
-      padding: padding,
-      pointerHeight: pointerHeight,
-      pointerOverlap: pointerOverlap,
-    );
-    return circleCenter + (tipOffset - centerOffset);
   }
 
   @override

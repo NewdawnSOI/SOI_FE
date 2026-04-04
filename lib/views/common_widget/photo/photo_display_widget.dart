@@ -13,10 +13,10 @@ import '../../../api/controller/comment_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/models/post.dart';
 import '../../about_archiving/screens/archive_detail/category_photos_screen.dart';
-import '../about_comment/comment_list_bottom_sheet.dart';
-import '../about_comment/comment_overlay.dart';
-import '../about_comment/comment_tag_bubble.dart';
-import '../about_comment/model/comment_pending_model.dart';
+import '../comment/comment_list_bottom_sheet.dart';
+import '../comment/comment_overlay.dart';
+import '../comment/comment_tag_bubble.dart';
+import '../comment/model/comment_pending_model.dart';
 import 'audio_control_widget.dart';
 import 'services/photo_tag_geometry_service.dart';
 import 'services/photo_waveform_parser_service.dart';
@@ -42,6 +42,21 @@ Widget _heroFlightShuttleBuilder(
   );
 }
 
+/// 미디어 태그 오버레이가 확장될 때 전달되는 데이터 모델입니다.
+///
+/// fields:
+/// - [tagKey]: 확장된 태그의 고유 키입니다.
+///   - 이 키를 통해 어떤 태그가 확장되었는지 식별할 수 있습니다.
+/// - [comment]: 확장된 태그와 관련된 댓글 데이터 모델입니다. 댓글 작성자, 내용, 타입 등의 정보를 포함합니다.
+/// - [globalCircleCenter]: 태그 원형 아바타의 중심 위치를 글로벌 좌표로 나타낸 Offset입니다.
+///   - 이 위치를 기준으로 오버레이가 표시됩니다.
+/// - [collapsedContentSize]: 태그가 축소된 상태에서의 콘텐츠 크기입니다.
+/// - [expandedContentSize]: 태그가 확장된 상태에서의 콘텐츠 크기입니다.
+///   - 확장된 오버레이가 이 크기로 표시됩니다.
+/// - [onDismiss]: 오버레이가 축소되어야 할 때 호출되는 콜백 함수입니다.
+///   - 사용자가 오버레이 외부를 탭하거나, 다른 태그를 탭하는 등의 행동으로 오버레이가 닫힐 때 이 함수를 호출하여 상위 위젯에서 상태를 업데이트할 수 있도록 합니다.
+/// - [onLongPress]: 태그가 길게 눌렸을 때 호출되는 콜백 함수입니다.
+///   - 이 함수를 통해 댓글 삭제 등의 추가 액션을 구현할 수 있습니다.
 class ExpandedMediaTagOverlayData {
   final String tagKey;
   final Comment comment;
@@ -124,7 +139,8 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
 
 class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     with WidgetsBindingObserver {
-  static const double _avatarSize = 27.0;
+  /// 댓글 태그의 기본 아바타 규격은 공용 댓글 태그 상수와 동일하게 유지합니다.
+  static const double _avatarSize = kCommentTagAvatarSize;
   static const double _expandedAvatarSize = 108.0;
   static const double _imageWidth = 354.0;
   static const double _imageHeight = 500.0;
@@ -953,13 +969,13 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                     builderContext.findRenderObject() as RenderBox?;
                 if (renderBox == null) return;
                 final localPosition = renderBox.globalToLocal(details.offset);
-                final centerOffset = CommentTagBubble.circleCenterOffset(
+                final tipOffset = CommentTagBubble.pointerTipOffset(
                   contentSize: _avatarSize,
                   padding: kPendingCommentTagPadding,
                 );
                 widget.onProfileImageDragged(
                   widget.post.id,
-                  localPosition + centerOffset,
+                  localPosition + tipOffset,
                 );
               },
               builder: (context, candidateData, rejectedData) {
@@ -1055,6 +1071,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                             ],
                           ),
                         ),
+                      // 댓글이 있는 경우, 댓글 태그를 미디어 위에 오버레이로 렌더링합니다.
                       Positioned.fill(
                         child: CommentOverlay(
                           comments: _overlayComments,
@@ -1065,7 +1082,6 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                           selectedCommentKey: _selectedCommentKey,
                           expandedMediaTagKey: _expandedMediaTagKey,
                           imageSize: _imageSize,
-                          avatarSize: _avatarSize,
                           onCommentTap: _handleCommentTap,
                           onCommentLongPress: _handleCommentLongPress,
                         ),

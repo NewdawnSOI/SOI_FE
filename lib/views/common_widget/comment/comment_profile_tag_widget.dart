@@ -9,12 +9,26 @@ import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/services/media_service.dart';
 import '../../../api/media_processing/waveform_codec.dart';
+import '../user/current_user_image_builder.dart';
 import 'comment_circle_avatar.dart';
 import 'comment_tag_bubble.dart';
 import 'model/comment_pending_model.dart';
 import 'comment_save_payload.dart';
 
-/// 드래그 가능한 pending 댓글 태그와 저장 플로우를 연결해 댓글 생성 완료까지 오케스트레이션합니다.
+/// 댓글 프로필 태그 위젯
+/// - 댓글 작성자의 프로필 이미지를 원형으로 보여주는 태그입니다.
+/// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
+/// - 댓글 작성이 완료되면, 부모 위젯에 댓글 저장 진행 상황과 결과를 전달하는 역할도 수행합니다.
+///
+/// fields:
+/// - [payload]: 댓글 저장에 필요한 정보를 담고 있는 객체입니다. 텍스트 댓글, 음성 댓글, 미디어 댓글 등 다양한 유형의 댓글 저장에 필요한 정보를 포함합니다.
+/// - [resolveDropRelativePosition]: 드래그가 완료된 후, 댓글이 작성될 위치의 상대 좌표를 비동기로 조회하는 함수입니다. 댓글이 작성될 위치를 결정하는 데 사용됩니다.
+/// - [onSaveProgress]: 댓글 저장 진행 상황이 업데이트될 때 호출되는 콜백 함수입니다. 진행 상황을 0.0 ~ 1.0 사이의 값으로 전달하여, 부모 위젯에서 프로그레스 표시 등에 활용할 수 있도록 합니다.
+/// - [onSaveSuccess]: 댓글 저장이 성공적으로 완료되었을 때 호출되는 콜백 함수입니다. 저장된 댓글 객체를 인자로 전달하여, 부모 위젯에서 저장된 댓글 정보를 활용할 수 있도록 합니다.
+/// - [onSaveFailure]: 댓글 저장이 실패했을 때 호출되는 콜백 함수입니다. 발생한 오류 객체를 인자로 전달하여, 부모 위젯에서 오류 처리 등을 할 수 있도록 합니다.
+/// - [onDropCancelled]: 드래그가 취소되었을 때 호출되는 콜백 함수입니다. 댓글 작성이 취소되었음을 부모 위젯에 알리는 역할을 합니다.
+/// - [dragData]: 드래그할 때 전달되는 데이터입니다. 기본값은 'profile_image'입니다.
+/// - [avatarSize]: 프로필 태그의 원형 부분의 크기를 결정하는 값입니다. 기본값은 27입니다.
 class CommentProfileTagWidget extends StatefulWidget {
   final CommentSavePayload payload;
   final FutureOr<Offset?> Function() resolveDropRelativePosition;
@@ -60,7 +74,7 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
   // 부모 위젯에 전달하여 프로그레스 표시 등에 활용할 수 있습니다.
   double _progress = 0.0;
 
-  /// 드래그 중 pending 태그의 원형 중심이 포인터와 맞도록 앵커를 반환합니다.
+  /// 드래그 중 pending 태그의 포인터 끝점이 포인터와 맞도록 앵커를 반환합니다.
   ///
   /// Parameters:
   /// - [draggable]: 드래그 가능한 위젯입니다.
@@ -74,7 +88,7 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
     BuildContext context,
     Offset position,
   ) {
-    return CommentTagBubble.circleCenterOffset(
+    return CommentTagBubble.pointerTipOffset(
       contentSize: widget.avatarSize,
       padding: kPendingCommentTagPadding,
     );
@@ -417,20 +431,51 @@ class _CommentProfileTagWidgetState extends State<CommentProfileTagWidget> {
     }
   }
 
-  /// 드래그용 pending 태그를 저장 중 상태와 같은 시각 규칙으로 조립합니다.
+  /// 저장 중 원형 progress를 유지하면서 프로필 아바타를 일관된 캐시 정책으로 렌더링합니다.
+  Widget _buildAvatar(String? imageUrl, {String? cacheKey}) {
+    return SizedBox(
+      width: widget.avatarSize,
+      height: widget.avatarSize,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (_isSaving)
+            SizedBox(
+              width: widget.avatarSize,
+              height: widget.avatarSize,
+              child: CircularProgressIndicator(
+                value: _progress,
+                strokeWidth: 2,
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                backgroundColor: Colors.black.withValues(alpha: 0.3),
+              ),
+            ),
+          CommentCircleAvatar(
+            imageUrl: imageUrl,
+            size: widget.avatarSize,
+            cacheKey: cacheKey,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 드래그용 태그와 저장 중 태그가 같은 크기와 같은 이미지 소스를 공유하도록 현재 표시 상태를 조립합니다.
   @override
   Widget build(BuildContext context) {
-    final tagBubble = CommentPendingTag(
-      targetUserId: widget.payload.userId,
-      profileImageUrl: widget.payload.profileImageUrl,
-      profileImageKey: widget.payload.profileImageKey,
-      avatarSize: widget.avatarSize,
-      progress: _isSaving ? _progress : null,
-      opacity: _isSaving ? 1 : 0.85,
-      tagPadding: kPendingCommentTagPadding,
-      tagBackgroundColor: kPendingCommentTagBackgroundColor,
-      progressColor: Colors.white,
-      progressBackgroundColor: Colors.black.withValues(alpha: 0.3),
+    final tagBubble = CommentTagBubble(
+      contentSize: widget.avatarSize,
+      padding: kPendingCommentTagPadding,
+      backgroundColor: kPendingCommentTagBackgroundColor,
+      child: CurrentUserImageBuilder(
+        imageKind: CurrentUserImageKind.profile,
+        targetUserId: widget.payload.userId,
+        fallbackImageUrl: widget.payload.profileImageUrl,
+        fallbackImageKey: widget.payload.profileImageKey,
+        builder: (context, imageUrl, cacheKey) {
+          return _buildAvatar(imageUrl, cacheKey: cacheKey);
+        },
+      ),
     );
 
     if (_isSaving) {
