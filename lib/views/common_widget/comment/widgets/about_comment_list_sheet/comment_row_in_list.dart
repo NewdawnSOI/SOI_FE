@@ -1,6 +1,8 @@
 // 외부 패키지
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
@@ -99,12 +101,12 @@ class ApiCommentRow extends StatelessWidget {
       if (audioUrl.isNotEmpty || waveformData.isNotEmpty) {
         return _buildAudioRow(context);
       }
-      return _buildTextRow();
+      return _buildTextRow(context);
     }
 
     switch (comment.type) {
       case CommentType.text:
-        return _buildTextRow();
+        return _buildTextRow(context);
       case CommentType.audio:
         return _buildAudioRow(context);
       case CommentType.photo:
@@ -112,7 +114,7 @@ class ApiCommentRow extends StatelessWidget {
       case CommentType.video:
         return _buildMediaRow(context);
       case CommentType.reply:
-        return _buildTextRow();
+        return _buildTextRow(context);
     }
   }
 
@@ -329,11 +331,20 @@ class ApiCommentRow extends StatelessWidget {
 
   /// 댓글 본문을 하나의 롱프레스 가능한 행으로 조립합니다.
   Widget _buildCommentRowLayout({
+    required BuildContext context,
     required Widget body,
     double bodySpacing = 8,
   }) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onLongPressStart: (_) {
+        // 플랫폼별로 체감이 안정적인 햅틱만 사용해 롱프레스 시작 피드백을 제공합니다.
+        if (defaultTargetPlatform == TargetPlatform.iOS) {
+          HapticFeedback.vibrate();
+        } else {
+          Feedback.forLongPress(context);
+        }
+      },
       onLongPress: onLongPress,
       child: AnimatedScale(
         scale: isActionExpanded ? _changeCommentRowScale : 1,
@@ -384,8 +395,9 @@ class ApiCommentRow extends StatelessWidget {
   }
 
   /// 텍스트 댓글은 공통 행 레이아웃에 본문만 끼워 넣어 렌더링합니다.
-  Widget _buildTextRow() {
+  Widget _buildTextRow(BuildContext context) {
     return _buildCommentRowLayout(
+      context: context,
       body: _buildTextCommentText(comment.text ?? ''),
     );
   }
@@ -399,6 +411,7 @@ class ApiCommentRow extends StatelessWidget {
       builder: (context, audioController, child) {
         final isPlaying = audioController.isUrlPlaying(comment.audioUrl ?? '');
         return _buildCommentRowLayout(
+          context: context,
           bodySpacing: 4,
           // 오디오 댓글은 파형 재생 바를 보여줍니다.
           body: Container(
@@ -464,7 +477,7 @@ class ApiCommentRow extends StatelessWidget {
   Widget _buildMediaRow(BuildContext context) {
     final mediaSource = _resolveMediaSource();
     if (mediaSource == null) {
-      return _buildTextRow();
+      return _buildTextRow(context);
     }
 
     final isVideo = _isVideoMediaSource(mediaSource);
@@ -500,6 +513,7 @@ class ApiCommentRow extends StatelessWidget {
           );
 
     return _buildCommentRowLayout(
+      context: context,
       bodySpacing: 6,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.center,

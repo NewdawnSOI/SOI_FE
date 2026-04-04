@@ -163,7 +163,12 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _replyDraftFocusNode.addListener(_handleReplyDraftFocusChanged);
     _comments = widget.initialComments.toList();
     _expandSelectedReplyParentIfNeeded();
-    _hydrateFullCommentsIfNeeded();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _hydrateFullCommentsIfNeeded();
+    });
 
     if (widget.selectedCommentId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -345,7 +350,6 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       return;
     }
 
-    HapticFeedback.selectionClick(); // 액션 메뉴가 열릴 때 햅틱 피드백을 제공합니다.
     setState(() {
       _expandedActionCommentKey = nextKey;
       _expandedActionAnchorRect = nextAnchorRect;
