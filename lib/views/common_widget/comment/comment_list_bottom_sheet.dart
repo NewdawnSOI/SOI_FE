@@ -57,8 +57,8 @@ class ApiVoiceCommentListSheet extends StatefulWidget {
 
 class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   /// 시트의 높이를 설정하는 변수
-  /// - 화면 높이의 60%로 설정되어, 댓글 리스트와 액션 바가 적절히 배치될 수 있도록 합니다.
-  static const double _sheetHeightFactor = 0.5;
+  /// - 화면 높이의 55%로 설정하어, 댓글 리스트와 액션 바가 적절히 배치될 수 있도록 합니다.
+  static const double _sheetHeightFactor = 0.55;
 
   /// 댓글 저장 직후 서버 응답에 id나 필요한 필드가 바로 안 들어올 때,
   /// 댓글 목록을 다시 조회해서 “방금 저장된 댓글”을 찾으려는 **최대 재시도 횟수**
@@ -79,9 +79,6 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   static final WaveformCodec _waveformCodec = WaveformCodec();
 
   late final ScrollController _scrollController;
-  late final TextEditingController _replyDraftController;
-  late final FocusNode _replyDraftFocusNode;
-
   /// 댓글 리스트 상태를 관리하는 변수입니다. API에서 제공하는 댓글 데이터를 앱 내부 모델로 변환하여 사용합니다.
   late List<Comment> _comments;
 
@@ -157,9 +154,6 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _replyDraftController = TextEditingController();
-    _replyDraftFocusNode = FocusNode();
-    _replyDraftFocusNode.addListener(_handleReplyDraftFocusChanged);
     _comments = widget.initialComments.toList();
     _expandSelectedReplyParentIfNeeded();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -178,9 +172,6 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
 
   @override
   void dispose() {
-    _replyDraftFocusNode.removeListener(_handleReplyDraftFocusChanged);
-    _replyDraftFocusNode.dispose();
-    _replyDraftController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -275,16 +266,14 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _clearExpandedActionState();
     });
 
-    _replyDraftController.clear();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      FocusScope.of(context).requestFocus(_replyDraftFocusNode);
-      if (replyTarget != null) {
+    if (replyTarget != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
         _scrollCommentAboveActionBar(replyTarget);
-      }
-    });
+      });
+    }
   }
 
   /// 댓글 키는 스레드/선택/팝업 상태를 연결하는 안정적인 식별자입니다.
@@ -413,50 +402,17 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     _scrollController.jumpTo(nextOffset);
   }
 
-  /// reply draft 포커스가 사라졌을 때 빈 입력 상태면 답글 모드를 자동 해제합니다.
-  void _handleReplyDraftFocusChanged() {
-    if (_replyDraftFocusNode.hasFocus ||
-        // 입력 모드로 진입한 상태에서 포커스가 잠시 다른 곳으로 갔다가 다시 돌아오는 경우를 방지하기 위해,
-        // 포커스가 사라지는 경우에도 입력 모드를 유지하는 로직입니다.
-        _isTextInputMode ||
-        // 대댓글 입력 모드로 포커스가 갔는데, 아직 입력된 텍스트가 없는 경우에는 대댓글 입력 모드를 유지합니다.
-        !_isReplyDraftArmed ||
-        // 대댓글 입력 모드로 포커스가 갔는데, 아직 입력된 텍스트가 없는 경우에는 대댓글 입력 모드를 유지합니다.
-        _replyDraftController.text.trim().isNotEmpty) {
-      return;
-    }
-
-    // 아이콘 탭 시 포커스가 먼저 빠질 수 있어, 다음 프레임까지는 reply 상태를 유지합니다.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted ||
-          _replyDraftFocusNode.hasFocus ||
-          _isTextInputMode ||
-          _isOpeningAttachmentSheet ||
-          !_isReplyDraftArmed ||
-          _replyDraftController.text.trim().isNotEmpty) {
-        return;
-      }
-
-      setState(() {
-        _resetReplyComposerState(); // 포커스가 사라졌을 때 입력 상태를 초기화합니다.
-      });
-    });
-  }
-
-  /// 인라인 답글 draft에 텍스트가 생기면 전용 텍스트 입력 모드로 승격합니다.
-  void _handleReplyDraftChanged(String value) {
-    if (!_isReplyDraftArmed || _isTextInputMode || value.isEmpty) {
+  /// 기본 댓글 바의 중앙 탭으로 텍스트 입력 모드에 진입합니다.
+  void _showTextInputComposer() {
+    if (!_isReplyDraftArmed || _isTextInputMode) {
       return;
     }
 
     final replyTarget = _replyTargetComment;
-    _replyDraftFocusNode.unfocus();
     setState(() {
-      _pendingInitialReplyText = value;
       _isTextInputMode = true;
       _textInputSession++;
     });
-    _replyDraftController.clear();
     if (replyTarget != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
@@ -476,8 +432,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       _resetReplyComposerState();
       _clearExpandedActionState();
     });
-    _replyDraftController.clear();
-    _replyDraftFocusNode.unfocus();
+    FocusScope.of(context).unfocus();
   }
 
   /// 텍스트 댓글 저장 후 재조회 매칭까지 마쳐 현재 스레드 상태에 반영합니다.
@@ -574,7 +529,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
 
     _isOpeningAttachmentSheet = true;
-    _replyDraftFocusNode.unfocus();
+    FocusScope.of(context).unfocus();
 
     try {
       final result = await openSheet();
@@ -976,9 +931,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                     replyTargetId: _replyTargetComment?.id,
                     pendingInitialReplyText: _pendingInitialReplyText,
                     isReplyDraftArmed: _isReplyDraftArmed,
-                    replyDraftController: _replyDraftController,
-                    replyDraftFocusNode: _replyDraftFocusNode,
-                    onReplyDraftChanged: _handleReplyDraftChanged,
+                    onCenterTap: _showTextInputComposer,
                     onCameraPressed: _handleCameraPressed,
                     onMicPressed: _handleMicPressed,
                     onSubmitText: _submitTextComment,

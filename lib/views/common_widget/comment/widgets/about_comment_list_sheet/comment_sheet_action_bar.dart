@@ -30,9 +30,7 @@ class ApiCommentSheetActionBar extends StatelessWidget {
     required this.replyTargetId,
     required this.pendingInitialReplyText,
     required this.isReplyDraftArmed,
-    required this.replyDraftController,
-    required this.replyDraftFocusNode,
-    required this.onReplyDraftChanged,
+    required this.onCenterTap,
     required this.onCameraPressed,
     required this.onMicPressed,
     required this.onSubmitText,
@@ -44,9 +42,7 @@ class ApiCommentSheetActionBar extends StatelessWidget {
   final int? replyTargetId;
   final String pendingInitialReplyText;
   final bool isReplyDraftArmed;
-  final TextEditingController replyDraftController;
-  final FocusNode replyDraftFocusNode;
-  final ValueChanged<String> onReplyDraftChanged;
+  final VoidCallback onCenterTap;
   final VoidCallback onCameraPressed;
   final VoidCallback onMicPressed;
   final Future<void> Function(String text) onSubmitText;
@@ -77,68 +73,51 @@ class ApiCommentSheetActionBar extends StatelessWidget {
                   ),
                 )
               :
-                // 액션 버튼 모드일 때는 카메라 버튼, 텍스트 입력 필드, 마이크 버튼이 포함된 액션 바를 표시합니다.
+                // 액션 버튼 모드일 때는 기존 댓글 바 모양을 유지하되, 중앙 탭으로 텍스트 입력 모드에 진입합니다.
                 KeyedSubtree(
                   key: const ValueKey('comment_action_bar'),
-                  child: Container(
-                    width: 353,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF000000).withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(52),
-                    ),
-                    child: Row(
-                      children: [
-                        SizedBox(width: 5),
-                        IconButton(
-                          onPressed: onCameraPressed,
-                          padding: EdgeInsets.zero,
-                          icon: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: const ShapeDecoration(
-                              color: Color(0xFF323232),
-                              shape: CircleBorder(),
-                            ),
-                            child: Center(
-                              child: Image.asset(
-                                'assets/camera_mode.png',
-                                width: (17.78).sp,
-                                height: 16.sp,
-                                fit: BoxFit.contain,
+                  child: Opacity(
+                    opacity: isReplyDraftArmed ? 1 : 0.45,
+                    child: Container(
+                      width: 353,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF000000).withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(52),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(width: 5),
+                          IconButton(
+                            onPressed: isReplyDraftArmed ? onCameraPressed : null,
+                            padding: EdgeInsets.zero,
+                            icon: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: const ShapeDecoration(
+                                color: Color(0xFF323232),
+                                shape: CircleBorder(),
+                              ),
+                              child: Center(
+                                child: Image.asset(
+                                  'assets/camera_mode.png',
+                                  width: (17.78).sp,
+                                  height: 16.sp,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        //SizedBox(width: 12),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: IgnorePointer(
-                              ignoring: !isReplyDraftArmed,
-                              child: TextField(
-                                controller: replyDraftController,
-                                focusNode: replyDraftFocusNode,
-                                autofocus: false,
-                                minLines: 1,
-                                maxLines: 1,
-                                onChanged: onReplyDraftChanged,
-                                onTapOutside: (_) =>
-                                    FocusScope.of(context).unfocus(),
-                                style: TextStyle(
-                                  color: const Color(0xFFF8F8F8),
-                                  fontSize: 16,
-                                  fontFamily: 'Pretendard Variable',
-                                  fontWeight: FontWeight.w200,
-                                  letterSpacing: -1.14,
-                                ),
-                                cursorColor: Colors.white,
-                                decoration: InputDecoration(
-                                  isCollapsed: true,
-                                  border: InputBorder.none,
-                                  hintText: tr('comments.add_comment'),
-                                  hintStyle: TextStyle(
-                                    color: const Color(0xFFF8F8F8),
+                          Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: isReplyDraftArmed ? onCenterTap : null,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  tr('comments.add_comment'),
+                                  style: const TextStyle(
+                                    color: Color(0xFFF8F8F8),
                                     fontSize: 16,
                                     fontFamily: 'Pretendard Variable',
                                     fontWeight: FontWeight.w200,
@@ -148,17 +127,17 @@ class ApiCommentSheetActionBar extends StatelessWidget {
                               ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          onPressed: onMicPressed,
-                          padding: EdgeInsets.zero,
-                          icon: Image.asset(
-                            'assets/record_icon.png',
-                            width: 36,
-                            height: 36,
+                          IconButton(
+                            onPressed: isReplyDraftArmed ? onMicPressed : null,
+                            padding: EdgeInsets.zero,
+                            icon: Image.asset(
+                              'assets/record_icon.png',
+                              width: 36,
+                              height: 36,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
