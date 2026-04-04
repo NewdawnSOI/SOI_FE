@@ -393,8 +393,8 @@ class CommentController extends ChangeNotifier {
         fileKey: effFileKey,
         waveformData: hasAudio ? (waveformData?.trim() ?? '') : '',
         duration: hasAudio ? (duration ?? 0) : 0,
-        locationX: locationX ?? 0.0,
-        locationY: locationY ?? 0.0,
+        locationX: locationX,
+        locationY: locationY,
         type:
             type ??
             _inferType(

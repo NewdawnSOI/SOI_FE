@@ -113,7 +113,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
 
   /// 대댓글 입력 모드로 진입했는지 여부를 나타내는 플래그입니다.
   /// 이 플래그가 true인 상태에서 입력 필드에 텍스트가 없는 경우에도 대댓글 입력 모드가 유지됩니다.
-  bool _isReplyDraftArmed = false;
+  bool _isReplyDraftArmed = true;
 
   /// 텍스트 입력 모드로 진입했는지 여부를 나타내는 플래그입니다.
   bool _isTextInputMode = false;
@@ -142,7 +142,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     if (clearAttachmentTarget) {
       _attachmentReplyTarget = null;
     }
-    _isReplyDraftArmed = false;
+    _isReplyDraftArmed = true;
     _isTextInputMode = false;
     _pendingInitialReplyText = '';
   }
@@ -438,8 +438,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       }
 
       setState(() {
-        _replyTargetComment = null;
-        _isReplyDraftArmed = false;
+        _resetReplyComposerState(); // 포커스가 사라졌을 때 입력 상태를 초기화합니다.
       });
     });
   }
@@ -512,12 +511,9 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
-  /// 카메라 시트에서 생성한 미디어를 현재 답글 타겟 스레드로 저장합니다.
+  /// 카메라 시트에서 생성한 미디어를 현재 답글 스레드 또는 일반 댓글로 저장합니다.
   Future<void> _handleCameraPressed() async {
     final replyTarget = _activeReplyTarget;
-    if (replyTarget == null) {
-      return;
-    }
 
     await _openAttachmentSheet<CommentCameraSheetResult>(
       openSheet: () {
@@ -541,12 +537,9 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     );
   }
 
-  /// 녹음 시트에서 생성한 오디오를 현재 답글 타겟 스레드로 저장합니다.
+  /// 녹음 시트에서 생성한 오디오를 현재 답글 스레드 또는 일반 댓글로 저장합니다.
   Future<void> _handleMicPressed() async {
     final replyTarget = _activeReplyTarget;
-    if (replyTarget == null) {
-      return;
-    }
 
     await _openAttachmentSheet<CommentAudioSheetResult>(
       openSheet: () {
@@ -560,6 +553,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
         );
       },
       onResult: (result) async {
+        /// 녹음 시트에서 반환된 오디오 결과를 사용해 댓글 저장 플로우로 연결합니다.
         await _submitAudioComment(
           replyTarget: replyTarget,
           audioPath: result.audioPath,
@@ -593,14 +587,25 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
-  /// 음성 파일 업로드와 댓글 저장을 하나의 답글 플로우로 연결합니다.
+  /// 오디오 댓글을 저장합니다.
+  /// - 녹음 시트에서 반환된 오디오 파일 경로, 웨이브폼 데이터, 지속 시간 정보를 사용해 댓글 저장 플로우로 연결합니다.
+  ///
+  /// Parameters:
+  /// - [replyTarget]: 댓글이 답글로 달릴 대상 댓글입니다. null이면 일반 댓글로 저장됩니다.
+  /// - [audioPath]: 녹음된 오디오 파일의 로컬 경로입니다.
+  /// - [waveformData]: 오디오의 웨이브폼 데이터입니다. 시각화나 서버 저장에 사용됩니다.
+  /// - [durationMs]: 오디오의 지속 시간입니다. 댓글 표시나 서버 저장에 사용됩니다.
+  ///
+  /// Returns:
+  /// - 저장된 댓글을 현재 댓글 리스트에 반영합니다.
   Future<void> _submitAudioComment({
-    required Comment replyTarget,
+    required Comment? replyTarget,
     required String audioPath,
     required List<double> waveformData,
     required int durationMs,
   }) async {
     try {
+      // 녹음 시트에서 반환된 오디오 정보를 사용해 댓글 저장 플로우로 연결합니다.
       final saveResult = await CommentSheetSubmissionService.submitAudioComment(
         userController: context.read<UserController>(),
         commentController: context.read<CommentController>(),
@@ -621,6 +626,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
       if (!mounted) {
         return;
       }
+      // 저장된 댓글을 현재 댓글 리스트에 반영합니다.
       _insertSavedComment(
         saveResult.savedComment,
         replyTarget: saveResult.replyTarget,
@@ -633,13 +639,24 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
-  /// 이미지/비디오 업로드와 댓글 저장을 하나의 답글 플로우로 연결합니다.
+  /// 미디어 댓글을 저장합니다.
+  /// - 카메라 시트에서 반환된 미디어 파일 경로와 유형 정보를 사용해 댓글 저장 플로우로 연결합니다.
+  /// - 미디어 유형에 따라 사진 또는 동영상 댓글로 저장됩니다.
+  ///
+  /// Parameters:
+  /// - [replyTarget]: 댓글이 답글로 달릴 대상 댓글입니다. null이면 일반 댓글로 저장됩니다.
+  /// - [localFilePath]: 촬영된 미디어 파일의 로컬 경로입니다.
+  /// - [isVideo]: 첨부된 미디어가 동영상인지 여부입니다. true면 동영상 댓글로, false면 사진 댓글로 저장됩니다.
+  ///
+  /// Returns:
+  /// - 저장된 댓글을 현재 댓글 리스트에 반영합니다.
   Future<void> _submitMediaComment({
-    required Comment replyTarget,
+    required Comment? replyTarget,
     required String localFilePath,
     required bool isVideo,
   }) async {
     try {
+      // 카메라 시트에서 반환된 미디어 정보를 사용해 댓글 저장 플로우로 연결합니다.
       final saveResult = await CommentSheetSubmissionService.submitMediaComment(
         userController: context.read<UserController>(),
         commentController: context.read<CommentController>(),
@@ -669,7 +686,17 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     }
   }
 
-  /// 저장된 댓글을 스레드 순서에 맞게 삽입하고 부모 reply count와 입력 상태를 함께 갱신합니다.
+  /// 저장된 댓글을 현재 댓글 리스트에 반영합니다.
+  /// - API에서 반환된 댓글 데이터를 앱 내부 모델로 변환하여 리스트에 삽입합니다.
+  /// - 대댓글인 경우, 부모 댓글의 replyCommentCount를 갱신하고 해당 스레드를 펼칩니다.
+  ///
+  /// Parameters:
+  /// - [savedComment]: API에서 저장 후 반환된 댓글 데이터입니다. 앱 내부 모델로 변환하여 리스트에 반영됩니다.
+  /// - [replyTarget]
+  ///   - 답글이 달린 대상 댓글입니다.
+  ///   - null이면 일반 댓글로 삽입됩니다.
+  ///   - 대댓글인 경우, 부모 댓글의 replyCommentCount 갱신과 스레드 펼침이 함께 처리됩니다.
+  /// - [currentUserProfileKey]: 현재 로그인한 사용자의 프로필 키입니다. 댓글 데이터 정규화 과정에서 사용됩니다.
   void _insertSavedComment(
     Comment savedComment, {
     required Comment? replyTarget,

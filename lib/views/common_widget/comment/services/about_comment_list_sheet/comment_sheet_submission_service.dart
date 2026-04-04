@@ -72,7 +72,7 @@ class CommentSheetSubmissionService {
     );
   }
 
-  /// 오디오 업로드와 답글 저장을 한 흐름으로 처리한 저장 결과를 반환합니다.
+  /// 오디오 업로드와 댓글 저장을 한 흐름으로 처리한 저장 결과를 반환합니다.
   static Future<CommentSheetSaveResult> submitAudioComment({
     required UserController userController,
     required CommentController commentController,
@@ -80,7 +80,7 @@ class CommentSheetSubmissionService {
     required WaveformCodec waveformCodec,
     required int maxWaveformSamples,
     required int postId,
-    required Comment replyTarget,
+    required Comment? replyTarget,
     required String audioPath,
     required List<double> waveformData,
     required int durationMs,
@@ -135,7 +135,7 @@ class CommentSheetSubmissionService {
       audioKey: audioKey,
       waveformData: encodedWaveform,
       duration: durationMs,
-      type: CommentType.reply,
+      type: replyTarget != null ? CommentType.reply : CommentType.audio,
     );
     if (!result.success) {
       showSnackBar(tr('comments.save_failed'));
@@ -145,7 +145,7 @@ class CommentSheetSubmissionService {
     final savedComment = await ApiCommentPersistenceService.resolvePersistedComment(
       directComment: result.comment,
       loadComments: () => commentController.getComments(postId: postId),
-      matcher: (comments) => ApiCommentPersistenceService.findSavedAudioReplyComment(
+      matcher: (comments) => ApiCommentPersistenceService.findSavedAudioComment(
         comments: comments,
         userId: currentUser.id,
         replyTarget: replyTarget,
@@ -163,13 +163,13 @@ class CommentSheetSubmissionService {
     );
   }
 
-  /// 이미지/비디오 업로드와 답글 저장을 한 흐름으로 처리한 저장 결과를 반환합니다.
+  /// 이미지/비디오 업로드와 댓글 저장을 한 흐름으로 처리한 저장 결과를 반환합니다.
   static Future<CommentSheetSaveResult> submitMediaComment({
     required UserController userController,
     required CommentController commentController,
     required MediaController mediaController,
     required int postId,
-    required Comment replyTarget,
+    required Comment? replyTarget,
     required String localFilePath,
     required bool isVideo,
     required int savedCommentLookupAttempts,
@@ -221,7 +221,9 @@ class CommentSheetSubmissionService {
       parentId: replyPayload.parentId,
       replyUserId: replyPayload.replyUserId,
       fileKey: fileKey,
-      type: CommentType.reply,
+      type: replyTarget != null
+          ? CommentType.reply
+          : (isVideo ? CommentType.video : CommentType.photo),
     );
     if (!result.success) {
       showSnackBar(tr('comments.save_failed'));
@@ -231,7 +233,7 @@ class CommentSheetSubmissionService {
     final savedComment = await ApiCommentPersistenceService.resolvePersistedComment(
       directComment: result.comment,
       loadComments: () => commentController.getComments(postId: postId),
-      matcher: (comments) => ApiCommentPersistenceService.findSavedMediaReplyComment(
+      matcher: (comments) => ApiCommentPersistenceService.findSavedMediaComment(
         comments: comments,
         userId: currentUser.id,
         replyTarget: replyTarget,

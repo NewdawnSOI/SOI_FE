@@ -83,19 +83,24 @@ class ApiCommentPersistenceService {
     return null;
   }
 
-  /// 오디오 답글 저장 직후 duration과 스레드 관계를 기준으로 댓글을 찾습니다.
-  static Comment? findSavedAudioReplyComment({
+  /// 오디오 댓글 저장 직후 duration과 스레드 관계를 기준으로 댓글을 찾습니다.
+  static Comment? findSavedAudioComment({
     required List<Comment> comments,
     required int userId,
-    required Comment replyTarget,
+    required Comment? replyTarget,
     required int durationMs,
     required int? Function(Comment? comment) replyThreadParentId,
   }) {
-    final targetReplyUserName = (replyTarget.nickname ?? '').trim();
+    final targetReplyUserName = (replyTarget?.nickname ?? '').trim();
     final targetParentId = replyThreadParentId(replyTarget);
 
     for (final comment in comments.reversed) {
-      if (!comment.isReply || comment.userId != userId) {
+      if (comment.userId != userId) {
+        continue;
+      }
+
+      final isExpectedType = replyTarget != null ? comment.isReply : comment.isAudio;
+      if (!isExpectedType) {
         continue;
       }
 
@@ -116,19 +121,26 @@ class ApiCommentPersistenceService {
     return null;
   }
 
-  /// 미디어 답글 저장 직후 fileKey와 스레드 관계를 기준으로 댓글을 찾습니다.
-  static Comment? findSavedMediaReplyComment({
+  /// 미디어 댓글 저장 직후 fileKey와 스레드 관계를 기준으로 댓글을 찾습니다.
+  static Comment? findSavedMediaComment({
     required List<Comment> comments,
     required int userId,
-    required Comment replyTarget,
+    required Comment? replyTarget,
     required String fileKey,
     required int? Function(Comment? comment) replyThreadParentId,
   }) {
-    final targetReplyUserName = (replyTarget.nickname ?? '').trim();
+    final targetReplyUserName = (replyTarget?.nickname ?? '').trim();
     final targetParentId = replyThreadParentId(replyTarget);
 
     for (final comment in comments.reversed) {
-      if (!comment.isReply || comment.userId != userId) {
+      if (comment.userId != userId) {
+        continue;
+      }
+
+      final isExpectedType = replyTarget != null
+          ? comment.isReply
+          : (comment.isPhoto || comment.isVideo);
+      if (!isExpectedType) {
         continue;
       }
 

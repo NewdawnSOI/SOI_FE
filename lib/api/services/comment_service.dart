@@ -137,8 +137,12 @@ class CommentService {
         fileKey: fileKey?.trim() ?? '',
         waveformData: _normalizeWaveformData(waveformData?.trim() ?? ''),
         duration: duration ?? 0,
-        locationX: isReply ? null : (locationX ?? 0.0),
-        locationY: isReply ? null : (locationY ?? 0.0),
+        locationX: isReply || locationX == null || locationY == null
+            ? null
+            : locationX,
+        locationY: isReply || locationX == null || locationY == null
+            ? null
+            : locationY,
         commentType: commentTypeEnum,
       );
 
