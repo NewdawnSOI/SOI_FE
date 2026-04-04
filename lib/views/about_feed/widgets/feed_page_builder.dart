@@ -5,7 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../../common_widget/about_comment/comment_for_pending.dart';
 import '../../common_widget/about_comment/comment_list_bottom_sheet.dart';
-import '../../common_widget/about_comment/comment_composer_v2_widget.dart';
+import '../../common_widget/about_comment/comment_input_widget.dart';
 import '../../common_widget/photo/photo_card_widget.dart';
 import '../../common_widget/photo/user_info_widget.dart';
 import '../../../api/controller/audio_controller.dart';
@@ -317,7 +317,7 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               padding: EdgeInsets.only(bottom: composerBottomInset),
-              child: CommentComposerV2Widget(
+              child: CommentInputWidget(
                 postId: currentPost.post.id,
                 pendingCommentDrafts: widget.pendingCommentDrafts,
                 onTextCommentCompleted: (postId, text) =>

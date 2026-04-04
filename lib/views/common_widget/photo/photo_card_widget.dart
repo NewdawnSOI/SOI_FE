@@ -13,7 +13,7 @@ import '../../../api/controller/audio_controller.dart';
 import '../../../utils/analytics_service.dart';
 import 'photo_display_widget.dart';
 import 'user_info_widget.dart';
-import '../about_comment/comment_composer_v2_widget.dart';
+import '../about_comment/comment_input_widget.dart';
 import '../about_comment/comment_media_tag_preview_widget.dart';
 import '../about_comment/comment_list_bottom_sheet.dart';
 import '../about_comment/comment_for_pending.dart';
@@ -524,7 +524,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               padding: EdgeInsets.only(bottom: composerBottomInset),
-              child: CommentComposerV2Widget(
+              child: CommentInputWidget(
                 postId: widget.post.id,
                 pendingCommentDrafts: widget.pendingCommentDrafts,
                 onTextCommentCompleted: (postId, text) =>

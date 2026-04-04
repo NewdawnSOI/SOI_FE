@@ -13,12 +13,41 @@ import 'comment_profile_tag_widget.dart';
 import 'comment_save_payload.dart';
 import 'comment_text_input_widget.dart';
 
+/// 댓글 작성 모드를 나타내는 열거형입니다.
+/// - [base]: 댓글 작성의 진입점이 되는 기본 모드입니다. CommentBaseBarWidget을 보여줍니다.
+/// - [typing]: 텍스트 댓글 작성 모드입니다. CommentTextInputWidget을 보여줍니다.
+/// - [placing]: 댓글 배치 모드입니다. 댓글 작성 중인 댓글의 정보를 기반으로 CommentProfileTagWidget을 보여줍니다.
 enum _CommentComposerMode { base, typing, placing }
 
-/// 댓글 작성 UI 컴포저 위젯
-/// 댓글 입력을 위한 기본 바(base_bar_widget), 텍스트 입력 UI(text_input_widget), 댓글 배치 모드(댓글을 드래그하여 위치를 지정하는 모드)를 포함합니다.
-/// 댓글 작성과 관련된 다양한 상호작용과 상태를 관리하며, 댓글 작성 완료 시 필요한 데이터를 부모 위젯에 전달하는 역할을 합니다.
-class CommentComposerV2Widget extends StatefulWidget {
+/// 댓글 입력 위젯입니다.
+/// 댓글 작성의 진입점이 되는 기본 바 UI에서 시작하여, 텍스트 입력 모드와 댓글 배치 모드로 전환할 수 있습니다.
+/// - 댓글 작성의 진입점이 되는 기본 바 UI에서는 카메라 버튼, 텍스트 입력 영역, 마이크 버튼이 제공됩니다.
+/// - 텍스트 입력 영역을 탭하면 텍스트 입력 모드로 전환되어 CommentTextInputWidget이 표시됩니다.
+/// - 텍스트 입력 모드에서 텍스트를 제출하면 댓글 배치 모드로 전환되어 CommentProfileTagWidget이 표시됩니다
+///
+/// fields:
+/// - [postId]: 댓글이 작성될 게시글의 ID입니다.
+/// - [pendingCommentDrafts]: 현재 작성 중인 댓글의 임시 저장소입니다.
+///   - postId를 키로 하여 해당 게시글에 작성 중인 댓글의 정보를 담고 있는 [PendingApiCommentDraft] 객체를 값으로 갖는 맵입니다.
+/// - [onTextCommentCompleted]: 텍스트 댓글이 작성 완료되었을 때 호출되는 콜백 함수입니다.
+///   - postId와 작성된 텍스트를 인자로 받아 처리합니다.
+/// - [onAudioCommentCompleted]: 오디오 댓글이 작성 완료되었을 때 호출되는 콜백 함수입니다.
+///   - postId, 오디오 파일 경로, 웨이브폼 데이터, 오디오 길이를 인자로 받아 처리합니다.
+/// - [onMediaCommentCompleted]: 이미지 또는 비디오 댓글이 작성 완료되었을 때 호출되는 콜백 함수입니다.
+///   - postId, 미디어 파일 경로, 미디어가 비디오인지 여부를 인자로 받아 처리합니다.
+/// - [resolveDropRelativePosition]: 댓글이 배치되는 위치를 결정하기 위해 호출되는 콜백 함수입니다.
+///   - postId를 인자로 받아 댓글이 드롭되는 위치를 Offset으로 반환합니다.
+/// - [onCommentSaveProgress]: 댓글 저장 진행 상황을 알리기 위해 호출되는 콜백 함수입니다.
+///   - postId와 저장 진행 상황을 나타내는 0과 1 사이의 double 값을 인자로 받아 처리합니다.
+/// - [onCommentSaveSuccess]: 댓글이 성공적으로 저장되었을 때 호출되는 콜백 함수입니다.
+///   - postId와 저장된 Comment 객체를 인자로 받아 처리합니다.
+/// - [onCommentSaveFailure]: 댓글 저장에 실패했을 때 호출되는 콜백 함수입니다.
+///   - postId와 발생한 오류 객체를 인자로 받아 처리합니다.
+/// - [onTextFieldFocusChanged]: 텍스트 입력창의 포커스 상태가 변경되었을 때 호출되는 콜백 함수입니다.
+///   - 포커스 상태를 bool 값으로 인자로 받아 처리합니다.
+/// - [onCameraPressed]: 카메라 버튼이 눌렸을 때 호출되는 콜백 함수입니다.
+/// - [onMicPressed]: 마이크 버튼이 눌렸을 때 호출되는 콜백 함수입니다.
+class CommentInputWidget extends StatefulWidget {
   final int postId;
   final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
   final Future<void> Function(int postId, String text) onTextCommentCompleted;
@@ -39,7 +68,7 @@ class CommentComposerV2Widget extends StatefulWidget {
   final VoidCallback? onCameraPressed;
   final VoidCallback? onMicPressed;
 
-  const CommentComposerV2Widget({
+  const CommentInputWidget({
     super.key,
     required this.postId,
     required this.pendingCommentDrafts,
@@ -56,11 +85,11 @@ class CommentComposerV2Widget extends StatefulWidget {
   });
 
   @override
-  State<CommentComposerV2Widget> createState() =>
-      _CommentComposerV2WidgetState();
+  State<CommentInputWidget> createState() => _CommentInputWidgetState();
 }
 
-class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
+/// 댓글 작성 모드 전환과 저장 콜백을 상태 기반으로 연결합니다.
+class _CommentInputWidgetState extends State<CommentInputWidget> {
   _CommentComposerMode _mode = _CommentComposerMode.base;
 
   void _showTyping() {
@@ -253,14 +282,18 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
     });
   }
 
-  /// 댓글 배치 모드에서 보여줄 위젯을 빌드하는 메서드입니다.
+  /// Comment를 배치하는 모드에서 어떤 위젯을 보여줄 지 결정하는 위젯 함수입니다.
+  ///
+  /// Returns:
+  /// - 댓글 작성 중인 댓글이 없거나, 지원되지 않는 종류의 댓글인 경우: [CommentBaseBarWidget] 위젯
+  /// - 댓글 작성 중인 댓글의 정보가 유효한 경우: [CommentProfileTagWidget] 위젯
   Widget _buildPlacingMode() {
     // 현재 댓글 작성 중인 댓글의 정보를 기반으로 CommentSavePayload을 생성합니다.
     // 댓글 작성 중인 댓글이 없거나, 지원되지 않는 종류의 댓글인 경우 null이 될 수 있습니다.
     final payload = _buildPayloadFromDraft();
 
     // payload가 null인 경우는 댓글 작성 중인 댓글이 없거나, 지원되지 않는 종류의 댓글인 경우입니다.
-    // 이 경우에는 댓글 작성의 첫 단계인 기본 바 UI를 보여줍니다.
+    // - 이 경우에는 댓글 작성의 첫 단계인 "CommentBaseBarWidget"을 보여줍니다.
     if (payload == null) {
       return CommentBaseBarWidget(
         onCenterTap: _showTyping,
@@ -269,9 +302,8 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
       );
     }
 
-    // 댓글 배치 모드에서 보여줄 위젯은 CommentProfileTagWidget입니다.
-    // CommentProfileTagWidget은 댓글 작성자의 프로필 이미지와 함께,
-    // 댓글이 드래그되는 위치에 따라 실시간으로 댓글 작성 내용을 미리 보여주는 역할을 합니다.
+    // 댓글을 배치하는 모드에서 보여줄 위젯은 CommentProfileTagWidget입니다.
+    // - 댓글 작성자의 프로필 이미지와 함께, 댓글이 드래그되는 위치에 따라 실시간으로 댓글 작성 내용을 미리 보여주는 역할을 합니다.
     return Align(
       alignment: Alignment.center,
       child: CommentProfileTagWidget(
@@ -287,16 +319,12 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
     );
   }
 
-  /// 댓글 작성 모드에 맞는 하단 UI를 즉시 교체해 입력 진입 시 불필요한 흔들림을 줄입니다.
-  /// _base 모드에서는 댓글 작성의 진입점이 되는 CommentBaseBarWidget을 보여주고,
-  /// _typing 모드에서는 CommentTextInputWidget을 보여주며,
-  /// _placing 모드에서는 댓글 작성 중인 댓글의 정보를 기반으로 CommentProfileTagWidget을 보여줍니다.
   @override
   Widget build(BuildContext context) {
-    late final Widget child;
+    late final Widget child; // 댓글 작성 모드에 따라 보여줄 자식 위젯입니다.
 
     switch (_mode) {
-      // 기본 모드에서는 댓글 작성의 진입점이 되는 CommentBaseBarWidget을 보여줍니다.
+      // 기본 모드에서는 댓글 작성의 진입점이 되는 "CommentBaseBarWidget"을 보여줍니다.
       case _CommentComposerMode.base:
         child = CommentBaseBarWidget(
           onCenterTap: _showTyping,
@@ -304,7 +332,7 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
           onMicPressed: _handleMicPressed,
         );
         break;
-      // 텍스트 입력 모드에서는 CommentTextInputWidget을 보여줍니다.
+      // 텍스트 입력 모드에서는 "CommentTextInputWidget"을 보여줍니다.
       case _CommentComposerMode.typing:
         child = CommentTextInputWidget(
           onSubmitText: _handleTextSubmit,
@@ -312,7 +340,7 @@ class _CommentComposerV2WidgetState extends State<CommentComposerV2Widget> {
           onEditingCancelled: _handleTypingCancelled,
         );
         break;
-      // 댓글 배치 모드에서는 댓글 작성 중인 댓글의 정보를 기반으로 CommentProfileTagWidget을 보여줍니다.
+      // 댓글 배치 모드에서는 댓글 작성 중인 댓글의 정보를 기반으로 "CommentProfileTagWidget"을 보여줍니다.
       case _CommentComposerMode.placing:
         child = _buildPlacingMode();
         break;

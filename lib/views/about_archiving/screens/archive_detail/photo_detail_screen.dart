@@ -24,7 +24,7 @@ import '../../../../utils/snackbar_utils.dart';
 import '../../../common_widget/photo/photo_card_widget.dart';
 import '../../../common_widget/photo/user_info_widget.dart';
 import '../../../common_widget/about_comment/comment_for_pending.dart';
-import '../../../common_widget/about_comment/comment_composer_v2_widget.dart';
+import '../../../common_widget/about_comment/comment_input_widget.dart';
 import '../../../common_widget/about_comment/comment_list_bottom_sheet.dart';
 import '../../../../api/models/friend.dart';
 
@@ -412,7 +412,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOut,
                     padding: EdgeInsets.only(bottom: composerBottomInset),
-                    child: CommentComposerV2Widget(
+                    child: CommentInputWidget(
                       postId: _posts[_currentIndex].id,
                       pendingCommentDrafts: _pendingCommentDrafts,
                       onTextCommentCompleted: (postId, text) async {

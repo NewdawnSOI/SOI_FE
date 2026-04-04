@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-/// 댓글 텍스트를 입력하고 제출하는 단일 입력 바를 렌더링합니다.
-/// 포커스와 제출 진행 상태를 내부에서 관리해 댓글 작성 흐름을 안정적으로 유지합니다.
 class CommentTextInputWidget extends StatefulWidget {
   final Future<void> Function(String text) onSubmitText;
   final ValueChanged<bool>? onFocusChanged;
@@ -38,8 +36,15 @@ class CommentTextInputWidget extends StatefulWidget {
 }
 
 class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
+  /// 텍스트 입력을 관리하는 TextEditingController입니다.
+  /// - 입력된 텍스트를 읽고 수정하는 데 사용됩니다.
   final TextEditingController _controller = TextEditingController();
+
+  /// 입력창의 포커스 상태를 관리하는 FocusNode입니다.
+  /// - 포커스 변경 이벤트를 감지하여 콜백을 호출하는 데 사용됩니다.
   final FocusNode _focusNode = FocusNode();
+
+  /// 제출 중인지 여부를 나타내는 플래그입니다. 제출이 진행 중일 때 입력과 제출 버튼을 비활성화하는 데 사용됩니다.
   bool _isSubmitting = false;
 
   @override
@@ -60,6 +65,7 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
     super.dispose();
   }
 
+  /// 입력창의 포커스 상태가 변경될 때 호출되는 핸들러입니다.
   void _handleFocusChanged() {
     widget.onFocusChanged?.call(_focusNode.hasFocus);
     if (!_focusNode.hasFocus && _controller.text.trim().isEmpty) {
@@ -67,6 +73,8 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
     }
   }
 
+  /// 텍스트 제출을 처리하는 비동기 함수입니다.
+  /// - 제출 중에는 입력과 제출 버튼이 비활성화됩니다.
   Future<void> _submit() async {
     if (_isSubmitting) {
       return;
