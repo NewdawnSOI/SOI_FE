@@ -78,6 +78,9 @@ class ExpandedMediaTagOverlayData {
   });
 }
 
+typedef ExpandedMediaOverlayDismissRequest =
+    Future<void> Function(VoidCallback finalizeDismissal);
+
 class ApiPhotoDisplayWidget extends StatefulWidget {
   final Post post;
   final int categoryId;
@@ -91,6 +94,8 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
   final Future<void> Function(int postId)? onCommentsReloadRequested;
   final ValueChanged<ExpandedMediaTagOverlayData?>?
   onExpandedMediaOverlayChanged;
+  final ExpandedMediaOverlayDismissRequest?
+  onExpandedMediaOverlayDismissRequested;
 
   ///
   /// API에서 받아온 Post 데이터를 기반으로 이미지/비디오, 작성자 아바타, 댓글 태그 등을 렌더링하는 위젯입니다.
@@ -132,6 +137,7 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
     this.pendingVoiceComments = const {},
     this.onCommentsReloadRequested,
     this.onExpandedMediaOverlayChanged,
+    this.onExpandedMediaOverlayDismissRequested,
   });
 
   @override
@@ -142,7 +148,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     with WidgetsBindingObserver {
   /// 댓글 태그의 기본 아바타 규격은 공용 댓글 태그 상수와 동일하게 유지합니다.
   static const double _avatarSize = CommentProfileTagSpec.avatarSize;
-  static const double _expandedAvatarSize = 108.0;
+  static const double _expandedAvatarSize = CommentMediaTagSpec.contentSize;
   static const double _imageWidth = 354.0;
   static const double _imageHeight = 500.0;
 
@@ -661,6 +667,11 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   }
 
   void _collapseExpandedMediaTag() {
+    _requestExpandedMediaTagDismissal();
+  }
+
+  /// 확장 태그 닫힘 애니메이션이 끝난 뒤 로컬 선택 상태와 오버레이 상태를 함께 정리합니다.
+  void _finalizeExpandedMediaTagDismissal() {
     if (!mounted) return;
     if (_expandedMediaTagKey == null) {
       _clearExpandedMediaOverlay();
@@ -670,6 +681,24 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
       _expandedMediaTagKey = null;
     });
     _clearExpandedMediaOverlay();
+  }
+
+  /// 상위 카드가 reverse 애니메이션을 지원하면 거기에 위임하고, 없으면 즉시 태그를 닫습니다.
+  Future<void> _requestExpandedMediaTagDismissal() async {
+    if (!mounted) return;
+    if (_expandedMediaTagKey == null) {
+      _clearExpandedMediaOverlay();
+      return;
+    }
+
+    final dismissRequest = widget.onExpandedMediaOverlayDismissRequested;
+    if (dismissRequest == null ||
+        widget.onExpandedMediaOverlayChanged == null) {
+      _finalizeExpandedMediaTagDismissal();
+      return;
+    }
+
+    await dismissRequest(_finalizeExpandedMediaTagDismissal);
   }
 
   /// 댓글 태그가 탭되어 확장된 미디어 오버레이를 표시할 때 필요한 데이터를 계산하고, 상위 위젯에 전달하는 함수입니다.
@@ -704,11 +733,11 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   /// - 댓글이 포토 타입이 아닌 경우:
   ///   - 현재 확장된 미디어 태그가 있다면 축소합니다.
   ///   - 댓글 시트를 엽니다.
-  void _handleCommentTap({
+  Future<void> _handleCommentTap({
     required Comment comment,
     required String key,
     required Offset tipAnchor,
-  }) {
+  }) async {
     if (comment.type == CommentType.photo) {
       if (!ApiPhotoTagGeometryService.canExpandMediaComment(comment)) {
         _openCommentSheet(key);
@@ -721,7 +750,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
       }
 
       if (_expandedMediaTagKey == key) {
-        _collapseExpandedMediaTag();
+        await _requestExpandedMediaTagDismissal();
         return;
       }
 
@@ -745,18 +774,18 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     }
 
     if (_expandedMediaTagKey != null) {
-      _collapseExpandedMediaTag();
+      await _requestExpandedMediaTagDismissal();
     }
     _openCommentSheet(key);
   }
 
-  void _handleBaseTap() {
+  Future<void> _handleBaseTap() async {
     if (_showActionOverlay) {
       _dismissOverlay();
       return;
     }
     if (_expandedMediaTagKey != null) {
-      _collapseExpandedMediaTag();
+      await _requestExpandedMediaTagDismissal();
       return;
     }
     if (_hasComments || _hasPendingMarker) {
@@ -786,10 +815,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   void _openCommentSheet(String selectedKey) {
     final comments = _initialSheetComments;
     if (_expandedMediaTagKey != null) {
-      setState(() {
-        _expandedMediaTagKey = null;
-      });
-      _clearExpandedMediaOverlay();
+      _finalizeExpandedMediaTagDismissal();
     }
 
     showModalBottomSheet<void>(
@@ -995,7 +1021,9 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
               },
               builder: (context, candidateData, rejectedData) {
                 return GestureDetector(
-                  onTap: _handleBaseTap,
+                  onTap: () {
+                    _handleBaseTap();
+                  },
                   child: Stack(
                     key: _displayStackKey,
                     clipBehavior: Clip.none,

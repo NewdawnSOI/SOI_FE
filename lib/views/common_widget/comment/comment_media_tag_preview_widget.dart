@@ -22,12 +22,16 @@ class CommentMediaTagPreviewWidget extends StatefulWidget {
   final Comment comment;
   final bool autoplayVideo;
   final bool playWithSound;
+  final double frameSize;
+  final double contentSize;
 
   const CommentMediaTagPreviewWidget({
     super.key,
     required this.comment,
     this.autoplayVideo = true,
     this.playWithSound = true,
+    this.frameSize = CommentMediaTagSpec.frameSize,
+    this.contentSize = CommentMediaTagSpec.contentSize,
   });
 
   @override
@@ -227,11 +231,7 @@ class _CommentMediaTagPreviewWidgetState
     return Container(
       color: const Color(0xFF4A4A4A),
       alignment: Alignment.center,
-      child: Icon(
-        icon,
-        color: Colors.white70,
-        size: CommentMediaTagSpec.contentSize * 0.28,
-      ),
+      child: Icon(icon, color: Colors.white70, size: widget.contentSize * 0.28),
     );
   }
 
@@ -244,7 +244,7 @@ class _CommentMediaTagPreviewWidgetState
         child: Icon(
           Icons.person,
           color: Colors.white,
-          size: CommentMediaTagSpec.contentSize * 0.28,
+          size: widget.contentSize * 0.28,
         ),
       );
     }
@@ -255,8 +255,7 @@ class _CommentMediaTagPreviewWidgetState
       fadeInDuration: Duration.zero,
       fadeOutDuration: Duration.zero,
       memCacheWidth:
-          (CommentMediaTagSpec.contentSize *
-                  MediaQuery.of(context).devicePixelRatio)
+          (widget.contentSize * MediaQuery.of(context).devicePixelRatio)
               .round(),
       placeholder: (_, __) => Container(
         color: const Color(0xffd9d9d9),
@@ -264,7 +263,7 @@ class _CommentMediaTagPreviewWidgetState
         child: Icon(
           Icons.person,
           color: Colors.white,
-          size: CommentMediaTagSpec.contentSize * 0.28,
+          size: widget.contentSize * 0.28,
         ),
       ),
       errorWidget: (_, __, ___) => Container(
@@ -273,7 +272,7 @@ class _CommentMediaTagPreviewWidgetState
         child: Icon(
           Icons.person,
           color: Colors.white,
-          size: CommentMediaTagSpec.contentSize * 0.28,
+          size: widget.contentSize * 0.28,
         ),
       ),
     );
@@ -359,13 +358,13 @@ class _CommentMediaTagPreviewWidgetState
     final content = _buildPreviewContent();
 
     return SizedBox(
-      width: CommentMediaTagSpec.frameSize,
-      height: CommentMediaTagSpec.frameSize,
+      width: widget.frameSize,
+      height: widget.frameSize,
       child: Center(
         child: ClipOval(
           child: SizedBox(
-            width: CommentMediaTagSpec.contentSize,
-            height: CommentMediaTagSpec.contentSize,
+            width: widget.contentSize,
+            height: widget.contentSize,
             child: content,
           ),
         ),

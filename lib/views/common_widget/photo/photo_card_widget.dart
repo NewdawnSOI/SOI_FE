@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import '../../../utils/analytics_service.dart';
 import 'photo_display_widget.dart';
 import 'user_info_widget.dart';
 import '../comment/comment_input_widget.dart';
+import '../comment/comment_circle_avatar.dart';
 import '../comment/comment_media_tag_preview_widget.dart';
 import '../comment/comment_tag_bubble.dart';
 import '../comment/comment_tag_specs.dart';
@@ -140,6 +142,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   OverlayEntry? _expandedOverlayEntry;
   late final AnimationController _overlayExpandController;
   late final Animation<double> _overlayExpandAnimation;
+  bool _isOverlayDismissAnimating = false;
 
   List<Comment> get _tagComments =>
       context.read<CommentController>().peekTagCommentsCache(
@@ -273,6 +276,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     _expandedOverlayEntry?.remove();
     _expandedOverlayEntry = null;
     _expandedOverlayData = null;
+    _isOverlayDismissAnimating = false;
   }
 
   /// teardown 경로에서는 animation reset 알림을 생략해 dispose 중 build 충돌을 피합니다.
@@ -281,6 +285,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     _expandedOverlayEntry?.remove();
     _expandedOverlayEntry = null;
     _expandedOverlayData = null;
+    _isOverlayDismissAnimating = false;
   }
 
   /// 시트가 돌려준 full thread 결과를 controller cache 한 곳에 반영합니다.
@@ -314,6 +319,31 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     _overlayExpandController.forward(from: 0.0);
   }
 
+  /// 확장된 태그를 reverse 애니메이션으로 닫은 뒤 카드 내부 선택 상태를 복원합니다.
+  Future<void> _handleExpandedMediaOverlayDismissRequested(
+    VoidCallback finalizeDismissal,
+  ) async {
+    if (_isOverlayDismissAnimating) {
+      return;
+    }
+
+    if (_expandedOverlayEntry == null) {
+      finalizeDismissal();
+      return;
+    }
+
+    _isOverlayDismissAnimating = true;
+    try {
+      await _overlayExpandController.reverse(
+        from: _overlayExpandController.value,
+      );
+      _removeExpandedMediaOverlay();
+      finalizeDismissal();
+    } finally {
+      _isOverlayDismissAnimating = false;
+    }
+  }
+
   /// 댓글 태그 팝업 위젯을 만듭니다.
   /// 화면 밖으로 넘어가지 않도록 위치를 조정하고, 열릴 때 크기가 커지는 애니메이션을 적용합니다.
   Widget _buildExpandedMediaOverlayEntry(BuildContext overlayContext) {
@@ -339,7 +369,22 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
           AnimatedBuilder(
             animation: _overlayExpandAnimation,
             builder: (_, __) {
-              final contentSize = CommentMediaTagSpec.contentSize;
+              final animationValue = _overlayExpandAnimation.value;
+              final contentSize =
+                  lerpDouble(
+                    data.collapsedContentSize,
+                    data.expandedContentSize,
+                    animationValue,
+                  ) ??
+                  data.expandedContentSize;
+              final avatarOpacity =
+                  1.0 -
+                  Curves.easeOut.transform(
+                    Interval(0.0, 0.45).transform(animationValue),
+                  );
+              final previewOpacity = Curves.easeOutCubic.transform(
+                Interval(0.18, 1.0).transform(animationValue),
+              );
               final diameter = CommentTagBubble.diameterForContent(
                 contentSize: contentSize,
                 padding: CommentMediaTagSpec.padding,
@@ -369,16 +414,45 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                 top: clampedTop,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: data.onDismiss,
+                  onTap: () {
+                    unawaited(
+                      _handleExpandedMediaOverlayDismissRequested(
+                        data.onDismiss,
+                      ),
+                    );
+                  },
                   onLongPress: data.onLongPress,
                   child: CommentTagBubble(
                     contentSize: contentSize,
                     padding: CommentMediaTagSpec.padding,
-                    child: CommentMediaTagPreviewWidget(
-                      key: ValueKey('overlay_media_${data.tagKey}'),
-                      comment: data.comment,
-                      autoplayVideo: true,
-                      playWithSound: true,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        IgnorePointer(
+                          child: Opacity(
+                            opacity: avatarOpacity.clamp(0.0, 1.0),
+                            child: CommentCircleAvatar(
+                              key: ValueKey('overlay_avatar_${data.tagKey}'),
+                              imageUrl: data.comment.userProfileUrl,
+                              size: contentSize,
+                              cacheKey: data.comment.userProfileKey,
+                            ),
+                          ),
+                        ),
+                        IgnorePointer(
+                          child: Opacity(
+                            opacity: previewOpacity.clamp(0.0, 1.0),
+                            child: CommentMediaTagPreviewWidget(
+                              key: ValueKey('overlay_media_${data.tagKey}'),
+                              comment: data.comment,
+                              autoplayVideo: true,
+                              playWithSound: true,
+                              frameSize: diameter,
+                              contentSize: contentSize,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -419,6 +493,8 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
           pendingVoiceComments: widget.pendingVoiceComments,
           onCommentsReloadRequested: widget.onCommentsReloadRequested,
           onExpandedMediaOverlayChanged: _handleExpandedMediaOverlayChanged,
+          onExpandedMediaOverlayDismissRequested:
+              _handleExpandedMediaOverlayDismissRequested,
         ),
       );
     }
@@ -464,6 +540,8 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   onCommentsReloadRequested: widget.onCommentsReloadRequested,
                   onExpandedMediaOverlayChanged:
                       _handleExpandedMediaOverlayChanged,
+                  onExpandedMediaOverlayDismissRequested:
+                      _handleExpandedMediaOverlayDismissRequested,
                 ),
                 SizedBox(height: 12.h),
 

@@ -561,7 +561,7 @@ class _CommentCameraRecordingBottomSheetWidgetState
     return Row(
       children: [
         Padding(
-          padding: EdgeInsets.only(top: (7.96).sp),
+          padding: EdgeInsets.only(top: (7.96).sp, left: (7.96).sp),
           child: IconButton(
             onPressed: _closeSheet,
             icon: SvgPicture.asset(

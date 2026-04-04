@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -12,7 +14,7 @@ import 'comment_tag_specs.dart';
 import 'model/comment_pending_model.dart';
 
 typedef CommentTapCallback =
-    void Function({
+    Future<void> Function({
       required Comment comment,
       required String key,
       required Offset tipAnchor,
@@ -112,11 +114,15 @@ class CommentOverlay extends StatelessWidget {
         left: topLeft.dx,
         top: topLeft.dy,
         child: GestureDetector(
-          onTap: () => onCommentTap(
-            comment: comment,
-            key: key,
-            tipAnchor: clampedSmallTip,
-          ),
+          onTap: () {
+            unawaited(
+              onCommentTap(
+                comment: comment,
+                key: key,
+                tipAnchor: clampedSmallTip,
+              ),
+            );
+          },
           onLongPress: () => onCommentLongPress(
             key: key,
             commentId: comment.id,
