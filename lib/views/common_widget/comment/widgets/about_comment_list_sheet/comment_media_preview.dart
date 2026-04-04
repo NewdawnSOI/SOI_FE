@@ -1,11 +1,14 @@
+// == dart 패키지 ==
 import 'dart:io';
 import 'dart:typed_data';
 
+// == flutter 패키지 ==
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:soi/utils/video_thumbnail_cache.dart';
 import 'package:video_player/video_player.dart';
+
+import '../../comment_tag_specs.dart';
 
 /// 댓글에 첨부된 이미지나 동영상의 미리보기를 보여주는 위젯
 /// [isVideo]가 true이면 동영상 미리보기를, false이면 이미지 미리보기를 보여줍니다.
@@ -308,22 +311,19 @@ class _ApiCommentMediaPreviewState extends State<ApiCommentMediaPreview> {
 
   @override
   Widget build(BuildContext context) {
-    final previewSize = (123.88).sp;
-    final borderSize = 137.sp;
-    final borderPadding = (borderSize - previewSize) / 2;
-
     return Container(
-      width: borderSize,
-      height: borderSize,
-      padding: EdgeInsets.all(borderPadding),
+      // CommentMediaTagSpec의 CommentProfileMediaPreview 규격을 사용하여 프레임과 콘텐츠 크기를 설정합니다.
+      width: CommentProfileMediaPreview.frameSize, // 137.0
+      height: CommentProfileMediaPreview.frameSize, // 137.0
+      padding: EdgeInsets.all(CommentProfileMediaPreview.padding), // 4.8
       decoration: const BoxDecoration(
         color: Color(0xFF959595),
         shape: BoxShape.circle,
       ),
       child: ClipOval(
         child: SizedBox(
-          width: previewSize,
-          height: previewSize,
+          width: CommentProfileMediaPreview.contentSize, // 123.88
+          height: CommentProfileMediaPreview.contentSize, // 123.88
           child: widget.isVideo ? _buildVideoPreview() : _buildImagePreview(),
         ),
       ),

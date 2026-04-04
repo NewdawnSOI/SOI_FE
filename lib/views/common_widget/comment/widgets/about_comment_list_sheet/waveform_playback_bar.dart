@@ -38,58 +38,53 @@ class ApiWaveformPlaybackBar extends StatelessWidget {
     final playedMs = position.inMilliseconds;
     final barProgress = (playedMs / totalMs).clamp(0.0, 1.0);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF000000).withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onPlayPause,
-            icon: Icon(
-              isPlaying ? Icons.pause : Icons.play_arrow,
-              color: Colors.white,
-              size: 25.sp,
-            ),
+    return Row(
+      children: [
+        // 재생/일시정지 버튼
+        IconButton(
+          onPressed: onPlayPause,
+          icon: Icon(
+            isPlaying ? Icons.pause : Icons.play_arrow,
+            color: Colors.white,
+            size: 25.sp,
           ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final availableWidth = constraints.maxWidth;
-                return Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [
-                    GestureDetector(
-                      onTap: onPlayPause,
-                      child: _buildWaveformBase(
-                        color: isPlaying
-                            ? const Color(0xFF4A4A4A)
-                            : Colors.white,
-                        availableWidth: availableWidth,
-                      ),
+        ),
+        // 파형 바
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final availableWidth = constraints.maxWidth;
+              return Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  GestureDetector(
+                    onTap: onPlayPause,
+                    child: _buildWaveformBase(
+                      color: isPlaying ? const Color(0xFF4A4A4A) : Colors.white,
+                      availableWidth: availableWidth,
                     ),
-                    if (isPlaying)
-                      ClipRect(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: barProgress,
-                          child: _buildWaveformBase(
-                            color: Colors.white,
-                            availableWidth: availableWidth,
-                          ),
+                  ),
+                  if (isPlaying)
+                    ClipRect(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: barProgress,
+                        child: _buildWaveformBase(
+                          color: Colors.white,
+                          availableWidth: availableWidth,
                         ),
                       ),
-                  ],
-                );
-              },
-            ),
+                    ),
+                ],
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
+  /// 파형 바의 기본 레이아웃을 생성하는 메서드
   Widget _buildWaveformBase({
     required Color color,
     required double availableWidth,

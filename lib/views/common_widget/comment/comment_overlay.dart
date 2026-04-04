@@ -8,6 +8,7 @@ import '../user/current_user_image_builder.dart';
 import '../photo/services/photo_tag_geometry_service.dart';
 import 'comment_circle_avatar.dart';
 import 'comment_tag_bubble.dart';
+import 'comment_tag_specs.dart';
 import 'model/comment_pending_model.dart';
 
 typedef CommentTapCallback =
@@ -89,11 +90,11 @@ class CommentOverlay extends StatelessWidget {
       final clampedSmallTip = ApiPhotoTagGeometryService.clampTagAnchor(
         absolute,
         imageSize,
-        kCommentTagAvatarSize,
+        CommentProfileTagSpec.avatarSize,
       );
       final topLeft = ApiPhotoTagGeometryService.tagTopLeftFromTipAnchor(
         clampedSmallTip,
-        kCommentTagAvatarSize,
+        CommentProfileTagSpec.avatarSize,
       );
       final hideOther =
           showActionOverlay &&
@@ -122,7 +123,7 @@ class CommentOverlay extends StatelessWidget {
             position: clampedSmallTip,
           ),
           child: CommentTagBubble(
-            contentSize: kCommentTagAvatarSize,
+            contentSize: CommentProfileTagSpec.avatarSize,
             child: CurrentUserImageBuilder(
               imageKind: CurrentUserImageKind.profile,
               targetUserId: comment.userId,
@@ -133,7 +134,7 @@ class CommentOverlay extends StatelessWidget {
                 return CommentCircleAvatar(
                   key: ValueKey<String>('avatar_$key'),
                   imageUrl: imageUrl,
-                  size: kCommentTagAvatarSize,
+                  size: CommentProfileTagSpec.avatarSize,
                   showBorder: isSelected,
                   borderColor: Colors.white,
                   cacheKey: cacheKey,

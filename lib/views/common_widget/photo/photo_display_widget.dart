@@ -16,6 +16,7 @@ import '../../about_archiving/screens/archive_detail/category_photos_screen.dart
 import '../comment/comment_list_bottom_sheet.dart';
 import '../comment/comment_overlay.dart';
 import '../comment/comment_tag_bubble.dart';
+import '../comment/comment_tag_specs.dart';
 import '../comment/model/comment_pending_model.dart';
 import 'audio_control_widget.dart';
 import 'services/photo_tag_geometry_service.dart';
@@ -140,7 +141,7 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
 class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     with WidgetsBindingObserver {
   /// 댓글 태그의 기본 아바타 규격은 공용 댓글 태그 상수와 동일하게 유지합니다.
-  static const double _avatarSize = kCommentTagAvatarSize;
+  static const double _avatarSize = CommentProfileTagSpec.avatarSize;
   static const double _expandedAvatarSize = 108.0;
   static const double _imageWidth = 354.0;
   static const double _imageHeight = 500.0;

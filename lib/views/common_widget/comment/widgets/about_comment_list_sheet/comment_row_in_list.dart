@@ -15,19 +15,23 @@ import 'comment_media_preview.dart';
 import 'waveform_playback_bar.dart';
 
 /// 댓글 하나를 보여주는 위젯
-/// 댓글의 타입별 본문을 렌더링하고 롱프레스 시 행 확대 상태만 반영합니다.
+/// - 댓글의 타입별 본문을 렌더링하고 롱프레스 시 행 확대 상태만 반영합니다.
+///
+/// fields:
+/// - [comment]: 렌더링할 댓글 모델입니다.
+/// - [isHighlighted]: 댓글이 스레드 강조 상태인지 여부입니다. 강조 상태에서는 배경색이 달라집니다.
+/// - [onReplyTap]: 답장 달기 버튼이 탭될 때 호출되는 콜백입니다. 댓글 모델이 인자로 전달됩니다.
+/// - [onLongPress]: 댓글 행이 롱프레스될 때 호출되는 콜백입니다. 행 전체가 롱프레스 가능한 영역입니다.
+/// - [showReplyAction]: 답장 달기 버튼을 표시할지 여부입니다. 기본값은 true입니다.
+/// - [showViewMoreRepliesButton]: 답글 보기 버튼을 표시할지 여부입니다. 기본값은 false입니다.
+/// - [showHideRepliesButton]: 답글 숨기기 버튼을 표시할지 여부입니다. 기본값은 false입니다.
+/// - [onViewMoreRepliesTap]: 답글 보기 버튼이 탭될 때 호출되는 콜백입니다. 댓글 모델이 인자로 전달됩니다.
+/// - [onHideRepliesTap]: 답글 숨기기 버튼이 탭될 때 호출 되는 콜백입니다. 댓글 모델이 인자로 전달됩니다.
+/// - [relativeTimeText]: 댓글 작성 시각을 나타내는 텍스트입니다.
+///   - 모델의 createdAt 필드를 기반으로 내부에서 상대 시간 문자열로 변환되지만, 이 필드가 제공되면 변환된 문자열 대신 이 텍스트가 사용됩니다.
+/// - [isActionExpanded]: 답글 보기/숨기기 버튼이 표시된 상태에서, 버튼이 눌려서 답글이 펼쳐진 상태인지 여부입니다.
+///   - 이 상태에서는 댓글 행이 약간 축소되어 표시됩니다. 기본값은 false입니다.
 class ApiCommentRow extends StatelessWidget {
-  static const double _baseHorizontalPadding =
-      27.0; // 댓글 행의 기본 좌우 패딩 (프로필 이미지와 댓글 내용 사이의 간격 포함)
-  static const double _profileImageSize = 38.0; // 프로필 이미지 크기 (답글이 아닌 경우)
-  static const double _replyProfileImageSize = 32.13; // 답글인 경우 프로필 이미지 크기를 줄임
-  static const double _profileToContentGap = 12.0; // 프로필 이미지와 댓글 내용 사이의 간격
-  static const double _mediaPreviewFrameSize = 137.0; // 미디어 미리보기 프레임 크기
-  static const double _replyMediaPreviewSize = 85.0; // 답글 미디어 미리보기 최대 크기
-  static const Color _highlightColor = Color(0x3B000000);
-  static const Duration _rowAnimationDuration = Duration(milliseconds: 220);
-  static const double _changeCommentRowScale = 0.9; // 롱프레스 시 행 확대 비율
-
   final Comment comment;
   final bool isHighlighted;
   final ValueChanged<Comment>? onReplyTap;
@@ -39,6 +43,7 @@ class ApiCommentRow extends StatelessWidget {
   final ValueChanged<Comment>? onHideRepliesTap;
   final String? relativeTimeText;
   final bool isActionExpanded;
+  final Color audioCommentBackgroundColor;
 
   const ApiCommentRow({
     super.key,
@@ -53,7 +58,35 @@ class ApiCommentRow extends StatelessWidget {
     this.onHideRepliesTap,
     this.relativeTimeText,
     this.isActionExpanded = false,
+    this.audioCommentBackgroundColor = const Color(0xFF121212),
   });
+
+  /// 댓글 행의 기본 좌우 패딩 (프로필 이미지와 댓글 내용 사이의 간격 포함)
+  static const double _baseHorizontalPadding = 27.0;
+
+  /// 원댓글 프로필 이미지 크기
+  static const double _profileImageSize = 38.0;
+
+  /// 대댓글 프로필 이미지 크기
+  static const double _replyProfileImageSize = 32.13;
+
+  /// 댓글 본문과 프로필 이미지 사이의 간격
+  static const double _profileToContentGap = 12.0;
+
+  /// 미디어 댓글의 프리뷰 최대 프레임 크기 (원댓글 기준)
+  static const double _mediaPreviewFrameSize = 137.0;
+
+  /// 미디어 댓글의 프리뷰 최대 프레임 크기 (대댓글 기준)
+  static const double _replyMediaPreviewSize = 85.0;
+
+  /// 스레드 강조 배경 색상 (투명한 검정)
+  static const Color _highlightColor = Color(0x3B000000);
+
+  /// 댓글 행의 애니메이션 지속 시간
+  static const Duration _rowAnimationDuration = Duration(milliseconds: 220);
+
+  /// 롱프레스 시 행 확대 비율
+  static const double _changeCommentRowScale = 0.9;
 
   @override
   Widget build(BuildContext context) {
@@ -147,9 +180,10 @@ class ApiCommentRow extends StatelessWidget {
         )
       : TextStyle(
           color: Colors.white,
-          fontSize: 14.sp,
-          fontFamily: 'Pretendard',
-          fontWeight: FontWeight.w600,
+          fontSize: 13.sp,
+          fontFamily: 'Pretendard Variable',
+          fontWeight: FontWeight.w500,
+          letterSpacing: -0.40,
         );
 
   /// 댓글 작성 시각 텍스트의 스타일
@@ -275,7 +309,7 @@ class ApiCommentRow extends StatelessWidget {
     if (isHighlighted) {
       return Container(
         width: double.infinity,
-        color: _highlightColor,
+        color: _highlightColor, // 스레드 강조 배경 색상
         child: Padding(
           padding: horizontalPadding.add(
             EdgeInsets.only(top: 10.sp, bottom: 10.sp),
@@ -366,26 +400,34 @@ class ApiCommentRow extends StatelessWidget {
         final isPlaying = audioController.isUrlPlaying(comment.audioUrl ?? '');
         return _buildCommentRowLayout(
           bodySpacing: 4,
-          body: ApiWaveformPlaybackBar(
-            isPlaying: isPlaying,
-            onPlayPause: () async {
-              final audioUrl = comment.audioUrl;
-              if (audioUrl == null || audioUrl.isEmpty) {
-                return;
-              }
-              if (isPlaying) {
-                await audioController.pause();
-              } else {
-                await audioController.play(audioUrl);
-              }
-            },
-            position: isPlaying
-                ? audioController.currentPosition
-                : Duration.zero,
-            duration: isPlaying
-                ? audioController.totalDuration
-                : Duration(milliseconds: comment.duration ?? 0),
-            waveformData: waveformData,
+          // 오디오 댓글은 파형 재생 바를 보여줍니다.
+          body: Container(
+            decoration: BoxDecoration(
+              // 오디오 댓글 배경 색상
+              color: audioCommentBackgroundColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ApiWaveformPlaybackBar(
+              isPlaying: isPlaying,
+              onPlayPause: () async {
+                final audioUrl = comment.audioUrl;
+                if (audioUrl == null || audioUrl.isEmpty) {
+                  return;
+                }
+                if (isPlaying) {
+                  await audioController.pause();
+                } else {
+                  await audioController.play(audioUrl);
+                }
+              },
+              position: isPlaying
+                  ? audioController.currentPosition
+                  : Duration.zero,
+              duration: isPlaying
+                  ? audioController.totalDuration
+                  : Duration(milliseconds: comment.duration ?? 0),
+              waveformData: waveformData,
+            ),
           ),
         );
       },
@@ -431,7 +473,9 @@ class ApiCommentRow extends StatelessWidget {
         : comment.fileKey!;
     final trimmedText = (comment.text ?? '').trim();
     final mediaPreview = comment.isReply
-        ? SizedBox(
+        ?
+          // 답글의 미디어는 원댓글보다 작게 보여줍니다.
+          SizedBox(
             width: _replyMediaPreviewSize.sp,
             height: _replyMediaPreviewSize.sp,
             child: FittedBox(
@@ -447,7 +491,9 @@ class ApiCommentRow extends StatelessWidget {
               ),
             ),
           )
-        : ApiCommentMediaPreview(
+        :
+          // 원댓글의 미디어는 최대 프레임 크기로 보여줍니다.
+          ApiCommentMediaPreview(
             source: mediaSource,
             isVideo: isVideo,
             cacheKey: cacheKey,

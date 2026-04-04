@@ -20,6 +20,7 @@ class ThreadedCommentRow extends StatelessWidget {
       comment: comment,
       isHighlighted: isHighlighted,
       showReplyAction: false,
+      audioCommentBackgroundColor: Color(0xff1C1C1C),
     );
   }
 }

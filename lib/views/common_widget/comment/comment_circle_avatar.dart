@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
 import 'comment_tag_bubble.dart';
+import 'comment_tag_specs.dart';
 
 /// 댓글 작성자 프로필 사진을 원형 아바타로 보여주는 위젯입니다.
 /// - 이미지 URL이 유효하지 않거나 로드에 실패한 경우 기본 아바타 이미지가 보여집니다.
@@ -27,7 +28,7 @@ class CommentCircleAvatar extends StatelessWidget {
   const CommentCircleAvatar({
     super.key,
     required this.imageUrl,
-    this.size = kCommentTagAvatarSize,
+    this.size = CommentProfileTagSpec.avatarSize,
     this.showBorder = false,
     this.borderColor,
     this.borderWidth = 1.5,
@@ -160,7 +161,7 @@ class CommentPendingProgressAvatar extends StatelessWidget {
     required this.progress,
     this.opacity = 1,
     this.cacheKey,
-    this.tagPadding = kCommentTagPadding,
+    this.tagPadding = CommentProfileTagSpec.padding,
     this.tagBackgroundColor = const Color(0xFF959595),
   });
 

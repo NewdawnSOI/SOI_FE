@@ -1,15 +1,5 @@
 import 'package:flutter/material.dart';
-
-/// 댓글 태그 자체의 크기를 정의합니다.
-/// - 이 값은 댓글 태그의 원형 배경과 포인터를 포함한 전체 크기를 결정하는 데 사용됩니다.
-const double kCommentTagSize = 33.0;
-
-/// 댓글 태그의 아바타 이미지 크기를 정의합니다.
-/// - 표준 댓글 태그에서는 27x27 크기를 사용합니다.
-const double kCommentTagAvatarSize = 27.0;
-
-/// 댓글 태그의 콘텐츠와 태그 외곽 사이의 기본 패딩입니다.
-const double kCommentTagPadding = (kCommentTagSize - kCommentTagAvatarSize) / 2;
+import 'comment_tag_specs.dart';
 
 /// 댓글 태그의 포인터 높이입니다.
 const double kCommentTagPointerHeight = 27.0;
@@ -25,7 +15,7 @@ class CommentTagBubble extends StatelessWidget {
     required this.child,
     required this.contentSize,
     this.backgroundColor = const Color(0xFF959595),
-    this.padding = kCommentTagPadding,
+    this.padding = CommentProfileTagSpec.padding,
     this.pointerHeight = kCommentTagPointerHeight,
     this.pointerOverlap = kCommentTagPointerOverlap,
   });
@@ -40,20 +30,20 @@ class CommentTagBubble extends StatelessWidget {
   /// 콘텐츠 크기에 따른 태그 전체 너비 계산 메서드
   static double diameterForContent({
     required double contentSize,
-    double padding = kCommentTagPadding,
+    double padding = CommentProfileTagSpec.padding,
   }) {
     return contentSize + (padding * 2);
   }
 
   /// 표준 댓글 태그의 원형 외곽 지름을 반환합니다.
   static double standardDiameter() {
-    return diameterForContent(contentSize: kCommentTagAvatarSize);
+    return diameterForContent(contentSize: CommentProfileTagSpec.avatarSize);
   }
 
   /// 콘텐츠 크기에 따른 태그 전체 높이 계산 메서드
   static double totalHeightForContent({
     required double contentSize,
-    double padding = kCommentTagPadding,
+    double padding = CommentProfileTagSpec.padding,
     double pointerHeight = kCommentTagPointerHeight,
     double pointerOverlap = kCommentTagPointerOverlap,
   }) {
@@ -65,7 +55,7 @@ class CommentTagBubble extends StatelessWidget {
   /// 콘텐츠 크기에 따른 태그 포인터 위치 계산 메서드
   static Offset pointerTipOffset({
     required double contentSize,
-    double padding = kCommentTagPadding,
+    double padding = CommentProfileTagSpec.padding,
     double pointerHeight = kCommentTagPointerHeight,
     double pointerOverlap = kCommentTagPointerOverlap,
   }) {

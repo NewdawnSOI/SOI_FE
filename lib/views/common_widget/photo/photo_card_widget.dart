@@ -14,8 +14,9 @@ import '../../../utils/analytics_service.dart';
 import 'photo_display_widget.dart';
 import 'user_info_widget.dart';
 import '../comment/comment_input_widget.dart';
-import '../comment/comment_tag_bubble.dart';
 import '../comment/comment_media_tag_preview_widget.dart';
+import '../comment/comment_tag_bubble.dart';
+import '../comment/comment_tag_specs.dart';
 import '../comment/comment_list_bottom_sheet.dart';
 import '../comment/model/comment_pending_model.dart';
 import '../report/report_bottom_sheet.dart';
@@ -338,16 +339,14 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
           AnimatedBuilder(
             animation: _overlayExpandAnimation,
             builder: (_, __) {
-              final progress = _overlayExpandAnimation.value;
-              final contentSize =
-                  data.collapsedContentSize +
-                  ((data.expandedContentSize - data.collapsedContentSize) *
-                      progress);
+              final contentSize = CommentMediaTagSpec.contentSize;
               final diameter = CommentTagBubble.diameterForContent(
                 contentSize: contentSize,
+                padding: CommentMediaTagSpec.padding,
               );
               final totalHeight = CommentTagBubble.totalHeightForContent(
                 contentSize: contentSize,
+                padding: CommentMediaTagSpec.padding,
               );
               final topLeft = Offset(
                 data.globalCircleCenter.dx - (diameter / 2),
@@ -374,10 +373,10 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   onLongPress: data.onLongPress,
                   child: CommentTagBubble(
                     contentSize: contentSize,
+                    padding: CommentMediaTagSpec.padding,
                     child: CommentMediaTagPreviewWidget(
                       key: ValueKey('overlay_media_${data.tagKey}'),
                       comment: data.comment,
-                      size: contentSize,
                       autoplayVideo: true,
                       playWithSound: true,
                     ),

@@ -7,28 +7,25 @@ import 'package:video_player/video_player.dart';
 
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
+import 'comment_tag_specs.dart';
 
-/// 댓글에 첨부된 사진이나 영상의 미리보기를 보여주는 위젯입니다.
-/// - 사진은 원본 비율로 보여주며, 영상은 1:1 비율로 보여줍니다.
+/// 댓글에 첨부된 사진이나 영상을 사진 위 태그 규격에 맞춰 원형 미리보기로 표시합니다.
+/// - 바깥 프레임은 94x94, 내부 미디어는 85x85로 고정합니다.
 /// - 영상은 자동 재생되며, 소리 재생 여부는 playWithSound 플래그에 따라 결정됩니다.
-/// - 미디어 소스는 comment의 fileUrl 또는 fileKey를 통해 결정되며, fileKey가 presigned URL로 변환될 수 있습니다.
-/// - 미디어 로딩 중에는 사용자 프로필 사진을 보여주며, 로딩 실패 시에는 기본 이미지 또는 비디오 아이콘을 보여줍니다.
+/// - 미디어 로딩 중에는 사용자 프로필 사진을 보여주고, 실패 시 기본 플레이스홀더를 보여줍니다.
 ///
 /// fields:
 /// - [comment]: 미디어 태그가 포함된 댓글 객체입니다. fileUrl, fileKey, userProfileUrl 등의 정보를 포함합니다.
-/// - [size]: 미리보기 위젯의 가로세로 크기를 결정하는 값입니다. 사진은 이 크기에 맞춰 원본 비율로 보여지고, 영상은 이 크기에 맞춰 1:1 비율로 보여집니다.
 /// - [autoplayVideo]: 영상 미리보기에서 영상을 자동으로 재생할지 여부를 결정하는 플래그입니다. 기본값은 true입니다.
 /// - [playWithSound]: 영상 미리보기에서 소리를 재생할지 여부를 결정하는 플래그입니다. 기본값은 true입니다.
 class CommentMediaTagPreviewWidget extends StatefulWidget {
   final Comment comment;
-  final double size;
   final bool autoplayVideo;
   final bool playWithSound;
 
   const CommentMediaTagPreviewWidget({
     super.key,
     required this.comment,
-    required this.size,
     this.autoplayVideo = true,
     this.playWithSound = true,
   });
@@ -230,7 +227,11 @@ class _CommentMediaTagPreviewWidgetState
     return Container(
       color: const Color(0xFF4A4A4A),
       alignment: Alignment.center,
-      child: Icon(icon, color: Colors.white70, size: widget.size * 0.28),
+      child: Icon(
+        icon,
+        color: Colors.white70,
+        size: CommentMediaTagSpec.contentSize * 0.28,
+      ),
     );
   }
 
@@ -243,7 +244,7 @@ class _CommentMediaTagPreviewWidgetState
         child: Icon(
           Icons.person,
           color: Colors.white,
-          size: widget.size * 0.28,
+          size: CommentMediaTagSpec.contentSize * 0.28,
         ),
       );
     }
@@ -253,15 +254,17 @@ class _CommentMediaTagPreviewWidgetState
       fit: BoxFit.cover,
       fadeInDuration: Duration.zero,
       fadeOutDuration: Duration.zero,
-      memCacheWidth: (widget.size * MediaQuery.of(context).devicePixelRatio)
-          .round(),
+      memCacheWidth:
+          (CommentMediaTagSpec.contentSize *
+                  MediaQuery.of(context).devicePixelRatio)
+              .round(),
       placeholder: (_, __) => Container(
         color: const Color(0xffd9d9d9),
         alignment: Alignment.center,
         child: Icon(
           Icons.person,
           color: Colors.white,
-          size: widget.size * 0.28,
+          size: CommentMediaTagSpec.contentSize * 0.28,
         ),
       ),
       errorWidget: (_, __, ___) => Container(
@@ -270,7 +273,7 @@ class _CommentMediaTagPreviewWidgetState
         child: Icon(
           Icons.person,
           color: Colors.white,
-          size: widget.size * 0.28,
+          size: CommentMediaTagSpec.contentSize * 0.28,
         ),
       ),
     );
@@ -355,8 +358,18 @@ class _CommentMediaTagPreviewWidgetState
   Widget build(BuildContext context) {
     final content = _buildPreviewContent();
 
-    return ClipOval(
-      child: SizedBox(width: widget.size, height: widget.size, child: content),
+    return SizedBox(
+      width: CommentMediaTagSpec.frameSize,
+      height: CommentMediaTagSpec.frameSize,
+      child: Center(
+        child: ClipOval(
+          child: SizedBox(
+            width: CommentMediaTagSpec.contentSize,
+            height: CommentMediaTagSpec.contentSize,
+            child: content,
+          ),
+        ),
+      ),
     );
   }
 }
