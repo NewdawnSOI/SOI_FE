@@ -168,21 +168,15 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
     }
   }
 
-  /// 피드 레이아웃을 구성합니다.
+  /// 피드의 고정형 댓글 컴포저를 현재 키보드 높이에 맞춰 배치합니다.
   ///
-  /// - 위쪽 500 높이: 사진/영상만 "위아래로 스크롤"
-  /// - 중간: 게시물의 작성자 정보 (화면에 고정)
-  /// - 아래쪽: 댓글 입력창 (화면에 고정, 홈 탭 바 높이를 제외한 만큼만 키보드 위로 이동)
+  /// 홈 탭 바는 키보드가 열리면 부모에서 제거되므로, 입력창은 viewInsets를 그대로 따라가야 합니다.
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     final isKeyboardVisible = _isTextFieldFocused || keyboardInset > 0;
-    final homeNavigationReservedHeight = 70.h + 10.h;
-    final effectiveKeyboardInset = keyboardInset > homeNavigationReservedHeight
-        ? keyboardInset - homeNavigationReservedHeight
-        : 0.0;
     final composerBottomInset = isKeyboardVisible
-        ? effectiveKeyboardInset + 10.0
+        ? keyboardInset + 10.0
         : 10.0;
 
     // 페이지뷰의 아이템 수: 게시물 수 + (더 불러올 데이터가 있으면 로딩 인디케이터용 아이템 1개)
