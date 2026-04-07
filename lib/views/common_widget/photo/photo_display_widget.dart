@@ -206,9 +206,10 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
 
   bool get _hasCaption => widget.post.content?.isNotEmpty ?? false;
 
+  /// 현재 게시물을 텍스트 전용 카드 레이아웃으로 그려야 하는지 판별합니다.
   bool get _isTextOnlyPost {
     final hasText = widget.post.content?.trim().isNotEmpty ?? false;
-    return widget.post.postType == PostType.textOnly ||
+    return (widget.post.postType?.isTextCategory ?? false) ||
         (!widget.post.hasMedia && hasText);
   }
 

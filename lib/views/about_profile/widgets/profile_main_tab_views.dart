@@ -138,14 +138,15 @@ class _ProfilePostTabViewState extends State<ProfilePostTabView>
     }
   }
 
+  /// 프로필 탭이 기대하는 2분류 기준으로 게시물을 필터링하고 안정적으로 정렬합니다.
   List<Post> _normalizePosts(List<Post> rawPosts) {
     final filteredPosts = rawPosts
         .where((post) {
           final postType = post.postType;
           if (widget.postType == PostType.multiMedia) {
-            return postType == PostType.multiMedia;
+            return postType?.isMediaCategory ?? false;
           }
-          return postType == PostType.textOnly;
+          return postType?.isTextCategory ?? false;
         })
         .toList(growable: false);
 

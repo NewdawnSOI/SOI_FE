@@ -88,19 +88,19 @@ void main() {
         id: 3,
         nickname: 'alice',
         commentCount: 12,
-        postType: PostRespDtoPostTypeEnum.MULTIMEDIA,
+        postType: PostRespDtoPostTypeEnum.IMAGE,
         savedAspectRatio: 1.25,
         isFromGallery: true,
       );
 
       final post = Post.fromDto(dto);
 
-      expect(post.postType, PostType.multiMedia);
+      expect(post.postType, PostType.image);
       expect(post.commentCount, 12);
       expect(post.savedAspectRatio, 1.25);
       expect(post.isFromGallery, isTrue);
       expect(post.prefersContainMediaFit, isTrue);
-      expect(post.toJson()['postType'], 'MULTIMEDIA');
+      expect(post.toJson()['postType'], 'IMAGE');
       expect(post.toJson()['commentCount'], 12);
     });
 
@@ -117,6 +117,36 @@ void main() {
         expect(post.prefersContainMediaFit, isFalse);
       },
     );
+
+    test(
+      'treats url-only media payloads as media for profile/grid rendering',
+      () {
+        final post = Post(
+          id: 12,
+          nickName: 'alice',
+          content: 'caption',
+          postFileUrl: 'https://example.com/posts/url-only.jpg',
+          postType: PostType.image,
+        );
+
+        expect(post.hasMedia, isTrue);
+        expect(post.hasImage, isTrue);
+        expect(post.isVideo, isFalse);
+      },
+    );
+
+    test('detects video posts from url when key is absent', () {
+      final post = Post(
+        id: 13,
+        nickName: 'alice',
+        postFileUrl: 'https://example.com/posts/url-only.mp4',
+        postType: PostType.video,
+      );
+
+      expect(post.hasMedia, isTrue);
+      expect(post.isVideo, isTrue);
+      expect(post.hasImage, isFalse);
+    });
 
     test('keeps nullable postType when response omits it', () {
       final dto = PostRespDto(id: 9, nickname: 'alice');

@@ -14,6 +14,7 @@ typedef _CreatePostHandler =
       String? content,
       List<String> postFileKey,
       List<String> audioFileKey,
+      List<String> thumbnailFileKey,
       List<int> categoryIds,
       String? waveformData,
       int? duration,
@@ -45,8 +46,9 @@ class _FakePostService extends PostService {
     int page = 0,
   }) async {
     final handler = onGetPostsByCategory;
-    if (handler == null)
+    if (handler == null) {
       throw UnimplementedError('onGetPostsByCategory is not configured');
+    }
     return handler(
       categoryId: categoryId,
       userId: userId,
@@ -62,6 +64,7 @@ class _FakePostService extends PostService {
     String? content,
     List<String> postFileKey = const [],
     List<String> audioFileKey = const [],
+    List<String> thumbnailFileKey = const [],
     List<int> categoryIds = const [],
     String? waveformData,
     int? duration,
@@ -79,6 +82,7 @@ class _FakePostService extends PostService {
       content: content,
       postFileKey: postFileKey,
       audioFileKey: audioFileKey,
+      thumbnailFileKey: thumbnailFileKey,
       categoryIds: categoryIds,
       waveformData: waveformData,
       duration: duration,
@@ -111,6 +115,7 @@ void main() {
                   String? content,
                   List<String> postFileKey = const [],
                   List<String> audioFileKey = const [],
+                  List<String> thumbnailFileKey = const [],
                   List<int> categoryIds = const [],
                   String? waveformData,
                   int? duration,
@@ -161,6 +166,7 @@ void main() {
                 String? content,
                 List<String> postFileKey = const [],
                 List<String> audioFileKey = const [],
+                List<String> thumbnailFileKey = const [],
                 List<int> categoryIds = const [],
                 String? waveformData,
                 int? duration,
@@ -210,6 +216,7 @@ void main() {
                 String? content,
                 List<String> postFileKey = const [],
                 List<String> audioFileKey = const [],
+                List<String> thumbnailFileKey = const [],
                 List<int> categoryIds = const [],
                 String? waveformData,
                 int? duration,
@@ -368,6 +375,7 @@ void main() {
                 String? content,
                 List<String> postFileKey = const [],
                 List<String> audioFileKey = const [],
+                List<String> thumbnailFileKey = const [],
                 List<int> categoryIds = const [],
                 String? waveformData,
                 int? duration,
@@ -422,6 +430,7 @@ void main() {
                 String? content,
                 List<String> postFileKey = const [],
                 List<String> audioFileKey = const [],
+                List<String> thumbnailFileKey = const [],
                 List<int> categoryIds = const [],
                 String? waveformData,
                 int? duration,

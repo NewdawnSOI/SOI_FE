@@ -56,6 +56,7 @@ class PostService {
   /// - [content]: 게시물 내용 (선택)
   /// - [postFileKey]: 이미지 파일 키
   /// - [audioFileKey]: 음성 파일 키 (선택)
+  /// - [thumbnailFileKey]: 서버가 저장할 비디오 썸네일 키 목록 (선택)
   /// - [categoryIds]: 게시할 카테고리 ID 목록
   /// - [waveformData]: 음성 파형 데이터 (선택)
   /// - [duration]: 음성 길이 (선택)
@@ -75,6 +76,7 @@ class PostService {
         const [], // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
     List<String> audioFileKey =
         const [], // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
+    List<String> thumbnailFileKey = const [],
     List<int> categoryIds = const [],
     String? waveformData,
     int? duration,
@@ -90,6 +92,7 @@ class PostService {
         postFileKey: postFileKey, // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
         audioFileKey:
             audioFileKey, // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
+        thumbnailFileKey: thumbnailFileKey,
         categoryId: categoryIds,
         waveformData: waveformData,
         duration: duration,
@@ -99,6 +102,8 @@ class PostService {
           _resolveCreatePostType(postType: postType, postFileKeys: postFileKey),
         ),
       );
+
+      _debugLogCreatePostPayload(dto);
 
       final response = await _postApi.create1(dto);
 
@@ -267,28 +272,26 @@ class PostService {
     int page = 0,
   }) async {
     try {
+      if (postType == PostType.multiMedia) {
+        final responses = await Future.wait([
+          _postApi.findMediaByUserId('IMAGE', page),
+          _postApi.findMediaByUserId('VIDEO', page),
+        ]);
+        return _mergeMediaSliceResponses(
+          imageResponse: responses[0],
+          videoResponse: responses[1],
+        );
+      }
+
       final postTypeStr = switch (postType) {
-        PostType.multiMedia => 'MULTIMEDIA',
-        PostType.textOnly => 'TEXT_ONLY',
+        PostType.textOnly => 'TEXT',
+        PostType.image => 'IMAGE',
+        PostType.video => 'VIDEO',
+        PostType.multiMedia => throw UnimplementedError(),
       };
-      final response = await _postApi.findMediaByUserId(postTypeStr, page);
-
-      if (response == null) {
-        return (posts: <Post>[], hasMore: false);
-      }
-
-      if (response.success != true) {
-        throw SoiApiException(message: response.message ?? '게시물 조회 실패');
-      }
-
-      final slice = response.data;
-      if (slice == null) {
-        return (posts: <Post>[], hasMore: false);
-      }
-
-      final posts = _mapPosts(slice.content);
-      final hasMore = slice.last == false;
-      return (posts: posts, hasMore: hasMore);
+      return _mapMediaSliceResponse(
+        await _postApi.findMediaByUserId(postTypeStr, page),
+      );
     } on ApiException catch (e) {
       throw _handleApiException(e);
     } on SocketException catch (e) {
@@ -495,35 +498,129 @@ class PostService {
     PostType? postType,
   }) {
     if (postType != null) return postType;
-    final hasMedia = postFileKeys.any((key) => key.isNotEmpty);
-    return hasMedia ? PostType.multiMedia : PostType.textOnly;
+    final mediaKey = postFileKeys.firstWhere(
+      (key) => key.isNotEmpty,
+      orElse: () => '',
+    );
+    return _resolvePostTypeFromMediaKey(mediaKey) ?? PostType.textOnly;
   }
 
+  /// 수정 payload의 postType을 파일 키 기준으로 서버 계약에 맞게 추론합니다.
   PostType? _resolveUpdatePostType({PostType? postType, String? postFileKey}) {
     if (postType != null) return postType;
     if (postFileKey == null) return null;
-    return postFileKey.trim().isEmpty ? PostType.textOnly : PostType.multiMedia;
+    return _resolvePostTypeFromMediaKey(postFileKey) ?? PostType.textOnly;
   }
 
+  /// 생성 요청용 postType enum을 generated client 값으로 변환합니다.
   PostCreateReqDtoPostTypeEnum? _toCreatePostTypeEnum(PostType? postType) {
     switch (postType) {
       case PostType.textOnly:
-        return PostCreateReqDtoPostTypeEnum.TEXT_ONLY;
+        return PostCreateReqDtoPostTypeEnum.TEXT;
       case PostType.multiMedia:
-        return PostCreateReqDtoPostTypeEnum.MULTIMEDIA;
+        return null;
+      case PostType.image:
+        return PostCreateReqDtoPostTypeEnum.IMAGE;
+      case PostType.video:
+        return PostCreateReqDtoPostTypeEnum.VIDEO;
       default:
         return null;
     }
   }
 
+  /// 수정 요청용 postType enum을 generated client 값으로 변환합니다.
   PostUpdateReqDtoPostTypeEnum? _toUpdatePostTypeEnum(PostType? postType) {
     switch (postType) {
       case PostType.textOnly:
-        return PostUpdateReqDtoPostTypeEnum.TEXT_ONLY;
+        return PostUpdateReqDtoPostTypeEnum.TEXT;
       case PostType.multiMedia:
-        return PostUpdateReqDtoPostTypeEnum.MULTIMEDIA;
+        return null;
+      case PostType.image:
+        return PostUpdateReqDtoPostTypeEnum.IMAGE;
+      case PostType.video:
+        return PostUpdateReqDtoPostTypeEnum.VIDEO;
       default:
         return null;
     }
+  }
+
+  /// 단일 Slice 응답을 Post 목록과 다음 페이지 여부로 정규화합니다.
+  ({List<Post> posts, bool hasMore}) _mapMediaSliceResponse(
+    ApiResponseDtoSlicePostRespDto? response,
+  ) {
+    if (response == null) {
+      return (posts: <Post>[], hasMore: false);
+    }
+
+    if (response.success != true) {
+      throw SoiApiException(message: response.message ?? '게시물 조회 실패');
+    }
+
+    final slice = response.data;
+    if (slice == null) {
+      return (posts: <Post>[], hasMore: false);
+    }
+
+    return (posts: _mapPosts(slice.content), hasMore: slice.last == false);
+  }
+
+  /// IMAGE/VIDEO 두 Slice를 기존 미디어 탭 계약에 맞게 합쳐 반환합니다.
+  ({List<Post> posts, bool hasMore}) _mergeMediaSliceResponses({
+    required ApiResponseDtoSlicePostRespDto? imageResponse,
+    required ApiResponseDtoSlicePostRespDto? videoResponse,
+  }) {
+    final imageResult = _mapMediaSliceResponse(imageResponse);
+    final videoResult = _mapMediaSliceResponse(videoResponse);
+    final mergedPosts = <Post>[...imageResult.posts, ...videoResult.posts]
+      ..sort((a, b) {
+        final aCreatedAt = a.createdAt;
+        final bCreatedAt = b.createdAt;
+        if (aCreatedAt != null && bCreatedAt != null) {
+          final createdAtCompare = bCreatedAt.compareTo(aCreatedAt);
+          if (createdAtCompare != 0) {
+            return createdAtCompare;
+          }
+        } else if (aCreatedAt != null) {
+          return -1;
+        } else if (bCreatedAt != null) {
+          return 1;
+        }
+        return b.id.compareTo(a.id);
+      });
+
+    final uniquePosts = <int, Post>{};
+    for (final post in mergedPosts) {
+      uniquePosts[post.id] = post;
+    }
+
+    return (
+      posts: uniquePosts.values.toList(growable: false),
+      hasMore: imageResult.hasMore || videoResult.hasMore,
+    );
+  }
+
+  /// 미디어 키 확장자로 IMAGE/VIDEO postType을 판별합니다.
+  PostType? _resolvePostTypeFromMediaKey(String? postFileKey) {
+    if (postFileKey == null || postFileKey.trim().isEmpty) {
+      return null;
+    }
+    return Post.isVideoKey(postFileKey) ? PostType.video : PostType.image;
+  }
+
+  /// 게시물 생성 요청 직전 payload를 로깅해 서버 계약 불일치를 빠르게 추적합니다.
+  void _debugLogCreatePostPayload(PostCreateReqDto dto) {
+    if (!kDebugMode) return;
+
+    debugPrint(
+      '[PostService] createPost payload '
+      'postType=${dto.postType?.value} '
+      'categoryId(${dto.categoryId.length})=${dto.categoryId} '
+      'postFileKey(${dto.postFileKey.length})=${dto.postFileKey} '
+      'audioFileKey(${dto.audioFileKey.length})=${dto.audioFileKey} '
+      'thumbnailFileKey(${dto.thumbnailFileKey.length})=${dto.thumbnailFileKey} '
+      'isFromGallery=${dto.isFromGallery} '
+      'savedAspectRatio=${dto.savedAspectRatio} '
+      'duration=${dto.duration}',
+    );
   }
 }

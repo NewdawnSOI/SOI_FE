@@ -68,9 +68,10 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
   // 댓글 개수
   int _commentCount = 0;
 
+  /// 그리드 셀을 텍스트 전용 카드 높이 규칙으로 처리해야 하는지 판별합니다.
   bool get _isTextOnlyPost {
     final hasText = widget.post.content?.trim().isNotEmpty ?? false;
-    return widget.post.postType == PostType.textOnly ||
+    return (widget.post.postType?.isTextCategory ?? false) ||
         (!widget.post.hasMedia && hasText);
   }
 

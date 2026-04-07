@@ -293,13 +293,15 @@ class PostUpdateReqDtoPostTypeEnum {
 
   String toJson() => value;
 
-  static const TEXT_ONLY = PostUpdateReqDtoPostTypeEnum._(r'TEXT_ONLY');
-  static const MULTIMEDIA = PostUpdateReqDtoPostTypeEnum._(r'MULTIMEDIA');
+  static const TEXT = PostUpdateReqDtoPostTypeEnum._(r'TEXT');
+  static const IMAGE = PostUpdateReqDtoPostTypeEnum._(r'IMAGE');
+  static const VIDEO = PostUpdateReqDtoPostTypeEnum._(r'VIDEO');
 
   /// List of all possible values in this [enum][PostUpdateReqDtoPostTypeEnum].
   static const values = <PostUpdateReqDtoPostTypeEnum>[
-    TEXT_ONLY,
-    MULTIMEDIA,
+    TEXT,
+    IMAGE,
+    VIDEO,
   ];
 
   static PostUpdateReqDtoPostTypeEnum? fromJson(dynamic value) => PostUpdateReqDtoPostTypeEnumTypeTransformer().decode(value);
@@ -338,8 +340,9 @@ class PostUpdateReqDtoPostTypeEnumTypeTransformer {
   PostUpdateReqDtoPostTypeEnum? decode(dynamic data, {bool allowNull = true}) {
     if (data != null) {
       switch (data) {
-        case r'TEXT_ONLY': return PostUpdateReqDtoPostTypeEnum.TEXT_ONLY;
-        case r'MULTIMEDIA': return PostUpdateReqDtoPostTypeEnum.MULTIMEDIA;
+        case r'TEXT': return PostUpdateReqDtoPostTypeEnum.TEXT;
+        case r'IMAGE': return PostUpdateReqDtoPostTypeEnum.IMAGE;
+        case r'VIDEO': return PostUpdateReqDtoPostTypeEnum.VIDEO;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

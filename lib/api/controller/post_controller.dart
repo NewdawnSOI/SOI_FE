@@ -130,6 +130,7 @@ class PostController extends ChangeNotifier {
   /// Returns: 생성 성공 여부
   ///   - true: 생성 성공
   ///   - false: 생성 실패
+  /// 썸네일 키를 포함한 생성 payload를 서비스로 그대로 전달합니다.
   Future<bool> createPost({
     int? userId,
     required String nickName,
@@ -138,6 +139,7 @@ class PostController extends ChangeNotifier {
         const [], // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
     List<String> audioFileKey =
         const [], // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
+    List<String> thumbnailFileKey = const [],
     List<int> categoryIds = const [],
     String? waveformData,
     int? duration,
@@ -163,6 +165,7 @@ class PostController extends ChangeNotifier {
         postFileKey: postFileKey, // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
         audioFileKey:
             audioFileKey, // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
+        thumbnailFileKey: thumbnailFileKey,
         categoryIds: categoryIds,
         waveformData: waveformData,
         duration: duration,

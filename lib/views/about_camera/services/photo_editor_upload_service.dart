@@ -320,45 +320,83 @@ class PhotoEditorUploadService {
   /// 미디어 파일(및 오디오 파일)을 서버에 업로드하고 S3 키를 반환합니다.
   Future<MediaUploadResult?> _uploadMedia(UploadPayload payload) async {
     final hasAudio = payload.audioFile != null;
+    File? thumbnailFile;
+    var hasThumbnail = false;
+
+    if (payload.isVideo) {
+      try {
+        thumbnailFile = await _mediaProcessingService.extractVideoThumbnailFile(
+          payload.mediaPath,
+        );
+        hasThumbnail = thumbnailFile != null;
+      } catch (e) {
+        debugPrint('[PhotoEditorUploadService] 게시물 썸네일 생성 실패(계속 진행): $e');
+      }
+    }
 
     // 미디어 + 오디오 파일을 병렬로 MultipartFile 변환
     final multiparts = await Future.wait([
       _mediaController.fileToMultipart(payload.mediaFile),
       if (hasAudio) _mediaController.fileToMultipart(payload.audioFile!),
+      if (hasThumbnail) _mediaController.fileToMultipart(thumbnailFile!),
     ]);
 
-    final keys = await _mediaController.uploadMedia(
-      files: multiparts,
-      types: [
-        payload.isVideo ? MediaType.video : MediaType.image,
-        if (hasAudio) MediaType.audio,
-      ],
-      usageTypes: [MediaUsageType.post, if (hasAudio) MediaUsageType.post],
-      userId: payload.userId,
-      refId: payload.userId,
-      usageCount: payload.usageCount,
-    );
-
-    if (keys.isEmpty) return null;
-
-    // 반환된 키를 타입별로 분리: [media * n, audio * n]
-    final n = payload.usageCount <= 0 ? 1 : payload.usageCount;
-
-    // 오디오 파일이 있는 경우, media와 audio 각각 n개씩의 키가 필요합니다.
-    // 오디오 파일이 없는 경우, media 키만 n개가 필요합니다.
-    final expectedCount = n * (hasAudio ? 2 : 1);
-
-    if (keys.length < expectedCount) {
-      debugPrint(
-        '[PhotoEditorUploadService] 키 수 불일치. expected: $expectedCount, keys: $keys',
+    try {
+      final keys = await _mediaController.uploadMedia(
+        files: multiparts,
+        types: [
+          payload.isVideo ? MediaType.video : MediaType.image,
+          if (hasAudio) MediaType.audio,
+          if (hasThumbnail) MediaType.image,
+        ],
+        usageTypes: [
+          MediaUsageType.post,
+          if (hasAudio) MediaUsageType.post,
+          if (hasThumbnail) MediaUsageType.post,
+        ],
+        userId: payload.userId,
+        refId: payload.userId,
+        usageCount: payload.usageCount,
       );
-      return null;
-    }
 
-    return MediaUploadResult(
-      mediaKeys: keys.sublist(0, n),
-      audioKeys: hasAudio ? keys.sublist(n, n * 2) : const <String>[],
-    );
+      if (keys.isEmpty) return null;
+
+      // 반환된 키를 타입별로 분리: [media * n, audio * n, thumbnail * n]
+      final n = payload.usageCount <= 0 ? 1 : payload.usageCount;
+
+      // 오디오/썸네일이 있는 경우 각 타입별로 n개씩 키가 반환됩니다.
+      final expectedTypeCount = 1 + (hasAudio ? 1 : 0) + (hasThumbnail ? 1 : 0);
+      final expectedCount = n * expectedTypeCount;
+
+      if (keys.length < expectedCount) {
+        debugPrint(
+          '[PhotoEditorUploadService] 키 수 불일치. expected: $expectedCount, keys: $keys',
+        );
+        return null;
+      }
+
+      final mediaKeys = keys.sublist(0, n);
+      final audioStart = n;
+      final audioEnd = hasAudio ? audioStart + n : audioStart;
+      final thumbnailStart = audioEnd;
+      final thumbnailEnd = hasThumbnail ? thumbnailStart + n : thumbnailStart;
+
+      return MediaUploadResult(
+        mediaKeys: mediaKeys,
+        audioKeys: hasAudio
+            ? keys.sublist(audioStart, audioEnd)
+            : const <String>[],
+        thumbnailKeys: hasThumbnail
+            ? keys.sublist(thumbnailStart, thumbnailEnd)
+            : const <String>[],
+      );
+    } finally {
+      if (thumbnailFile != null) {
+        try {
+          await thumbnailFile.delete();
+        } catch (_) {}
+      }
+    }
   }
 
   /// 게시물을 생성하는 메서드입니다.
@@ -385,16 +423,28 @@ class PhotoEditorUploadService {
       content: payload.caption,
       postFileKey: mediaResult.mediaKeys,
       audioFileKey: mediaResult.audioKeys,
+      thumbnailFileKey: mediaResult.thumbnailKeys,
       categoryIds: categoryIds,
       waveformData: waveformJson,
       duration: payload.audioDurationSeconds,
       savedAspectRatio: payload.aspectRatio,
       isFromGallery: payload.isFromGallery,
-      postType: PostType.multiMedia,
+      postType: payload.isVideo ? PostType.video : PostType.image,
     );
 
     if (kDebugMode) {
       debugPrint('[PhotoEditorUploadService] 게시물 생성 결과: $success');
+      if (payload.isVideo && mediaResult.thumbnailKeys.isNotEmpty) {
+        final videoS3Key = mediaResult.mediaKeys.isNotEmpty
+            ? mediaResult.mediaKeys.first
+            : null;
+        if (videoS3Key != null) {
+          _mediaController.cacheThumbnailForVideo(
+            videoS3Key,
+            mediaResult.thumbnailKeys.first,
+          );
+        }
+      }
     }
     return success;
   }

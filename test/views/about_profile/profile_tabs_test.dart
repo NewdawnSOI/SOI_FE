@@ -97,7 +97,13 @@ class _FakePostController extends PostController {
     int page = 0,
   }) async {
     final filtered = posts
-        .where((post) => post.postType == postType)
+        .where((post) {
+          final currentType = post.postType;
+          if (postType == PostType.multiMedia) {
+            return currentType?.isMediaCategory ?? false;
+          }
+          return currentType?.isTextCategory ?? false;
+        })
         .toList(growable: false);
     return (posts: filtered, hasMore: false);
   }
@@ -237,16 +243,16 @@ final _fakeMediaPosts = [
     nickName: _fakeUserIdStr,
     postFileKey: 'media/photo1.jpg',
     postFileUrl: 'https://example.com/photo1.jpg',
-    postType: PostType.multiMedia,
+    postType: PostType.image,
     createdAt: DateTime(2025, 1, 1),
     commentCount: 3,
   ),
   Post(
     id: 2,
     nickName: _fakeUserIdStr,
-    postFileKey: 'media/photo2.jpg',
-    postFileUrl: 'https://example.com/photo2.jpg',
-    postType: PostType.multiMedia,
+    postFileKey: 'media/video1.mp4',
+    postFileUrl: 'https://example.com/video1.mp4',
+    postType: PostType.video,
     createdAt: DateTime(2025, 1, 2),
     commentCount: 0,
   ),
@@ -542,7 +548,7 @@ void main() {
         nickName: _fakeUserIdStr,
         postFileKey: 'media/photo1_dup.jpg',
         postFileUrl: 'https://example.com/photo1_dup.jpg',
-        postType: PostType.multiMedia,
+        postType: PostType.image,
         createdAt: DateTime(2025, 1, 1),
         commentCount: 0,
       );
@@ -574,6 +580,51 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('profile_post_multiMedia_2')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('레거시 multiMedia 타입도 미디어 탭 분기에 포함된다', (tester) async {
+      final legacyPost = Post(
+        id: 99,
+        nickName: _fakeUserIdStr,
+        postFileKey: 'media/legacy.jpg',
+        postFileUrl: 'https://example.com/legacy.jpg',
+        postType: PostType.multiMedia,
+        createdAt: DateTime(2025, 1, 3),
+      );
+      final postCtrl = _FakePostController(
+        posts: [..._fakeMediaPosts, legacyPost],
+      );
+
+      await tester.pumpWidget(
+        _buildHarness(
+          postController: postCtrl,
+          commentController: _FakeCommentController(
+            comments: const <Comment>[],
+          ),
+          child: ProfilePostTabView(
+            key: const ValueKey('legacy_media_filter_test'),
+            userId: _fakeUserId,
+            postType: PostType.multiMedia,
+            isActive: true,
+            detailTitle: '미디어',
+            emptyMessageKey: 'profile.main.empty_media',
+          ),
+        ),
+      );
+      await _pumpWithImages(tester);
+
+      expect(
+        find.byKey(const ValueKey('profile_post_multiMedia_1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('profile_post_multiMedia_2')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('profile_post_multiMedia_99')),
         findsOneWidget,
       );
     });

@@ -126,18 +126,24 @@ class UploadSnapshot {
 }
 
 /// 업로드 후 반환된 미디어 키 집합
-/// [MediaUploadResult]는 업로드 프로세스가 완료된 후 반환되는 결과 모델로, 업로드된 미디어 파일과 오디오 파일의 키를 포함합니다.
+/// [MediaUploadResult]는 업로드 프로세스가 완료된 후 반환되는 결과 모델로, 업로드된 미디어/오디오/썸네일 키를 포함합니다.
 /// 이 모델은 업로드 결과를 나타내며, 업로드된 미디어와 오디오 파일에 대한 고유한 식별자 역할을 하는 키를 제공합니다.
 ///
-/// 업로드 프로세스가 성공적으로 완료된 경우, mediaKeys와 audioKeys에는 각각 업로드된 미디어 파일과 오디오 파일의 키가 포함됩니다.
-/// 업로드가 실패한 경우, mediaKeys와 audioKeys는 빈 리스트로 설정됩니다.
+/// 업로드 프로세스가 성공적으로 완료된 경우, mediaKeys와 audioKeys, thumbnailKeys에는 각각 업로드된 파일 키가 포함됩니다.
+/// 업로드가 실패한 경우, 각 리스트는 빈 리스트로 설정됩니다.
 ///
 /// fields:
 /// - [mediaKeys]: 업로드된 미디어 파일의 키 목록입니다. 업로드가 실패한 경우 빈 리스트로 설정됩니다.
 /// - [audioKeys]: 업로드된 오디오 파일의 키 목록입니다. 업로드가 실패한 경우 빈 리스트로 설정됩니다.
+/// - [thumbnailKeys]: 업로드된 썸네일 파일의 키 목록입니다. 비디오가 아니거나 업로드가 실패한 경우 빈 리스트로 설정됩니다.
 class MediaUploadResult {
   final List<String> mediaKeys;
   final List<String> audioKeys;
+  final List<String> thumbnailKeys;
 
-  const MediaUploadResult({required this.mediaKeys, required this.audioKeys});
+  const MediaUploadResult({
+    required this.mediaKeys,
+    required this.audioKeys,
+    required this.thumbnailKeys,
+  });
 }

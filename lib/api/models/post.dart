@@ -2,10 +2,22 @@ import 'package:soi_api_client/api.dart';
 
 import '../../utils/format_utils.dart';
 
-/// 댓글 유형
+/// 서버 postType 계약과 앱 내 게시물 분류를 이어주는 게시물 유형입니다.
 enum PostType {
-  textOnly, // 텍스트만 Post에 입력할 경우
-  multiMedia, // 이미지/비디오가 포함된 Post
+  textOnly, // 텍스트만 포함된 게시물
+  multiMedia, // 레거시 미디어 그룹 표현
+  image, // 이미지 게시물
+  video // 비디오 게시물
+  ;
+
+  /// 2분류 UI에서 이 타입을 텍스트 게시물로 취급할 수 있는지 반환합니다.
+  bool get isTextCategory => this == PostType.textOnly;
+
+  /// 2분류 UI에서 이 타입을 미디어 게시물로 취급할 수 있는지 반환합니다.
+  bool get isMediaCategory =>
+      this == PostType.multiMedia ||
+      this == PostType.image ||
+      this == PostType.video;
 }
 
 /// 게시물 상태 enum
@@ -145,14 +157,16 @@ class Post {
   /// 이미지 유무 확인
   bool get hasImage => hasMedia && !isVideo;
 
-  /// 미디어(이미지/비디오) 유무 확인
-  bool get hasMedia => postFileKey != null && postFileKey!.isNotEmpty;
+  /// 서버가 key 또는 url 중 하나라도 내려준 미디어를 렌더링 가능한 미디어로 판단합니다.
+  bool get hasMedia =>
+      _hasRenderableMediaSource(postFileKey) ||
+      _hasRenderableMediaSource(postFileUrl);
 
   /// 서버가 저장한 업로드 출처를 기준으로 기본 미디어 fit을 결정합니다.
   bool get prefersContainMediaFit => isFromGallery == true;
 
-  /// 비디오 여부 (postFileKey 확장자 기반)
-  bool get isVideo => _isVideoKey(postFileKey);
+  /// 비디오 여부를 key 우선, url 보조 기준으로 판별합니다.
+  bool get isVideo => _isVideoKey(postFileKey) || _isVideoKey(postFileUrl);
 
   /// 오디오 유무 확인
   bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
@@ -219,19 +233,15 @@ class Post {
     return 'Post{nickName: $nickName, hasImage: $hasImage, hasAudio: $hasAudio, postType: $postType }';
   }
 
-  /// postType 변환 헬퍼 메서드
-  /// 서버로부터 받은 PostRespDtoPostTypeEnum 값을 클라이언트의 PostType으로 변환
-  ///
-  /// Parameters:
-  ///   - [value]: PostRespDtoPostTypeEnum 값
-  /// Returns:
-  ///   - [PostType]: 변환된 PostType 값
+  /// 서버 응답 enum을 앱 PostType으로 정규화합니다.
   static PostType? _postTypeFromRespEnum(PostRespDtoPostTypeEnum? value) {
     switch (value) {
-      case PostRespDtoPostTypeEnum.TEXT_ONLY:
+      case PostRespDtoPostTypeEnum.TEXT:
         return PostType.textOnly;
-      case PostRespDtoPostTypeEnum.MULTIMEDIA:
-        return PostType.multiMedia;
+      case PostRespDtoPostTypeEnum.IMAGE:
+        return PostType.image;
+      case PostRespDtoPostTypeEnum.VIDEO:
+        return PostType.video;
       default:
         return null;
     }
@@ -252,8 +262,13 @@ class Post {
         .toUpperCase();
 
     switch (normalized) {
+      case 'TEXT':
       case 'TEXTONLY':
         return PostType.textOnly;
+      case 'IMAGE':
+        return PostType.image;
+      case 'VIDEO':
+        return PostType.video;
       case 'MULTIMEDIA':
         return PostType.multiMedia;
       default:
@@ -264,9 +279,13 @@ class Post {
   static String? _postTypeToApiValue(PostType? type) {
     switch (type) {
       case PostType.textOnly:
-        return 'TEXT_ONLY';
+        return 'TEXT';
       case PostType.multiMedia:
-        return 'MULTIMEDIA';
+        return null;
+      case PostType.image:
+        return 'IMAGE';
+      case PostType.video:
+        return 'VIDEO';
       default:
         return null;
     }
@@ -296,6 +315,14 @@ class Post {
     final extension = _extractExtension(key);
     if (extension == null) return false;
     return _videoExtensions.contains(extension);
+  }
+
+  /// 서비스 레이어가 업로드 키만으로 비디오 여부를 판별할 때 재사용하는 헬퍼입니다.
+  static bool isVideoKey(String? key) => _isVideoKey(key);
+
+  /// key/url 중 하나라도 비어 있지 않으면 렌더링 가능한 미디어 소스로 취급합니다.
+  static bool _hasRenderableMediaSource(String? value) {
+    return value != null && value.trim().isNotEmpty;
   }
 
   /// 확장자 추출

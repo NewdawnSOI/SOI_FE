@@ -202,6 +202,27 @@ void main() {
   );
 
   testWidgets(
+    'renders media card when postType is media and only postFileUrl is present',
+    (tester) async {
+      const postUrl = 'https://example.com/posts/url-only.jpg';
+
+      await tester.pumpWidget(
+        _buildHarness(
+          mediaController: _FakeMediaController(),
+          post: _buildPost(postFileUrl: postUrl, postFileKey: null),
+        ),
+      );
+      await tester.pump();
+
+      final networkImages = tester.widgetList<CachedNetworkImage>(
+        find.byType(CachedNetworkImage),
+      );
+      expect(networkImages.any((image) => image.imageUrl == postUrl), isTrue);
+      expect(find.text('caption'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'overrides the grid avatar with the current user image without rebuilding the whole card',
     (tester) async {
       const fallbackProfileKey = 'profiles/fallback.jpg';

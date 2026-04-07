@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **content** | **String** |  | [optional] 
 **postFileKey** | **List<String>** |  | [optional] [default to const []]
 **audioFileKey** | **List<String>** |  | [optional] [default to const []]
+**thumbnailFileKey** | **List<String>** |  | [optional] [default to const []]
 **categoryId** | **List<int>** |  | [optional] [default to const []]
 **waveformData** | **String** |  | [optional] 
 **duration** | **int** |  | [optional] 

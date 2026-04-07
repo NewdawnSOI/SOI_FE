@@ -18,6 +18,7 @@ class PostCreateReqDto {
     this.content,
     this.postFileKey = const [],
     this.audioFileKey = const [],
+    this.thumbnailFileKey = const [],
     this.categoryId = const [],
     this.waveformData,
     this.duration,
@@ -53,6 +54,8 @@ class PostCreateReqDto {
   List<String> postFileKey;
 
   List<String> audioFileKey;
+
+  List<String> thumbnailFileKey;
 
   List<int> categoryId;
 
@@ -97,6 +100,7 @@ class PostCreateReqDto {
     other.content == content &&
     _deepEquality.equals(other.postFileKey, postFileKey) &&
     _deepEquality.equals(other.audioFileKey, audioFileKey) &&
+    _deepEquality.equals(other.thumbnailFileKey, thumbnailFileKey) &&
     _deepEquality.equals(other.categoryId, categoryId) &&
     other.waveformData == waveformData &&
     other.duration == duration &&
@@ -112,6 +116,7 @@ class PostCreateReqDto {
     (content == null ? 0 : content!.hashCode) +
     (postFileKey.hashCode) +
     (audioFileKey.hashCode) +
+    (thumbnailFileKey.hashCode) +
     (categoryId.hashCode) +
     (waveformData == null ? 0 : waveformData!.hashCode) +
     (duration == null ? 0 : duration!.hashCode) +
@@ -120,7 +125,7 @@ class PostCreateReqDto {
     (postType == null ? 0 : postType!.hashCode);
 
   @override
-  String toString() => 'PostCreateReqDto[userId=$userId, nickname=$nickname, content=$content, postFileKey=$postFileKey, audioFileKey=$audioFileKey, categoryId=$categoryId, waveformData=$waveformData, duration=$duration, savedAspectRatio=$savedAspectRatio, isFromGallery=$isFromGallery, postType=$postType]';
+  String toString() => 'PostCreateReqDto[userId=$userId, nickname=$nickname, content=$content, postFileKey=$postFileKey, audioFileKey=$audioFileKey, thumbnailFileKey=$thumbnailFileKey, categoryId=$categoryId, waveformData=$waveformData, duration=$duration, savedAspectRatio=$savedAspectRatio, isFromGallery=$isFromGallery, postType=$postType]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -141,6 +146,7 @@ class PostCreateReqDto {
     }
       json[r'postFileKey'] = this.postFileKey;
       json[r'audioFileKey'] = this.audioFileKey;
+      json[r'thumbnailFileKey'] = this.thumbnailFileKey;
       json[r'categoryId'] = this.categoryId;
     if (this.waveformData != null) {
       json[r'waveformData'] = this.waveformData;
@@ -197,6 +203,9 @@ class PostCreateReqDto {
             : const [],
         audioFileKey: json[r'audioFileKey'] is Iterable
             ? (json[r'audioFileKey'] as Iterable).cast<String>().toList(growable: false)
+            : const [],
+        thumbnailFileKey: json[r'thumbnailFileKey'] is Iterable
+            ? (json[r'thumbnailFileKey'] as Iterable).cast<String>().toList(growable: false)
             : const [],
         categoryId: json[r'categoryId'] is Iterable
             ? (json[r'categoryId'] as Iterable).cast<int>().toList(growable: false)
@@ -269,13 +278,15 @@ class PostCreateReqDtoPostTypeEnum {
 
   String toJson() => value;
 
-  static const TEXT_ONLY = PostCreateReqDtoPostTypeEnum._(r'TEXT_ONLY');
-  static const MULTIMEDIA = PostCreateReqDtoPostTypeEnum._(r'MULTIMEDIA');
+  static const TEXT = PostCreateReqDtoPostTypeEnum._(r'TEXT');
+  static const IMAGE = PostCreateReqDtoPostTypeEnum._(r'IMAGE');
+  static const VIDEO = PostCreateReqDtoPostTypeEnum._(r'VIDEO');
 
   /// List of all possible values in this [enum][PostCreateReqDtoPostTypeEnum].
   static const values = <PostCreateReqDtoPostTypeEnum>[
-    TEXT_ONLY,
-    MULTIMEDIA,
+    TEXT,
+    IMAGE,
+    VIDEO,
   ];
 
   static PostCreateReqDtoPostTypeEnum? fromJson(dynamic value) => PostCreateReqDtoPostTypeEnumTypeTransformer().decode(value);
@@ -314,8 +325,9 @@ class PostCreateReqDtoPostTypeEnumTypeTransformer {
   PostCreateReqDtoPostTypeEnum? decode(dynamic data, {bool allowNull = true}) {
     if (data != null) {
       switch (data) {
-        case r'TEXT_ONLY': return PostCreateReqDtoPostTypeEnum.TEXT_ONLY;
-        case r'MULTIMEDIA': return PostCreateReqDtoPostTypeEnum.MULTIMEDIA;
+        case r'TEXT': return PostCreateReqDtoPostTypeEnum.TEXT;
+        case r'IMAGE': return PostCreateReqDtoPostTypeEnum.IMAGE;
+        case r'VIDEO': return PostCreateReqDtoPostTypeEnum.VIDEO;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

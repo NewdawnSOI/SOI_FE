@@ -154,46 +154,49 @@ class PostRespDto {
   PostRespDtoPostTypeEnum? postType;
 
   @override
-  bool operator ==(Object other) => identical(this, other) || other is PostRespDto &&
-    other.id == id &&
-    other.nickname == nickname &&
-    other.content == content &&
-    other.userProfileImageKey == userProfileImageKey &&
-    other.userProfileImageUrl == userProfileImageUrl &&
-    other.postFileKey == postFileKey &&
-    other.postFileUrl == postFileUrl &&
-    other.audioFileKey == audioFileKey &&
-    other.waveformData == waveformData &&
-    other.commentCount == commentCount &&
-    other.duration == duration &&
-    other.isActive == isActive &&
-    other.createdAt == createdAt &&
-    other.savedAspectRatio == savedAspectRatio &&
-    other.isFromGallery == isFromGallery &&
-    other.postType == postType;
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PostRespDto &&
+          other.id == id &&
+          other.nickname == nickname &&
+          other.content == content &&
+          other.userProfileImageKey == userProfileImageKey &&
+          other.userProfileImageUrl == userProfileImageUrl &&
+          other.postFileKey == postFileKey &&
+          other.postFileUrl == postFileUrl &&
+          other.audioFileKey == audioFileKey &&
+          other.waveformData == waveformData &&
+          other.commentCount == commentCount &&
+          other.duration == duration &&
+          other.isActive == isActive &&
+          other.createdAt == createdAt &&
+          other.savedAspectRatio == savedAspectRatio &&
+          other.isFromGallery == isFromGallery &&
+          other.postType == postType;
 
   @override
   int get hashCode =>
-    // ignore: unnecessary_parenthesis
-    (id == null ? 0 : id!.hashCode) +
-    (nickname == null ? 0 : nickname!.hashCode) +
-    (content == null ? 0 : content!.hashCode) +
-    (userProfileImageKey == null ? 0 : userProfileImageKey!.hashCode) +
-    (userProfileImageUrl == null ? 0 : userProfileImageUrl!.hashCode) +
-    (postFileKey == null ? 0 : postFileKey!.hashCode) +
-    (postFileUrl == null ? 0 : postFileUrl!.hashCode) +
-    (audioFileKey == null ? 0 : audioFileKey!.hashCode) +
-    (waveformData == null ? 0 : waveformData!.hashCode) +
-    (commentCount == null ? 0 : commentCount!.hashCode) +
-    (duration == null ? 0 : duration!.hashCode) +
-    (isActive == null ? 0 : isActive!.hashCode) +
-    (createdAt == null ? 0 : createdAt!.hashCode) +
-    (savedAspectRatio == null ? 0 : savedAspectRatio!.hashCode) +
-    (isFromGallery == null ? 0 : isFromGallery!.hashCode) +
-    (postType == null ? 0 : postType!.hashCode);
+      // ignore: unnecessary_parenthesis
+      (id == null ? 0 : id!.hashCode) +
+      (nickname == null ? 0 : nickname!.hashCode) +
+      (content == null ? 0 : content!.hashCode) +
+      (userProfileImageKey == null ? 0 : userProfileImageKey!.hashCode) +
+      (userProfileImageUrl == null ? 0 : userProfileImageUrl!.hashCode) +
+      (postFileKey == null ? 0 : postFileKey!.hashCode) +
+      (postFileUrl == null ? 0 : postFileUrl!.hashCode) +
+      (audioFileKey == null ? 0 : audioFileKey!.hashCode) +
+      (waveformData == null ? 0 : waveformData!.hashCode) +
+      (commentCount == null ? 0 : commentCount!.hashCode) +
+      (duration == null ? 0 : duration!.hashCode) +
+      (isActive == null ? 0 : isActive!.hashCode) +
+      (createdAt == null ? 0 : createdAt!.hashCode) +
+      (savedAspectRatio == null ? 0 : savedAspectRatio!.hashCode) +
+      (isFromGallery == null ? 0 : isFromGallery!.hashCode) +
+      (postType == null ? 0 : postType!.hashCode);
 
   @override
-  String toString() => 'PostRespDto[id=$id, nickname=$nickname, content=$content, userProfileImageKey=$userProfileImageKey, userProfileImageUrl=$userProfileImageUrl, postFileKey=$postFileKey, postFileUrl=$postFileUrl, audioFileKey=$audioFileKey, waveformData=$waveformData, commentCount=$commentCount, duration=$duration, isActive=$isActive, createdAt=$createdAt, savedAspectRatio=$savedAspectRatio, isFromGallery=$isFromGallery, postType=$postType]';
+  String toString() =>
+      'PostRespDto[id=$id, nickname=$nickname, content=$content, userProfileImageKey=$userProfileImageKey, userProfileImageUrl=$userProfileImageUrl, postFileKey=$postFileKey, postFileUrl=$postFileUrl, audioFileKey=$audioFileKey, waveformData=$waveformData, commentCount=$commentCount, duration=$duration, isActive=$isActive, createdAt=$createdAt, savedAspectRatio=$savedAspectRatio, isFromGallery=$isFromGallery, postType=$postType]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -292,8 +295,10 @@ class PostRespDto {
       // Note 2: this code is stripped in release mode!
       assert(() {
         requiredKeys.forEach((key) {
-          assert(json.containsKey(key), 'Required key "PostRespDto[$key]" is missing from JSON.');
-          assert(json[key] != null, 'Required key "PostRespDto[$key]" has a null value in JSON.');
+          assert(json.containsKey(key),
+              'Required key "PostRespDto[$key]" is missing from JSON.');
+          assert(json[key] != null,
+              'Required key "PostRespDto[$key]" has a null value in JSON.');
         });
         return true;
       }());
@@ -302,8 +307,10 @@ class PostRespDto {
         id: mapValueOfType<int>(json, r'id'),
         nickname: mapValueOfType<String>(json, r'nickname'),
         content: mapValueOfType<String>(json, r'content'),
-        userProfileImageKey: mapValueOfType<String>(json, r'userProfileImageKey'),
-        userProfileImageUrl: mapValueOfType<String>(json, r'userProfileImageUrl'),
+        userProfileImageKey:
+            mapValueOfType<String>(json, r'userProfileImageKey'),
+        userProfileImageUrl:
+            mapValueOfType<String>(json, r'userProfileImageUrl'),
         postFileKey: mapValueOfType<String>(json, r'postFileKey'),
         postFileUrl: mapValueOfType<String>(json, r'postFileUrl'),
         audioFileKey: mapValueOfType<String>(json, r'audioFileKey'),
@@ -320,7 +327,10 @@ class PostRespDto {
     return null;
   }
 
-  static List<PostRespDto> listFromJson(dynamic json, {bool growable = false,}) {
+  static List<PostRespDto> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
     final result = <PostRespDto>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
@@ -348,23 +358,27 @@ class PostRespDto {
   }
 
   // maps a json object with a list of PostRespDto-objects as value to a dart map
-  static Map<String, List<PostRespDto>> mapListFromJson(dynamic json, {bool growable = false,}) {
+  static Map<String, List<PostRespDto>> mapListFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
     final map = <String, List<PostRespDto>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = PostRespDto.listFromJson(entry.value, growable: growable,);
+        map[entry.key] = PostRespDto.listFromJson(
+          entry.value,
+          growable: growable,
+        );
       }
     }
     return map;
   }
 
   /// The list of required keys that must be present in a JSON.
-  static const requiredKeys = <String>{
-  };
+  static const requiredKeys = <String>{};
 }
-
 
 class PostRespDtoPostTypeEnum {
   /// Instantiate a new enum with the provided [value].
@@ -378,18 +392,24 @@ class PostRespDtoPostTypeEnum {
 
   String toJson() => value;
 
-  static const TEXT_ONLY = PostRespDtoPostTypeEnum._(r'TEXT_ONLY');
-  static const MULTIMEDIA = PostRespDtoPostTypeEnum._(r'MULTIMEDIA');
+  static const TEXT = PostRespDtoPostTypeEnum._(r'TEXT');
+  static const IMAGE = PostRespDtoPostTypeEnum._(r'IMAGE');
+  static const VIDEO = PostRespDtoPostTypeEnum._(r'VIDEO');
 
   /// List of all possible values in this [enum][PostRespDtoPostTypeEnum].
   static const values = <PostRespDtoPostTypeEnum>[
-    TEXT_ONLY,
-    MULTIMEDIA,
+    TEXT,
+    IMAGE,
+    VIDEO,
   ];
 
-  static PostRespDtoPostTypeEnum? fromJson(dynamic value) => PostRespDtoPostTypeEnumTypeTransformer().decode(value);
+  static PostRespDtoPostTypeEnum? fromJson(dynamic value) =>
+      PostRespDtoPostTypeEnumTypeTransformer().decode(value);
 
-  static List<PostRespDtoPostTypeEnum> listFromJson(dynamic json, {bool growable = false,}) {
+  static List<PostRespDtoPostTypeEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
     final result = <PostRespDtoPostTypeEnum>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
@@ -406,7 +426,8 @@ class PostRespDtoPostTypeEnum {
 /// Transformation class that can [encode] an instance of [PostRespDtoPostTypeEnum] to String,
 /// and [decode] dynamic data back to [PostRespDtoPostTypeEnum].
 class PostRespDtoPostTypeEnumTypeTransformer {
-  factory PostRespDtoPostTypeEnumTypeTransformer() => _instance ??= const PostRespDtoPostTypeEnumTypeTransformer._();
+  factory PostRespDtoPostTypeEnumTypeTransformer() =>
+      _instance ??= const PostRespDtoPostTypeEnumTypeTransformer._();
 
   const PostRespDtoPostTypeEnumTypeTransformer._();
 
@@ -423,8 +444,12 @@ class PostRespDtoPostTypeEnumTypeTransformer {
   PostRespDtoPostTypeEnum? decode(dynamic data, {bool allowNull = true}) {
     if (data != null) {
       switch (data) {
-        case r'TEXT_ONLY': return PostRespDtoPostTypeEnum.TEXT_ONLY;
-        case r'MULTIMEDIA': return PostRespDtoPostTypeEnum.MULTIMEDIA;
+        case r'TEXT':
+          return PostRespDtoPostTypeEnum.TEXT;
+        case r'IMAGE':
+          return PostRespDtoPostTypeEnum.IMAGE;
+        case r'VIDEO':
+          return PostRespDtoPostTypeEnum.VIDEO;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');
@@ -437,5 +462,3 @@ class PostRespDtoPostTypeEnumTypeTransformer {
   /// Singleton [PostRespDtoPostTypeEnumTypeTransformer] instance.
   static PostRespDtoPostTypeEnumTypeTransformer? _instance;
 }
-
-

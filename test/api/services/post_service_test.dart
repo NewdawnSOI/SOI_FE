@@ -36,7 +36,7 @@ class _FakePostApi extends PostAPIApi {
 void main() {
   group('PostService postType mapping', () {
     test(
-      'uses explicit TEXT_ONLY postType for create and keeps categoryIds/content',
+      'uses explicit TEXT postType for create and keeps categoryIds/content',
       () async {
         PostCreateReqDto? capturedDto;
         final service = PostService(
@@ -58,13 +58,13 @@ void main() {
         );
 
         expect(result, isTrue);
-        expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT_ONLY);
+        expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT);
         expect(capturedDto?.categoryId, const [10, 20]);
         expect(capturedDto?.content, 'text-only content');
       },
     );
 
-    test('infers TEXT_ONLY for create when media key list is empty', () async {
+    test('infers TEXT for create when media key list is empty', () async {
       PostCreateReqDto? capturedDto;
       final service = PostService(
         postApi: _FakePostApi(
@@ -81,11 +81,11 @@ void main() {
       );
 
       expect(result, isTrue);
-      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT_ONLY);
+      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT);
     });
 
     test(
-      'infers MULTIMEDIA for create when media key list is present',
+      'infers IMAGE for create when image media key list is present',
       () async {
         PostCreateReqDto? capturedDto;
         final service = PostService(
@@ -103,12 +103,12 @@ void main() {
         );
 
         expect(result, isTrue);
-        expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.MULTIMEDIA);
+        expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.IMAGE);
       },
     );
 
     test(
-      'maps update postType to MULTIMEDIA when postFileKey is provided',
+      'maps update postType to VIDEO when video postFileKey is provided',
       () async {
         PostUpdateReqDto? capturedDto;
         final service = PostService(
@@ -122,11 +122,11 @@ void main() {
 
         final result = await service.updatePost(
           postId: 1,
-          postFileKey: 'posts/example.jpg',
+          postFileKey: 'posts/example.mp4',
         );
 
         expect(result, isTrue);
-        expect(capturedDto?.postType, PostUpdateReqDtoPostTypeEnum.MULTIMEDIA);
+        expect(capturedDto?.postType, PostUpdateReqDtoPostTypeEnum.VIDEO);
       },
     );
 
@@ -148,7 +148,7 @@ void main() {
       );
 
       expect(result, isTrue);
-      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT_ONLY);
+      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT);
     });
 
     test('forwards isFromGallery to create payload', () async {
@@ -209,7 +209,7 @@ void main() {
   });
 
   group('PostService _resolveCreatePostType', () {
-    test('빈 키 리스트는 TEXT_ONLY로 추론', () async {
+    test('빈 키 리스트는 TEXT로 추론', () async {
       PostCreateReqDto? capturedDto;
       final service = PostService(
         postApi: _FakePostApi(
@@ -221,31 +221,25 @@ void main() {
       );
 
       await service.createPost(nickName: 'tester', postFileKey: const []);
-      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT_ONLY);
+      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.TEXT);
     });
 
-    test(
-      '공백 문자열만 있는 키는 유효한 키가 아니므로 TEXT_ONLY로 추론되지 않음 (isNotEmpty 기준)',
-      () async {
-        // trim() 제거 후: '   ' 는 isNotEmpty == true → MULTIMEDIA로 분류됨
-        // 이는 서버에서 실제로 공백 키를 전달하지 않는다는 전제 하에 동작
-        PostCreateReqDto? capturedDto;
-        final service = PostService(
-          postApi: _FakePostApi(
-            onCreate: (dto) async {
-              capturedDto = dto;
-              return ApiResponseDtoBoolean(success: true, data: true);
-            },
-          ),
-        );
+    test('이미지 키는 IMAGE로 추론된다', () async {
+      PostCreateReqDto? capturedDto;
+      final service = PostService(
+        postApi: _FakePostApi(
+          onCreate: (dto) async {
+            capturedDto = dto;
+            return ApiResponseDtoBoolean(success: true, data: true);
+          },
+        ),
+      );
 
-        // 실제 키가 있는 경우 MULTIMEDIA
-        await service.createPost(
-          nickName: 'tester',
-          postFileKey: const ['posts/real.jpg'],
-        );
-        expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.MULTIMEDIA);
-      },
-    );
+      await service.createPost(
+        nickName: 'tester',
+        postFileKey: const ['posts/real.jpg'],
+      );
+      expect(capturedDto?.postType, PostCreateReqDtoPostTypeEnum.IMAGE);
+    });
   });
 }
