@@ -14,6 +14,8 @@ Method | HTTP request | Description
 [**createUser**](AuthControllerApi.md#createuser) | **POST** /auth/signup | 사용자 생성
 [**idCheck**](AuthControllerApi.md#idcheck) | **GET** /auth/id-check | 사용자 id 중복 체크
 [**login**](AuthControllerApi.md#login) | **POST** /auth/login | 
+[**logout**](AuthControllerApi.md#logout) | **POST** /auth/logout | 
+[**refresh**](AuthControllerApi.md#refresh) | **POST** /auth/refresh | 
 
 
 # **authSMS**
@@ -213,6 +215,88 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **loginReqDto** | [**LoginReqDto**](LoginReqDto.md)|  | 
+
+### Return type
+
+[**LoginRespDto**](LoginRespDto.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
+ - **Accept**: */*
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **logout**
+> ApiResponseDtoBoolean logout(refreshTokenReqDto)
+
+
+
+### Example
+```dart
+import 'package:soi_api_client/api.dart';
+
+final api_instance = AuthControllerApi();
+final refreshTokenReqDto = RefreshTokenReqDto(); // RefreshTokenReqDto | 
+
+try {
+    final result = api_instance.logout(refreshTokenReqDto);
+    print(result);
+} catch (e) {
+    print('Exception when calling AuthControllerApi->logout: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **refreshTokenReqDto** | [**RefreshTokenReqDto**](RefreshTokenReqDto.md)|  | 
+
+### Return type
+
+[**ApiResponseDtoBoolean**](ApiResponseDtoBoolean.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
+ - **Accept**: */*
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **refresh**
+> LoginRespDto refresh(refreshTokenReqDto)
+
+
+
+### Example
+```dart
+import 'package:soi_api_client/api.dart';
+
+final api_instance = AuthControllerApi();
+final refreshTokenReqDto = RefreshTokenReqDto(); // RefreshTokenReqDto | 
+
+try {
+    final result = api_instance.refresh(refreshTokenReqDto);
+    print(result);
+} catch (e) {
+    print('Exception when calling AuthControllerApi->refresh: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **refreshTokenReqDto** | [**RefreshTokenReqDto**](RefreshTokenReqDto.md)|  | 
 
 ### Return type
 

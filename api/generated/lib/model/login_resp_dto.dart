@@ -14,6 +14,9 @@ class LoginRespDto {
   /// Returns a new [LoginRespDto] instance.
   LoginRespDto({
     this.accessToken,
+    this.refreshToken,
+    this.accessTokenExpiresInMs,
+    this.refreshTokenExpiresInMs,
   });
 
   ///
@@ -24,17 +27,47 @@ class LoginRespDto {
   ///
   String? accessToken;
 
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? refreshToken;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? accessTokenExpiresInMs;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? refreshTokenExpiresInMs;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is LoginRespDto &&
-    other.accessToken == accessToken;
+    other.accessToken == accessToken &&
+    other.refreshToken == refreshToken &&
+    other.accessTokenExpiresInMs == accessTokenExpiresInMs &&
+    other.refreshTokenExpiresInMs == refreshTokenExpiresInMs;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
-    (accessToken == null ? 0 : accessToken!.hashCode);
+    (accessToken == null ? 0 : accessToken!.hashCode) +
+    (refreshToken == null ? 0 : refreshToken!.hashCode) +
+    (accessTokenExpiresInMs == null ? 0 : accessTokenExpiresInMs!.hashCode) +
+    (refreshTokenExpiresInMs == null ? 0 : refreshTokenExpiresInMs!.hashCode);
 
   @override
-  String toString() => 'LoginRespDto[accessToken=$accessToken]';
+  String toString() => 'LoginRespDto[accessToken=$accessToken, refreshToken=$refreshToken, accessTokenExpiresInMs=$accessTokenExpiresInMs, refreshTokenExpiresInMs=$refreshTokenExpiresInMs]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -42,6 +75,21 @@ class LoginRespDto {
       json[r'accessToken'] = this.accessToken;
     } else {
       json[r'accessToken'] = null;
+    }
+    if (this.refreshToken != null) {
+      json[r'refreshToken'] = this.refreshToken;
+    } else {
+      json[r'refreshToken'] = null;
+    }
+    if (this.accessTokenExpiresInMs != null) {
+      json[r'accessTokenExpiresInMs'] = this.accessTokenExpiresInMs;
+    } else {
+      json[r'accessTokenExpiresInMs'] = null;
+    }
+    if (this.refreshTokenExpiresInMs != null) {
+      json[r'refreshTokenExpiresInMs'] = this.refreshTokenExpiresInMs;
+    } else {
+      json[r'refreshTokenExpiresInMs'] = null;
     }
     return json;
   }
@@ -66,6 +114,9 @@ class LoginRespDto {
 
       return LoginRespDto(
         accessToken: mapValueOfType<String>(json, r'accessToken'),
+        refreshToken: mapValueOfType<String>(json, r'refreshToken'),
+        accessTokenExpiresInMs: mapValueOfType<int>(json, r'accessTokenExpiresInMs'),
+        refreshTokenExpiresInMs: mapValueOfType<int>(json, r'refreshTokenExpiresInMs'),
       );
     }
     return null;

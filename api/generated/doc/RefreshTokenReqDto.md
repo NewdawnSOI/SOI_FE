@@ -1,4 +1,4 @@
-# soi_api_client.model.LoginRespDto
+# soi_api_client.model.RefreshTokenReqDto
 
 ## Load the model package
 ```dart
@@ -8,10 +8,7 @@ import 'package:soi_api_client/api.dart';
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**accessToken** | **String** |  | [optional] 
-**refreshToken** | **String** |  | [optional] 
-**accessTokenExpiresInMs** | **int** |  | [optional] 
-**refreshTokenExpiresInMs** | **int** |  | [optional] 
+**refreshToken** | **String** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

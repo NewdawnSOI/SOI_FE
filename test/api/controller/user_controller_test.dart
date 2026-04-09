@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soi/api/api_client.dart';
 import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/controller/user_controller.dart';
+import 'package:soi/api/models/login.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi_api_client/api.dart';
@@ -17,6 +18,8 @@ class _FakeUserService extends UserService {
     this.onSendSmsVerification,
     this.onVerifySmsCode,
     this.onLogin,
+    this.onLoginByPhone,
+    this.onLogout,
     this.onGetCurrentUser,
     this.onCreateUser,
     this.onUpdateProfileImage,
@@ -38,6 +41,8 @@ class _FakeUserService extends UserService {
   })?
   onVerifySmsCode;
   final Future<User?> Function({String? nickName, String? phoneNum})? onLogin;
+  final Future<User?> Function(String phoneNum)? onLoginByPhone;
+  final Future<bool> Function(String refreshToken)? onLogout;
   final Future<User> Function()? onGetCurrentUser;
   final Future<User> Function({
     required String name,
@@ -70,6 +75,24 @@ class _FakeUserService extends UserService {
       throw UnimplementedError('onLogin is not configured');
     }
     return handler(nickName: nickName, phoneNum: phoneNum);
+  }
+
+  @override
+  Future<User?> loginByPhone(String phoneNum) async {
+    final handler = onLoginByPhone;
+    if (handler == null) {
+      throw UnimplementedError('onLoginByPhone is not configured');
+    }
+    return handler(phoneNum);
+  }
+
+  @override
+  Future<bool> logout(String refreshToken) async {
+    final handler = onLogout;
+    if (handler == null) {
+      throw UnimplementedError('onLogout is not configured');
+    }
+    return handler(refreshToken);
   }
 
   @override
@@ -330,6 +353,43 @@ void main() {
       },
     );
 
+    test('trims phone before delegating loginByPhone', () async {
+      final controller = UserController(
+        userService: _FakeUserService(
+          onLoginByPhone: (phoneNum) async {
+            expect(phoneNum, '01011112222');
+            return const User(
+              id: 11,
+              userId: 'phone-user',
+              name: '전화 로그인',
+              phoneNumber: '01011112222',
+            );
+          },
+        ),
+      );
+
+      final result = await controller.loginByPhone(' 01011112222 ');
+
+      expect(result?.id, 11);
+      expect(controller.currentUser?.id, 11);
+    });
+
+    test('returns null when loginByPhone does not find a user', () async {
+      final controller = UserController(
+        userService: _FakeUserService(
+          onLoginByPhone: (phoneNum) async {
+            expect(phoneNum, '01000000000');
+            return null;
+          },
+        ),
+      );
+
+      final result = await controller.loginByPhone('01000000000');
+
+      expect(result, isNull);
+      expect(controller.currentUser, isNull);
+    });
+
     test('restores JWT token and current user during auto login', () async {
       SharedPreferences.setMockInitialValues({
         'api_is_logged_in': true,
@@ -358,6 +418,50 @@ void main() {
       expect(controller.currentUser?.id, 1);
       expect(controller.coverImageUrlKey, 'server-cover-key');
       expect(prefs.getString('api_cover_image_key'), 'server-cover-key');
+    });
+
+    test('restores refresh token metadata during auto login', () async {
+      SharedPreferences.setMockInitialValues({
+        'api_is_logged_in': true,
+        'api_user_id': 1,
+        'api_phone_number': '01012345678',
+        'api_access_token': 'jwt-token',
+        'api_refresh_token': 'refresh-token',
+        'api_access_token_expires_in_ms': 1800000,
+        'api_refresh_token_expires_in_ms': 1209600000,
+        'api_auth_issued_at_ms': 1234567890,
+      });
+
+      final controller = UserController(
+        userService: _FakeUserService(
+          onGetCurrentUser: () async => const User(
+            id: 1,
+            userId: 'minchan',
+            name: '민찬',
+            phoneNumber: '01012345678',
+          ),
+        ),
+      );
+
+      final result = await controller.tryAutoLogin();
+
+      expect(result, isTrue);
+      expect(
+        SoiApiClient.instance.currentAuthSession?.refreshToken,
+        'refresh-token',
+      );
+      expect(
+        SoiApiClient.instance.currentAuthSession?.accessTokenExpiresInMs,
+        1800000,
+      );
+      expect(
+        SoiApiClient.instance.currentAuthSession?.refreshTokenExpiresInMs,
+        1209600000,
+      );
+      expect(
+        SoiApiClient.instance.currentAuthSession?.issuedAtEpochMs,
+        1234567890,
+      );
     });
 
     test('blocks signup completion when JWT login is not issued', () async {
@@ -586,6 +690,49 @@ void main() {
       expect(prefs.getInt('api_user_id'), isNull);
       expect(prefs.getString('api_cover_image_key'), isNull);
     });
+
+    test(
+      'logout sends refresh token to server and clears persisted session',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'api_is_logged_in': true,
+          'api_user_id': 1,
+          'api_phone_number': '01012345678',
+          'api_access_token': 'jwt-token',
+          'api_refresh_token': 'refresh-token',
+        });
+        SoiApiClient.instance.setAuthSession(
+          LoginSession(accessToken: 'jwt-token', refreshToken: 'refresh-token'),
+        );
+
+        final controller = UserController(
+          userService: _FakeUserService(
+            onLogout: (refreshToken) async {
+              expect(refreshToken, 'refresh-token');
+              return true;
+            },
+            onLogin: ({String? nickName, String? phoneNum}) async => null,
+          ),
+        );
+        controller.setCurrentUser(
+          const User(
+            id: 1,
+            userId: 'minchan',
+            name: '민찬',
+            phoneNumber: '01012345678',
+          ),
+        );
+
+        await controller.logout();
+        final prefs = await SharedPreferences.getInstance();
+
+        expect(controller.currentUser, isNull);
+        expect(SoiApiClient.instance.authToken, isNull);
+        expect(SoiApiClient.instance.currentAuthSession?.refreshToken, isNull);
+        expect(prefs.getString('api_access_token'), isNull);
+        expect(prefs.getString('api_refresh_token'), isNull);
+      },
+    );
 
     test('notifies listeners when the same user updates profile visuals', () {
       final controller = UserController(

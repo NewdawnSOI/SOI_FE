@@ -67,6 +67,8 @@ Class | Method | HTTP request | Description
 *AuthControllerApi* | [**createUser**](doc//AuthControllerApi.md#createuser) | **POST** /auth/signup | 사용자 생성
 *AuthControllerApi* | [**idCheck**](doc//AuthControllerApi.md#idcheck) | **GET** /auth/id-check | 사용자 id 중복 체크
 *AuthControllerApi* | [**login**](doc//AuthControllerApi.md#login) | **POST** /auth/login | 
+*AuthControllerApi* | [**logout**](doc//AuthControllerApi.md#logout) | **POST** /auth/logout | 
+*AuthControllerApi* | [**refresh**](doc//AuthControllerApi.md#refresh) | **POST** /auth/refresh | 
 *CategoryAPIApi* | [**categoryAlert**](doc//CategoryAPIApi.md#categoryalert) | **POST** /category/set/alert | 카테고리 알림설정
 *CategoryAPIApi* | [**categoryPinned**](doc//CategoryAPIApi.md#categorypinned) | **POST** /category/set/pinned | 카테고리 고정
 *CategoryAPIApi* | [**create4**](doc//CategoryAPIApi.md#create4) | **POST** /category/create | 카테고리 추가
@@ -162,6 +164,7 @@ Class | Method | HTTP request | Description
  - [PostCreateReqDto](doc//PostCreateReqDto.md)
  - [PostRespDto](doc//PostRespDto.md)
  - [PostUpdateReqDto](doc//PostUpdateReqDto.md)
+ - [RefreshTokenReqDto](doc//RefreshTokenReqDto.md)
  - [ReportCreateRequestDto](doc//ReportCreateRequestDto.md)
  - [ReportResponseDto](doc//ReportResponseDto.md)
  - [ReportSearchRequestDto](doc//ReportSearchRequestDto.md)

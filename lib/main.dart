@@ -168,6 +168,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final _navigatorKey = GlobalKey<NavigatorState>();
   final _appLinks = AppLinks();
   late final AudioController _audioController;
+  late int _lastHandledSessionExpiredRevision;
 
   /// 앱 푸시 코디네이터 인스턴스를 멤버 변수로 저장합니다.
   /// 이렇게 하면 앱 전체에서 푸시 코디네이터의 상태를 유지할 수 있고, 필요할 때마다 접근할 수 있습니다.
@@ -187,6 +188,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _audioController = widget.preloadedAudioController ?? AudioController();
+    _lastHandledSessionExpiredRevision =
+        widget.preloadedUserController.sessionExpiredRevision;
 
     // UserController의 상태가 변경될 때마다
     // _syncAnalyticsIdentity를 호출해서 AnalyticsService의 사용자 식별 정보를 최신 상태로 유지합니다.
@@ -194,6 +197,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     // UserController의 상태가 변경될 때마다 _syncPushIdentity를 호출해서 AppPushCoordinator의 사용자 인증 상태를 최신 상태로 유지합니다.
     widget.preloadedUserController.addListener(_syncPushIdentity);
+    widget.preloadedUserController.addListener(_handleSessionExpirationRoute);
 
     // 앱 시작 직후 권한이 이미 허용된 미디어 입력 리소스를 데워
     // 첫 카메라/녹음 진입 때의 네이티브 준비 지연을 줄입니다.
@@ -212,6 +216,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     widget.preloadedUserController.removeListener(_syncAnalyticsIdentity);
     widget.preloadedUserController.removeListener(_syncPushIdentity);
+    widget.preloadedUserController.removeListener(
+      _handleSessionExpirationRoute,
+    );
     _linkSubscription?.cancel();
     unawaited(_pushCoordinator.dispose());
     _audioController.dispose();
@@ -236,6 +243,24 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       }
 
       await _audioController.primeRecorderIfPermitted();
+    });
+  }
+
+  /// 백그라운드 API 요청에서 refresh가 실패해도 앱 루트가 한 번만 시작 화면으로 되돌아가게 합니다.
+  void _handleSessionExpirationRoute() {
+    final latestRevision =
+        widget.preloadedUserController.sessionExpiredRevision;
+    if (latestRevision == _lastHandledSessionExpiredRevision) {
+      return;
+    }
+    _lastHandledSessionExpiredRevision = latestRevision;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) {
+        return;
+      }
+      navigator.pushNamedAndRemoveUntil(AppRoute.start, (route) => false);
     });
   }
 

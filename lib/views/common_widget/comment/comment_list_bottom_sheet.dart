@@ -79,6 +79,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   static final WaveformCodec _waveformCodec = WaveformCodec();
 
   late final ScrollController _scrollController;
+
   /// 댓글 리스트 상태를 관리하는 변수입니다. API에서 제공하는 댓글 데이터를 앱 내부 모델로 변환하여 사용합니다.
   late List<Comment> _comments;
 
@@ -132,6 +133,15 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
   /// 현재 답글/첨부 흐름에서 참조해야 하는 활성 답글 대상을 반환합니다.
   Comment? get _activeReplyTarget =>
       _replyTargetComment ?? _attachmentReplyTarget;
+
+  /// 현재 reply 대상 닉네임을 액션 바에서 바로 쓸 수 있게 정리합니다.
+  String? get _activeReplyTargetName {
+    final normalizedName = _activeReplyTarget?.nickname?.trim();
+    if (normalizedName == null || normalizedName.isEmpty) {
+      return null;
+    }
+    return normalizedName;
+  }
 
   /// 답글 입력 상태를 기본값으로 되돌려 다음 액션으로 안전하게 전환합니다.
   void _resetReplyComposerState({bool clearAttachmentTarget = true}) {
@@ -928,7 +938,8 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                   ApiCommentSheetActionBar(
                     isTextInputMode: _isTextInputMode,
                     textInputSession: _textInputSession,
-                    replyTargetId: _replyTargetComment?.id,
+                    replyTargetId: _activeReplyTarget?.id,
+                    replyTargetName: _activeReplyTargetName,
                     pendingInitialReplyText: _pendingInitialReplyText,
                     isReplyDraftArmed: _isReplyDraftArmed,
                     onCenterTap: _showTextInputComposer,
@@ -936,6 +947,7 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
                     onMicPressed: _handleMicPressed,
                     onSubmitText: _submitTextComment,
                     onEditingCancelled: _hideReplyInput,
+                    onClearReplyTap: _hideReplyInput,
                   ),
                 ],
               ),

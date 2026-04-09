@@ -268,6 +268,8 @@ class ApiClient {
           return PostRespDto.fromJson(value);
         case 'PostUpdateReqDto':
           return PostUpdateReqDto.fromJson(value);
+        case 'RefreshTokenReqDto':
+          return RefreshTokenReqDto.fromJson(value);
         case 'ReportCreateRequestDto':
           return ReportCreateRequestDto.fromJson(value);
         case 'ReportResponseDto':

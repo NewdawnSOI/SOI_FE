@@ -53,6 +53,7 @@ doc/PostAPIApi.md
 doc/PostCreateReqDto.md
 doc/PostRespDto.md
 doc/PostUpdateReqDto.md
+doc/RefreshTokenReqDto.md
 doc/ReportControllerApi.md
 doc/ReportCreateRequestDto.md
 doc/ReportResponseDto.md
@@ -130,6 +131,7 @@ lib/model/pageable_object.dart
 lib/model/post_create_req_dto.dart
 lib/model/post_resp_dto.dart
 lib/model/post_update_req_dto.dart
+lib/model/refresh_token_req_dto.dart
 lib/model/report_create_request_dto.dart
 lib/model/report_response_dto.dart
 lib/model/report_search_request_dto.dart
@@ -143,3 +145,4 @@ lib/model/user_find_resp_dto.dart
 lib/model/user_resp_dto.dart
 lib/model/user_update_req_dto.dart
 pubspec.yaml
+test/refresh_token_req_dto_test.dart

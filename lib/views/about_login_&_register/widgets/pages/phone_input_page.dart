@@ -9,6 +9,9 @@ import '../common/page_title.dart';
 import '../common/custom_text_field.dart';
 
 /// 전화번호 입력 페이지 위젯
+///
+/// 회원가입과 로그인 화면이 같은 전화번호 입력 레이아웃을 공유할 수 있게
+/// 문구와 뒤로 가기 동작만 외부에서 주입받습니다.
 class PhoneInputPage extends StatelessWidget {
   final TextEditingController controller;
   final Function(String) onChanged;
@@ -16,6 +19,9 @@ class PhoneInputPage extends StatelessWidget {
   final ValueChanged<String> onCountryChanged;
   final int? maxLength;
   final String? errorText;
+  final String? titleText;
+  final String? hintText;
+  final VoidCallback? onBackPressed;
   final PageController? pageController;
 
   const PhoneInputPage({
@@ -26,6 +32,9 @@ class PhoneInputPage extends StatelessWidget {
     required this.onCountryChanged,
     this.maxLength,
     this.errorText,
+    this.titleText,
+    this.hintText,
+    this.onBackPressed,
     required this.pageController,
   });
 
@@ -55,11 +64,18 @@ class PhoneInputPage extends StatelessWidget {
                 left: 8.w,
                 child: IconButton(
                   onPressed: () {
+                    final handleBack = onBackPressed;
+                    if (handleBack != null) {
+                      handleBack();
+                      return;
+                    }
+
                     pageController?.previousPage(
                       duration: Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
                     );
                   },
+                  key: const ValueKey('auth_phone_back_button'),
                   icon: Icon(Icons.arrow_back_ios, color: Colors.white),
                 ),
               ),
@@ -82,7 +98,9 @@ class PhoneInputPage extends StatelessWidget {
                       children: [
                         // "SOI 접속을 위해 전화번호를 입력해주세요." 제목 위젯
                         PageTitle(
-                          title: tr('register.phone_title', context: context),
+                          title:
+                              titleText ??
+                              tr('register.phone_title', context: context),
                         ),
                         SizedBox(height: 16.h),
                         // 국가 코드 선택 드롭다운 위젯
@@ -92,21 +110,27 @@ class PhoneInputPage extends StatelessWidget {
                         ),
                         SizedBox(height: 16.h),
                         // 전화번호 입력 필드 위젯
-                        CustomTextField(
-                          controller: controller,
-                          hintText: tr('register.phone_hint', context: context),
-                          keyboardType: TextInputType.phone,
-                          textAlign: TextAlign.start,
-                          maxLength: maxLength,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          prefixIcon: Icon(
-                            SolarIconsOutline.phone,
-                            color: const Color(0xffC0C0C0),
-                            size: 24.sp,
+                        SizedBox(
+                          key: const ValueKey('auth_phone_input_wrapper'),
+                          width: 239.w,
+                          child: CustomTextField(
+                            controller: controller,
+                            hintText:
+                                hintText ??
+                                tr('register.phone_hint', context: context),
+                            keyboardType: TextInputType.phone,
+                            textAlign: TextAlign.start,
+                            maxLength: maxLength,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            prefixIcon: Icon(
+                              SolarIconsOutline.phone,
+                              color: const Color(0xffC0C0C0),
+                              size: 24.sp,
+                            ),
+                            onChanged: onChanged,
                           ),
-                          onChanged: onChanged,
                         ),
                         if (errorText != null) ...[
                           SizedBox(height: 8.h),
@@ -180,6 +204,7 @@ class _CountrySelector extends StatelessWidget {
     ];
 
     return Container(
+      key: const ValueKey('auth_phone_country_selector'),
       width: 239.w,
       height: 44,
       padding: EdgeInsets.symmetric(horizontal: 14.w),

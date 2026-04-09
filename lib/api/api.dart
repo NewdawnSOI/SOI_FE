@@ -29,6 +29,7 @@ export 'services/media_service.dart';
 export 'services/notification_service.dart';
 export 'services/notification_device_service.dart';
 export 'services/report_service.dart';
+export 'models/login.dart';
 
 // ============================================
 // 생성된 API 모델 re-export (필요시 직접 사용)
@@ -37,6 +38,8 @@ export 'package:soi_api_client/api.dart'
     show
         // 요청 DTO
         AuthCheckReqDto,
+        LoginReqDto,
+        RefreshTokenReqDto,
         UserCreateReqDto,
         UserUpdateReqDto,
         CategoryCreateReqDto,
@@ -61,6 +64,7 @@ export 'package:soi_api_client/api.dart'
         FriendRespDto,
         FriendCheckRespDto,
         CommentRespDto,
+        LoginRespDto,
         NotificationRespDto,
         NotificationGetAllRespDto,
         NotificationUserRespDto,

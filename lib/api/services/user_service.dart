@@ -23,11 +23,8 @@ import '../../utils/firebase_phone_auth_service.dart';
 /// // 인증 코드 확인
 /// final verified = await userService.verifySmsCode('01012345678', '123456');
 ///
-/// // 로그인
-/// final user = await userService.login(
-///   nickName: 'hong123',
-///   phoneNum: '01012345678',
-/// );
+/// // 전화번호 로그인
+/// final user = await userService.loginByPhone('01012345678');
 ///
 /// // 사용자 생성
 /// final user = await userService.createUser(
@@ -57,11 +54,14 @@ class UserService {
   /// Firebase 기반 전화번호 인증 상태를 유지하는 단일 서비스 인스턴스입니다.
   final FirebasePhoneVerificationService _phoneVerificationService;
 
-  /// 인증 토큰 관리 콜백
-  final void Function(String token) _setAuthToken;
+  /// 로그인/재발급 응답 전체를 현재 인증 세션으로 반영합니다.
+  final void Function(LoginRespDto loginResponse) _applyAuthSession;
+
+  /// 기존 테스트와 레거시 호출부가 access token만 관찰할 수 있게 유지하는 알림 콜백입니다.
+  final void Function(String token)? _notifyAccessTokenIssued;
 
   /// 인증 토큰 제거 콜백
-  final void Function() _clearAuthToken;
+  final void Function() _clearAuthSession;
 
   // 생성자
   UserService({
@@ -69,6 +69,7 @@ class UserService {
     UserAPIApi? userApi,
     AuthControllerApi Function()? buildUnauthenticatedAuthApi,
     FirebasePhoneVerificationService? phoneVerificationService,
+    void Function(LoginRespDto loginResponse)? onAuthSessionIssued,
     void Function(String token)? onAuthTokenIssued,
     void Function()? onAuthTokenCleared,
   }) : _buildUnauthenticatedAuthApi =
@@ -78,9 +79,11 @@ class UserService {
        _userApi = userApi ?? SoiApiClient.instance.userApi,
        _phoneVerificationService =
            phoneVerificationService ?? FirebasePhoneVerificationService(),
-       _setAuthToken = onAuthTokenIssued ?? SoiApiClient.instance.setAuthToken,
-       _clearAuthToken =
-           onAuthTokenCleared ?? SoiApiClient.instance.clearAuthToken;
+       _applyAuthSession =
+           onAuthSessionIssued ?? SoiApiClient.instance.applyLoginResponse,
+       _notifyAccessTokenIssued = onAuthTokenIssued,
+       _clearAuthSession =
+           onAuthTokenCleared ?? SoiApiClient.instance.clearAuthSession;
 
   /// 회원가입 화면이 Firebase 즉시 인증 완료 여부를 조회할 수 있게 현재 상태를 노출합니다.
   bool get isPhoneNumberVerified =>
@@ -275,6 +278,9 @@ class UserService {
 
   /// 닉네임과 전화번호로 로그인
   ///
+  /// 회원가입 직후 자동 인증처럼 닉네임이 함께 필요한 호환 흐름에서 사용합니다.
+  /// 로그인 화면의 기본 진입점은 [loginByPhone] 입니다.
+  ///
   /// [nickName]과 [phoneNum]을 함께 사용해 로그인합니다.
   /// 성공 시 사용자 정보(User) 반환, 실패 시 예외를 throw합니다.
   ///
@@ -328,6 +334,116 @@ class UserService {
       debugPrint('[UserService.login] 로그인 실패 code=unknown, error=$e');
       if (e is SoiApiException) rethrow;
       throw SoiApiException(message: '로그인 실패: $e', originalException: e);
+    }
+  }
+
+  /// 전화번호만으로 로그인 (인증 완료 후 사용)
+  ///
+  /// SMS 인증이 완료된 전화번호로만 로그인합니다. 닉네임 없이 전화번호만 사용합니다.
+  ///
+  /// 반환값:
+  /// - 기존 회원: User (사용자 정보)
+  /// - 미가입: null
+  Future<User?> loginByPhone(String phoneNum) async {
+    final normalized = _normalizeText(phoneNum);
+    if (normalized.isEmpty) {
+      throw const BadRequestException(message: '전화번호를 입력해야 합니다.');
+    }
+    final dto = LoginReqDto(phoneNum: normalized);
+    _debugLogAuthStage(
+      'login-by-phone.request-built',
+      details: <String, Object?>{'phoneLength': normalized.length},
+    );
+
+    try {
+      return await _login(dto);
+    } on ApiException catch (e) {
+      _debugLogAuthError('login-by-phone.api-exception', e);
+      debugPrint(
+        '[UserService.loginByPhone] API 예외 code=${e.code}, message=${e.message}',
+      );
+      if (e.code == 404) {
+        debugPrint('[UserService.loginByPhone] 로그인 실패 code=404');
+        return null;
+      }
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      _debugLogAuthError('login-by-phone.socket-exception', e);
+      debugPrint('[UserService.loginByPhone] 로그인 실패 code=network, error=$e');
+      throw NetworkException(originalException: e);
+    } on SoiApiException catch (e) {
+      _debugLogAuthError('login-by-phone.soi-api-exception', e);
+      rethrow;
+    } catch (e) {
+      _debugLogAuthError('login-by-phone.unknown-exception', e);
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '로그인 실패: $e', originalException: e);
+    }
+  }
+
+  /// refresh token으로 access/refresh 토큰을 함께 재발급받아 현재 세션으로 반영합니다.
+  Future<LoginSession> refreshSession(String refreshToken) async {
+    final normalizedRefreshToken = _normalizeText(refreshToken);
+    if (normalizedRefreshToken.isEmpty) {
+      throw const BadRequestException(message: 'refresh token이 필요합니다.');
+    }
+
+    try {
+      final response = await _buildUnauthenticatedAuthApi().refresh(
+        RefreshTokenReqDto(refreshToken: normalizedRefreshToken),
+      );
+      if (response == null) {
+        throw const DataValidationException(message: '토큰 재발급 응답이 없습니다.');
+      }
+
+      final session = LoginSession.fromDto(response);
+      _applyAuthSession(response);
+      _notifyAccessTokenIssued?.call(session.accessToken);
+      return session;
+    } on ApiException catch (e) {
+      _debugLogAuthError('refresh-session.api-exception', e);
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      _debugLogAuthError('refresh-session.socket-exception', e);
+      throw NetworkException(originalException: e);
+    } on SoiApiException catch (e) {
+      _debugLogAuthError('refresh-session.soi-api-exception', e);
+      rethrow;
+    } catch (e) {
+      _debugLogAuthError('refresh-session.unknown-exception', e);
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '토큰 재발급 실패: $e', originalException: e);
+    }
+  }
+
+  /// refresh token 기반 서버 로그아웃을 호출해 세션을 더 이상 재사용하지 않도록 종료합니다.
+  Future<bool> logout(String refreshToken) async {
+    final normalizedRefreshToken = _normalizeText(refreshToken);
+    if (normalizedRefreshToken.isEmpty) {
+      throw const BadRequestException(message: 'refresh token이 필요합니다.');
+    }
+
+    try {
+      final response = await _buildUnauthenticatedAuthApi().logout(
+        RefreshTokenReqDto(refreshToken: normalizedRefreshToken),
+      );
+      if (response == null) {
+        return false;
+      }
+      return response.success == true && (response.data ?? false);
+    } on ApiException catch (e) {
+      _debugLogAuthError('logout.api-exception', e);
+      throw _handleApiException(e);
+    } on SocketException catch (e) {
+      _debugLogAuthError('logout.socket-exception', e);
+      throw NetworkException(originalException: e);
+    } on SoiApiException catch (e) {
+      _debugLogAuthError('logout.soi-api-exception', e);
+      rethrow;
+    } catch (e) {
+      _debugLogAuthError('logout.unknown-exception', e);
+      if (e is SoiApiException) rethrow;
+      throw SoiApiException(message: '로그아웃 실패: $e', originalException: e);
     }
   }
 
@@ -964,10 +1080,9 @@ class UserService {
       details: <String, Object?>{'tokenLength': accessToken.length},
     );
 
-    // 인증 토큰 설정
-    // 로그인 성공 시, 발급된 JWT 토큰을 SoiApiClient에 설정하여 이후 API 호출에 사용하도록 합니다.
-    // 발급된 JWT 토큰을 API 헤더에 자동으로 포함시키기 위해 SoiApiClient의 setAuthToken 콜백을 호출합니다.
-    _setAuthToken(accessToken);
+    // 로그인 응답 전체를 현재 세션으로 적용해 refresh token과 만료 정보도 함께 유지합니다.
+    _applyAuthSession(loginResponse);
+    _notifyAccessTokenIssued?.call(accessToken);
     _debugLogAuthStage(
       'auth-login.token-applied',
       details: <String, Object?>{
@@ -988,7 +1103,7 @@ class UserService {
       return user;
     } catch (e) {
       _debugLogAuthError('auth-login.user-get.failure', e);
-      _clearAuthToken();
+      _clearAuthSession();
       _debugLogAuthStage('auth-login.token-cleared-after-failure');
       rethrow;
     }

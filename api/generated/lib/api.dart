@@ -82,6 +82,7 @@ part 'model/pageable_object.dart';
 part 'model/post_create_req_dto.dart';
 part 'model/post_resp_dto.dart';
 part 'model/post_update_req_dto.dart';
+part 'model/refresh_token_req_dto.dart';
 part 'model/report_create_request_dto.dart';
 part 'model/report_response_dto.dart';
 part 'model/report_search_request_dto.dart';

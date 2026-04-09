@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soi/api/api_exception.dart';
+import 'package:soi/api/models/login.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi/utils/username_validator.dart';
@@ -47,11 +48,8 @@ class UserImageSelection {
 /// // SMS 인증 요청
 /// await controller.requestSmsVerification('01012345678');
 ///
-/// // 로그인
-/// final user = await controller.login(
-///   nickName: 'hong123',
-///   phoneNumber: '01012345678',
-/// );
+/// // 전화번호 로그인
+/// final user = await controller.loginByPhone('01012345678');
 /// ```
 class UserController extends ChangeNotifier {
   final UserService _userService;
@@ -61,6 +59,12 @@ class UserController extends ChangeNotifier {
   static const String _keynickName = 'api_user_id';
   static const String _keyPhoneNumber = 'api_phone_number';
   static const String _keyAccessToken = 'api_access_token';
+  static const String _keyRefreshToken = 'api_refresh_token';
+  static const String _keyAccessTokenExpiresInMs =
+      'api_access_token_expires_in_ms';
+  static const String _keyRefreshTokenExpiresInMs =
+      'api_refresh_token_expires_in_ms';
+  static const String _keyAuthIssuedAtMs = 'api_auth_issued_at_ms';
   static const String _keyOnboardingCompleted = 'api_onboarding_completed';
   static const String _keyCoverImageKey = 'api_cover_image_key';
 
@@ -68,12 +72,15 @@ class UserController extends ChangeNotifier {
   String? _coverImageUrlKey;
   bool _isLoading = false;
   String? _errorMessage;
+  int _sessionExpiredRevision = 0;
 
   /// 생성자
   ///
   /// [userService]를 주입받아 사용합니다. 테스트 시 MockUserService를 주입할 수 있습니다.
   UserController({UserService? userService})
-    : _userService = userService ?? UserService();
+    : _userService = userService ?? UserService() {
+    SoiApiClient.instance.addAuthLossListener(_handleAuthLossNotification);
+  }
 
   /// 인증 오케스트레이션의 단계만 debug 로그로 남겨 수동/자동 로그인 실패 지점을 추적합니다.
   void _debugLogAuthStage(
@@ -183,9 +190,33 @@ class UserController extends ChangeNotifier {
   /// Firebase 전화번호 인증이 즉시 완료된 경우 화면이 SMS 단계를 건너뛸 수 있게 상태를 노출합니다.
   bool get isPhoneVerificationCompleted => _userService.isPhoneNumberVerified;
 
+  /// 전역 세션 만료가 발생할 때마다 증가해 앱 루트가 강제 로그아웃 네비게이션을 한 번만 처리하게 합니다.
+  int get sessionExpiredRevision => _sessionExpiredRevision;
+
   /// 전화번호 인증 채널이나 입력 번호가 바뀌면 이전 인증 상태를 비워 현재 시도와 섞이지 않게 합니다.
   void resetPhoneVerificationState() {
     _userService.resetPhoneVerificationState();
+  }
+
+  @override
+  /// 전역 UserController가 내려갈 때 인증 손실 listener를 정리해 중복 브로드캐스트를 막습니다.
+  void dispose() {
+    SoiApiClient.instance.removeAuthLossListener(_handleAuthLossNotification);
+    super.dispose();
+  }
+
+  /// API 클라이언트가 refresh 실패를 알리면 로컬 세션과 현재 사용자 상태를 함께 지웁니다.
+  void _handleAuthLossNotification() {
+    unawaited(_handleExpiredSession());
+  }
+
+  /// 백그라운드 요청에서 인증이 만료돼도 앱 루트가 동일한 만료 이벤트를 감지할 수 있게 상태를 정리합니다.
+  Future<void> _handleExpiredSession() async {
+    _syncCurrentUserState(null);
+    _clearError();
+    _sessionExpiredRevision += 1;
+    await clearLoginState();
+    notifyListeners();
   }
 
   // ============================================
@@ -283,6 +314,9 @@ class UserController extends ChangeNotifier {
   // ============================================
 
   /// 로그인
+  /// 회원가입 직후 자동 인증처럼 닉네임이 함께 필요한 호환 흐름에서 사용합니다.
+  /// 로그인 화면의 기본 진입점은 [loginByPhone] 입니다.
+  ///
   /// [nickName]과 [phoneNumber]를 함께 사용해 로그인합니다.
   ///
   /// Parameters:
@@ -368,9 +402,73 @@ class UserController extends ChangeNotifier {
     }
   }
 
+  /// 전화번호만으로 로그인 (SMS 인증 완료 후 사용)
+  Future<User?> loginByPhone(String phoneNumber) async {
+    final normalized = phoneNumber.trim();
+    _debugLogAuthStage(
+      'login-by-phone',
+      'start',
+      details: <String, Object?>{'phoneLength': normalized.length},
+    );
+
+    _beginLoading();
+
+    try {
+      final user = await _userService.loginByPhone(normalized);
+      _debugLogAuthStage(
+        'login-by-phone',
+        'service-returned',
+        details: <String, Object?>{'hasUser': user != null},
+      );
+      _syncCurrentUserState(user);
+
+      if (user != null) {
+        await saveLoginState(userId: user.id, phoneNumber: user.phoneNumber);
+        await _persistCoverImageKey(_coverImageUrlKey);
+      } else {
+        await _persistCoverImageKey(null);
+        debugPrint('[UserController.loginByPhone] 로그인 실패 code=404');
+      }
+
+      _finishLoading(notify: false);
+      notifyListeners();
+      return user;
+    } on NotFoundException catch (e) {
+      _debugLogAuthError('login-by-phone', 'service-login', e);
+      _syncCurrentUserState(null);
+      await _persistCoverImageKey(null);
+      _finishLoading(notify: false);
+      notifyListeners();
+      return null;
+    } on SoiApiException catch (e) {
+      _debugLogAuthError('login-by-phone', 'service-login', e);
+      _finishLoading(errorMessage: '로그인 실패: $e');
+      rethrow;
+    } catch (e) {
+      _debugLogAuthError('login-by-phone', 'service-login', e);
+      final wrapped = SoiApiException(
+        message: '로그인 실패: $e',
+        originalException: e,
+      );
+      _finishLoading(errorMessage: wrapped.message);
+      throw wrapped;
+    }
+  }
+
   /// 로그아웃
-  /// 현재 로그인된 사용자를 로그아웃 처리합니다.
+  /// 현재 refresh token으로 서버 세션을 종료한 뒤 로컬 로그인 정보와 현재 사용자를 함께 정리합니다.
   Future<void> logout() async {
+    final session = SoiApiClient.instance.currentAuthSession;
+    final refreshToken = session?.refreshToken;
+
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      try {
+        await _userService.logout(refreshToken);
+      } catch (e) {
+        debugPrint('[UserController] 서버 로그아웃 실패: $e');
+      }
+    }
+
     _syncCurrentUserState(null);
     _clearError();
 
@@ -951,6 +1049,7 @@ class UserController extends ChangeNotifier {
   // ============================================================
 
   /// 로그인 상태를 SharedPreferences에 저장합니다.
+  /// access/refresh 토큰과 만료 메타데이터까지 함께 보관해 앱 재시작 후에도 같은 세션을 복원합니다.
   ///
   /// Parameters:
   /// - [userId]: 사용자 ID
@@ -962,10 +1061,14 @@ class UserController extends ChangeNotifier {
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final currentSession = SoiApiClient.instance.currentAuthSession;
       final effectiveAccessToken =
-          accessToken ?? SoiApiClient.instance.authToken;
+          accessToken ??
+          currentSession?.accessToken ??
+          SoiApiClient.instance.authToken;
       final hasAccessToken =
           effectiveAccessToken != null && effectiveAccessToken.isNotEmpty;
+      final refreshToken = currentSession?.refreshToken;
 
       final operations = <Future<bool>>[
         prefs.setBool(_keyIsLoggedIn, hasAccessToken),
@@ -976,6 +1079,38 @@ class UserController extends ChangeNotifier {
         operations.add(prefs.setString(_keyAccessToken, effectiveAccessToken));
       } else {
         operations.add(prefs.remove(_keyAccessToken));
+      }
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        operations.add(prefs.setString(_keyRefreshToken, refreshToken));
+      } else {
+        operations.add(prefs.remove(_keyRefreshToken));
+      }
+      if (currentSession?.accessTokenExpiresInMs != null) {
+        operations.add(
+          prefs.setInt(
+            _keyAccessTokenExpiresInMs,
+            currentSession!.accessTokenExpiresInMs!,
+          ),
+        );
+      } else {
+        operations.add(prefs.remove(_keyAccessTokenExpiresInMs));
+      }
+      if (currentSession?.refreshTokenExpiresInMs != null) {
+        operations.add(
+          prefs.setInt(
+            _keyRefreshTokenExpiresInMs,
+            currentSession!.refreshTokenExpiresInMs!,
+          ),
+        );
+      } else {
+        operations.add(prefs.remove(_keyRefreshTokenExpiresInMs));
+      }
+      if (currentSession != null) {
+        operations.add(
+          prefs.setInt(_keyAuthIssuedAtMs, currentSession.issuedAtEpochMs),
+        );
+      } else {
+        operations.add(prefs.remove(_keyAuthIssuedAtMs));
       }
       await Future.wait(operations);
       debugPrint('[UserController] 로그인 상태 저장 완료: userId=$userId');
@@ -1029,6 +1164,7 @@ class UserController extends ChangeNotifier {
   }
 
   /// 저장된 사용자 정보를 가져옵니다.
+  /// 전화번호와 토큰, 만료 정보까지 하나의 맵으로 복원해 자동 로그인에서 그대로 사용합니다.
   /// Returns: 사용자 정보 맵 (`Map<String, dynamic>`)
   ///   - null: 저장된 정보 없음
   Future<Map<String, dynamic>?> getSavedUserInfo() async {
@@ -1043,6 +1179,7 @@ class UserController extends ChangeNotifier {
       final userId = prefs.getInt(_keynickName);
       final phoneNumber = prefs.getString(_keyPhoneNumber);
       final accessToken = prefs.getString(_keyAccessToken);
+      final refreshToken = prefs.getString(_keyRefreshToken);
 
       if (userId == null) {
         return null;
@@ -1052,6 +1189,10 @@ class UserController extends ChangeNotifier {
         'userId': userId,
         'phoneNumber': phoneNumber,
         'accessToken': accessToken,
+        'refreshToken': refreshToken,
+        'accessTokenExpiresInMs': prefs.getInt(_keyAccessTokenExpiresInMs),
+        'refreshTokenExpiresInMs': prefs.getInt(_keyRefreshTokenExpiresInMs),
+        'authIssuedAtMs': prefs.getInt(_keyAuthIssuedAtMs),
         'onboardingCompleted': prefs.getBool(_keyOnboardingCompleted) ?? false,
       };
     } catch (e) {
@@ -1061,6 +1202,7 @@ class UserController extends ChangeNotifier {
   }
 
   /// 자동 로그인을 시도합니다.
+  /// 저장된 access/refresh 세션을 복원한 뒤 현재 사용자 조회로 실제 유효성을 다시 확인합니다.
   /// 저장된 사용자 ID로 서버에서 사용자 정보를 가져옵니다.
   /// Returns: 자동 로그인 성공 여부 (bool)
   ///  - true: 자동 로그인 성공
@@ -1083,12 +1225,19 @@ class UserController extends ChangeNotifier {
 
       final userId = savedInfo['userId'] as int;
       final accessToken = savedInfo['accessToken'] as String?;
+      final refreshToken = savedInfo['refreshToken'] as String?;
+      final accessTokenExpiresInMs =
+          savedInfo['accessTokenExpiresInMs'] as int?;
+      final refreshTokenExpiresInMs =
+          savedInfo['refreshTokenExpiresInMs'] as int?;
+      final authIssuedAtMs = savedInfo['authIssuedAtMs'] as int?;
       _debugLogAuthStage(
         'auto-login',
         'saved-credentials-resolved',
         details: <String, Object?>{
           'hasAccessToken': accessToken?.isNotEmpty ?? false,
           'tokenLength': accessToken?.length,
+          'hasRefreshToken': refreshToken?.isNotEmpty ?? false,
         },
       );
       debugPrint('[UserController] 저장된 userId: $userId');
@@ -1099,7 +1248,15 @@ class UserController extends ChangeNotifier {
         return false;
       }
 
-      SoiApiClient.instance.setAuthToken(accessToken);
+      SoiApiClient.instance.setAuthSession(
+        LoginSession(
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          accessTokenExpiresInMs: accessTokenExpiresInMs,
+          refreshTokenExpiresInMs: refreshTokenExpiresInMs,
+          issuedAtEpochMs: authIssuedAtMs,
+        ),
+      );
       _debugLogAuthStage(
         'auto-login',
         'token-restored',
@@ -1142,6 +1299,10 @@ class UserController extends ChangeNotifier {
         prefs.remove(_keynickName),
         prefs.remove(_keyPhoneNumber),
         prefs.remove(_keyAccessToken),
+        prefs.remove(_keyRefreshToken),
+        prefs.remove(_keyAccessTokenExpiresInMs),
+        prefs.remove(_keyRefreshTokenExpiresInMs),
+        prefs.remove(_keyAuthIssuedAtMs),
         prefs.remove(_keyOnboardingCompleted),
         prefs.remove(_keyCoverImageKey),
       ]);

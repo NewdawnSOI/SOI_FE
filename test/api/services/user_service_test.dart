@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soi/api/api_client.dart';
 import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/services/user_service.dart';
 import 'package:soi/utils/firebase_phone_auth_service.dart';
@@ -12,6 +13,8 @@ class _FakeAuthApi extends AuthControllerApi {
     this.onCreateUser,
     this.onIdCheck,
     this.onLogin,
+    this.onRefresh,
+    this.onLogout,
   });
 
   final Future<bool?> Function(String phoneNum)? onAuthSms;
@@ -20,6 +23,9 @@ class _FakeAuthApi extends AuthControllerApi {
   onCreateUser;
   final Future<ApiResponseDtoBoolean?> Function(String userId)? onIdCheck;
   final Future<LoginRespDto?> Function(LoginReqDto)? onLogin;
+  final Future<LoginRespDto?> Function(RefreshTokenReqDto dto)? onRefresh;
+  final Future<ApiResponseDtoBoolean?> Function(RefreshTokenReqDto dto)?
+  onLogout;
 
   @override
   Future<bool?> authSMS(String phoneNum) async {
@@ -66,6 +72,26 @@ class _FakeAuthApi extends AuthControllerApi {
       throw UnimplementedError('onLogin is not configured');
     }
     return handler(loginReqDto);
+  }
+
+  @override
+  Future<LoginRespDto?> refresh(RefreshTokenReqDto refreshTokenReqDto) async {
+    final handler = onRefresh;
+    if (handler == null) {
+      throw UnimplementedError('onRefresh is not configured');
+    }
+    return handler(refreshTokenReqDto);
+  }
+
+  @override
+  Future<ApiResponseDtoBoolean?> logout(
+    RefreshTokenReqDto refreshTokenReqDto,
+  ) async {
+    final handler = onLogout;
+    if (handler == null) {
+      throw UnimplementedError('onLogout is not configured');
+    }
+    return handler(refreshTokenReqDto);
   }
 }
 
@@ -141,6 +167,11 @@ class _FakeUserApi extends UserAPIApi {
 }
 
 void main() {
+  setUp(() {
+    SoiApiClient.instance.initialize();
+    SoiApiClient.instance.clearAuthSession();
+  });
+
   group('UserService login error mapping', () {
     test(
       'uses Firebase verification service when useFirebase is true',
@@ -346,6 +377,147 @@ void main() {
 
       expect(issuedToken, 'jwt-token');
       expect(result?.id, 1);
+    });
+
+    test('trims phone number before loginByPhone auth request', () async {
+      String? issuedToken;
+      final service = UserService(
+        authApi: _FakeAuthApi(
+          onLogin: (_) async => throw StateError('authenticated auth api used'),
+        ),
+        userApi: _FakeUserApi(
+          onGetUser: () async => ApiResponseDtoUserRespDto(
+            success: true,
+            data: UserRespDto(
+              id: 7,
+              nickname: 'phone-user',
+              name: '전화 사용자',
+              phoneNum: '01012345678',
+            ),
+          ),
+        ),
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+          onLogin: (dto) async {
+            expect(dto.nickname, isNull);
+            expect(dto.phoneNum, '01012345678');
+            return LoginRespDto(accessToken: 'jwt-phone-token');
+          },
+        ),
+        onAuthTokenIssued: (token) => issuedToken = token,
+        onAuthTokenCleared: () {},
+      );
+
+      final result = await service.loginByPhone(' 01012345678 ');
+
+      expect(issuedToken, 'jwt-phone-token');
+      expect(result?.id, 7);
+      expect(result?.phoneNumber, '01012345678');
+    });
+
+    test('returns null when loginByPhone auth api responds 404', () async {
+      final service = UserService(
+        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+        userApi: _FakeUserApi(onGetUser: () async => null),
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+          onLogin: (_) async => throw ApiException(404, 'not found'),
+        ),
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
+      );
+
+      final result = await service.loginByPhone('01000000000');
+
+      expect(result, isNull);
+    });
+
+    test('stores refresh token fields when auth login succeeds', () async {
+      LoginRespDto? issuedSession;
+      final service = UserService(
+        authApi: _FakeAuthApi(
+          onLogin: (_) async => throw StateError('authenticated auth api used'),
+        ),
+        userApi: _FakeUserApi(
+          onGetUser: () async => ApiResponseDtoUserRespDto(
+            success: true,
+            data: UserRespDto(
+              id: 21,
+              nickname: 'refresh-user',
+              name: '리프레시 사용자',
+              phoneNum: '01022223333',
+            ),
+          ),
+        ),
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+          onLogin: (dto) async {
+            expect(dto.phoneNum, '01022223333');
+            return LoginRespDto(
+              accessToken: 'new-access-token',
+              refreshToken: 'new-refresh-token',
+              accessTokenExpiresInMs: 1800000,
+              refreshTokenExpiresInMs: 1209600000,
+            );
+          },
+        ),
+        onAuthSessionIssued: (loginResponse) => issuedSession = loginResponse,
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
+      );
+
+      final result = await service.loginByPhone('01022223333');
+
+      expect(result?.id, 21);
+      expect(issuedSession?.accessToken, 'new-access-token');
+      expect(issuedSession?.refreshToken, 'new-refresh-token');
+      expect(issuedSession?.accessTokenExpiresInMs, 1800000);
+      expect(issuedSession?.refreshTokenExpiresInMs, 1209600000);
+    });
+
+    test('refreshSession applies rotated access and refresh tokens', () async {
+      LoginRespDto? refreshedSession;
+      final service = UserService(
+        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+        userApi: _FakeUserApi(onGetUser: () async => null),
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+          onRefresh: (dto) async {
+            expect(dto.refreshToken, 'refresh-token-1');
+            return LoginRespDto(
+              accessToken: 'access-token-2',
+              refreshToken: 'refresh-token-2',
+              accessTokenExpiresInMs: 1800000,
+              refreshTokenExpiresInMs: 1209600000,
+            );
+          },
+        ),
+        onAuthSessionIssued: (loginResponse) =>
+            refreshedSession = loginResponse,
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
+      );
+
+      final session = await service.refreshSession('refresh-token-1');
+
+      expect(session.accessToken, 'access-token-2');
+      expect(session.refreshToken, 'refresh-token-2');
+      expect(refreshedSession?.refreshToken, 'refresh-token-2');
+    });
+
+    test('logout sends refresh token payload to auth api', () async {
+      final service = UserService(
+        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+        userApi: _FakeUserApi(onGetUser: () async => null),
+        buildUnauthenticatedAuthApi: () => _FakeAuthApi(
+          onLogout: (dto) async {
+            expect(dto.refreshToken, 'refresh-token-logout');
+            return ApiResponseDtoBoolean(success: true, data: true);
+          },
+        ),
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
+      );
+
+      final result = await service.logout('refresh-token-logout');
+
+      expect(result, isTrue);
     });
 
     test('uses unauthenticated auth api for login', () async {

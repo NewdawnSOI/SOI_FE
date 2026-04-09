@@ -25,6 +25,7 @@ class _InMemoryAssetLoader extends AssetLoader {
       'common': {
         'login_required': '로그인이 필요합니다.',
         'user_info_unavailable': '사용자 정보를 불러올 수 없습니다.',
+        'cancel': '취소',
         'report': '신고',
         'block': '차단',
         'report_submit_success': '신고가 접수되었습니다.',
@@ -32,6 +33,10 @@ class _InMemoryAssetLoader extends AssetLoader {
       'comments': {
         'title': '댓글',
         'reply_action': '답장 달기',
+        'replying': '답글 작성 중',
+        'replying_to': '{name}에게 답글 남기는 중',
+        'add_reply': '답글 입력',
+        'reply_to': '{name}에게 답글 입력',
         'view_more_replies': '+ 답글 {count}개 더 보기',
         'hide_replies': '답글 숨기기',
         'add_comment': '댓글을 입력하세요',
@@ -238,6 +243,11 @@ void main() {
       await tester.tap(find.text('답장 달기').at(1));
       await tester.pumpAndSettle();
 
+      expect(find.text('me에게 답글 남기는 중'), findsOneWidget);
+
+      await tester.tap(find.text('답글 입력'));
+      await tester.pumpAndSettle();
+
       await tester.enterText(find.byType(TextField).first, '대댓글의 답글');
       await tester.pumpAndSettle();
 
@@ -317,6 +327,7 @@ void main() {
       ),
     );
 
+    await tester.pump();
     await tester.pump();
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('원댓글'), findsOneWidget);

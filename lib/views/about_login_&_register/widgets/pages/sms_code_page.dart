@@ -6,12 +6,19 @@ import '../common/page_title.dart';
 import '../common/custom_text_field.dart';
 
 /// SMS 코드 입력 페이지 위젯
+///
+/// 회원가입과 로그인 화면이 같은 인증번호 입력 레이아웃을 공유할 수 있게
+/// 문구와 뒤로 가기 동작만 외부에서 주입받습니다.
 class SmsCodePage extends StatelessWidget {
   final TextEditingController controller;
   final Function(String) onChanged;
   final VoidCallback onResendPressed;
   final bool isBusy;
   final int maxCodeLength;
+  final String? titleText;
+  final String? hintText;
+  final String? resendText;
+  final VoidCallback? onBackPressed;
   final PageController? pageController;
 
   const SmsCodePage({
@@ -21,6 +28,10 @@ class SmsCodePage extends StatelessWidget {
     required this.onResendPressed,
     this.isBusy = false,
     this.maxCodeLength = 6,
+    this.titleText,
+    this.hintText,
+    this.resendText,
+    this.onBackPressed,
     required this.pageController,
   });
 
@@ -37,11 +48,18 @@ class SmsCodePage extends StatelessWidget {
           left: 20.w,
           child: IconButton(
             onPressed: () {
+              final handleBack = onBackPressed;
+              if (handleBack != null) {
+                handleBack();
+                return;
+              }
+
               pageController?.previousPage(
                 duration: Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
               );
             },
+            key: const ValueKey('auth_sms_back_button'),
             icon: Icon(Icons.arrow_back_ios, color: Colors.white),
           ),
         ),
@@ -55,25 +73,36 @@ class SmsCodePage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                PageTitle(title: tr('register.sms_title', context: context)),
+                PageTitle(
+                  title:
+                      titleText ?? tr('register.sms_title', context: context),
+                ),
                 SizedBox(height: 24.h),
-                CustomTextField(
-                  controller: controller,
-                  hintText: tr('register.sms_hint', context: context),
-                  keyboardType: TextInputType.number,
-                  borderRadius: 16.5,
-                  contentPadding: EdgeInsets.only(bottom: 7.h),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(maxCodeLength),
-                  ],
-                  onChanged: onChanged,
+                SizedBox(
+                  key: const ValueKey('auth_sms_input_wrapper'),
+                  width: 239.w,
+                  child: CustomTextField(
+                    controller: controller,
+                    hintText:
+                        hintText ?? tr('register.sms_hint', context: context),
+                    keyboardType: TextInputType.number,
+                    borderRadius: 16.5,
+                    contentPadding: EdgeInsets.only(bottom: 7.h),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(maxCodeLength),
+                    ],
+                    onChanged: onChanged,
+                  ),
                 ),
                 TextButton(
+                  key: const ValueKey('auth_sms_resend_button'),
                   onPressed: isBusy ? null : onResendPressed,
                   child: RichText(
                     text: TextSpan(
-                      text: tr('register.sms_resend', context: context),
+                      text:
+                          resendText ??
+                          tr('register.sms_resend', context: context),
                       style: TextStyle(
                         color: const Color(0xFFF8F8F8),
                         fontSize: 12,
