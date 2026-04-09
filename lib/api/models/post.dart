@@ -154,8 +154,19 @@ class Post {
     };
   }
 
-  /// 이미지 유무 확인
-  bool get hasImage => hasMedia && !isVideo;
+  /// 서버 postType을 우선으로 해석하고, 누락된 레거시 데이터만 확장자로 보완해 이미지 여부를 판단합니다.
+  bool get hasImage {
+    switch (postType) {
+      case PostType.image:
+        return hasMedia;
+      case PostType.video:
+      case PostType.textOnly:
+        return false;
+      case PostType.multiMedia:
+      case null:
+        return hasMedia && !isVideo;
+    }
+  }
 
   /// 서버가 key 또는 url 중 하나라도 내려준 미디어를 렌더링 가능한 미디어로 판단합니다.
   bool get hasMedia =>
@@ -165,8 +176,19 @@ class Post {
   /// 서버가 저장한 업로드 출처를 기준으로 기본 미디어 fit을 결정합니다.
   bool get prefersContainMediaFit => isFromGallery == true;
 
-  /// 비디오 여부를 key 우선, url 보조 기준으로 판별합니다.
-  bool get isVideo => _isVideoKey(postFileKey) || _isVideoKey(postFileUrl);
+  /// 서버 postType을 우선으로 해석하고, 누락된 레거시 데이터만 확장자로 보완해 **비디오 여부**를 판단합니다.
+  bool get isVideo {
+    switch (postType) {
+      case PostType.video:
+        return hasMedia;
+      case PostType.image:
+      case PostType.textOnly:
+        return false;
+      case PostType.multiMedia:
+      case null:
+        return _isVideoKey(postFileKey) || _isVideoKey(postFileUrl);
+    }
+  }
 
   /// 오디오 유무 확인
   bool get hasAudio => audioUrl != null && audioUrl!.isNotEmpty;
@@ -233,30 +255,27 @@ class Post {
     return 'Post{nickName: $nickName, hasImage: $hasImage, hasAudio: $hasAudio, postType: $postType }';
   }
 
-  /// 서버 응답 enum을 앱 PostType으로 정규화합니다.
+  /// 서버 enum과 레거시 캐시 문자열을 모두 앱 PostType으로 정규화합니다.
   static PostType? _postTypeFromRespEnum(PostRespDtoPostTypeEnum? value) {
-    switch (value) {
-      case PostRespDtoPostTypeEnum.TEXT:
-        return PostType.textOnly;
-      case PostRespDtoPostTypeEnum.IMAGE:
-        return PostType.image;
-      case PostRespDtoPostTypeEnum.VIDEO:
-        return PostType.video;
-      default:
-        return null;
-    }
+    return _postTypeFromRawValue(value?.value);
   }
 
+  /// JSON/캐시/DTO 경로에서 들어오는 postType 표현을 한곳에서 해석합니다.
   static PostType? _postTypeFromJsonValue(dynamic raw) {
     if (raw is PostRespDtoPostTypeEnum) {
       return _postTypeFromRespEnum(raw);
     }
+    return _postTypeFromRawValue(raw); // 레거시 문자열 경로도 지원합니다.
+  }
+
+  /// 새 API 값과 레거시 별칭을 함께 받아 게시물 분류를 복원합니다.
+  static PostType? _postTypeFromRawValue(Object? raw) {
     if (raw == null) {
       return null;
     }
 
     final normalized = raw
-        ?.toString()
+        .toString()
         .trim()
         .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
         .toUpperCase();
@@ -270,6 +289,7 @@ class Post {
       case 'VIDEO':
         return PostType.video;
       case 'MULTIMEDIA':
+        // 레거시 데이터에서 미디어 유형이지만 세부 유형이 없는 경우, 일단 미디어로 분류합니다.
         return PostType.multiMedia;
       default:
         return null;

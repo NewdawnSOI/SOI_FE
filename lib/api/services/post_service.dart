@@ -48,8 +48,7 @@ class PostService {
   // ============================================
 
   /// 게시물 생성
-  ///
-  /// 새로운 게시물(사진 + 음성메모)을 생성합니다.
+  /// - 새로운 게시물을 생성합니다.
   ///
   /// Parameters:
   /// - [nickName]: 작성자 사용자 ID (String)
@@ -85,21 +84,40 @@ class PostService {
     PostType? postType,
   }) async {
     try {
+      final normalizedPostFileKeys = _normalizePerCategoryFileKeys(
+        keys: postFileKey,
+        categoryIds: categoryIds,
+      ); // postFileKey 배열을 categoryIds 길이에 맞춰 정규화합니다. (예: 카테고리가 3개인데 이미지가 1개면, 나머지 2개는 빈 문자열로 채워서 서버에 전달)
+      final normalizedAudioFileKeys = _normalizePerCategoryFileKeys(
+        keys: audioFileKey,
+        categoryIds: categoryIds,
+      ); // audioFileKey 배열도 categoryIds 길이에 맞춰 정규화합니다. (음성이 없는 경우에도 빈 문자열로 슬롯을 유지)
+      final normalizedThumbnailFileKeys = _normalizePerCategoryFileKeys(
+        keys: thumbnailFileKey,
+        categoryIds: categoryIds,
+      ); // 썸네일 파일 키 배열도 categoryIds 길이에 맞춰 정규화합니다. (비디오가 없는 경우에도 빈 문자열로 슬롯을 유지)
+
+      // 서버가 기대하는 payload 계약에 맞춰 DTO를 생성합니다.
       final dto = PostCreateReqDto(
         userId: userId,
         nickname: nickName,
         content: content,
-        postFileKey: postFileKey, // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
+        postFileKey:
+            normalizedPostFileKeys, // categoryIds 기준으로 서버가 기대하는 배열 길이를 맞춥니다.
         audioFileKey:
-            audioFileKey, // categoryIds의 개수에 맞춰서 빈 문자열의 개수를 맞춰서 전달해야함.
-        thumbnailFileKey: thumbnailFileKey,
+            normalizedAudioFileKeys, // 오디오가 없을 때도 카테고리 수만큼 빈 슬롯을 유지합니다.
+        thumbnailFileKey:
+            normalizedThumbnailFileKeys, // 썸네일 배열도 카테고리 슬롯 규칙을 맞춥니다.
         categoryId: categoryIds,
         waveformData: waveformData,
         duration: duration,
         savedAspectRatio: savedAspectRatio,
         isFromGallery: isFromGallery,
         postType: _toCreatePostTypeEnum(
-          _resolveCreatePostType(postType: postType, postFileKeys: postFileKey),
+          _resolveCreatePostType(
+            postType: postType,
+            postFileKeys: normalizedPostFileKeys,
+          ),
         ),
       );
 
@@ -605,6 +623,49 @@ class PostService {
       return null;
     }
     return Post.isVideoKey(postFileKey) ? PostType.video : PostType.image;
+  }
+
+  /// 카테고리별 파일 키 배열을 서버 계약에 맞게 정규화합니다.
+  /// - 쉽게 말하면, 카테고리 수에 맞춰 파일 키 배열의 길이를 조정하는 로직입니다.
+  ///
+  /// Parameters:
+  /// - [keys]: 원본 파일 키 배열 (postFileKey, audioFileKey, thumbnailFileKey)
+  /// - [categoryIds]: 게시할 카테고리 ID 배열
+  ///
+  /// Returns: 정규화된 파일 키 배열
+  /// - [List<[String]>]: categoryIds 길이에 맞춰 정규화된 파일 키 배열
+  List<String> _normalizePerCategoryFileKeys({
+    required List<String> keys,
+    required List<int> categoryIds,
+  }) {
+    if (categoryIds.isEmpty) {
+      return List<String>.unmodifiable(keys);
+    }
+
+    if (keys.length == categoryIds.length) {
+      return List<String>.unmodifiable(keys);
+    }
+
+    if (keys.isEmpty) {
+      return List<String>.filled(categoryIds.length, '', growable: false);
+    }
+
+    if (keys.length == 1 && categoryIds.length > 1) {
+      return List<String>.filled(
+        categoryIds.length,
+        keys.first,
+        growable: false,
+      );
+    }
+
+    if (keys.length < categoryIds.length) {
+      return List<String>.unmodifiable(<String>[
+        ...keys,
+        ...List<String>.filled(categoryIds.length - keys.length, ''),
+      ]);
+    }
+
+    return List<String>.unmodifiable(keys.take(categoryIds.length));
   }
 
   /// 게시물 생성 요청 직전 payload를 로깅해 서버 계약 불일치를 빠르게 추적합니다.

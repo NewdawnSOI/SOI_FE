@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soi_api_client/api.dart';
 import 'package:soi/api/api_exception.dart';
 import 'package:soi/api/models/post.dart';
 import 'package:soi/api/services/post_service.dart';
-import 'package:soi_api_client/api.dart';
 
 class _FakePostApi extends PostAPIApi {
   _FakePostApi({this.onCreate, this.onUpdate});
@@ -171,6 +171,33 @@ void main() {
       expect(result, isTrue);
       expect(capturedDto?.isFromGallery, isTrue);
     });
+
+    test(
+      'pads missing audio slots to match category count for create payload',
+      () async {
+        PostCreateReqDto? capturedDto;
+        final service = PostService(
+          postApi: _FakePostApi(
+            onCreate: (dto) async {
+              capturedDto = dto;
+              return ApiResponseDtoBoolean(success: true, data: true);
+            },
+          ),
+        );
+
+        final result = await service.createPost(
+          nickName: 'tester',
+          postFileKey: const ['posts/example.jpg'],
+          audioFileKey: const [],
+          categoryIds: const [16],
+          postType: PostType.image,
+        );
+
+        expect(result, isTrue);
+        expect(capturedDto?.postFileKey, const ['posts/example.jpg']);
+        expect(capturedDto?.audioFileKey, const ['']);
+      },
+    );
   });
 
   group('PostService exception handling', () {

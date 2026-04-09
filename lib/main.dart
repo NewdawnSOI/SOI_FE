@@ -35,7 +35,7 @@ import 'utils/app_route_observer.dart';
 void main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  await _lockPortraitOrientation(); // 앱 전체를 세로 모드로 고정합니다.
+  await _lockPortraitOrientation();
   final initialLocale = resolveSupportedLocale(
     PlatformDispatcher.instance.locale,
   );

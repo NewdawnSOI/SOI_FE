@@ -198,6 +198,9 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
     return _normalizeImageKey(widget.post.postFileKey);
   }
 
+  /// 비어 있지 않은 파일 key가 있을 때만 같은 이미지 캐시를 재사용합니다.
+  String? get _effectiveImageCacheKey => _normalizedPostFileKey();
+
   /// 그리드 미디어는 URL을 먼저 표시하고, key가 있으면 최신 presigned URL로 백그라운드 갱신합니다.
   Future<void> _loadMediaUrl() async {
     final requestId = ++_mediaLoadGeneration;
@@ -348,9 +351,9 @@ class _ApiPhotoGridItemState extends State<ApiPhotoGridItem> {
                               ? CachedNetworkImage(
                                   imageUrl: _mediaUrl!,
                                   // presigned URL이 바뀌어도 같은 파일이면 디스크 캐시 재사용
-                                  cacheKey: widget.post.postFileKey,
+                                  cacheKey: _effectiveImageCacheKey,
                                   useOldImageOnUrlChange:
-                                      widget.post.postFileKey != null,
+                                      _effectiveImageCacheKey != null,
                                   fadeInDuration: Duration.zero,
                                   fadeOutDuration: Duration.zero,
                                   memCacheWidth: (170 * 2).round(),

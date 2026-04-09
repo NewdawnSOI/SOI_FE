@@ -148,12 +148,82 @@ void main() {
       expect(post.hasImage, isFalse);
     });
 
+    test('treats postType video as video even when legacy urls lack extension', () {
+      final post = Post(
+        id: 14,
+        nickName: 'alice',
+        postFileUrl: 'https://example.com/media/legacy-video',
+        postType: PostType.video,
+      );
+
+      expect(post.hasMedia, isTrue);
+      expect(post.isVideo, isTrue);
+      expect(post.hasImage, isFalse);
+    });
+
+    test('treats postType image as image even when legacy urls lack extension', () {
+      final post = Post(
+        id: 15,
+        nickName: 'alice',
+        postFileUrl: 'https://example.com/media/legacy-image',
+        postType: PostType.image,
+      );
+
+      expect(post.hasMedia, isTrue);
+      expect(post.isVideo, isFalse);
+      expect(post.hasImage, isTrue);
+    });
+
     test('keeps nullable postType when response omits it', () {
       final dto = PostRespDto(id: 9, nickname: 'alice');
 
       final post = Post.fromDto(dto);
 
       expect(post.postType, isNull);
+    });
+
+    test('maps generated postType enums to current domain types', () {
+      final textPost = Post.fromDto(
+        PostRespDto(
+          id: 11,
+          nickname: 'alice',
+          postType: PostRespDtoPostTypeEnum.TEXT,
+        ),
+      );
+      final imagePost = Post.fromDto(
+        PostRespDto(
+          id: 12,
+          nickname: 'alice',
+          postType: PostRespDtoPostTypeEnum.IMAGE,
+        ),
+      );
+      final videoPost = Post.fromDto(
+        PostRespDto(
+          id: 13,
+          nickname: 'alice',
+          postType: PostRespDtoPostTypeEnum.VIDEO,
+        ),
+      );
+
+      expect(textPost.postType, PostType.textOnly);
+      expect(imagePost.postType, PostType.image);
+      expect(videoPost.postType, PostType.video);
+    });
+
+    test('keeps legacy postType aliases readable from cached json', () {
+      final textOnlyPost = Post.fromJson({
+        'id': 14,
+        'nickname': 'alice',
+        'postType': 'TEXT_ONLY',
+      });
+      final multiMediaPost = Post.fromJson({
+        'id': 15,
+        'nickname': 'alice',
+        'postType': 'MULTIMEDIA',
+      });
+
+      expect(textOnlyPost.postType, PostType.textOnly);
+      expect(multiMediaPost.postType, PostType.multiMedia);
     });
 
     test('normalizes post createdAt with the shared server time utility', () {

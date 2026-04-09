@@ -204,7 +204,6 @@ class _ProfilePostTabViewState extends State<ProfilePostTabView>
       page: 0,
     );
     if (!mounted) return;
-
     final normalizedPosts = _normalizePosts(result.posts);
     final hasError =
         (postController.errorMessage?.trim().isNotEmpty ?? false) &&

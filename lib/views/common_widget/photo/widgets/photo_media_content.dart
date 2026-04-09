@@ -46,6 +46,12 @@ class ApiPhotoMediaContent extends StatelessWidget {
   /// 포스트 유형에 따라 텍스트, 이미지, 비디오 렌더링과 기본 BoxFit 정책을 선택합니다.
   @override
   Widget build(BuildContext context) {
+    final normalizedPostFileKey = postFileKey?.trim();
+    final effectivePostFileKey =
+        normalizedPostFileKey == null || normalizedPostFileKey.isEmpty
+        ? null
+        : normalizedPostFileKey;
+
     if (isTextOnlyPost) {
       return _buildTextOnlyContent();
     }
@@ -132,8 +138,8 @@ class ApiPhotoMediaContent extends StatelessWidget {
             //
             child: CachedNetworkImage(
               imageUrl: mediaUrl!,
-              cacheKey: postFileKey,
-              useOldImageOnUrlChange: true,
+              cacheKey: effectivePostFileKey,
+              useOldImageOnUrlChange: effectivePostFileKey != null,
               fadeInDuration: Duration.zero,
               fadeOutDuration: Duration.zero,
               width: imageSize.width,
