@@ -46,7 +46,7 @@ class UserImageSelection {
 /// final controller = Provider.of<UserController>(context, listen: false);
 ///
 /// // SMS 인증 요청
-/// await controller.requestSmsVerification('01012345678');
+/// await controller.requestSmsVerification('+821012345678');
 ///
 /// // 전화번호 로그인
 /// final user = await controller.loginByPhone('01012345678');
@@ -225,7 +225,7 @@ class UserController extends ChangeNotifier {
 
   /// SMS 인증 요청
   /// [phoneNumber]로 인증 SMS를 전송합니다.
-  /// 한국 번호는 API, 그 외는 Firebase를 선택할 수 있게 호출 옵션을 전달받습니다.
+  /// 기본은 Firebase 인증이며, 필요할 때만 [useFirebase]로 레거시 API fallback을 선택합니다.
   ///
   /// Parameters:
   ///   - [phoneNumber]: 인증할 전화번호 (String)
@@ -266,7 +266,7 @@ class UserController extends ChangeNotifier {
 
   /// 인증 코드 확인
   /// [phoneNumber]와 [code]를 사용하여 인증 코드를 확인합니다.
-  /// 한국 번호는 API, 그 외는 Firebase를 선택할 수 있게 호출 옵션을 전달받습니다.
+  /// 기본은 Firebase 인증이며, 필요할 때만 [useFirebase]로 레거시 API fallback을 선택합니다.
   ///
   /// Parameters:
   ///   - [phoneNumber]: 인증할 전화번호 (String)

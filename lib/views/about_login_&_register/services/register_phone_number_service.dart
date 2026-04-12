@@ -11,9 +11,9 @@ enum RegisterPhoneValidationError {
 
 /// 회원가입 전화번호 입력을 국가별 규칙으로 정규화하고 검증합니다.
 class RegisterPhoneNumberService {
-  /// 선택 국가에 따라 한국 번호는 서버 SMS 인증을, 그 외 번호는 Firebase 인증을 사용합니다.
+  /// 현재 지원 국가는 모두 Firebase SMS 인증을 사용하고, 레거시 API 경로는 별도 fallback으로만 남겨 둡니다.
   static bool usesApiSmsVerification({required String countryCode}) {
-    return countryCode == 'KR';
+    return false;
   }
 
   /// 사용자 입력을 서버 API에 저장할 로컬 번호 형식으로 정규화합니다.

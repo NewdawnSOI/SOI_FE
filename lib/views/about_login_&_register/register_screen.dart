@@ -84,7 +84,7 @@ class _AuthScreenState extends State<AuthScreen> {
   late UserController _userController;
   bool _isControllerInitialized = false;
 
-  /// 선택 국가에 따라 한국 번호는 서버 SMS 인증을, 그 외는 Firebase 인증을 사용합니다.
+  /// 현재 선택 국가가 레거시 API SMS fallback을 쓰는지 계산합니다.
   bool get _usesApiPhoneVerification =>
       RegisterPhoneNumberService.usesApiSmsVerification(
         countryCode: _selectedCountryCode,
@@ -93,7 +93,7 @@ class _AuthScreenState extends State<AuthScreen> {
   /// 현재 선택 국가가 요구하는 인증번호 자리수를 버튼 활성화와 입력 제한에 함께 사용합니다.
   int get _expectedSmsCodeLength => _usesApiPhoneVerification ? 5 : 6;
 
-  /// Firebase 자동 인증 완료 상태는 해외 번호 흐름에서만 의미가 있으므로 현재 채널에 맞게 읽습니다.
+  /// 현재 인증 채널이 Firebase일 때만 자동 인증 완료 상태를 회원가입 단계 전환에 재사용합니다.
   bool get _isCurrentPhoneVerificationCompleted =>
       !_usesApiPhoneVerification &&
       _userController.isPhoneVerificationCompleted;

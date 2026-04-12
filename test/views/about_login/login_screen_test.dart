@@ -208,7 +208,7 @@ void main() {
   });
 
   group('LoginScreen', () {
-    testWidgets('requests SMS then verifies code and logs in by phone', (
+    testWidgets('requests Firebase SMS for Korean numbers then logs in', (
       tester,
     ) async {
       final userController = _FakeUserController(
@@ -230,16 +230,16 @@ void main() {
 
       await _pressPrimaryButton(tester);
 
-      expect(userController.lastRequestedPhoneNumber, '01012345678');
-      expect(userController.lastRequestedUseFirebase, isFalse);
+      expect(userController.lastRequestedPhoneNumber, '+821012345678');
+      expect(userController.lastRequestedUseFirebase, isTrue);
       expect(find.text('인증번호를 입력해 주세요.'), findsOneWidget);
 
-      await tester.enterText(find.byType(TextField).first, '12345');
+      await tester.enterText(find.byType(TextField).first, '123456');
       await _flushAsyncWork(tester);
 
-      expect(userController.lastVerifiedPhoneNumber, '01012345678');
-      expect(userController.lastVerifiedCode, '12345');
-      expect(userController.lastVerifiedUseFirebase, isFalse);
+      expect(userController.lastVerifiedPhoneNumber, '+821012345678');
+      expect(userController.lastVerifiedCode, '123456');
+      expect(userController.lastVerifiedUseFirebase, isTrue);
       expect(userController.lastLoginPhoneNumber, '01012345678');
       expect(find.text('HOME'), findsOneWidget);
     });
@@ -261,7 +261,7 @@ void main() {
 
         await _pressPrimaryButton(tester);
 
-        await tester.enterText(find.byType(TextField).first, '12345');
+        await tester.enterText(find.byType(TextField).first, '123456');
         await _flushAsyncWork(tester);
 
         expect(find.text('가입되지 않은 전화번호입니다.'), findsOneWidget);

@@ -78,10 +78,10 @@ void main() {
       );
     });
 
-    test('chooses API SMS only for Korean numbers', () {
+    test('keeps Firebase SMS as the default for all supported countries', () {
       expect(
         RegisterPhoneNumberService.usesApiSmsVerification(countryCode: 'KR'),
-        isTrue,
+        isFalse,
       );
       expect(
         RegisterPhoneNumberService.usesApiSmsVerification(countryCode: 'US'),

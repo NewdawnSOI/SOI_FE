@@ -43,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isVerifying = false;
   bool _isIssuingTestPushToken = false;
 
-  /// 현재 선택 국가 기준으로 한국은 서버 SMS, 그 외는 Firebase 인증을 사용합니다.
+  /// 현재 선택 국가가 레거시 API SMS fallback을 쓰는지 계산합니다.
   bool get _usesApiPhoneVerification =>
       RegisterPhoneNumberService.usesApiSmsVerification(
         countryCode: _selectedCountryCode,

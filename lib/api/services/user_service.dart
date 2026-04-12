@@ -18,10 +18,13 @@ import '../../utils/firebase_phone_auth_service.dart';
 /// final userService = Provider.of<UserService>(context, listen: false);
 ///
 /// // SMS 인증 발송
-/// final success = await userService.sendSmsVerification('01012345678');
+/// final success = await userService.sendSmsVerification('+821012345678');
 ///
 /// // 인증 코드 확인
-/// final verified = await userService.verifySmsCode('01012345678', '123456');
+/// final verified = await userService.verifySmsCode(
+///   '+821012345678',
+///   '123456',
+/// );
 ///
 /// // 전화번호 로그인
 /// final user = await userService.loginByPhone('01012345678');
@@ -186,7 +189,7 @@ class UserService {
   /// SMS 인증 코드 발송
   ///
   /// [phoneNum]으로 SMS 인증 코드를 발송합니다.
-  /// 한국 번호는 서버 API를, 그 외 번호는 Firebase를 타도록 상위 레이어가 선택할 수 있습니다.
+  /// 기본은 Firebase 인증이며, 필요할 때만 [useFirebase]로 레거시 API fallback을 선택합니다.
   /// 성공 시 true 반환, 실패 시 예외를 throw합니다.
   ///
   /// Parameters:
@@ -224,7 +227,7 @@ class UserService {
 
   /// SMS 인증 코드 확인
   /// [phoneNum]과 [code]를 함께 전달하여 인증 코드를 확인합니다.
-  /// 한국 번호는 서버 API를, 그 외 번호는 Firebase를 타도록 상위 레이어가 선택할 수 있습니다.
+  /// 기본은 Firebase 인증이며, 필요할 때만 [useFirebase]로 레거시 API fallback을 선택합니다.
   ///
   /// parameters:
   /// - [phoneNum]: 인증할 전화번호
