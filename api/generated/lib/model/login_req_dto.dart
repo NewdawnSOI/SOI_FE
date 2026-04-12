@@ -13,17 +13,8 @@ part of openapi.api;
 class LoginReqDto {
   /// Returns a new [LoginReqDto] instance.
   LoginReqDto({
-    this.nickname,
     this.phoneNum,
   });
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? nickname;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -35,25 +26,18 @@ class LoginReqDto {
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is LoginReqDto &&
-    other.nickname == nickname &&
     other.phoneNum == phoneNum;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
-    (nickname == null ? 0 : nickname!.hashCode) +
     (phoneNum == null ? 0 : phoneNum!.hashCode);
 
   @override
-  String toString() => 'LoginReqDto[nickname=$nickname, phoneNum=$phoneNum]';
+  String toString() => 'LoginReqDto[phoneNum=$phoneNum]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.nickname != null) {
-      json[r'nickname'] = this.nickname;
-    } else {
-      json[r'nickname'] = null;
-    }
     if (this.phoneNum != null) {
       json[r'phoneNum'] = this.phoneNum;
     } else {
@@ -81,7 +65,6 @@ class LoginReqDto {
       }());
 
       return LoginReqDto(
-        nickname: mapValueOfType<String>(json, r'nickname'),
         phoneNum: mapValueOfType<String>(json, r'phoneNum'),
       );
     }

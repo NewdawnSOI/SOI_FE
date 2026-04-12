@@ -378,6 +378,8 @@ class CommentController extends ChangeNotifier {
       final effParentId = parentId ?? 0;
       final effReplyUserId = replyUserId ?? 0;
       final effFileKey = fileKey?.trim() ?? '';
+      final effLocationX = locationX ?? 0.0;
+      final effLocationY = locationY ?? 0.0;
       final hasAudio = effAudioKey.isNotEmpty;
 
       final result = await _commentService.createComment(
@@ -393,8 +395,8 @@ class CommentController extends ChangeNotifier {
         fileKey: effFileKey,
         waveformData: hasAudio ? (waveformData?.trim() ?? '') : '',
         duration: hasAudio ? (duration ?? 0) : 0,
-        locationX: locationX,
-        locationY: locationY,
+        locationX: effLocationX,
+        locationY: effLocationY,
         type:
             type ??
             _inferType(

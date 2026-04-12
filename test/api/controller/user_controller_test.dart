@@ -488,8 +488,7 @@ void main() {
                   phoneNumber: '01099998888',
                 );
               },
-          onLogin: ({String? nickName, String? phoneNum}) async {
-            expect(nickName, 'new-user');
+          onLoginByPhone: (phoneNum) async {
             expect(phoneNum, '01099998888');
             return null;
           },
@@ -618,8 +617,7 @@ void main() {
                     phoneNumber: '01099998888',
                   );
                 },
-            onLogin: ({String? nickName, String? phoneNum}) async {
-              expect(nickName, 'new-user');
+            onLoginByPhone: (phoneNum) async {
               expect(phoneNum, '01099998888');
               return const User(
                 id: 2,

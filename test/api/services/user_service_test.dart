@@ -280,34 +280,27 @@ void main() {
       expect(result, isNull);
     });
 
-    test(
-      'throws BadRequestException when nickname or phone is missing',
-      () async {
-        final service = UserService(
-          authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
-          userApi: _FakeUserApi(onGetUser: () async => null),
-          onAuthTokenIssued: (_) {},
-          onAuthTokenCleared: () {},
-        );
+    test('throws BadRequestException when login phone is missing', () async {
+      final service = UserService(
+        authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+        userApi: _FakeUserApi(onGetUser: () async => null),
+        onAuthTokenIssued: (_) {},
+        onAuthTokenCleared: () {},
+      );
 
-        expect(
-          service.login(nickName: 'minchan'),
-          throwsA(isA<BadRequestException>()),
-        );
-        expect(
-          service.login(phoneNum: '01012345678'),
-          throwsA(isA<BadRequestException>()),
-        );
-      },
-    );
+      expect(
+        service.login(nickName: 'minchan'),
+        throwsA(isA<BadRequestException>()),
+      );
+    });
 
     test('stores JWT token and fetches current user after login', () async {
       String? issuedToken;
       final service = UserService(
         authApi: _FakeAuthApi(
           onLogin: (dto) async {
-            expect(dto.nickname, 'minchan');
             expect(dto.phoneNum, '01012345678');
+            expect(dto.toJson().containsKey('nickname'), isFalse);
             return LoginRespDto(accessToken: 'jwt-token');
           },
         ),
@@ -345,13 +338,13 @@ void main() {
       );
     });
 
-    test('trims login credentials before calling auth api', () async {
+    test('trims phone before calling auth api for legacy login', () async {
       String? issuedToken;
       final service = UserService(
         authApi: _FakeAuthApi(
           onLogin: (dto) async {
-            expect(dto.nickname, 'minchan');
             expect(dto.phoneNum, '01012345678');
+            expect(dto.toJson().containsKey('nickname'), isFalse);
             return LoginRespDto(accessToken: 'jwt-token');
           },
         ),
@@ -398,8 +391,8 @@ void main() {
         ),
         buildUnauthenticatedAuthApi: () => _FakeAuthApi(
           onLogin: (dto) async {
-            expect(dto.nickname, isNull);
             expect(dto.phoneNum, '01012345678');
+            expect(dto.toJson().containsKey('nickname'), isFalse);
             return LoginRespDto(accessToken: 'jwt-phone-token');
           },
         ),
@@ -539,8 +532,8 @@ void main() {
         ),
         buildUnauthenticatedAuthApi: () => _FakeAuthApi(
           onLogin: (dto) async {
-            expect(dto.nickname, 'minchan');
             expect(dto.phoneNum, '01012345678');
+            expect(dto.toJson().containsKey('nickname'), isFalse);
             return LoginRespDto(accessToken: 'jwt-token');
           },
         ),

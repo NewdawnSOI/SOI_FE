@@ -157,23 +157,16 @@ class UserService {
     return normalized;
   }
 
-  /// 로그인 요청 DTO를 만들어서 반환하는 헬퍼 함수입니다.
+  /// 로그인 요청 DTO를 phone-only 생성 계약에 맞춰 정규화합니다.
+  /// 레거시 호출부의 nickName은 호환을 위해 받되 요청 본문에는 포함하지 않습니다.
   LoginReqDto _buildLoginRequest({String? nickName, String? phoneNum}) {
-    // 닉네임은 로그인에 모두 필요하므로, null이거나 유효한 값이어야 합니다.
-    final normalizedNickName = _normalizeOptionalText(nickName);
-
-    // 전화번호는 로그인에 모두 필요하므로, null이거나 유효한 값이어야 합니다.
     final normalizedPhoneNum = _normalizeOptionalText(phoneNum);
 
-    if (normalizedNickName == null || normalizedPhoneNum == null) {
-      throw const BadRequestException(message: '닉네임과 전화번호를 모두 전달해야 합니다.');
+    if (normalizedPhoneNum == null) {
+      throw const BadRequestException(message: '전화번호를 입력해야 합니다.');
     }
 
-    // 로그인 요청 DTO를 생성하여 반환합니다. 닉네임과 전화번호는 정규화된 값을 사용합니다.
-    return LoginReqDto(
-      nickname: normalizedNickName,
-      phoneNum: normalizedPhoneNum,
-    );
+    return LoginReqDto(phoneNum: normalizedPhoneNum);
   }
 
   /// 액세스 토큰을 로그인 응답에서 추출하여 반환하는 헬퍼 함수입니다.
@@ -276,12 +269,8 @@ class UserService {
   // 로그인
   // ============================================
 
-  /// 닉네임과 전화번호로 로그인
-  ///
-  /// 회원가입 직후 자동 인증처럼 닉네임이 함께 필요한 호환 흐름에서 사용합니다.
-  /// 로그인 화면의 기본 진입점은 [loginByPhone] 입니다.
-  ///
-  /// [nickName]과 [phoneNum]을 함께 사용해 로그인합니다.
+  /// 레거시 수동 로그인 호출부를 현재 phone-only 인증 계약으로 연결합니다.
+  /// 생성된 로그인 DTO가 `phoneNum`만 받으므로 [nickName]은 더 이상 전송하지 않습니다.
   /// 성공 시 사용자 정보(User) 반환, 실패 시 예외를 throw합니다.
   ///
   /// 반환값:
@@ -293,20 +282,17 @@ class UserService {
   /// - [NotFoundException]: 등록되지 않은 사용자
   /// - [SoiApiException]: 기타 API 에러
   Future<User?> login({String? nickName, String? phoneNum}) async {
-    // 로그인 요청 DTO를 생성하는 헬퍼 함수를 사용하여,
-    // 닉네임과 전화번호를 정규화하고 DTO 객체로 만들어서 반환받습니다.
+    final normalizedNickName = _normalizeOptionalText(nickName);
     final dto = _buildLoginRequest(nickName: nickName, phoneNum: phoneNum);
     _debugLogAuthStage(
       'manual-login.request-built',
       details: <String, Object?>{
-        'hasNickname': dto.nickname != null,
-        'nicknameLength': dto.nickname?.length,
+        'legacyNicknameProvided': normalizedNickName != null,
         'phoneLength': dto.phoneNum?.length,
       },
     );
 
     try {
-      // 실제 로그인 API 호출을 수행하는 헬퍼 함수입니다.
       return await _login(dto);
     } on ApiException catch (e) {
       _debugLogAuthError('manual-login.api-exception', e);
@@ -337,7 +323,8 @@ class UserService {
     }
   }
 
-  /// 전화번호만으로 로그인 (인증 완료 후 사용)
+  /// 생성 계약의 `/auth/login` 엔드포인트를 전화번호만으로 호출합니다.
+  /// SMS 인증을 마친 기존 로그인 화면과 회원가입 직후 재인증 흐름의 기본 진입점입니다.
   ///
   /// SMS 인증이 완료된 전화번호로만 로그인합니다. 닉네임 없이 전화번호만 사용합니다.
   ///
@@ -345,14 +332,10 @@ class UserService {
   /// - 기존 회원: User (사용자 정보)
   /// - 미가입: null
   Future<User?> loginByPhone(String phoneNum) async {
-    final normalized = _normalizeText(phoneNum);
-    if (normalized.isEmpty) {
-      throw const BadRequestException(message: '전화번호를 입력해야 합니다.');
-    }
-    final dto = LoginReqDto(phoneNum: normalized);
+    final dto = _buildLoginRequest(phoneNum: phoneNum);
     _debugLogAuthStage(
       'login-by-phone.request-built',
-      details: <String, Object?>{'phoneLength': normalized.length},
+      details: <String, Object?>{'phoneLength': dto.phoneNum?.length},
     );
 
     try {

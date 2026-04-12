@@ -120,6 +120,8 @@ class CommentService {
       final normalizedParentId = parentId ?? 0;
       final normalizedReplyUserId = replyUserId ?? 0;
       final commentTypeEnum = _toCommentTypeEnum(type);
+      final normalizedLocationX = locationX ?? 0.0;
+      final normalizedLocationY = locationY ?? 0.0;
 
       final isReply =
           normalizedParentId > 0 ||
@@ -137,12 +139,8 @@ class CommentService {
         fileKey: fileKey?.trim() ?? '',
         waveformData: _normalizeWaveformData(waveformData?.trim() ?? ''),
         duration: duration ?? 0,
-        locationX: isReply || locationX == null || locationY == null
-            ? null
-            : locationX,
-        locationY: isReply || locationX == null || locationY == null
-            ? null
-            : locationY,
+        locationX: isReply ? null : normalizedLocationX,
+        locationY: isReply ? null : normalizedLocationY,
         commentType: commentTypeEnum,
       );
 

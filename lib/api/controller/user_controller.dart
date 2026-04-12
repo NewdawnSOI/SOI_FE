@@ -313,11 +313,8 @@ class UserController extends ChangeNotifier {
   // 로그인/로그아웃
   // ============================================
 
-  /// 로그인
-  /// 회원가입 직후 자동 인증처럼 닉네임이 함께 필요한 호환 흐름에서 사용합니다.
-  /// 로그인 화면의 기본 진입점은 [loginByPhone] 입니다.
-  ///
-  /// [nickName]과 [phoneNumber]를 함께 사용해 로그인합니다.
+  /// 레거시 로그인 호출부를 현재 phone-only 서비스 로그인으로 연결합니다.
+  /// 생성 계약상 실제 인증 요청에는 [phoneNumber]만 전달되고 [nickName]은 호환 입력으로만 유지됩니다.
   ///
   /// Parameters:
   ///   - [nickName]: 로그인할 닉네임/ID
@@ -601,7 +598,6 @@ class UserController extends ChangeNotifier {
       _debugLogAuthStage('signup', 'auth-after-signup.start');
       final authenticatedUser = await _authenticateAfterSignup(
         phoneNum: normalizedPhoneNum,
-        nickName: normalizedNickName,
       );
       if (authenticatedUser == null) {
         throw const AuthException(message: '회원가입 후 로그인에 실패했습니다.');
@@ -625,11 +621,9 @@ class UserController extends ChangeNotifier {
     }
   }
 
-  Future<User?> _authenticateAfterSignup({
-    required String phoneNum,
-    required String nickName,
-  }) async {
-    return _userService.login(nickName: nickName, phoneNum: phoneNum);
+  /// 회원가입 직후 동일한 전화번호로 세션을 확정해 생성 직후 상태를 앱 전역에 동기화합니다.
+  Future<User?> _authenticateAfterSignup({required String phoneNum}) async {
+    return _userService.loginByPhone(phoneNum);
   }
 
   // ============================================
