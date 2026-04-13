@@ -38,6 +38,7 @@ class ApiPhotoDetailScreen extends StatefulWidget {
   final String categoryName;
   final int categoryId;
   final bool singlePostMode;
+  final bool forceParentCommentsReloadOnEntry;
 
   const ApiPhotoDetailScreen({
     super.key,
@@ -46,6 +47,7 @@ class ApiPhotoDetailScreen extends StatefulWidget {
     required this.categoryName,
     required this.categoryId,
     this.singlePostMode = false,
+    this.forceParentCommentsReloadOnEntry = false,
   });
 
   @override
@@ -83,6 +85,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   final Map<int, PendingApiCommentDraft> _pendingCommentDrafts = {};
   final Map<int, PendingApiCommentMarker> _pendingCommentMarkers = {};
   final Map<int, String> _resolvedAudioUrls = {};
+  final Map<int, Future<List<Comment>>> _inFlightParentCommentLoads = {};
   final Map<int, Future<void>> _inFlightTagCommentLoads = {};
   final Map<int, Future<List<Comment>>> _inFlightFullCommentLoads = {};
   bool _isTextFieldFocused = false;
@@ -154,6 +157,16 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
+      if (widget.forceParentCommentsReloadOnEntry) {
+        unawaited(
+          _loadParentCommentsForPost(
+            _posts[_currentIndex].id,
+            forceReload: true,
+          ),
+        );
+        return;
+      }
+
       // 초기 댓글 로드
       _loadTagCommentsForPost(_posts[_currentIndex].id);
     });
@@ -173,11 +186,53 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     super.dispose();
   }
 
+  /// 차단 상태가 바뀌면 현재 카테고리 상세 목록을 다시 계산해 숨겨야 할 post를 즉시 반영합니다.
   Future<void> _refreshPostsForBlockStatus() async {
     if (widget.singlePostMode) {
       return;
     }
+    await _refreshCategoryPosts();
+  }
+
+  /// 당겨서 새로고침 시 현재 화면 모드에 맞는 post 목록과 현재 post의 태그 상태를 서버 기준으로 다시 맞춥니다.
+  Future<void> _handleRefresh() async {
+    if (_posts.isEmpty) {
+      return;
+    }
+
+    if (widget.singlePostMode) {
+      await _refreshSinglePostDetail();
+      return;
+    }
+
+    await _refreshCategoryPosts(forceRefresh: true);
+  }
+
+  /// 단건 상세 모드에서는 현재 post 상세를 다시 받아 화면과 부모 댓글 미리보기를 최신 상태로 교체합니다.
+  Future<void> _refreshSinglePostDetail() async {
+    final currentPostId = _posts[_currentIndex].id;
+    final refreshedPost = await context.read<PostController>().getPostDetail(
+      currentPostId,
+    );
+    if (!mounted || refreshedPost == null) {
+      return;
+    }
+
+    _invalidateDetailCommentCaches(postIds: <int>{currentPostId});
+
+    setState(() {
+      _posts = <Post>[refreshedPost];
+      _currentIndex = 0;
+    });
+
+    unawaited(_loadUserProfileImage());
+    await _loadParentCommentsForPost(refreshedPost.id, forceReload: true);
+  }
+
+  /// 카테고리 상세는 현재 보던 post를 유지하면서 목록을 강제 새로고침하고 현재 post의 원댓글 미리보기를 함께 갱신합니다.
+  Future<void> _refreshCategoryPosts({bool forceRefresh = false}) async {
     if (!mounted) return;
+
     final userController = _userController ?? context.read<UserController>();
     final currentUser = userController.currentUser;
     if (currentUser == null) return;
@@ -185,11 +240,13 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     final postController = context.read<PostController>();
     final friendController =
         _friendController ?? context.read<FriendController>();
+    final currentPostId = _posts.isNotEmpty ? _posts[_currentIndex].id : null;
 
     final posts = await postController.getPostsByCategory(
       categoryId: widget.categoryId,
       userId: currentUser.id,
       notificationId: null,
+      forceRefresh: forceRefresh,
     );
 
     final blockedUsers = await friendController.getAllFriends(
@@ -207,7 +264,6 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       return;
     }
 
-    final currentPostId = _posts.isNotEmpty ? _posts[_currentIndex].id : null;
     var nextIndex = 0;
     if (currentPostId != null) {
       final foundIndex = filteredPosts.indexWhere(
@@ -216,6 +272,13 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       nextIndex = foundIndex >= 0 ? foundIndex : 0;
     }
 
+    final refreshedPostId = filteredPosts[nextIndex].id;
+    final affectedPostIds = <int>{
+      ..._posts.map((post) => post.id),
+      ...filteredPosts.map((post) => post.id),
+    };
+    _invalidateDetailCommentCaches(postIds: affectedPostIds);
+
     setState(() {
       _posts = filteredPosts;
       _currentIndex = nextIndex;
@@ -223,15 +286,29 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
     if (_pageController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (!_pageController.hasClients) return;
+        if (!mounted || !_pageController.hasClients) return;
         _pageController.jumpToPage(_currentIndex);
       });
     }
 
     unawaited(_loadUserProfileImage());
-    _loadTagCommentsForPost(_posts[_currentIndex].id);
+    await _loadParentCommentsForPost(refreshedPostId, forceReload: true);
   }
+
+  /// 새로고침으로 바뀐 상세 목록은 댓글/이모지 캐시를 비워 다음 렌더가 최신 서버 데이터를 다시 읽게 합니다.
+  void _invalidateDetailCommentCaches({required Set<int> postIds}) {
+    final commentController = context.read<CommentController>();
+    for (final postId in postIds) {
+      commentController.invalidatePostCaches(postId: postId);
+      _selectedEmojisByPostId.remove(postId);
+      _inFlightParentCommentLoads.remove(postId);
+      _inFlightTagCommentLoads.remove(postId);
+      _inFlightFullCommentLoads.remove(postId);
+    }
+  }
+
+  /// 게시물이 한 장뿐인 경우에는 PageView 대신 refresh 전용 scroll host를 사용해 Android pull-to-refresh를 안정화합니다.
+  bool get _usesSinglePostRefreshScroll => _posts.length == 1;
 
   // ================= UI =================
   @override
@@ -288,155 +365,189 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
                 ),
             ],
           ),
-          body: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 사진/영상 부분만 위아래로 스크롤
-                  SizedBox(
-                    height: 500.h,
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: _posts.length,
-                      scrollDirection: Axis.vertical,
-                      clipBehavior: Clip.hardEdge,
-                      onPageChanged: _onPageChanged,
-                      itemBuilder: (context, index) {
-                        final post = _posts[index];
-                        final currentUserId =
-                            _userController?.currentUser?.userId;
-                        final isOwner = currentUserId == post.nickName;
-
-                        // 사용자 캐시 채우기
-                        if (!_userProfileImages.containsKey(post.nickName)) {
-                          _userProfileImages[post.nickName] =
-                              _userProfileImageUrl;
-                          _profileLoadingStates[post.nickName] =
-                              _isLoadingProfile;
-                          _userNames[post.nickName] = _userName;
-                        }
-
-                        return ApiPhotoCardWidget(
-                          key: ValueKey(post.id),
-                          post: post,
-                          categoryName: widget.categoryName,
-                          categoryId: widget.categoryId,
-                          index: index,
-                          isOwner: isOwner,
-                          isArchive: true,
-                          isCategory: true,
-                          displayOnly: true,
-                          selectedEmoji: _selectedEmojisByPostId[post.id],
-                          onEmojiSelected: (emoji) =>
-                              _setSelectedEmoji(post.id, emoji),
-                          pendingCommentDrafts: _pendingCommentDrafts,
-                          pendingVoiceComments: _pendingCommentMarkers,
-                          onToggleAudio: _toggleAudio,
-                          onProfileImageDragged: (postId, absolutePosition) {
-                            _onProfileImageDragged(postId, absolutePosition);
-                          },
-                          onCommentsReloadRequested: _reloadCommentsForPost,
-                          onLoadFullComments: _loadFullCommentsForPost,
-                        );
-                      },
-                    ),
-                  ),
-
-                  // 현재 게시물의 작성자 정보 (화면에 고정)
-                  if (_posts.isNotEmpty && _currentIndex < _posts.length) ...[
-                    SizedBox(height: 12.h),
-                    Builder(
-                      builder: (context) {
-                        final post = _posts[_currentIndex];
-                        final currentUserId =
-                            _userController?.currentUser?.userId;
-                        final isOwner = currentUserId == post.nickName;
-                        return ApiUserInfoWidget(
-                          post: post,
-                          isCurrentUserPost: isOwner,
-                          onDeletePressed: () => _deletePost(post),
-                          onCommentPressed: () {
-                            final comments = _initialSheetCommentsForPost(
-                              post.id,
-                            );
-                            showModalBottomSheet<void>(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (ctx) {
-                                return ChangeNotifierProvider(
-                                  create: (_) => AudioController(),
-                                  child: ApiVoiceCommentListSheet(
-                                    postId: post.id,
-                                    initialComments: comments,
-                                    loadFullComments: _loadFullCommentsForPost,
-                                    onCommentsUpdated: (updatedComments) {
-                                      if (!mounted) return;
-                                      setState(() {
-                                        _replaceCommentCaches(
-                                          post.id,
-                                          updatedComments,
-                                        );
-                                      });
-                                    },
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        );
-                      },
-                    ),
-                    SizedBox(height: 10.h),
-                    // 댓글 입력창 공간 확보
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
-                      height: isKeyboardVisible ? 0 : 90.h,
-                    ),
-                  ],
-                ],
-              ),
-
-              // 댓글 입력창 (화면에 고정)
-              // 키보드가 올라오면 viewInsets.bottom 만큼 위로 올라가고,
-              // 키보드가 없으면 탭바 위 55px에 위치합니다.
-              if (_posts.isNotEmpty && _currentIndex < _posts.length)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: AnimatedPadding(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOut,
-                    padding: EdgeInsets.only(bottom: composerBottomInset),
-                    child: CommentInputWidget(
-                      postId: _posts[_currentIndex].id,
-                      pendingCommentDrafts: _pendingCommentDrafts,
-                      onTextCommentCompleted: (postId, text) async {
-                        await _onTextCommentCreated(postId, text);
-                      },
-                      onAudioCommentCompleted: _onAudioCommentCompleted,
-                      onMediaCommentCompleted: _onMediaCommentCompleted,
-                      resolveDropRelativePosition: (postId) =>
-                          _pendingCommentMarkers[postId]?.relativePosition,
-                      onCommentSaveProgress: _onCommentSaveProgress,
-                      onCommentSaveSuccess: _onCommentSaveSuccess,
-                      onCommentSaveFailure: _onCommentSaveFailure,
-                      onTextFieldFocusChanged: (isFocused) {
-                        setState(() {
-                          _isTextFieldFocused = isFocused;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-            ],
+          body: RefreshIndicator(
+            onRefresh: _handleRefresh,
+            color: Colors.white,
+            backgroundColor: Colors.black,
+            child: _buildRefreshContent(
+              isKeyboardVisible: isKeyboardVisible,
+              composerBottomInset: composerBottomInset,
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  /// 게시물 수에 따라 PageView 또는 단일 카드 refresh host를 선택해 Android에서도 당겨서 새로고침이 동작하게 합니다.
+  Widget _buildRefreshContent({
+    required bool isKeyboardVisible,
+    required double composerBottomInset,
+  }) {
+    final content = _buildDetailContent(
+      isKeyboardVisible: isKeyboardVisible,
+      composerBottomInset: composerBottomInset,
+    );
+    if (_usesSinglePostRefreshScroll) {
+      return CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [SliverFillRemaining(hasScrollBody: false, child: content)],
+      );
+    }
+    return content;
+  }
+
+  /// 상세 본문은 단일 카드 refresh host와 일반 PageView 모드가 같은 고정형 레이아웃을 공유합니다.
+  Widget _buildDetailContent({
+    required bool isKeyboardVisible,
+    required double composerBottomInset,
+  }) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(height: 500.h, child: _buildPhotoViewport()),
+
+            // 현재 게시물의 작성자 정보 (화면에 고정)
+            if (_posts.isNotEmpty && _currentIndex < _posts.length) ...[
+              SizedBox(height: 12.h),
+              Builder(
+                builder: (context) {
+                  final post = _posts[_currentIndex];
+                  final currentUserId = _userController?.currentUser?.userId;
+                  final isOwner = currentUserId == post.nickName;
+                  return ApiUserInfoWidget(
+                    post: post,
+                    isCurrentUserPost: isOwner,
+                    onDeletePressed: () => _deletePost(post),
+                    onCommentPressed: () {
+                      final comments = _initialSheetCommentsForPost(post.id);
+                      showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (ctx) {
+                          return ChangeNotifierProvider(
+                            create: (_) => AudioController(),
+                            child: ApiVoiceCommentListSheet(
+                              postId: post.id,
+                              initialComments: comments,
+                              loadFullComments: _loadFullCommentsForPost,
+                              onCommentsUpdated: (updatedComments) {
+                                if (!mounted) return;
+                                setState(() {
+                                  _replaceCommentCaches(
+                                    post.id,
+                                    updatedComments,
+                                  );
+                                });
+                              },
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+              SizedBox(height: 10.h),
+              // 댓글 입력창 공간 확보
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                height: isKeyboardVisible ? 0 : 90.h,
+              ),
+            ],
+          ],
+        ),
+
+        // 댓글 입력창 (화면에 고정)
+        // 키보드가 올라오면 viewInsets.bottom 만큼 위로 올라가고,
+        // 키보드가 없으면 탭바 위 55px에 위치합니다.
+        if (_posts.isNotEmpty && _currentIndex < _posts.length)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: AnimatedPadding(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.only(bottom: composerBottomInset),
+              child: CommentInputWidget(
+                postId: _posts[_currentIndex].id,
+                pendingCommentDrafts: _pendingCommentDrafts,
+                onTextCommentCompleted: (postId, text) async {
+                  await _onTextCommentCreated(postId, text);
+                },
+                onAudioCommentCompleted: _onAudioCommentCompleted,
+                onMediaCommentCompleted: _onMediaCommentCompleted,
+                resolveDropRelativePosition: (postId) =>
+                    _pendingCommentMarkers[postId]?.relativePosition,
+                onCommentSaveProgress: _onCommentSaveProgress,
+                onCommentSaveSuccess: _onCommentSaveSuccess,
+                onCommentSaveFailure: _onCommentSaveFailure,
+                onTextFieldFocusChanged: (isFocused) {
+                  setState(() {
+                    _isTextFieldFocused = isFocused;
+                  });
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 게시물 수에 따라 PageView 또는 단일 카드를 선택해 refresh 제스처와 페이지 스와이프를 함께 보장합니다.
+  Widget _buildPhotoViewport() {
+    if (_usesSinglePostRefreshScroll) {
+      return _buildPhotoCard(_posts.first, 0);
+    }
+
+    return PageView.builder(
+      controller: _pageController,
+      itemCount: _posts.length,
+      scrollDirection: Axis.vertical,
+      clipBehavior: Clip.hardEdge,
+      physics: const AlwaysScrollableScrollPhysics(parent: PageScrollPhysics()),
+      onPageChanged: _onPageChanged,
+      itemBuilder: (context, index) => _buildPhotoCard(_posts[index], index),
+    );
+  }
+
+  /// 상세 카드 한 장의 공통 조립을 분리해 단일 카드/페이지뷰 모드가 같은 UI를 공유하게 합니다.
+  Widget _buildPhotoCard(Post post, int index) {
+    final currentUserId = _userController?.currentUser?.userId;
+    final isOwner = currentUserId == post.nickName;
+
+    if (!_userProfileImages.containsKey(post.nickName)) {
+      _userProfileImages[post.nickName] = _userProfileImageUrl;
+      _profileLoadingStates[post.nickName] = _isLoadingProfile;
+      _userNames[post.nickName] = _userName;
+    }
+
+    return ApiPhotoCardWidget(
+      key: ValueKey(post.id),
+      post: post,
+      categoryName: widget.categoryName,
+      categoryId: widget.categoryId,
+      index: index,
+      isOwner: isOwner,
+      isArchive: true,
+      isCategory: true,
+      displayOnly: true,
+      selectedEmoji: _selectedEmojisByPostId[post.id],
+      onEmojiSelected: (emoji) => _setSelectedEmoji(post.id, emoji),
+      pendingCommentDrafts: _pendingCommentDrafts,
+      pendingVoiceComments: _pendingCommentMarkers,
+      onToggleAudio: _toggleAudio,
+      onProfileImageDragged: (postId, absolutePosition) {
+        _onProfileImageDragged(postId, absolutePosition);
+      },
+      onCommentsReloadRequested: _reloadCommentsForPost,
+      onLoadFullComments: _loadFullCommentsForPost,
     );
   }
 
@@ -614,6 +725,55 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     }
   }
 
+  /// 알림 진입/수동 새로고침에서는 원댓글만 다시 받아 태그와 시트 초기 미리보기를 가볍게 최신화합니다.
+  Future<List<Comment>> _loadParentCommentsForPost(
+    int postId, {
+    bool forceReload = false,
+  }) async {
+    final commentController = context.read<CommentController>();
+    if (!forceReload) {
+      final cached = commentController.peekParentCommentsCache(postId: postId);
+      if (cached != null) {
+        return cached;
+      }
+      final inFlight = _inFlightParentCommentLoads[postId];
+      if (inFlight != null) {
+        return inFlight;
+      }
+    }
+
+    final future = () async {
+      try {
+        final comments = await commentController.getAllParentComments(
+          postId: postId,
+          forceReload: forceReload,
+        );
+        if (!mounted) {
+          return comments;
+        }
+
+        setState(() {
+          _syncSelectedEmojiForPost(postId, comments);
+        });
+        return comments;
+      } catch (error) {
+        debugPrint('원댓글 로드 실패(postId: $postId): $error');
+        return commentController.peekParentCommentsCache(postId: postId) ??
+            const <Comment>[];
+      }
+    }();
+
+    _inFlightParentCommentLoads[postId] = future;
+    try {
+      return await future;
+    } finally {
+      final registered = _inFlightParentCommentLoads[postId];
+      if (identical(registered, future)) {
+        _inFlightParentCommentLoads.remove(postId);
+      }
+    }
+  }
+
   /// 댓글시트는 full thread를 캐시해 재오픈 시 네트워크 비용을 줄입니다.
   Future<List<Comment>> _loadFullCommentsForPost(
     int postId, {
@@ -642,7 +802,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
         }
 
         setState(() {
-          _replaceCommentCaches(postId, comments);
+          _syncSelectedEmojiForPost(postId, comments);
         });
         return comments;
       } catch (error) {
@@ -663,33 +823,51 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     }
   }
 
-  /// overlay 삭제 후에는 이미 가진 cache 범위에 맞춰 tag/full 중 필요한 조회만 다시 수행합니다.
+  /// overlay 삭제 후에는 이미 가진 cache 범위에 맞춰 full/parent/tag 중 필요한 조회만 다시 수행합니다.
   Future<void> _reloadCommentsForPost(int postId) async {
     if (context.read<CommentController>().peekCommentsCache(postId: postId) !=
         null) {
       await _loadFullCommentsForPost(postId, forceReload: true);
       return;
     }
+    if (context.read<CommentController>().peekParentCommentsCache(
+          postId: postId,
+        ) !=
+        null) {
+      await _loadParentCommentsForPost(postId, forceReload: true);
+      return;
+    }
     await _loadTagCommentsForPost(postId, forceReload: true);
   }
 
+  /// 댓글 시트는 full cache가 없을 때 원댓글 미리보기를 먼저 보여 주고, 없으면 태그 캐시로 즉시 엽니다.
   List<Comment> _initialSheetCommentsForPost(int postId) {
     final commentController = context.read<CommentController>();
     final fullComments = commentController.peekCommentsCache(postId: postId);
     if (fullComments != null && fullComments.isNotEmpty) {
       return fullComments;
     }
+    final parentComments = commentController.peekParentCommentsCache(
+      postId: postId,
+    );
+    if (parentComments != null && parentComments.isNotEmpty) {
+      return parentComments;
+    }
     return commentController.peekTagCommentsCache(postId: postId) ??
         const <Comment>[];
   }
 
-  /// full thread 갱신 시 controller cache와 이모지 선택 상태를 같은 기준으로 맞춥니다.
+  /// 댓글 시트에서 수정된 전체 스레드는 controller cache와 로컬 이모지 상태를 같은 기준으로 다시 맞춥니다.
   void _replaceCommentCaches(int postId, List<Comment> comments) {
     context.read<CommentController>().replaceCommentsCache(
       postId: postId,
       comments: comments,
     );
+    _syncSelectedEmojiForPost(postId, comments);
+  }
 
+  /// 댓글 캐시가 갱신되면 현재 사용자가 선택한 이모지를 로컬 UI 상태와 같은 기준으로 맞춥니다.
+  void _syncSelectedEmojiForPost(int postId, List<Comment> comments) {
     final currentUserId = _userController?.currentUser?.userId;
     if (currentUserId == null) {
       return;
@@ -699,9 +877,11 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       comments: comments,
       currentUserNickname: currentUserId,
     );
-    if (selected != null) {
-      _selectedEmojisByPostId[postId] = selected;
+    if (selected == null) {
+      _selectedEmojisByPostId.remove(postId);
+      return;
     }
+    _selectedEmojisByPostId[postId] = selected;
   }
 
   /// 프로필 이미지 드래그 시 위치 업데이트 처리

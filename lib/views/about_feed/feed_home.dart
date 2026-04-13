@@ -39,6 +39,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
 
   // 탭 재선택 시 첫 게시물로 이동용 페이지 컨트롤러
   final PageController _feedPageController = PageController();
+  int _currentFeedIndex = 0;
 
   // 사용자 컨트롤러 및 프로필 이미지 키 추적
   UserController? _userController;
@@ -134,12 +135,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       _feedPageController.jumpToPage(0);
     }
     if (_feedDataManager != null) {
-      unawaited(
-        _feedDataManager!.loadUserCategoriesAndPhotos(
-          context,
-          forceRefresh: true,
-        ),
-      );
+      _currentFeedIndex = 0;
+      unawaited(_handleFeedRefresh());
     }
   }
 
@@ -203,6 +200,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
 
   /// 페이지 변경 처리 (무한 스크롤)
   void _handlePageChanged(int index) {
+    _currentFeedIndex = index;
     final totalPosts = _feedDataManager?.visiblePosts.length ?? 0;
     if (totalPosts == 0) {
       return;
@@ -344,6 +342,61 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     );
   }
 
+  /// 당겨서 새로고침하면 현재 카드와 인접 카드의 원댓글 미리보기만 강제로 다시 받아 최신성과 체감 속도를 함께 맞춥니다.
+  Future<void> _handleFeedRefresh() async {
+    final previousVisiblePosts = _feedDataManager?.visiblePosts ?? const [];
+    _invalidateFeedCommentCaches(
+      previousVisiblePosts.map((item) => item.post.id),
+    );
+
+    await _feedDataManager?.loadUserCategoriesAndPhotos(
+      context,
+      forceRefresh: true,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    final refreshedVisiblePosts = _feedDataManager?.visiblePosts ?? const [];
+    _invalidateFeedCommentCaches(
+      refreshedVisiblePosts.map((item) => item.post.id),
+    );
+    final refreshTargets = _buildParentRefreshCandidates(refreshedVisiblePosts);
+    if (refreshTargets.isNotEmpty) {
+      await _voiceCommentStateManager?.loadParentCommentsForPosts(
+        refreshTargets.map((item) => item.post.id).toList(growable: false),
+        context,
+        forceReload: true,
+      );
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// refresh 경로에서는 stale full cache 재사용을 막기 위해 현재 보이는 카드들의 댓글 캐시와 선택 이모지를 함께 비웁니다.
+  void _invalidateFeedCommentCaches(Iterable<int> postIds) {
+    final commentController = context.read<CommentController>();
+    final selectedEmojis = _voiceCommentStateManager?.selectedEmojisByPostId;
+    for (final postId in postIds.toSet()) {
+      commentController.invalidatePostCaches(postId: postId);
+      selectedEmojis?.remove(postId);
+    }
+  }
+
+  /// refresh 직후에는 현재 카드와 다음 카드까지만 원댓글 미리보기를 다시 받아 초기 네트워크 부하를 제한합니다.
+  List<FeedPostItem> _buildParentRefreshCandidates(List<FeedPostItem> items) {
+    if (items.isEmpty) {
+      return const <FeedPostItem>[];
+    }
+
+    final startIndex = _currentFeedIndex.clamp(0, items.length - 1);
+    final endIndex = (startIndex + 2) < items.length
+        ? startIndex + 2
+        : items.length;
+    return items.sublist(startIndex, endIndex);
+  }
+
   /// 현재/인접 post의 태그 댓글만 선로딩해 visible 카드의 첫 오버레이 표시를 앞당깁니다.
   void _loadTagCommentsAroundIndex(int index) {
     final visiblePosts =
@@ -394,7 +447,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     );
   }
 
-  /// 태그 삭제 후에는 현재 cache 상태에 맞춰 tag/full 중 필요한 범위만 다시 동기화합니다.
+  /// 태그 삭제 후에는 현재 cache 상태에 맞춰 full/parent/tag 중 필요한 범위만 다시 동기화합니다.
   Future<void> _reloadCommentsForPost(int postId) async {
     final manager = _voiceCommentStateManager;
     if (manager == null) {
@@ -404,6 +457,18 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     if (context.read<CommentController>().peekCommentsCache(postId: postId) !=
         null) {
       await manager.loadCommentsForPost(postId, context, forceReload: true);
+      return;
+    }
+
+    if (context.read<CommentController>().peekParentCommentsCache(
+          postId: postId,
+        ) !=
+        null) {
+      await manager.loadParentCommentsForPost(
+        postId,
+        context,
+        forceReload: true,
+      );
       return;
     }
 
@@ -509,10 +574,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
 
     return RefreshIndicator(
       // 당겨서 새로고침은 서버에서 다시 가져오도록 강제 리프레시합니다.
-      onRefresh: () => _feedDataManager!.loadUserCategoriesAndPhotos(
-        context,
-        forceRefresh: true,
-      ),
+      onRefresh: _handleFeedRefresh,
       color: Colors.white,
       backgroundColor: Colors.black,
       child: FeedPageBuilder(

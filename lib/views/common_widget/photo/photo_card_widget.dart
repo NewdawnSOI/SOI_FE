@@ -150,6 +150,14 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
       ) ??
       const <Comment>[];
 
+  /// 댓글 시트는 full cache가 없을 때 원댓글 미리보기를 먼저 사용하고, 마지막 fallback으로 태그 캐시를 사용합니다.
+  List<Comment> get _parentComments =>
+      context.read<CommentController>().peekParentCommentsCache(
+        postId: widget.post.id,
+      ) ??
+      const <Comment>[];
+
+  /// 댓글 시트 초기 진입값은 full -> parent preview -> tag overlay 순으로 선택합니다.
   List<Comment> get _initialSheetComments {
     final fullComments =
         context.read<CommentController>().peekCommentsCache(
@@ -158,6 +166,9 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
         const <Comment>[];
     if (fullComments.isNotEmpty) {
       return fullComments;
+    }
+    if (_parentComments.isNotEmpty) {
+      return _parentComments;
     }
     return _tagComments;
   }

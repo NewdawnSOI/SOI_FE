@@ -57,6 +57,10 @@ class UserService {
   /// Firebase 기반 전화번호 인증 상태를 유지하는 단일 서비스 인스턴스입니다.
   final FirebasePhoneVerificationService _phoneVerificationService;
 
+  /// 직전 SMS 요청의 번호와 채널을 기억해 같은 재전송에서는 검증 상태를 재사용합니다.
+  String? _lastVerificationPhoneNumber;
+  bool? _lastVerificationUsesFirebase;
+
   /// 로그인/재발급 응답 전체를 현재 인증 세션으로 반영합니다.
   final void Function(LoginRespDto loginResponse) _applyAuthSession;
 
@@ -92,8 +96,20 @@ class UserService {
   bool get isPhoneNumberVerified =>
       _phoneVerificationService.isCurrentPhoneVerified;
 
-  /// 전화번호 인증 채널이 바뀌어도 이전 Firebase verification 상태가 재사용되지 않게 비웁니다.
+  /// 같은 번호/채널 재전송은 유지하고, 조건이 바뀐 경우에만 인증 상태를 비우면 되는지 판단합니다.
+  bool shouldResetPhoneVerificationState(
+    String phoneNumber, {
+    required bool useFirebase,
+  }) {
+    final normalizedPhoneNumber = _normalizeText(phoneNumber);
+    return _lastVerificationPhoneNumber != normalizedPhoneNumber ||
+        _lastVerificationUsesFirebase != useFirebase;
+  }
+
+  /// 전화번호 인증 채널이나 입력 번호가 바뀌면 이전 인증 상태와 요청 컨텍스트를 함께 비웁니다.
   void resetPhoneVerificationState() {
+    _lastVerificationPhoneNumber = null;
+    _lastVerificationUsesFirebase = null;
     _phoneVerificationService.reset();
   }
 
@@ -204,16 +220,24 @@ class UserService {
   }) async {
     try {
       final normalizedPhoneNum = _normalizeText(phoneNum);
+      final bool sent;
       if (useFirebase) {
-        return await _phoneVerificationService.sendVerificationCode(
+        sent = await _phoneVerificationService.sendVerificationCode(
           normalizedPhoneNum,
         );
+      } else {
+        final result = await _buildUnauthenticatedAuthApi().authSMS(
+          normalizedPhoneNum,
+        );
+        sent = result ?? false;
       }
 
-      final result = await _buildUnauthenticatedAuthApi().authSMS(
-        normalizedPhoneNum,
-      );
-      return result ?? false;
+      if (sent) {
+        _lastVerificationPhoneNumber = normalizedPhoneNum;
+        _lastVerificationUsesFirebase = useFirebase;
+      }
+
+      return sent;
     } on SoiApiException {
       rethrow;
     } on ApiException catch (e) {

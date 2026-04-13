@@ -88,6 +88,10 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
   int _currentIndex = 0;
   bool _isTextFieldFocused = false;
 
+  /// 게시물이 한 장뿐인 경우에는 PageView 대신 refresh 전용 scroll host를 사용해 Android pull-to-refresh를 안정화합니다.
+  bool get _usesSinglePostRefreshScroll =>
+      widget.posts.length == 1 && !widget.hasMoreData;
+
   /// 피드 시트에서 바뀐 full thread를 controller cache 한 곳에 되돌립니다.
   void _replaceCommentCaches(int postId, List<Comment> updatedComments) {
     context.read<CommentController>().replaceCommentsCache(
@@ -103,6 +107,27 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
       widget.posts.isNotEmpty && _currentIndex < widget.posts.length
       ? widget.posts[_currentIndex]
       : null;
+
+  /// 댓글 시트는 full cache가 없을 때 원댓글 미리보기를 먼저 사용하고, 마지막 fallback으로 태그 캐시를 사용합니다.
+  List<Comment> _initialSheetCommentsForPost(int postId) {
+    final commentController = context.read<CommentController>();
+    final fullComments =
+        commentController.peekCommentsCache(postId: postId) ??
+        const <Comment>[];
+    if (fullComments.isNotEmpty) {
+      return fullComments;
+    }
+
+    final parentComments =
+        commentController.peekParentCommentsCache(postId: postId) ??
+        const <Comment>[];
+    if (parentComments.isNotEmpty) {
+      return parentComments;
+    }
+
+    return commentController.peekTagCommentsCache(postId: postId) ??
+        const <Comment>[];
+  }
 
   /// 작성 중인 댓글의 종류를 문자열로 반환합니다. Mixpanel event 기록에 사용됩니다.
   /// 작성 중인 댓글이
@@ -168,78 +193,71 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
     }
   }
 
-  /// 피드의 고정형 댓글 컴포저를 현재 키보드 높이에 맞춰 배치합니다.
-  ///
-  /// 홈 탭 바는 키보드가 열리면 부모에서 제거되므로, 입력창은 viewInsets를 그대로 따라가야 합니다.
-  @override
-  Widget build(BuildContext context) {
-    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
-    final isKeyboardVisible = _isTextFieldFocused || keyboardInset > 0;
-    final composerBottomInset = isKeyboardVisible
-        ? keyboardInset + 10.0
-        : 10.0;
+  /// 게시물 수에 따라 PageView 또는 단일 카드 레이아웃을 선택해 refresh 제스처와 페이지 스와이프를 함께 보장합니다.
+  Widget _buildMediaViewport(int itemCount) {
+    if (_usesSinglePostRefreshScroll) {
+      final feedItem = widget.posts.first;
+      return _buildFeedPhotoCard(feedItem, 0);
+    }
 
-    // 페이지뷰의 아이템 수: 게시물 수 + (더 불러올 데이터가 있으면 로딩 인디케이터용 아이템 1개)
-    final itemCount = widget.posts.length + (widget.hasMoreData ? 1 : 0);
+    return PageView.builder(
+      controller: widget.pageController,
+      scrollDirection: Axis.vertical, // 상하로 스크롤
+      clipBehavior: Clip.hardEdge, // 페이지가 화면 밖으로 넘어가지 않도록 클리핑
+      itemCount: itemCount, // 게시물 수 + 로딩 인디케이터(있으면)
+      onPageChanged: (index) {
+        setState(() => _currentIndex = index);
+        widget.onPageChanged(index);
+        widget.onStopAllAudio();
+      },
+      physics: const PageScrollPhysics(),
+      itemBuilder: (context, index) {
+        if (index >= widget.posts.length) {
+          return widget.isLoadingMore
+              ? const Center(child: CircularProgressIndicator())
+              : const SizedBox.shrink();
+        }
+        return _buildFeedPhotoCard(widget.posts[index], index);
+      },
+    );
+  }
 
-    // 현재 페이지에 해당하는 게시물을 가져옵니다. 게시물이 없거나 인덱스가 범위를 벗어나면 null이 됩니다.
-    // _currentPost는 getter로 정의되어있고, widget.posts와 _currentIndex를 참조하여 현재 게시물을 계산합니다.
-    final currentPost = _currentPost;
+  /// 피드 카드 한 장의 공통 조립을 분리해 단일 카드/페이지뷰 모드가 같은 UI를 공유하게 합니다.
+  Widget _buildFeedPhotoCard(FeedPostItem feedItem, int index) {
+    return ApiPhotoCardWidget(
+      key: ValueKey(feedItem.post.id),
+      post: feedItem.post,
+      categoryName: feedItem.categoryName,
+      categoryId: feedItem.categoryId,
+      index: index,
+      isOwner: false,
+      displayOnly: true,
+      selectedEmoji: widget.selectedEmojisByPostId[feedItem.post.id],
+      onEmojiSelected: (emoji) =>
+          widget.onEmojiSelected(feedItem.post.id, emoji),
+      pendingCommentDrafts: widget.pendingCommentDrafts,
+      pendingVoiceComments: widget.pendingVoiceComments,
+      onToggleAudio: (p) => widget.onToggleAudio(feedItem),
+      onProfileImageDragged: widget.onProfileImageDragged,
+      onCommentsReloadRequested: widget.onReloadComments,
+      onLoadFullComments: widget.onLoadFullComments,
+    );
+  }
 
+  /// 피드 본문은 단일 카드 refresh host와 일반 PageView 모드가 같은 고정형 레이아웃을 공유합니다.
+  Widget _buildFeedContent({
+    required FeedPostItem? currentPost,
+    required bool isKeyboardVisible,
+    required double composerBottomInset,
+    required int itemCount,
+  }) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ApiPhotoDisplayWidget만 PageView로 스크롤
-            // PageView.builder는 페이지가 스크롤 되도록 만드는 위젯인데,
-            // 여기서는 ApiPhotoCardWidget의 displayOnly 모드를 활용해서 사진/영상 부분만 스크롤되도록 구성했습니다.
-            SizedBox(
-              height: 500.h,
-              child: PageView.builder(
-                controller: widget.pageController,
-                scrollDirection: Axis.vertical, // 상하로 스크롤
-                clipBehavior: Clip.hardEdge, // 페이지가 화면 밖으로 넘어가지 않도록 클리핑
-                itemCount: itemCount, // 게시물 수 + 로딩 인디케이터(있으면)
-                onPageChanged: (index) {
-                  setState(() => _currentIndex = index);
-                  widget.onPageChanged(index);
-                  widget.onStopAllAudio();
-                },
-                itemBuilder: (context, index) {
-                  if (index >= widget.posts.length) {
-                    return widget.isLoadingMore
-                        ? const Center(child: CircularProgressIndicator())
-                        : const SizedBox.shrink();
-                  }
-
-                  // 현재 페이지에 해당하는 게시물을 가져옵니다. 인덱스가 범위를 벗어나면 null이 됩니다.
-                  // 여기서 가져온 post 정보로 ApiPhotoCardWidget을 구성합니다.
-                  final feedItem = widget.posts[index];
-
-                  return ApiPhotoCardWidget(
-                    key: ValueKey(feedItem.post.id),
-                    post: feedItem.post,
-                    categoryName: feedItem.categoryName,
-                    categoryId: feedItem.categoryId,
-                    index: index,
-                    isOwner: false,
-                    displayOnly: true,
-                    selectedEmoji:
-                        widget.selectedEmojisByPostId[feedItem.post.id],
-                    onEmojiSelected: (emoji) =>
-                        widget.onEmojiSelected(feedItem.post.id, emoji),
-                    pendingCommentDrafts: widget.pendingCommentDrafts,
-                    pendingVoiceComments: widget.pendingVoiceComments,
-                    onToggleAudio: (p) => widget.onToggleAudio(feedItem),
-                    onProfileImageDragged: widget.onProfileImageDragged,
-                    onCommentsReloadRequested: widget.onReloadComments,
-                    onLoadFullComments: widget.onLoadFullComments,
-                  );
-                },
-              ),
-            ),
+            SizedBox(height: 500.h, child: _buildMediaViewport(itemCount)),
 
             // 현재 포스트의 유저 정보 (고정)
             if (currentPost != null) ...[
@@ -252,18 +270,9 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                 onDeletePressed: () =>
                     widget.onDeletePost(_currentIndex, currentPost),
                 onCommentPressed: () {
-                  final commentController = context.read<CommentController>();
-                  final fullComments =
-                      commentController.peekCommentsCache(
-                        postId: currentPost.post.id,
-                      ) ??
-                      const <Comment>[];
-                  final initialComments = fullComments.isNotEmpty
-                      ? fullComments
-                      : (commentController.peekTagCommentsCache(
-                              postId: currentPost.post.id,
-                            ) ??
-                            const []);
+                  final initialComments = _initialSheetCommentsForPost(
+                    currentPost.post.id,
+                  );
                   showModalBottomSheet<void>(
                     context: context,
                     isScrollControlled: true,
@@ -365,5 +374,35 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
           ),
       ],
     );
+  }
+
+  /// 피드의 고정형 댓글 컴포저를 현재 키보드 높이에 맞춰 배치합니다.
+  ///
+  /// 홈 탭 바는 키보드가 열리면 부모에서 제거되므로, 입력창은 viewInsets를 그대로 따라가야 합니다.
+  @override
+  Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final isKeyboardVisible = _isTextFieldFocused || keyboardInset > 0;
+    final composerBottomInset = isKeyboardVisible ? keyboardInset + 10.0 : 10.0;
+
+    // 페이지뷰의 아이템 수: 게시물 수 + (더 불러올 데이터가 있으면 로딩 인디케이터용 아이템 1개)
+    final itemCount = widget.posts.length + (widget.hasMoreData ? 1 : 0);
+
+    // 현재 페이지에 해당하는 게시물을 가져옵니다. 게시물이 없거나 인덱스가 범위를 벗어나면 null이 됩니다.
+    // _currentPost는 getter로 정의되어있고, widget.posts와 _currentIndex를 참조하여 현재 게시물을 계산합니다.
+    final currentPost = _currentPost;
+    final content = _buildFeedContent(
+      currentPost: currentPost,
+      isKeyboardVisible: isKeyboardVisible,
+      composerBottomInset: composerBottomInset,
+      itemCount: itemCount,
+    );
+    if (_usesSinglePostRefreshScroll) {
+      return CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [SliverFillRemaining(hasScrollBody: false, child: content)],
+      );
+    }
+    return content;
   }
 }

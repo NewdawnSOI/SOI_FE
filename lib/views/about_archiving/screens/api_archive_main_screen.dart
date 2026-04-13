@@ -64,6 +64,7 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
   FriendController? _friendController;
   String? _prefetchedPostsSignature;
   int? _categoryWarmupUserId;
+  int? _scheduledCategoryWarmupUserId;
   bool _isCategoryWarmupInFlight = false;
 
   // UserController 리스너 참조 저장 --> 프로필 이미지 변경 감지 및 처리
@@ -158,9 +159,11 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
     });
   }
 
+  /// Provider 연결과 탭 가시성 기반 warmup 스케줄링은 의존성이 바뀔 때마다 다시 맞춥니다.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final isTickerEnabled = TickerMode.valuesOf(context).enabled;
 
     // Provider 참조를 안전하게 저장
     _ensureCategorySearchController();
@@ -185,7 +188,9 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
       _schedulePostFrameUserStateSync();
     }
 
-    _ensureArchiveCategoriesWarm();
+    if (isTickerEnabled) {
+      _schedulePostFrameArchiveCategoriesWarm();
+    }
 
     _schedulePostFrameNotificationBadgeLoad();
 
@@ -242,6 +247,34 @@ class _APIArchiveMainScreenState extends State<APIArchiveMainScreen> {
         return;
       }
       unawaited(_loadNotificationBadgeState());
+    });
+  }
+
+  /// 아카이브 카테고리 warmup은 첫 프레임 이후에 시작해 빌드 중 CategoryController 알림과 겹치지 않게 합니다.
+  void _schedulePostFrameArchiveCategoriesWarm() {
+    final userId = _userController?.currentUser?.id;
+    if (userId == null) {
+      return;
+    }
+    if (_scheduledCategoryWarmupUserId == userId) {
+      return;
+    }
+
+    _scheduledCategoryWarmupUserId = userId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scheduledCategoryWarmupUserId == userId) {
+        _scheduledCategoryWarmupUserId = null;
+      }
+      if (!mounted) {
+        return;
+      }
+      if (_userController?.currentUser?.id != userId) {
+        return;
+      }
+      if (!TickerMode.valuesOf(context).enabled) {
+        return;
+      }
+      _ensureArchiveCategoriesWarm();
     });
   }
 

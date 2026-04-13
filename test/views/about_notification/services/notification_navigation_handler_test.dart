@@ -1,10 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soi/api/api_client.dart';
+import 'package:soi/api/controller/comment_controller.dart';
+import 'package:soi/api/models/comment.dart';
 import 'package:soi/api/models/notification.dart';
 import 'package:soi/api/models/post.dart';
 import 'package:soi/app/push/app_push_payload.dart';
 import 'package:soi/views/about_notification/services/notification_navigation_handler.dart';
 
 void main() {
+  setUp(() {
+    SoiApiClient.instance.initialize();
+  });
+
   group('NotificationNavigationHandler.resolvePushNavigation', () {
     test('routes category invite pushes to notifications screen', () {
       final route = NotificationNavigationHandler.resolvePushNavigation(
@@ -125,4 +132,53 @@ void main() {
       expect(launch, isNull);
     });
   });
+
+  group(
+    'NotificationNavigationHandler.invalidatePostCommentCachesForDetailEntry',
+    () {
+      test('clears only the target post comment caches before detail entry', () {
+        final commentController = CommentController();
+
+        commentController.replaceCommentsCache(
+          postId: 33,
+          comments: const [
+            Comment(
+              id: 1,
+              nickname: 'stale-tag',
+              locationX: 0.2,
+              locationY: 0.3,
+              type: CommentType.text,
+            ),
+          ],
+        );
+        commentController.replaceCommentsCache(
+          postId: 44,
+          comments: const [
+            Comment(
+              id: 2,
+              nickname: 'keep-me',
+              locationX: 0.5,
+              locationY: 0.6,
+              type: CommentType.text,
+            ),
+          ],
+        );
+
+        NotificationNavigationHandler.invalidatePostCommentCachesForDetailEntry(
+          commentController: commentController,
+          postId: 33,
+        );
+
+        expect(commentController.peekCommentsCache(postId: 33), isNull);
+        expect(commentController.peekParentCommentsCache(postId: 33), isNull);
+        expect(commentController.peekTagCommentsCache(postId: 33), isNull);
+        expect(commentController.peekCommentsCache(postId: 44), isNotNull);
+        expect(
+          commentController.peekParentCommentsCache(postId: 44),
+          isNotNull,
+        );
+        expect(commentController.peekTagCommentsCache(postId: 44), isNotNull);
+      });
+    },
+  );
 }

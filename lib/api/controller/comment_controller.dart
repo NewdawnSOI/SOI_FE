@@ -14,6 +14,10 @@ class CommentController extends ChangeNotifier {
   /// - 화면에 다시 들어왔을 때 바로 보여줄 때 사용.
   final Map<int, List<Comment>> _cachedCommentsByPost = {};
 
+  /// **원댓글만 모은 목록**을 저장하는 캐시.
+  /// - 댓글 시트를 열기 전 가벼운 미리보기와 새로고침 동기화에 사용함.
+  final Map<int, List<Comment>> _cachedParentCommentsByPost = {};
+
   /// **위치 정보가 있는 댓글**만 따로 저장하는 캐시.
   /// - 태그 오버레이(사진에 태그를 표시하는 것)를 빠르게 다시 그릴 때 씀.
   final Map<int, List<Comment>> _cachedTagCommentsByPost = {};
@@ -21,6 +25,11 @@ class CommentController extends ChangeNotifier {
   /// 같은 게시물의 전체 댓글 요청이 여러 번 겹치지 않게 막는 맵.
   /// - 키는 postId, 값은 해당 게시물에 대한 **댓글**을 가져오는 Future 형식.
   final Map<int, Future<List<Comment>>> _inFlightCommentsByPost = {};
+
+  /// 같은 게시물의 원댓글 전체 미리보기 요청이 여러 번 겹치지 않게 막는 맵.
+  /// - 키는 postId, 값은 해당 게시물에 대한 **원댓글 목록**을 가져오는 Future 형식.
+  final Map<int, Future<List<Comment>>> _inFlightParentPreviewCommentsByPost =
+      {};
 
   /// 같은 게시물의 태그 댓글 요청이 여러 번 겹치지 않게 막는 맵.
   /// - 키는 postId, 값은 해당 게시물에 대한 **태그 댓글**을 가져오는 Future 형식.
@@ -146,9 +155,20 @@ class CommentController extends ChangeNotifier {
   List<Comment>? peekCommentsCache({required int postId}) =>
       _cachedCommentsByPost[postId];
 
+  /// 게시물의 원댓글 캐시를 꺼내서 댓글 시트 초기 미리보기에 사용.
+  ///
+  /// 원댓글 캐시가 없으면 `null`을 반환해 호출부가 서버 재조회를 결정하게 함.
+  ///
+  /// Parameters:
+  /// - [postId]: 원댓글 캐시를 확인할 게시물 ID.
+  ///
+  /// Returns: 원댓글 목록이 있으면 반환하고, 없으면 `null`을 반환함.
+  List<Comment>? peekParentCommentsCache({required int postId}) =>
+      _cachedParentCommentsByPost[postId];
+
   /// 게시물의 위치 댓글 캐시를 꺼내서 태그 오버레이에 보여줄 때 사용.
   ///
-  /// 캐시가 없으면 서버에서 다시 불러와야 함.
+  /// 태그 캐시가 없으면 null을 반환해 호출부가 서버 재조회를 결정하게 합니다.
   ///
   /// Parameters:
   /// - [postId]: 태그 캐시를 확인할 게시물 ID.
@@ -156,34 +176,19 @@ class CommentController extends ChangeNotifier {
   /// Returns: 위치 댓글 목록이 있으면 반환하고, 없으면 `null`을 반환함.
   /// - [List<'Comment'>]: 캐시에 있는 태그 댓글 목록.
   /// - [null]: 캐시에 해당 게시물의 태그 댓글이 없음.
-  List<Comment>? peekTagCommentsCache({required int postId}) {
-    final cached = _cachedTagCommentsByPost[postId]; // 태그 캐시(위치정보가 있는 태그) 먼저 확인
-    if (cached != null) return cached; // 태그 캐시에 있으면, 해당 케시를 바로 반환
-
-    final full = _cachedCommentsByPost[postId]; // 전체 댓글 캐시 확인
-    if (full == null) return null; // 전체 댓글 캐시도 없으면, 태그 캐시도 없다고 간주하고 null 반환
-
-    // 전체 댓글에서 태그 댓글만 추출해서 새 리스트로 만듦.
-    // 이때 전체 댓글 캐시는 그대로 두고, 태그 캐시만 새로 만들어서 저장함.
-    final derived = _freeze(_filterTagComments(full));
-
-    // 새로 만든 태그 댓글 리스트를 **태그 캐시에 저장함**. 전체 댓글 캐시는 그대로 둠.
-    _cachedTagCommentsByPost[postId] = derived;
-
-    // 태그 댓글 리스트를 반환함. 전체 댓글 캐시는 그대로 두고, 태그 캐시만 새로 만들어서 저장했음.
-    return derived;
-  }
+  List<Comment>? peekTagCommentsCache({required int postId}) =>
+      _cachedTagCommentsByPost[postId];
 
   /// 새로 받아온 데이터로 캐시를 통째로 바꿈.
   /// - 댓글 데이터가 바뀌는 시점에 두 캐시를 항상 동시에 교체해서 둘 사이의 불일치를 방지
   ///
   /// 사용되는 상황:
   /// - voice_comment_state_manager
-  ///   - 음성 댓글 추가 후 force reload 직후, 댓글이 새로 생겼으니 전체 댓글과 태그 댓글 캐시를 새 데이터로 통째로 바꿈.
+  ///   - 음성 댓글 추가 후 force reload 직후, 전체/원댓글/태그 캐시를 같은 기준으로 새 데이터로 통째로 바꿈.
   /// - api_photo_display_widget
-  ///   - 댓글 시트에서 돌아올 때, 댓글이 바뀌었을 수 있으니 전체 댓글과 태그 댓글 캐시를 새 데이터로 통째로 바꿈.
+  ///   - 댓글 시트에서 돌아올 때, 댓글이 바뀌었을 수 있으니 전체/원댓글/태그 캐시를 새 데이터로 통째로 바꿈.
   /// - api_photo_detail_screen
-  ///   - 아카이브 상세에서 댓글 시트 닫힐 때, 댓글이 바뀌었을 수 있으니 전체 댓글과 태그 댓글 캐시를 새 데이터로 통째로 바꿈.
+  ///   - 아카이브 상세에서 댓글 시트 닫힐 때, 댓글이 바뀌었을 수 있으니 전체/원댓글/태그 캐시를 새 데이터로 통째로 바꿈.
   ///
   /// Parameters:
   /// - [postId]: 캐시를 바꿀 게시물 ID.
@@ -196,9 +201,26 @@ class CommentController extends ChangeNotifier {
   }) {
     final frozen = _freeze(comments); // 입력받은 댓글 목록을 고쳐지지 않는 리스트로 만듦.
     _cachedCommentsByPost[postId] = frozen; // 전체 댓글 캐시에 새 리스트 저장.
+    _syncDerivedCachesFromFull(postId);
+    notifyListeners();
+  }
 
-    // 전체 댓글에서 태그 댓글만 추출해서 새 리스트로 만듦.
-    _cachedTagCommentsByPost[postId] = _freeze(_filterTagComments(frozen));
+  /// 원댓글만 다시 받아왔을 때, 원댓글/태그 캐시만 새 데이터로 교체함.
+  ///
+  /// 댓글 시트 전체 스레드는 비워 둔 채, 오버레이와 시트 초기 미리보기만 최신 상태로 맞출 때 사용함.
+  ///
+  /// Parameters:
+  /// - [postId]: 원댓글 캐시를 바꿀 게시물 ID.
+  /// - [comments]: 새로 저장할 원댓글 목록.
+  void replaceParentCommentsCache({
+    required int postId,
+    required List<Comment> comments,
+  }) {
+    final frozenParents = _freeze(_filterParentComments(comments));
+    _cachedParentCommentsByPost[postId] = frozenParents;
+    _cachedTagCommentsByPost[postId] = _freeze(
+      _filterTagComments(frozenParents),
+    );
     notifyListeners();
   }
 
@@ -242,38 +264,42 @@ class CommentController extends ChangeNotifier {
   }) {
     var didChange = false;
     final full = _cachedCommentsByPost[postId]; // 전체 댓글 캐시 먼저 확인
+    final parentComments = _cachedParentCommentsByPost[postId];
 
     // 전체 댓글이 존재하고(full != null), 새 댓글이 전체 댓글 캐시에 아직 없으면(!_contains(full, newComment.id))
     // 전체 댓글 캐시에 새 댓글을 덧붙여서 저장함.
     if (full != null && !_contains(full, newComment.id)) {
       _cachedCommentsByPost[postId] = _freeze([...full, newComment]);
+      _syncDerivedCachesFromFull(postId);
+      didChange = true;
+    } else if (!newComment.isReply &&
+        parentComments != null &&
+        !_contains(parentComments, newComment.id)) {
+      final nextParents = _freeze([...parentComments, newComment]);
+      _cachedParentCommentsByPost[postId] = nextParents;
+      _cachedTagCommentsByPost[postId] = _freeze(
+        _filterTagComments(nextParents),
+      );
       didChange = true;
     }
 
-    if (!newComment.hasLocation) return; // 새 댓글에 위치 정보가 없으면 태그 캐시에 추가할 필요 없음.
+    if (!newComment.hasLocation) {
+      if (didChange) {
+        notifyListeners();
+      }
+      return;
+    }
 
-    final tags = _cachedTagCommentsByPost[postId]; // 태그 댓글 캐시 확인
+    final tags = _cachedTagCommentsByPost[postId];
 
     // 태그 댓글이 존재하고(tags != null), 새 댓글이 태그 댓글 캐시에 아직 없으면(!_contains(tags, newComment.id))
     // 태그 댓글 캐시에 새 댓글을 덧붙여서 저장함.
     // 전체 댓글 캐시는 이미 위에서 새 댓글이 없으면 덧붙였거나, 새 댓글이 있으면 그대로 두었음.
-    if (tags != null && !_contains(tags, newComment.id)) {
+    if (full == null &&
+        parentComments == null &&
+        tags != null &&
+        !_contains(tags, newComment.id)) {
       _cachedTagCommentsByPost[postId] = _freeze([...tags, newComment]);
-      didChange = true; // 태그 캐시에 새 댓글을 추가했으니 변경이 있었음.
-    }
-
-    // 태그 댓글 캐시에 새 댓글이 없는데, 전체 댓글 캐시에 새 댓글이 있으면(위에서 덧붙였을 수 있음),
-    // 전체 댓글 캐시에서 태그 댓글만 다시 추출해서 태그 캐시에 저장함. 전체 댓글 캐시는 그대로 둠.
-    if (full != null &&
-        newComment.hasLocation &&
-        tags == null &&
-        _contains(
-          _cachedCommentsByPost[postId] ?? const <Comment>[],
-          newComment.id,
-        )) {
-      _cachedTagCommentsByPost[postId] = _freeze(
-        _filterTagComments(_cachedCommentsByPost[postId] ?? const <Comment>[]),
-      );
       didChange = true; // 태그 캐시에 새 댓글을 추가했으니 변경이 있었음.
     }
 
@@ -294,18 +320,28 @@ class CommentController extends ChangeNotifier {
       _cachedCommentsByPost[postId] = _freeze(
         full.where((c) => c.id != commentId).toList(),
       );
+      _syncDerivedCachesFromFull(postId);
       didChange = true; // 전체 댓글 캐시에서 댓글을 지웠으니 변경이 있었음.
-    }
-
-    final tags = _cachedTagCommentsByPost[postId]; // 태그 댓글 캐시 확인
-
-    // 태그 댓글 캐시에 해당 댓글이 있으면, 태그 댓글 캐시에서도 지워야 함.
-    // 전체 댓글 캐시에서 이미 지웠거나, 태그 댓글 캐시에 있으면 지우는 방식으로 처리함.
-    if (tags != null) {
-      _cachedTagCommentsByPost[postId] = _freeze(
-        tags.where((c) => c.id != commentId).toList(),
-      );
-      didChange = true; // 태그 댓글 캐시에서 댓글을 지웠으니 변경이 있었음.
+    } else {
+      final parentComments = _cachedParentCommentsByPost[postId];
+      if (parentComments != null) {
+        final nextParents = _freeze(
+          parentComments.where((c) => c.id != commentId).toList(),
+        );
+        _cachedParentCommentsByPost[postId] = nextParents;
+        _cachedTagCommentsByPost[postId] = _freeze(
+          _filterTagComments(nextParents),
+        );
+        didChange = true;
+      } else {
+        final tags = _cachedTagCommentsByPost[postId];
+        if (tags != null) {
+          _cachedTagCommentsByPost[postId] = _freeze(
+            tags.where((c) => c.id != commentId).toList(),
+          );
+          didChange = true;
+        }
+      }
     }
 
     if (didChange) {
@@ -317,16 +353,23 @@ class CommentController extends ChangeNotifier {
   ///
   /// - [postId]: 캐시를 지울 게시물 ID임.
   /// - [full]: `true`면 전체 댓글 캐시도 지움.
+  /// - [parent]: `true`면 원댓글 미리보기 캐시도 지움.
   /// - [tag]: `true`면 태그 댓글 캐시도 지움.
   /// Returns: 값을 반환하지 않음.
   void invalidatePostCaches({
     required int postId,
     bool full = true,
+    bool parent = false,
     bool tag = true,
   }) {
     var didChange = false;
     if (full) {
       didChange = _cachedCommentsByPost.remove(postId) != null || didChange;
+      didChange =
+          _cachedParentCommentsByPost.remove(postId) != null || didChange;
+    } else if (parent) {
+      didChange =
+          _cachedParentCommentsByPost.remove(postId) != null || didChange;
     }
     if (tag) {
       didChange = _cachedTagCommentsByPost.remove(postId) != null || didChange;
@@ -515,6 +558,56 @@ class CommentController extends ChangeNotifier {
       },
       const <Comment>[],
       '댓글 조회 실패',
+    );
+  }
+
+  /// 게시물의 원댓글만 페이지를 끝까지 따라가며 가져옴.
+  /// 새로고침/알림 진입에서 가벼운 미리보기와 태그 오버레이를 최신 상태로 맞출 때 사용함.
+  ///
+  /// - [postId]: 원댓글을 가져올 게시물 ID임.
+  /// - [forceReload]: `true`면 전체/원댓글/태그 캐시를 비우고 다시 가져옴.
+  /// Returns: 원댓글 목록을 담은 [Future<List<Comment>>]를 반환함.
+  Future<List<Comment>> getAllParentComments({
+    required int postId,
+    bool forceReload = false,
+  }) async {
+    if (!forceReload) {
+      final cached = _cachedParentCommentsByPost[postId];
+      if (cached != null) return cached;
+    } else {
+      invalidatePostCaches(postId: postId);
+    }
+
+    return _dedup(
+      _inFlightParentPreviewCommentsByPost,
+      postId,
+      () async {
+        _beginRequest();
+        try {
+          final comments = <Comment>[];
+          var page = 0;
+          while (true) {
+            final slice = await _commentService.getParentComments(
+              postId: postId,
+              page: page,
+            );
+            if (slice.comments.isEmpty) {
+              break;
+            }
+            comments.addAll(slice.comments);
+            if (!slice.hasMore) {
+              break;
+            }
+            page += 1;
+          }
+          replaceParentCommentsCache(postId: postId, comments: comments);
+          return _cachedParentCommentsByPost[postId] ?? const <Comment>[];
+        } finally {
+          _endRequest();
+        }
+      },
+      const <Comment>[],
+      '원댓글 전체 조회 실패',
     );
   }
 
@@ -785,12 +878,33 @@ class CommentController extends ChangeNotifier {
       ? const <Comment>[]
       : List<Comment>.unmodifiable(comments);
 
+  /// 전체 댓글 중 원댓글만 골라냄.
+  ///
+  /// - [comments]: 필터링할 전체 댓글 목록임.
+  /// Returns: 대댓글을 제외한 원댓글만 담은 리스트를 반환함.
+  static List<Comment> _filterParentComments(List<Comment> comments) =>
+      comments.where((c) => !c.isReply).toList(growable: false);
+
   /// 전체 댓글 중 위치 정보가 있는 댓글만 골라냄.
   ///
   /// - [comments]: 필터링할 전체 댓글 목록임.
   /// Returns: 위치 정보가 있는 댓글만 담은 리스트를 반환함.
   static List<Comment> _filterTagComments(List<Comment> comments) =>
       comments.where((c) => c.hasLocation).toList(growable: false);
+
+  /// 전체 댓글 캐시가 바뀌면 원댓글/태그 파생 캐시도 같은 기준으로 다시 맞춤.
+  void _syncDerivedCachesFromFull(int postId) {
+    final fullComments = _cachedCommentsByPost[postId];
+    if (fullComments == null) {
+      _cachedParentCommentsByPost.remove(postId);
+      return;
+    }
+    final parentComments = _freeze(_filterParentComments(fullComments));
+    _cachedParentCommentsByPost[postId] = parentComments;
+    _cachedTagCommentsByPost[postId] = _freeze(
+      _filterTagComments(parentComments),
+    );
+  }
 
   /// 댓글 목록에 특정 ID가 이미 있는지 확인함.
   ///

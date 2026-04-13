@@ -202,6 +202,67 @@ void main() {
       },
     );
 
+    test(
+      'keeps verification state for same phone resend and resets when phone or channel changes',
+      () async {
+        final service = UserService(
+          authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),
+          userApi: _FakeUserApi(onGetUser: () async => null),
+          phoneVerificationService: _FakePhoneVerificationService(
+            onSendVerificationCode: (phoneNumber) async {
+              expect(phoneNumber, '+14155551234');
+              return true;
+            },
+          ),
+          onAuthTokenIssued: (_) {},
+          onAuthTokenCleared: () {},
+        );
+
+        expect(
+          service.shouldResetPhoneVerificationState(
+            '+14155551234',
+            useFirebase: true,
+          ),
+          isTrue,
+        );
+
+        final sent = await service.sendSmsVerification('+14155551234');
+
+        expect(sent, isTrue);
+        expect(
+          service.shouldResetPhoneVerificationState(
+            ' +14155551234 ',
+            useFirebase: true,
+          ),
+          isFalse,
+        );
+        expect(
+          service.shouldResetPhoneVerificationState(
+            '+14155550000',
+            useFirebase: true,
+          ),
+          isTrue,
+        );
+        expect(
+          service.shouldResetPhoneVerificationState(
+            '+14155551234',
+            useFirebase: false,
+          ),
+          isTrue,
+        );
+
+        service.resetPhoneVerificationState();
+
+        expect(
+          service.shouldResetPhoneVerificationState(
+            '+14155551234',
+            useFirebase: true,
+          ),
+          isTrue,
+        );
+      },
+    );
+
     test('uses unauthenticated auth api for API SMS verification', () async {
       final service = UserService(
         authApi: _FakeAuthApi(onLogin: (_) async => LoginRespDto()),

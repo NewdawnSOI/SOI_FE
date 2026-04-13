@@ -582,8 +582,6 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
 
-    _resetPendingPhoneVerification(); // 전화번호나 국가가 바뀌면 이전 인증 채널의 대기 상태를 비워 다음 요청과 섞이지 않게 합니다.
-
     final validationError = RegisterPhoneNumberService.validatePhone(
       rawValue: phoneController.text,
       countryCode: _selectedCountryCode,
@@ -613,6 +611,12 @@ class _AuthScreenState extends State<AuthScreen> {
     final verificationPhoneNumber = useFirebase
         ? formattedPhoneForFirebase
         : formattedPhoneForApi;
+    if (_userController.shouldResetPhoneVerificationState(
+      verificationPhoneNumber,
+      useFirebase: useFirebase,
+    )) {
+      _resetPendingPhoneVerification();
+    }
 
     setState(() {
       _isRequestingSms = true;

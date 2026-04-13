@@ -190,14 +190,25 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
       ) ??
       const <Comment>[];
 
+  /// 댓글 시트는 full cache가 없을 때 원댓글 미리보기를 먼저 보여 주고, 없으면 태그 캐시로 즉시 엽니다.
+  List<Comment> get _parentComments =>
+      context.read<CommentController>().peekParentCommentsCache(
+        postId: widget.post.id,
+      ) ??
+      const <Comment>[];
+
   List<Comment> get _postComments =>
       context.read<CommentController>().peekCommentsCache(
         postId: widget.post.id,
       ) ??
       const <Comment>[];
 
-  List<Comment> get _initialSheetComments =>
-      _postComments.isNotEmpty ? _postComments : _overlayComments;
+  /// 댓글 시트 초기 진입값은 full -> parent preview -> tag overlay 순으로 선택합니다.
+  List<Comment> get _initialSheetComments => _postComments.isNotEmpty
+      ? _postComments
+      : _parentComments.isNotEmpty
+      ? _parentComments
+      : _overlayComments;
 
   bool get _hasPendingMarker =>
       widget.pendingVoiceComments[widget.post.id] != null;
@@ -926,13 +937,16 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   @override
   Widget build(BuildContext context) {
     // 이 카드와 관련된 댓글 cache 변화만 구독해 오버레이와 시트 진입값을 최신으로 유지합니다.
-    context
-        .select<CommentController, ({List<Comment>? full, List<Comment>? tag})>(
-          (controller) => (
-            full: controller.peekCommentsCache(postId: widget.post.id),
-            tag: controller.peekTagCommentsCache(postId: widget.post.id),
-          ),
-        );
+    context.select<
+      CommentController,
+      ({List<Comment>? full, List<Comment>? parent, List<Comment>? tag})
+    >(
+      (controller) => (
+        full: controller.peekCommentsCache(postId: widget.post.id),
+        parent: controller.peekParentCommentsCache(postId: widget.post.id),
+        tag: controller.peekTagCommentsCache(postId: widget.post.id),
+      ),
+    );
     final categoryTrimmed = widget.categoryName.trim();
     final isEnglishCategory =
         categoryTrimmed.isNotEmpty &&

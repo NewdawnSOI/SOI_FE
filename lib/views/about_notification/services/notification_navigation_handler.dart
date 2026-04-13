@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:soi/api/controller/category_controller.dart';
+import 'package:soi/api/controller/comment_controller.dart';
 import 'package:soi/api/controller/post_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
 import 'package:soi/api/models/notification.dart';
@@ -366,6 +367,7 @@ class NotificationNavigationHandler {
   ///   - 이 값을 true로 전달하면, 초기 진입 시점에 해당 포스트만 불러오는 단건 포스트 모드로 진입을 시도합니다.
   ///   - 이 경우, 초기 메모리 버스트를 줄이는 효과가 있습니다.
   ///   - 단, 이 모드로 진입을 시도하더라도, 알림에서 전달된 postId에 해당하는 포스트가 존재하지 않거나, 단건 포스트 모드로 진입하는 과정에서 오류가 발생하는 경우에는, 기존처럼 포스트 목록 기반 진입으로 대체됩니다.
+  /// 또한 대상 post의 댓글 캐시를 먼저 비워, 상세 첫 프레임에서 원댓글 미리보기를 다시 받아 최신 태그/댓글 상태를 반영하게 합니다.
   static Future<void> _openPostDetail(
     BuildContext context, {
     required int categoryId,
@@ -375,7 +377,13 @@ class NotificationNavigationHandler {
     bool preferSinglePostMode = false,
   }) async {
     final categoryController = context.read<CategoryController>();
+    final commentController = context.read<CommentController>();
     final postController = context.read<PostController>();
+
+    invalidatePostCommentCachesForDetailEntry(
+      commentController: commentController,
+      postId: postId,
+    );
 
     // 푸시 진입은 단건 post를 우선 열어 초기 메모리 버스트를 줄이고,
     // 일반 알림 탭에서는 기존처럼 category 목록 기반 진입을 유지합니다.
@@ -423,6 +431,7 @@ class NotificationNavigationHandler {
             categoryName: category.name,
             categoryId: category.id,
             singlePostMode: true,
+            forceParentCommentsReloadOnEntry: true,
           ),
         ),
       );
@@ -454,6 +463,7 @@ class NotificationNavigationHandler {
           categoryName: category.name,
           categoryId: category.id,
           singlePostMode: detailLaunch.singlePostMode,
+          forceParentCommentsReloadOnEntry: true,
         ),
       ),
     );
@@ -486,6 +496,15 @@ class NotificationNavigationHandler {
     }
 
     return null;
+  }
+
+  /// 알림으로 연 post는 새 외부 댓글이 붙었을 가능성이 높아, 기존 full/parent/tag 캐시를 버리고 다시 받게 합니다.
+  @visibleForTesting
+  static void invalidatePostCommentCachesForDetailEntry({
+    required CommentController commentController,
+    required int postId,
+  }) {
+    commentController.invalidatePostCaches(postId: postId);
   }
 
   /// 로딩 중에는 다른 작업이 불가능하도록 모달 형태의 로딩 인디케이터를 표시하는 유틸리티 함수입니다.

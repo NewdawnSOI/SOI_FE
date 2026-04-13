@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -36,11 +38,12 @@ class _ApiArchiveProfileRowWidgetState
     extends State<ApiArchiveProfileRowWidget> {
   // Presigned URL 캐시 (키 -> URL)
   final Map<String, String> _presignedUrlCache = {};
+  int _presignedLoadGeneration = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadPresignedUrls();
+    _schedulePresignedUrlLoad();
   }
 
   @override
@@ -62,8 +65,24 @@ class _ApiArchiveProfileRowWidgetState
 
     if (urlsChanged || keysChanged || nicknamesChanged || countChanged) {
       _presignedUrlCache.clear();
-      _loadPresignedUrls(forceReload: true);
+      _schedulePresignedUrlLoad(forceReload: true);
     }
+  }
+
+  /// presigned URL 요청은 build 이후에 시작해 MediaController notify가 현재 프레임과 충돌하지 않게 합니다.
+  void _schedulePresignedUrlLoad({bool forceReload = false}) {
+    final loadGeneration = ++_presignedLoadGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || loadGeneration != _presignedLoadGeneration) {
+        return;
+      }
+      unawaited(
+        _loadPresignedUrls(
+          forceReload: forceReload,
+          loadGeneration: loadGeneration,
+        ),
+      );
+    });
   }
 
   /// 인덱스별 프로필 이미지 key를 읽어 key 기반 캐시와 presigned URL 갱신에 사용합니다.
@@ -132,7 +151,11 @@ class _ApiArchiveProfileRowWidgetState
         : '$normalizedHost$normalizedPath';
   }
 
-  Future<void> _loadPresignedUrls({bool forceReload = false}) async {
+  /// 현재 화면에 보이는 프로필 key만 presigned URL로 해석해 아바타 렌더링을 최신 상태로 맞춥니다.
+  Future<void> _loadPresignedUrls({
+    bool forceReload = false,
+    required int loadGeneration,
+  }) async {
     final mediaController = context.read<MediaController>();
     final displayCount = widget.totalUserCount.clamp(1, 3);
 
@@ -150,7 +173,7 @@ class _ApiArchiveProfileRowWidgetState
     }
 
     final urls = await mediaController.getPresignedUrls(unresolvedKeys);
-    if (!mounted) {
+    if (!mounted || loadGeneration != _presignedLoadGeneration) {
       return;
     }
 

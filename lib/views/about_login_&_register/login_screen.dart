@@ -259,8 +259,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _sendVerificationCode() async {
     if (_isSendingCode) return;
 
-    _resetPendingPhoneVerification();
-
     final validationError = RegisterPhoneNumberService.validatePhone(
       rawValue: _phoneController.text,
       countryCode: _selectedCountryCode,
@@ -282,14 +280,22 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final userController = context.read<api.UserController>();
+    final useFirebase = !_usesApiPhoneVerification;
+    if (userController.shouldResetPhoneVerificationState(
+      verificationPhoneNumber,
+      useFirebase: useFirebase,
+    )) {
+      _resetPendingPhoneVerification();
+    }
+
     FocusScope.of(context).unfocus();
     setState(() => _isSendingCode = true);
 
-    final userController = context.read<api.UserController>();
     try {
       final sent = await userController.requestSmsVerification(
         verificationPhoneNumber,
-        useFirebase: !_usesApiPhoneVerification,
+        useFirebase: useFirebase,
       );
 
       if (!mounted) return;

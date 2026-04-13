@@ -555,6 +555,13 @@ void main() {
         expect(second.single.id, 1);
         expect(refreshed.single.id, 2);
         expect(controller.peekCommentsCache(postId: 44)?.single.id, 2);
+        expect(
+          controller
+              .peekParentCommentsCache(postId: 44)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [2],
+        );
         expect(controller.peekTagCommentsCache(postId: 44)?.single.id, 2);
       },
     );
@@ -613,6 +620,13 @@ void main() {
         final derivedTags = await controller.getTagComments(postId: 55);
 
         expect(getTagCommentsCallCount, 0);
+        expect(
+          controller
+              .peekParentCommentsCache(postId: 55)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [1, 2],
+        );
         expect(derivedTags.map((comment) => comment.id).toList(), [1]);
 
         controller.appendCreatedComment(
@@ -629,6 +643,13 @@ void main() {
         expect(
           controller
               .peekCommentsCache(postId: 55)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [1, 2, 3],
+        );
+        expect(
+          controller
+              .peekParentCommentsCache(postId: 55)
               ?.map((comment) => comment.id)
               .toList(),
           [1, 2, 3],
@@ -652,10 +673,202 @@ void main() {
         );
         expect(
           controller
+              .peekParentCommentsCache(postId: 55)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [2, 3],
+        );
+        expect(
+          controller
               .peekTagCommentsCache(postId: 55)
               ?.map((comment) => comment.id)
               .toList(),
           [3],
+        );
+      },
+    );
+
+    test(
+      'refetches tag comments after tag cache invalidation even when full cache remains',
+      () async {
+        var getTagCommentsCallCount = 0;
+
+        final controller = CommentController(
+          commentService: _FakeCommentService(
+            onCreate:
+                ({
+                  required int postId,
+                  required int userId,
+                  int? emojiId,
+                  int? parentId,
+                  int? replyUserId,
+                  String? text,
+                  String? audioFileKey,
+                  String? fileKey,
+                  String? waveformData,
+                  int? duration,
+                  double? locationX,
+                  double? locationY,
+                  CommentType? type,
+                }) async => const CommentCreationResult(success: true),
+            onGetComments: ({required int postId}) async {
+              return const [
+                Comment(
+                  id: 1,
+                  nickname: 'stale-tag',
+                  locationX: 0.1,
+                  locationY: 0.2,
+                  type: CommentType.text,
+                ),
+                Comment(id: 2, nickname: 'plain', type: CommentType.text),
+              ];
+            },
+            onGetTagComments: ({required int postId}) async {
+              getTagCommentsCallCount += 1;
+              return const [
+                Comment(
+                  id: 9,
+                  nickname: 'fresh-tag',
+                  locationX: 0.8,
+                  locationY: 0.4,
+                  type: CommentType.text,
+                ),
+              ];
+            },
+          ),
+        );
+
+        await controller.getComments(postId: 66);
+        controller.invalidatePostCaches(postId: 66, full: false, tag: true);
+
+        expect(controller.peekCommentsCache(postId: 66), isNotNull);
+        expect(controller.peekTagCommentsCache(postId: 66), isNull);
+
+        final refreshedTags = await controller.getTagComments(postId: 66);
+
+        expect(getTagCommentsCallCount, 1);
+        expect(refreshedTags.map((comment) => comment.id).toList(), [9]);
+        expect(
+          controller
+              .peekTagCommentsCache(postId: 66)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [9],
+        );
+      },
+    );
+
+    test(
+      'getAllParentComments clears stale full cache on force reload and refreshes preview caches',
+      () async {
+        var getParentCommentsCallCount = 0;
+
+        final controller = CommentController(
+          commentService: _FakeCommentService(
+            onCreate:
+                ({
+                  required int postId,
+                  required int userId,
+                  int? emojiId,
+                  int? parentId,
+                  int? replyUserId,
+                  String? text,
+                  String? audioFileKey,
+                  String? fileKey,
+                  String? waveformData,
+                  int? duration,
+                  double? locationX,
+                  double? locationY,
+                  CommentType? type,
+                }) async => const CommentCreationResult(success: true),
+            onGetComments: ({required int postId}) async {
+              return const [
+                Comment(
+                  id: 1,
+                  nickname: 'stale-parent',
+                  locationX: 0.1,
+                  locationY: 0.2,
+                  type: CommentType.text,
+                ),
+                Comment(
+                  id: 2,
+                  nickname: 'reply',
+                  threadParentId: 1,
+                  type: CommentType.reply,
+                ),
+              ];
+            },
+            onGetParentComments:
+                ({required int postId, required int page}) async {
+                  getParentCommentsCallCount += 1;
+                  if (page == 0) {
+                    return (
+                      comments: const [
+                        Comment(
+                          id: 11,
+                          nickname: 'fresh-parent',
+                          type: CommentType.text,
+                        ),
+                        Comment(
+                          id: 12,
+                          nickname: 'fresh-tag',
+                          locationX: 0.7,
+                          locationY: 0.4,
+                          type: CommentType.text,
+                        ),
+                      ],
+                      hasMore: true,
+                    );
+                  }
+                  return (
+                    comments: const [
+                      Comment(
+                        id: 13,
+                        nickname: 'page-2-parent',
+                        type: CommentType.text,
+                      ),
+                    ],
+                    hasMore: false,
+                  );
+                },
+          ),
+        );
+
+        await controller.getComments(postId: 77);
+
+        expect(
+          controller
+              .peekCommentsCache(postId: 77)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [1, 2],
+        );
+
+        final parentComments = await controller.getAllParentComments(
+          postId: 77,
+          forceReload: true,
+        );
+
+        expect(getParentCommentsCallCount, 2);
+        expect(parentComments.map((comment) => comment.id).toList(), [
+          11,
+          12,
+          13,
+        ]);
+        expect(controller.peekCommentsCache(postId: 77), isNull);
+        expect(
+          controller
+              .peekParentCommentsCache(postId: 77)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [11, 12, 13],
+        );
+        expect(
+          controller
+              .peekTagCommentsCache(postId: 77)
+              ?.map((comment) => comment.id)
+              .toList(),
+          [12],
         );
       },
     );

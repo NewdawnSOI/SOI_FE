@@ -193,6 +193,18 @@ class UserController extends ChangeNotifier {
   /// 전역 세션 만료가 발생할 때마다 증가해 앱 루트가 강제 로그아웃 네비게이션을 한 번만 처리하게 합니다.
   int get sessionExpiredRevision => _sessionExpiredRevision;
 
+  /// 같은 번호 재전송은 유지하고, 번호나 인증 채널이 바뀐 경우에만 상태 초기화가 필요함을 알려줍니다.
+  bool shouldResetPhoneVerificationState(
+    String phoneNumber, {
+    bool useFirebase = true,
+  }) {
+    final normalizedPhoneNumber = phoneNumber.trim();
+    return _userService.shouldResetPhoneVerificationState(
+      normalizedPhoneNumber,
+      useFirebase: useFirebase,
+    );
+  }
+
   /// 전화번호 인증 채널이나 입력 번호가 바뀌면 이전 인증 상태를 비워 현재 시도와 섞이지 않게 합니다.
   void resetPhoneVerificationState() {
     _userService.resetPhoneVerificationState();

@@ -90,6 +90,8 @@ class _FakeUserController extends api.UserController {
   String? lastVerifiedCode;
   bool? lastVerifiedUseFirebase;
   String? lastLoginPhoneNumber;
+  int requestSmsVerificationCallCount = 0;
+  int resetPhoneVerificationStateCallCount = 0;
 
   /// Firebase 즉시 인증 완료 여부를 로그인 화면이 실시간으로 읽을 수 있게 노출합니다.
   @override
@@ -101,6 +103,7 @@ class _FakeUserController extends api.UserController {
     String phoneNumber, {
     bool useFirebase = true,
   }) {
+    requestSmsVerificationCallCount += 1;
     lastRequestedPhoneNumber = phoneNumber;
     lastRequestedUseFirebase = useFirebase;
     return onRequestSmsVerification(phoneNumber, useFirebase: useFirebase);
@@ -127,9 +130,22 @@ class _FakeUserController extends api.UserController {
   }
 
   @override
+  /// 같은 번호/채널 재전송에서는 기존 요청 컨텍스트를 유지할 수 있게 화면 판단을 흉내 냅니다.
+  bool shouldResetPhoneVerificationState(
+    String phoneNumber, {
+    bool useFirebase = true,
+  }) {
+    return lastRequestedPhoneNumber?.trim() != phoneNumber.trim() ||
+        lastRequestedUseFirebase != useFirebase;
+  }
+
+  @override
   /// 새 번호 입력이나 국가 변경 시 이전 인증 대기 상태가 비워지는지 테스트 더블에서도 유지합니다.
   void resetPhoneVerificationState() {
+    resetPhoneVerificationStateCallCount += 1;
     phoneVerificationCompleted = false;
+    lastRequestedPhoneNumber = null;
+    lastRequestedUseFirebase = null;
   }
 }
 
@@ -312,6 +328,35 @@ void main() {
         expect(verifyCalled, isFalse);
         expect(userController.lastLoginPhoneNumber, '4155551234');
         expect(find.text('HOME'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'resends Firebase SMS without resetting the same phone verification state',
+      (tester) async {
+        final userController = _FakeUserController(
+          onRequestSmsVerification: (_, {required useFirebase}) async => true,
+          onVerifySmsCode: (_, __, {required useFirebase}) async => true,
+          onLoginByPhone: (_) async => null,
+        );
+
+        await tester.pumpWidget(_buildTestApp(userController));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextField).first, '01012345678');
+        await tester.pumpAndSettle();
+        await _pressPrimaryButton(tester);
+
+        expect(userController.requestSmsVerificationCallCount, 1);
+        userController.resetPhoneVerificationStateCallCount = 0;
+
+        await tester.tap(find.byKey(const ValueKey('auth_sms_resend_button')));
+        await tester.pumpAndSettle();
+
+        expect(userController.requestSmsVerificationCallCount, 2);
+        expect(userController.resetPhoneVerificationStateCallCount, 0);
+        expect(userController.lastRequestedPhoneNumber, '+821012345678');
+        expect(userController.lastRequestedUseFirebase, isTrue);
       },
     );
 

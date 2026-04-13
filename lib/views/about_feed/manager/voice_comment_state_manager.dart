@@ -39,6 +39,7 @@ class VoiceCommentStateManager {
   final Map<int, bool> _pendingTextComments = {};
   final Map<int, int> _autoPlacementIndices = {};
   final Map<int, String?> _selectedEmojisByPostId = {}; // postId별 내가 선택한 이모지
+  final Map<int, Future<List<Comment>>> _inFlightParentCommentLoads = {};
   final Map<int, Future<void>> _inFlightTagCommentLoads = {};
   final Map<int, Future<List<Comment>>> _inFlightFullCommentLoads = {};
 
@@ -106,6 +107,52 @@ class VoiceCommentStateManager {
     await loadTagCommentsForPosts([postId], context, forceReload: forceReload);
   }
 
+  /// 여러 게시물의 원댓글 미리보기를 새로 받아 refresh 직후 보이는 카드 상태를 최신화합니다.
+  Future<void> loadParentCommentsForPosts(
+    List<int> postIds,
+    BuildContext context, {
+    bool forceReload = false,
+  }) async {
+    final commentController = context.read<CommentController>();
+    final uniquePostIds = postIds
+        .toSet()
+        .where((postId) {
+          final cached = commentController.peekParentCommentsCache(
+            postId: postId,
+          );
+          return forceReload ||
+              cached == null ||
+              _needsProfileImageResolution(cached);
+        })
+        .toList(growable: false);
+    if (uniquePostIds.isEmpty) {
+      return;
+    }
+
+    await Future.wait(
+      uniquePostIds.map(
+        (postId) => _loadParentCommentsForPostInternal(
+          postId,
+          context,
+          forceReload: forceReload,
+        ),
+      ),
+    );
+  }
+
+  /// 단일 게시물의 원댓글 미리보기 refresh를 감싼 편의 메서드입니다.
+  Future<void> loadParentCommentsForPost(
+    int postId,
+    BuildContext context, {
+    bool forceReload = false,
+  }) async {
+    await loadParentCommentsForPosts(
+      [postId],
+      context,
+      forceReload: forceReload,
+    );
+  }
+
   /// 여러 게시물의 태그 댓글을 post 단위로 병렬 로드하고, 완료 즉시 개별 반영합니다.
   Future<void> loadTagCommentsForPosts(
     List<int> postIds,
@@ -156,7 +203,7 @@ class VoiceCommentStateManager {
         if (!context.mounted) {
           return resolved;
         }
-        _syncCommentStateFromFullComments(postId, resolved, context);
+        _syncCommentStateFromLoadedComments(postId, resolved, context);
         _notifyStateChanged();
         return resolved;
       }
@@ -199,6 +246,67 @@ class VoiceCommentStateManager {
             loadCommentsForPost(postId, context, forceReload: forceReload),
       ),
     );
+  }
+
+  /// 원댓글 미리보기는 reply를 제외한 부모 댓글만 다시 받아 태그와 시트 초기 상태를 함께 갱신합니다.
+  Future<List<Comment>> _loadParentCommentsForPostInternal(
+    int postId,
+    BuildContext context, {
+    required bool forceReload,
+  }) async {
+    if (!forceReload) {
+      final inFlight = _inFlightParentCommentLoads[postId];
+      if (inFlight != null) {
+        return inFlight;
+      }
+    }
+
+    final future = () async {
+      try {
+        final commentController = context.read<CommentController>();
+        final mediaController = context.read<api_media.MediaController>();
+        final comments = await commentController.getAllParentComments(
+          postId: postId,
+          forceReload: forceReload,
+        );
+        final resolvedComments = await _resolveCommentProfileImages(
+          comments,
+          mediaController,
+        );
+
+        if (!context.mounted) {
+          return resolvedComments;
+        }
+
+        commentController.replaceParentCommentsCache(
+          postId: postId,
+          comments: resolvedComments,
+        );
+        _syncCommentStateFromLoadedComments(postId, resolvedComments, context);
+        _notifyStateChanged();
+        _prefetchProfileImages(
+          context,
+          _buildProfilePrefetchCandidates(resolvedComments),
+        );
+        return resolvedComments;
+      } catch (e) {
+        debugPrint('원댓글 로드 실패(postId: $postId): $e');
+        return context.read<CommentController>().peekParentCommentsCache(
+              postId: postId,
+            ) ??
+            const <Comment>[];
+      }
+    }();
+
+    _inFlightParentCommentLoads[postId] = future;
+    try {
+      return await future;
+    } finally {
+      final registered = _inFlightParentCommentLoads[postId];
+      if (identical(registered, future)) {
+        _inFlightParentCommentLoads.remove(postId);
+      }
+    }
   }
 
   /// 태그 전용 로드는 위치 댓글만 post 단위로 반영해 느린 sibling post의 영향 범위를 줄입니다.
@@ -290,7 +398,7 @@ class VoiceCommentStateManager {
         postId: postId,
         comments: resolvedComments,
       );
-      _syncCommentStateFromFullComments(postId, resolvedComments, context);
+      _syncCommentStateFromLoadedComments(postId, resolvedComments, context);
       _notifyStateChanged();
       _prefetchProfileImages(
         context,
@@ -494,8 +602,8 @@ class VoiceCommentStateManager {
         resolvedComments;
   }
 
-  /// 전체 댓글이 준비되면 저장 여부와 선택 이모지를 피드 UI 상태에 동기화합니다.
-  void _syncCommentStateFromFullComments(
+  /// 피드에 보이는 댓글 캐시가 갱신되면 저장 여부와 선택 이모지를 UI 상태에 동기화합니다.
+  void _syncCommentStateFromLoadedComments(
     int postId,
     List<Comment> comments,
     BuildContext context,
