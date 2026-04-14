@@ -34,8 +34,8 @@ Do not use this skill when:
    - assumptions or risks
 2. Build a compact JSON contract with only the fields that help.
 3. Rewrite the visible prompt in English unless the user explicitly asks for another language.
-4. Wrap that contract in a short natural-language instruction block so the final prompt stays readable.
-5. Execute locally from the hybrid prompt, or hand it to another agent only when delegation is already explicitly requested or otherwise allowed.
+4. Wrap that contract in a short natural-language instruction block so the final prompt stays readable, or save it to a scratch file (e.g., `scratch/hybrid_prompt.txt`) inside your `appDataDir`.
+5. Execute locally from the hybrid prompt, using Planning Mode if the task warrants it. Antigravity does not natively delegate to subagents (except `browser_subagent`), so provide the resulting contract directly to the user if handoff is requested.
 
 ## Contract Shape
 
@@ -92,10 +92,9 @@ Execution notes:
 - Report outcomes, validation, and remaining risks.
 ```
 
-## Delegation Rule
+## Antigravity Execution Rule
 
-If another agent is being used, pass the hybrid prompt as the task payload only when delegation is already explicitly requested or otherwise allowed by the current system rules.
-Do not spawn or use a sub-agent just because this skill is active.
+If a follow-up action is required, prefer executing the hybrid prompt directly within the current context. If handoff is absolutely needed, write the prompt to a scratch file in `appDataDir` and ask the user to use it.
 
 ## Token Discipline
 

@@ -1672,6 +1672,13 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
+  soi_media_tagger:
+    dependency: "direct main"
+    description:
+      path: "packages/soi_media_tagger"
+      relative: true
+    source: path
+    version: "0.0.1"
   solar_icons:
     dependency: "direct main"
     description:

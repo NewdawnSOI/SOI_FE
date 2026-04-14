@@ -18,8 +18,9 @@ import '../comment/comment_overlay.dart';
 import '../comment/comment_tag_bubble.dart';
 import '../comment/comment_tag_specs.dart';
 import '../comment/model/comment_pending_model.dart';
+import 'package:soi_media_tagger/soi_media_tagger.dart';
 import 'audio_control_widget.dart';
-import 'services/photo_tag_geometry_service.dart';
+import 'services/photo_tag_domain_utils.dart';
 import 'services/photo_waveform_parser_service.dart';
 import 'widgets/photo_caption_overlay.dart';
 import 'widgets/photo_delete_action_popup.dart';
@@ -721,9 +722,9 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     VoidCallback? onLongPress,
   }) {
     final localCircleCenter =
-        ApiPhotoTagGeometryService.tagCircleCenterFromTipAnchor(
-          tipAnchor,
-          _avatarSize,
+        MediaTagGeometry.tagCircleCenterFromTipAnchor(
+          tipAnchor: tipAnchor,
+          contentSize: _avatarSize,
         );
 
     // 확장된 미디어 오버레이를 표시하기 위해 필요한 데이터를 계산하고, 상위 위젯에 전달합니다.
@@ -751,7 +752,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     required Offset tipAnchor,
   }) async {
     if (comment.type == CommentType.photo) {
-      if (!ApiPhotoTagGeometryService.canExpandMediaComment(comment)) {
+      if (!PhotoTagDomainUtils.canExpandMediaComment(comment)) {
         _openCommentSheet(key);
         return;
       }

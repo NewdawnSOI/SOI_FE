@@ -13,6 +13,7 @@
 ///   print('네트워크 에러: ${e.message}');
 /// }
 /// ```
+library;
 
 /// SOI API 기본 예외 클래스
 ///
@@ -48,9 +49,9 @@ class SoiApiException implements Exception {
 /// 인터넷 연결 실패, 타임아웃 등 네트워크 관련 에러에 사용됩니다.
 class NetworkException extends SoiApiException {
   const NetworkException({
-    String message = '네트워크 연결을 확인해주세요.',
-    dynamic originalException,
-  }) : super(message: message, originalException: originalException);
+    super.message = '네트워크 연결을 확인해주세요.',
+    super.originalException,
+  });
 
   @override
   String toString() => 'NetworkException: $message';
@@ -61,13 +62,9 @@ class NetworkException extends SoiApiException {
 /// 로그인이 필요하거나 토큰이 만료된 경우 발생합니다.
 class AuthException extends SoiApiException {
   const AuthException({
-    String message = '인증이 필요합니다. 다시 로그인해주세요.',
-    dynamic originalException,
-  }) : super(
-         statusCode: 401,
-         message: message,
-         originalException: originalException,
-       );
+    super.message = '인증이 필요합니다. 다시 로그인해주세요.',
+    super.originalException,
+  }) : super(statusCode: 401);
 
   @override
   String toString() => 'AuthException: $message';
@@ -78,13 +75,9 @@ class AuthException extends SoiApiException {
 /// 해당 리소스에 접근 권한이 없는 경우 발생합니다.
 class ForbiddenException extends SoiApiException {
   const ForbiddenException({
-    String message = '접근 권한이 없습니다.',
-    dynamic originalException,
-  }) : super(
-         statusCode: 403,
-         message: message,
-         originalException: originalException,
-       );
+    super.message = '접근 권한이 없습니다.',
+    super.originalException,
+  }) : super(statusCode: 403);
 
   @override
   String toString() => 'ForbiddenException: $message';
@@ -95,13 +88,9 @@ class ForbiddenException extends SoiApiException {
 /// 요청한 리소스가 존재하지 않는 경우 발생합니다.
 class NotFoundException extends SoiApiException {
   const NotFoundException({
-    String message = '요청한 정보를 찾을 수 없습니다.',
-    dynamic originalException,
-  }) : super(
-         statusCode: 404,
-         message: message,
-         originalException: originalException,
-       );
+    super.message = '요청한 정보를 찾을 수 없습니다.',
+    super.originalException,
+  }) : super(statusCode: 404);
 
   @override
   String toString() => 'NotFoundException: $message';
@@ -112,14 +101,10 @@ class NotFoundException extends SoiApiException {
 /// 서버 내부 에러가 발생한 경우 사용됩니다.
 class ServerException extends SoiApiException {
   const ServerException({
-    int statusCode = 500,
-    String message = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
-    dynamic originalException,
-  }) : super(
-         statusCode: statusCode,
-         message: message,
-         originalException: originalException,
-       );
+    int super.statusCode = 500,
+    super.message = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+    super.originalException,
+  });
 
   @override
   String toString() => 'ServerException [$statusCode]: $message';
@@ -130,13 +115,9 @@ class ServerException extends SoiApiException {
 /// 클라이언트의 요청이 잘못된 경우 발생합니다.
 class BadRequestException extends SoiApiException {
   const BadRequestException({
-    String message = '잘못된 요청입니다.',
-    dynamic originalException,
-  }) : super(
-         statusCode: 400,
-         message: message,
-         originalException: originalException,
-       );
+    super.message = '잘못된 요청입니다.',
+    super.originalException,
+  }) : super(statusCode: 400);
 
   @override
   String toString() => 'BadRequestException: $message';
@@ -147,9 +128,9 @@ class BadRequestException extends SoiApiException {
 /// 응답 데이터가 예상과 다르거나 null인 경우 발생합니다.
 class DataValidationException extends SoiApiException {
   const DataValidationException({
-    String message = '데이터 처리 중 오류가 발생했습니다.',
-    dynamic originalException,
-  }) : super(message: message, originalException: originalException);
+    super.message = '데이터 처리 중 오류가 발생했습니다.',
+    super.originalException,
+  });
 
   @override
   String toString() => 'DataValidationException: $message';

@@ -12,15 +12,15 @@ Preserve runtime behavior and keep dependency depth intentionally shallow.
 
 ## Refactoring Workflow
 
-1. Establish baseline behavior before editing.
-   - Read the target file and immediate collaborators.
+1. Create an `implementation_plan.md` via Planning Mode before editing.
+   - Read the target file and immediate collaborators using `view_file`.
    - Run available tests/analyze/lint for the touched area.
-   - Record public API surfaces that must remain compatible.
+   - Map responsibilities and identify extraction candidates in the plan.
+   - Request user feedback on the extraction boundaries.
 
-2. Map responsibilities in the long file.
-   - Group code by concern (state, orchestration, data access, presentation, formatting, validation, side effects).
-   - Mark mixed-responsibility symbols as extraction candidates.
-   - Identify hidden dependencies (globals, context objects, singletons, cross-layer imports).
+2. Track extraction steps using `task.md`.
+   - Add items for pure functions, helper classes, interfaces, and implementations.
+   - Mark items `[x]` as you incrementally apply edits via `multi_replace_file_content`.
 
 3. Define extraction boundaries.
    - Assign one reason to change per new class/module.
@@ -46,7 +46,7 @@ Preserve runtime behavior and keep dependency depth intentionally shallow.
 6. Verify and finalize.
    - Run static analysis and relevant tests.
    - Confirm public API compatibility (or document intentional changes).
-   - Summarize extracted units, their responsibilities, and dependency changes.
+   - Summarize extracted units, their responsibilities, and dependency changes in a `walkthrough.md` artifact.
 
 ## Design Rules
 

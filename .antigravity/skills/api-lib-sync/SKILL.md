@@ -24,12 +24,12 @@ Prefer full baseline audit when the user asks for:
 ## Workflow
 
 1. Choose sync mode: fast path or full baseline audit.
-2. Build generated-to-wrapper inventory with the bundled script.
-3. Classify every generated file before editing: aligned, stale, missing wrapper, transport/helper-only, or intentional app-local skip.
+2. Build generated-to-wrapper inventory using `implementation_plan.md` (via Planning Mode) and the bundled script.
+3. Classify every generated file before editing: aligned, stale, missing wrapper, transport/helper-only, or intentional app-local skip. Track this checklist in `task.md`.
 4. Expand file-level inventory into method-level and model-level coverage decisions before editing.
-5. Read only the generated files and wrapper files required to resolve each mismatch.
+5. Apply edits safely using native tools like `multi_replace_file_content` or `replace_file_content`. Read only the generated files and wrapper files required to resolve each mismatch via `view_file` with precise line ranges.
 6. Update `lib/api/models`, `lib/api/services`, `lib/api/controller`, plus `lib/api/api.dart` and `lib/api/api_client.dart` when needed.
-7. Verify with targeted checks and summarize behavioral changes, intentional skips, and residual risks.
+7. Verify with targeted checks and summarize behavioral changes, intentional skips, and residual risks in a `walkthrough.md`.
 
 ## Step 1: Build Inventory
 
@@ -134,7 +134,7 @@ Always compare these contract aspects:
 - Public wrapper surface changes: `lib/api/api.dart` exports and `lib/api/api_client.dart` getters
 - Coverage gaps: generated methods/models present under `api/generated/lib/**` but absent from `lib/api/services`, `lib/api/controller`, or `lib/api/models`
 
-Prefer targeted reads (`rg`, line ranges) over full-file reads.
+Prefer targeted reads (`grep_search`, `view_file` with line ranges) over full-file reads.
 Do not read full `api/openapi.yaml` when it is minified unless absolutely required.
 
 ## Step 3: Apply Wrapper Sync
@@ -212,8 +212,8 @@ When finishing a sync task, report:
 
 ## Efficiency Guardrails
 
-- Start with `scripts/api_change_impact.sh`; do not begin with wide `rg` over `lib/api/**`.
-- In full baseline mode, do not trim the scope until every generated API/model has been classified.
+- Start with `scripts/api_change_impact.sh`; do not begin with wide `grep_search` over `lib/api/**`.
+- In full baseline mode, do not trim the scope until every generated API/model has been classified in `task.md`.
 - In full baseline mode, do not mark an API as aligned until every generated method in that API file has a wrapper decision.
 - In full baseline mode, do not mark a generated model as resolved until its wrapper classification and field-level mapping decision are recorded.
 - Skip non-contract generated changes (`api/generated/doc/**`) unless user asks for docs sync.
