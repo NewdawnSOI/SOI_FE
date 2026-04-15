@@ -3,7 +3,9 @@ import '../models/media_tag.dart';
 
 /// 다른 프로젝트에서 특정 백엔드(Firebase, Supabase 등)를 사용할 때
 /// 이 인터페이스를 상속받아 통신 및 세이브 로직을 구현합니다.
-abstract class MediaTagDataSource<T> {
+/// [T] 태그의 확정된 데이터 모델
+/// [DRAFT] 작성 중인 임시 데이터 모델 (로컬 파일 경로 등)
+abstract class MediaTagDataSource<T, DRAFT> {
   /// 특정 미디어(이미지/비디오)의 기존 태그 목록을 불러옵니다.
   /// [mediaId] 서버에 저장된 타겟 미디어 레퍼런스 ID
   Future<List<MediaTag<T>>> fetchTags(String mediaId);
@@ -15,8 +17,9 @@ abstract class MediaTagDataSource<T> {
   Future<MediaTag<T>> createTag(
     String mediaId,
     Offset relativePosition,
-    T draftData,
-  );
+    DRAFT draftData, {
+    ValueChanged<double>? onProgress,
+  });
 
   /// 서버에서 해당 태그를 삭제합니다.
   Future<void> deleteTag(String tagId);
