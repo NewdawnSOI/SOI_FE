@@ -5,10 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/services/contact_repository.dart';
 import 'package:soi/api/services/contact_service.dart';
 
+/// 연락처 서비스 테스트에서 캐시와 조회 경로를 제어하는 저장소 더블입니다.
 class _FakeContactRepository extends ContactRepository {
   _FakeContactRepository({
+    this.onLoadContactSyncSetting,
+    this.onSaveContactSyncSetting,
     this.onRequestContactPermission,
     this.onGetContacts,
+    this.onGetContact,
     this.onSearchContacts,
   });
 
@@ -98,6 +102,8 @@ void main() {
 
         final service = ContactService(
           repository: _FakeContactRepository(
+            onLoadContactSyncSetting: () async => false,
+            onSaveContactSyncSetting: (value) async {},
             onRequestContactPermission: ({bool readonly = true}) async {
               capturedReadonly = readonly;
               return true;
@@ -106,6 +112,7 @@ void main() {
               getContactsCallCount++;
               return contactsCompleter.future;
             },
+            onGetContact: (_) async => null,
           ),
         );
 
