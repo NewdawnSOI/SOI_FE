@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:tagging_core/tagging_core.dart';
 
 import '../../../api/controller/comment_controller.dart';
 import '../../../api/controller/media_controller.dart' as api_media;
@@ -14,7 +15,6 @@ import '../../../api/models/comment_creation_result.dart';
 import '../../../utils/position_converter.dart';
 import '../../../api/media_processing/waveform_codec.dart';
 import '../../../utils/snackbar_utils.dart';
-import '../../common_widget/comment/model/comment_pending_model.dart';
 
 /// 게시물별 음성/텍스트 댓글 상태를 관리하는 매니저 클래스
 /// 피드 화면에서 각 게시물에 대해 음성/텍스트 댓글의 활성화 상태, 저장 상태, 대기 중인 댓글 정보 등을 관리하여,
@@ -32,9 +32,8 @@ class VoiceCommentStateManager {
   static final WaveformCodec _waveformCodec = WaveformCodec();
   final Map<int, bool> _voiceCommentActiveStates = {};
   final Map<int, bool> _voiceCommentSavedStates = {};
-  final Map<int, PendingApiCommentDraft> _pendingCommentDrafts =
-      {}; // 임시 댓글 초안 저장
-  final Map<int, PendingApiCommentMarker> _pendingCommentMarkers =
+  final Map<int, TagDraft> _pendingCommentDrafts = {}; // 임시 댓글 초안 저장
+  final Map<int, TagPendingMarker> _pendingCommentMarkers =
       {}; // UI 마커용 최소 데이터 저장
   final Map<int, bool> _pendingTextComments = {};
   final Map<int, int> _autoPlacementIndices = {};
@@ -47,10 +46,8 @@ class VoiceCommentStateManager {
 
   Map<int, bool> get voiceCommentActiveStates => _voiceCommentActiveStates;
   Map<int, bool> get voiceCommentSavedStates => _voiceCommentSavedStates;
-  Map<int, PendingApiCommentMarker> get pendingVoiceComments =>
-      _pendingCommentMarkers;
-  Map<int, PendingApiCommentDraft> get pendingCommentDrafts =>
-      _pendingCommentDrafts;
+  Map<int, TagPendingMarker> get pendingVoiceComments => _pendingCommentMarkers;
+  Map<int, TagDraft> get pendingCommentDrafts => _pendingCommentDrafts;
   Map<int, bool> get pendingTextComments => _pendingTextComments;
   Map<int, String?> get selectedEmojisByPostId => _selectedEmojisByPostId;
 
@@ -673,16 +670,11 @@ class VoiceCommentStateManager {
     }
 
     // 텍스트 댓글 초안 저장 (위치는 드래그로 별도 저장)
-    _pendingCommentDrafts[postId] = (
-      isTextComment: true,
+    _pendingCommentDrafts[postId] = TagDraft(
+      kind: TagDraftKind.text,
       text: text.trim(),
-      audioPath: null,
-      mediaPath: null,
-      isVideo: null,
-      waveformData: null,
-      duration: null,
-      recorderUserId: currentUser.id,
-      profileImageUrlKey: currentUser.profileImageKey,
+      recorderUserId: currentUser.id.toString(),
+      profileImageSource: currentUser.profileImageKey,
     );
 
     // 텍스트 댓글 대기 상태 설정
@@ -714,16 +706,13 @@ class VoiceCommentStateManager {
     }
 
     // 음성 댓글 초안 저장 (위치는 드래그로 별도 저장)
-    _pendingCommentDrafts[postId] = (
-      isTextComment: false,
-      text: null,
+    _pendingCommentDrafts[postId] = TagDraft(
+      kind: TagDraftKind.audio,
       audioPath: audioPath,
-      mediaPath: null,
-      isVideo: null,
       waveformData: waveformData,
-      duration: duration,
-      recorderUserId: currentUser.id,
-      profileImageUrlKey: currentUser.profileImageKey,
+      durationMs: duration,
+      recorderUserId: currentUser.id.toString(),
+      profileImageSource: currentUser.profileImageKey,
     );
 
     // 저장된 댓글 상태 업데이트
@@ -754,16 +743,11 @@ class VoiceCommentStateManager {
       return;
     }
 
-    _pendingCommentDrafts[postId] = (
-      isTextComment: false,
-      text: null,
-      audioPath: null,
+    _pendingCommentDrafts[postId] = TagDraft(
+      kind: isVideo ? TagDraftKind.video : TagDraftKind.image,
       mediaPath: localFilePath.trim(),
-      isVideo: isVideo,
-      waveformData: null,
-      duration: null,
-      recorderUserId: currentUser.id,
-      profileImageUrlKey: currentUser.profileImageKey,
+      recorderUserId: currentUser.id.toString(),
+      profileImageSource: currentUser.profileImageKey,
     );
 
     _pendingTextComments.remove(postId);
@@ -786,9 +770,12 @@ class VoiceCommentStateManager {
 
     // UI 마커에 필요한 최소 데이터만 저장
     final previousProgress = _pendingCommentMarkers[postId]?.progress;
-    _pendingCommentMarkers[postId] = (
-      relativePosition: relativePosition,
-      profileImageUrlKey: draft.profileImageUrlKey,
+    _pendingCommentMarkers[postId] = TagPendingMarker(
+      relativePosition: TagPosition(
+        x: relativePosition.dx,
+        y: relativePosition.dy,
+      ),
+      profileImageSource: draft.profileImageSource,
       progress: previousProgress,
     );
 
@@ -799,11 +786,7 @@ class VoiceCommentStateManager {
     final marker = _pendingCommentMarkers[postId];
     if (marker == null) return;
     final clamped = progress.clamp(0.0, 1.0).toDouble();
-    _pendingCommentMarkers[postId] = (
-      relativePosition: marker.relativePosition,
-      profileImageUrlKey: marker.profileImageUrlKey,
-      progress: clamped,
-    );
+    _pendingCommentMarkers[postId] = marker.copyWith(progress: clamped);
     _notifyStateChanged();
   }
 
@@ -820,11 +803,7 @@ class VoiceCommentStateManager {
     _voiceCommentSavedStates[postId] = false;
     final marker = _pendingCommentMarkers[postId];
     if (marker != null) {
-      _pendingCommentMarkers[postId] = (
-        relativePosition: marker.relativePosition,
-        profileImageUrlKey: marker.profileImageUrlKey,
-        progress: null,
-      );
+      _pendingCommentMarkers[postId] = marker.copyWith(clearProgress: true);
     }
     _notifyStateChanged();
   }
@@ -847,7 +826,11 @@ class VoiceCommentStateManager {
     final messenger = ScaffoldMessenger.maybeOf(context);
 
     // 로그인된 사용자 ID 가져오기
-    final userId = draft.recorderUserId;
+    final userId = int.tryParse(draft.recorderUserId);
+    if (userId == null || userId <= 0) {
+      SnackBarUtils.showWithMessenger(messenger, '사용자 정보를 확인할 수 없습니다.');
+      return;
+    }
 
     // 최종 위치 결정
     final finalPosition =
@@ -855,9 +838,9 @@ class VoiceCommentStateManager {
         _generateAutoProfilePosition(postId, commentController);
 
     // 저장 중에도 UI 마커가 유지되도록 최종 위치를 마커에 기록
-    _pendingCommentMarkers[postId] = (
+    _pendingCommentMarkers[postId] = TagPendingMarker(
       relativePosition: finalPosition,
-      profileImageUrlKey: draft.profileImageUrlKey,
+      profileImageSource: draft.profileImageSource,
       progress: 0.0,
     );
 
@@ -902,8 +885,8 @@ class VoiceCommentStateManager {
   Future<bool> _saveCommentToServer(
     int postId,
     int userId,
-    PendingApiCommentDraft pending,
-    Offset relativePosition, {
+    TagDraft pending,
+    TagPosition relativePosition, {
     required CommentController commentController,
     api_media.MediaController? mediaController,
     ScaffoldMessengerState? messenger,
@@ -919,8 +902,8 @@ class VoiceCommentStateManager {
           postId: postId,
           userId: userId,
           text: pending.text!,
-          locationX: relativePosition.dx,
-          locationY: relativePosition.dy,
+          locationX: relativePosition.x,
+          locationY: relativePosition.y,
         );
         _updatePendingProgress(postId, 0.85);
       } else if (pending.audioPath != null) {
@@ -960,9 +943,9 @@ class VoiceCommentStateManager {
           userId: userId,
           audioFileKey: audioKey,
           waveformData: waveformJson!,
-          duration: pending.duration!,
-          locationX: relativePosition.dx,
-          locationY: relativePosition.dy,
+          duration: pending.durationMs!,
+          locationX: relativePosition.x,
+          locationY: relativePosition.y,
         );
         _updatePendingProgress(postId, 0.95);
       }
@@ -1005,11 +988,11 @@ class VoiceCommentStateManager {
   }
 
   /// 자동 배치 위치 생성기
-  Offset _generateAutoProfilePosition(
+  TagPosition _generateAutoProfilePosition(
     int postId,
     CommentController commentController,
   ) {
-    final occupiedPositions = <Offset>[];
+    final occupiedPositions = <TagPosition>[];
     final comments =
         commentController.peekTagCommentsCache(postId: postId) ??
         const <Comment>[];
@@ -1017,7 +1000,7 @@ class VoiceCommentStateManager {
     for (final comment in comments) {
       if (comment.hasLocation) {
         occupiedPositions.add(
-          Offset(comment.locationX ?? 0.5, comment.locationY ?? 0.5),
+          TagPosition(x: comment.locationX ?? 0.5, y: comment.locationY ?? 0.5),
         );
       }
     }
@@ -1030,15 +1013,15 @@ class VoiceCommentStateManager {
 
     // 자동 배치 패턴
     const pattern = [
-      Offset(0.5, 0.5),
-      Offset(0.62, 0.5),
-      Offset(0.38, 0.5),
-      Offset(0.5, 0.62),
-      Offset(0.5, 0.38),
-      Offset(0.62, 0.62),
-      Offset(0.38, 0.62),
-      Offset(0.62, 0.38),
-      Offset(0.38, 0.38),
+      TagPosition(x: 0.5, y: 0.5),
+      TagPosition(x: 0.62, y: 0.5),
+      TagPosition(x: 0.38, y: 0.5),
+      TagPosition(x: 0.5, y: 0.62),
+      TagPosition(x: 0.5, y: 0.38),
+      TagPosition(x: 0.62, y: 0.62),
+      TagPosition(x: 0.38, y: 0.62),
+      TagPosition(x: 0.62, y: 0.38),
+      TagPosition(x: 0.38, y: 0.38),
     ];
 
     const maxAttempts = 30;
@@ -1058,11 +1041,10 @@ class VoiceCommentStateManager {
     }
 
     _autoPlacementIndices[postId] = startingIndex + 1;
-    return const Offset(0.5, 0.5);
+    return const TagPosition(x: 0.5, y: 0.5);
   }
 
-  ///
-  Offset _applyJitter(Offset base, int loop, int attempt) {
+  TagPosition _applyJitter(TagPosition base, int loop, int attempt) {
     if (loop <= 0) {
       return _clampOffset(base);
     }
@@ -1070,28 +1052,28 @@ class VoiceCommentStateManager {
     final dxDirection = (attempt % 2 == 0) ? 1 : -1;
     final dyDirection = ((attempt ~/ 2) % 2 == 0) ? 1 : -1;
 
-    final offsetWithJitter = Offset(
-      base.dx + (step * dxDirection),
-      base.dy + (step * dyDirection),
+    final offsetWithJitter = TagPosition(
+      x: base.x + (step * dxDirection),
+      y: base.y + (step * dyDirection),
     );
 
     return _clampOffset(offsetWithJitter);
   }
 
-  Offset _clampOffset(Offset offset) {
+  TagPosition _clampOffset(TagPosition offset) {
     const min = 0.05;
     const max = 0.95;
-    return Offset(
-      offset.dx.clamp(min, max).toDouble(),
-      offset.dy.clamp(min, max).toDouble(),
+    return TagPosition(
+      x: offset.x.clamp(min, max).toDouble(),
+      y: offset.y.clamp(min, max).toDouble(),
     );
   }
 
-  bool _isPositionTooClose(Offset candidate, List<Offset> occupied) {
+  bool _isPositionTooClose(TagPosition candidate, List<TagPosition> occupied) {
     const threshold = 0.04;
     for (final existing in occupied) {
-      if ((candidate.dx - existing.dx).abs() < threshold &&
-          (candidate.dy - existing.dy).abs() < threshold) {
+      if ((candidate.x - existing.x).abs() < threshold &&
+          (candidate.y - existing.y).abs() < threshold) {
         return true;
       }
     }

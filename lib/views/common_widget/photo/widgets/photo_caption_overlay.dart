@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:tagging_flutter/tagging_flutter.dart';
 
-import '../../comment/comment_circle_avatar.dart';
 import '../first_line_ellipsis_text.dart';
 
 class ApiPhotoCaptionOverlay extends StatelessWidget {
@@ -79,7 +79,7 @@ class ApiPhotoCaptionOverlay extends StatelessWidget {
                         ),
                       ),
                     )
-                  : CommentCircleAvatar(
+                  : TagCircleAvatar(
                       imageUrl: profileImageUrl,
                       size: avatarSize,
                       cacheKey: profileImageCacheKey,
