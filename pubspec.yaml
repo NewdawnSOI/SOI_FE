@@ -35,8 +35,6 @@ dependencies:
   # SOI API Client (auto-generated from OpenAPI)
   soi_api_client:
     path: api/generated
-  soi_media_tagger:
-    path: packages/soi_media_tagger
   soi_media_native:
     path: packages/soi_media_native
 

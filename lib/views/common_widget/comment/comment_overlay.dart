@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:soi_media_tagger/soi_media_tagger.dart';
 
 import '../../../../api/controller/user_controller.dart';
 import '../../../../api/models/comment.dart';
-import '../photo/services/photo_tag_domain_utils.dart';
+import '../../../../utils/position_converter.dart';
 import '../user/current_user_image_builder.dart';
+import '../photo/services/photo_tag_geometry_service.dart';
 import 'comment_circle_avatar.dart';
+import 'comment_tag_bubble.dart';
 import 'comment_tag_specs.dart';
 import 'model/comment_pending_model.dart';
 
@@ -26,6 +27,13 @@ typedef CommentLongPressCallback =
       required Offset position,
     });
 
+/// 이미지/비디오 위에 댓글 작성자 프로필 사진을 원형 아바타로 보여주는 오버레이 위젯입니다.
+/// - 댓글 작성자의 프로필 이미지를 원형으로 보여주는 태그입니다.
+/// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
+/// - 댓글 작성이 완료되면, 부모 위젯에 댓글 저장 진행 상황과 결과를 전달하는 역할도 수행합니다.
+/// - 또한, 댓글이 작성 중인 위치에 표시할 수 있는 pending 댓글 마커도 포함하고 있습니다.
+///   pending 댓글 마커는 음성 댓글 녹음 중이거나 텍스트 댓글 입력 중인 상태에서, 댓글이 작성 중인 위치에 표시할 마커 정보입니다
+/// - 부착된 태그와 pending 태그 모두 33x33 외곽, 27x27 아바타 공통 규격을 사용합니다.
 class CommentOverlay extends StatelessWidget {
   const CommentOverlay({
     super.key,
@@ -55,99 +63,102 @@ class CommentOverlay extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        if (isShowingComments) _buildCommentContainer(),
+        if (isShowingComments) ..._buildCommentAvatars(),
         if (pendingMarker != null) _buildPendingMarker(context, pendingMarker!),
       ],
     );
   }
 
-  Widget _buildCommentContainer() {
+  /// 위치가 있는 댓글만 골라 각 태그 아바타가 현재 사용자 이미지 selector만 구독하게 만듭니다.
+  List<Widget> _buildCommentAvatars() {
     final filteredComments = comments
         .where((comment) => comment.hasLocation)
         .toList(growable: false);
 
-    final hiddenTagIds = <String>{};
-    final tags = <MediaTag<Comment>>[];
+    return List<Widget>.generate(filteredComments.length, (index) {
+      final comment = filteredComments[index];
+      final key = _buildStableCommentKey(comment, index);
+      final canExpandMedia = ApiPhotoTagGeometryService.canExpandMediaComment(
+        comment,
+      );
+      final relative = Offset(
+        comment.locationX ?? 0.5,
+        comment.locationY ?? 0.5,
+      );
+      final absolute = PositionConverter.toAbsolutePosition(
+        relative,
+        imageSize,
+      );
+      final clampedSmallTip = ApiPhotoTagGeometryService.clampTagAnchor(
+        absolute,
+        imageSize,
+        CommentProfileTagSpec.avatarSize,
+      );
+      final topLeft = ApiPhotoTagGeometryService.tagTopLeftFromTipAnchor(
+        clampedSmallTip,
+        CommentProfileTagSpec.avatarSize,
+      );
+      final hideOther =
+          showActionOverlay &&
+          selectedCommentKey != null &&
+          key != selectedCommentKey;
+      final hideExpandedTag = expandedMediaTagKey == key && canExpandMedia;
 
-    for (var i = 0; i < filteredComments.length; i++) {
-        final comment = filteredComments[i];
-        final key = _buildStableCommentKey(comment, i);
-        final canExpandMedia = PhotoTagDomainUtils.canExpandMediaComment(comment);
+      if (hideOther || hideExpandedTag) {
+        return const SizedBox.shrink();
+      }
 
-        final relative = Offset(
-            comment.locationX ?? 0.5,
-            comment.locationY ?? 0.5,
-        );
+      final isSelected = selectedCommentKey == key;
 
-        tags.add(
-            MediaTag<Comment>(
-                id: key,
-                relativePosition: relative,
-                content: comment,
-            ),
-        );
-
-        final hideOther = showActionOverlay &&
-            selectedCommentKey != null &&
-            key != selectedCommentKey;
-        final hideExpandedTag = expandedMediaTagKey == key && canExpandMedia;
-
-        if (hideOther || hideExpandedTag) {
-            hiddenTagIds.add(key);
-        }
-    }
-
-    return MediaTagOverlayContainer<Comment>(
-        tags: tags,
-        imageSize: imageSize,
-        selectedTagId: selectedCommentKey,
-        hiddenTagIds: hiddenTagIds,
-        contentSize: CommentProfileTagSpec.avatarSize,
-        padding: CommentProfileTagSpec.padding,
-        onTagTap: (tag, anchor) {
+      return Positioned(
+        left: topLeft.dx,
+        top: topLeft.dy,
+        child: GestureDetector(
+          onTap: () {
             unawaited(
-                onCommentTap(
-                    comment: tag.content,
-                    key: tag.id,
-                    tipAnchor: anchor,
-                ),
+              onCommentTap(
+                comment: comment,
+                key: key,
+                tipAnchor: clampedSmallTip,
+              ),
             );
-        },
-        onTagLongPress: (tag, anchor) {
-            onCommentLongPress(
-                key: tag.id,
-                commentId: tag.content.id,
-                position: anchor,
-            );
-        },
-        tagBuilder: (context, tag, isSelected) {
-            final comment = tag.content;
-            return CurrentUserImageBuilder(
-                imageKind: CurrentUserImageKind.profile,
-                targetUserId: comment.userId,
-                targetUserHandle: comment.nickname,
-                fallbackImageUrl: comment.userProfileUrl,
-                fallbackImageKey: comment.userProfileKey,
-                builder: (context, imageUrl, cacheKey) {
-                    return CommentCircleAvatar(
-                        key: ValueKey<String>('avatar_${tag.id}'),
-                        imageUrl: imageUrl,
-                        size: CommentProfileTagSpec.avatarSize,
-                        showBorder: isSelected,
-                        borderColor: Colors.white,
-                        cacheKey: cacheKey,
-                    );
-                },
-            );
-        },
-    );
+          },
+          onLongPress: () => onCommentLongPress(
+            key: key,
+            commentId: comment.id,
+            position: clampedSmallTip,
+          ),
+          child: CommentTagBubble(
+            contentSize: CommentProfileTagSpec.avatarSize,
+            child: CurrentUserImageBuilder(
+              imageKind: CurrentUserImageKind.profile,
+              targetUserId: comment.userId,
+              targetUserHandle: comment.nickname,
+              fallbackImageUrl: comment.userProfileUrl,
+              fallbackImageKey: comment.userProfileKey,
+              builder: (context, imageUrl, cacheKey) {
+                return CommentCircleAvatar(
+                  key: ValueKey<String>('avatar_$key'),
+                  imageUrl: imageUrl,
+                  size: CommentProfileTagSpec.avatarSize,
+                  showBorder: isSelected,
+                  borderColor: Colors.white,
+                  cacheKey: cacheKey,
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    });
   }
 
+  /// pending 댓글 마커를 동일한 태그 스타일 위에 진행률과 함께 배치합니다.
   Widget _buildPendingMarker(
     BuildContext context,
     PendingApiCommentMarker marker,
   ) {
-    final absolute = RelativePositionConverter.toAbsolutePosition(
+    final absolute = PositionConverter.toAbsolutePosition(
       marker.relativePosition,
       imageSize,
     );
@@ -162,12 +173,11 @@ class CommentOverlay extends StatelessWidget {
       context,
       listen: false,
     )?.currentUserId;
-    
-    final pendingTipOffset = GenericTagBubble.pointerTipOffset(
+    final pendingTipOffset = CommentTagBubble.pointerTipOffset(
       contentSize: kPendingCommentAvatarSize,
       padding: kPendingCommentTagPadding,
     );
-    final pendingDiameter = GenericTagBubble.diameterForContent(
+    final pendingDiameter = CommentTagBubble.diameterForContent(
       contentSize: kPendingCommentAvatarSize,
       padding: kPendingCommentTagPadding,
     );
@@ -179,10 +189,12 @@ class CommentOverlay extends StatelessWidget {
       absolute.dy.clamp(pendingTipOffset.dy, imageSize.height),
     );
 
+    // 태그의 원형 부분의 중심에서 포인터의 끝까지의 오프셋을 계산하여, 마커가 가리키는 위치에 원형 아바타가 정확히 배치되도록 합니다.
     return Positioned(
       left: clamped.dx - pendingTipOffset.dx,
       top: clamped.dy - pendingTipOffset.dy,
       child: IgnorePointer(
+        // 진행률 표시 원형 프로그레스 인디케이터와 프로필 이미지 아바타가 겹쳐진 형태로, 진행률이 표시된 원형 아바타를 보여줍니다.
         child: CurrentUserImageBuilder(
           imageKind: CurrentUserImageKind.profile,
           targetUserId: currentUserId,

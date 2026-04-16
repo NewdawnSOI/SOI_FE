@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:soi/api/api_client.dart';
 import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
-import 'package:soi/api/models/comment.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/media_service.dart';
 import 'package:soi/views/common_widget/comment/comment_profile_tag_widget.dart';
@@ -13,7 +12,6 @@ import 'package:soi/views/common_widget/comment/comment_save_payload.dart';
 import 'package:soi/views/common_widget/comment/comment_tag_bubble.dart';
 import 'package:soi/views/common_widget/comment/model/comment_pending_model.dart';
 import 'package:soi_api_client/api.dart';
-import 'package:soi_media_tagger/soi_media_tagger.dart';
 
 class _NoopMediaApi extends APIApi {}
 
@@ -43,28 +41,6 @@ class _FakeMediaController extends MediaController {
       await Future<void>.delayed(delay);
     }
     return urls[key];
-  }
-}
-
-/// 댓글 프로필 태그 렌더 테스트에서 저장 호출 없이 위젯만 구성할 수 있게 하는 no-op 데이터 소스입니다.
-class _NoopCommentMediaTagDataSource
-    extends MediaTagDataSource<Comment, CommentSavePayload> {
-  @override
-  Future<MediaTag<Comment>> createTag(
-    String mediaId,
-    Offset relativePosition,
-    CommentSavePayload draftData, {
-    ValueChanged<double>? onProgress,
-  }) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> deleteTag(String tagId) async {}
-
-  @override
-  Future<List<MediaTag<Comment>>> fetchTags(String mediaId) async {
-    return <MediaTag<Comment>>[];
   }
 }
 
@@ -107,7 +83,6 @@ Widget _buildHarness({
             ),
             avatarSize: kPendingCommentAvatarSize,
             resolveDropRelativePosition: () => const Offset(0.5, 0.5),
-            dataSource: _NoopCommentMediaTagDataSource(),
           ),
         ),
       ),

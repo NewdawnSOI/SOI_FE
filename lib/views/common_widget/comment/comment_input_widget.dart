@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../api/controller/comment_controller.dart';
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
 import 'model/comment_pending_model.dart';
@@ -12,7 +11,6 @@ import 'comment_camera_bottom_sheet_widget.dart';
 import 'comment_base_bar_widget.dart';
 import 'comment_profile_tag_widget.dart';
 import 'comment_save_payload.dart';
-import 'services/comment_media_tag_data_source.dart';
 import 'comment_text_input_widget.dart';
 
 /// 댓글 작성 모드를 나타내는 열거형입니다.
@@ -310,12 +308,8 @@ class _CommentInputWidgetState extends State<CommentInputWidget> {
       alignment: Alignment.center,
       child: CommentProfileTagWidget(
         payload: payload,
-        avatarSize: kPendingCommentAvatarSize,
+        avatarSize: kPendingCommentAvatarSize, //
         resolveDropRelativePosition: _resolveDropPosition,
-        dataSource: CommentMediaTagDataSource(
-          commentController: context.read<CommentController>(),
-          mediaController: context.read<MediaController>(),
-        ),
         onSaveProgress: (progress) {
           widget.onCommentSaveProgress(widget.postId, progress);
         },
