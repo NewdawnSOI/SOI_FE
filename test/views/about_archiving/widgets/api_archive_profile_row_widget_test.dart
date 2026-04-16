@@ -95,7 +95,9 @@ void main() {
 
       await tester.pumpWidget(
         _buildHarness(
-          mediaController: _FakeMediaController(),
+          mediaController: _FakeMediaController(
+            cachedUrls: const <String, String?>{},
+          ),
           profileImageUrls: const <String>[profileUrl],
           profileImageKeys: const <String>[profileKey],
         ),

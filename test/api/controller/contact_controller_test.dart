@@ -4,6 +4,7 @@ import 'package:soi/api/controller/contact_controller.dart';
 import 'package:soi/api/services/contact_repository.dart';
 import 'package:soi/api/services/contact_service.dart';
 
+/// 연락처 컨트롤러 테스트에서 권한과 저장소 응답을 선택적으로 흉내내는 저장소입니다.
 class _FakeContactRepository extends ContactRepository {
   _FakeContactRepository({
     this.onLoadContactSyncSetting,
@@ -70,6 +71,8 @@ void main() {
         final controller = ContactController(
           contactService: ContactService(
             repository: _FakeContactRepository(
+              onLoadContactSyncSetting: () async => false,
+              onSaveContactSyncSetting: (value) async {},
               onRequestContactPermission: ({bool readonly = true}) async =>
                   true,
               onGetContacts: () async => contacts,

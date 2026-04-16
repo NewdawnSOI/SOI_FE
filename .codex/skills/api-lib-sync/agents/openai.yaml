@@ -1,0 +1,4 @@
+interface:
+  display_name: "API Lib Sync"
+  short_description: "Sync lib/api wrappers with generated API contracts"
+  default_prompt: "Use $api-lib-sync to compare api/generated contracts with lib/api wrappers, then update stale or missing models, services, controllers, and public exports."

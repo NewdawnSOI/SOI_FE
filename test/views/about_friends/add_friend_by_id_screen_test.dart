@@ -93,6 +93,7 @@ class _FakeFriendController extends FriendController {
   }
 }
 
+/// 친구 추가 화면 테스트에서 presigned URL 조회 요청을 기록하는 미디어 컨트롤러입니다.
 class _FakeMediaController extends MediaController {
   _FakeMediaController({this.onGetPresignedUrl})
     : super(mediaService: MediaService(mediaApi: _NoopMediaApi()));
@@ -223,6 +224,9 @@ void main() {
           _buildTestApp(
             userController: userController,
             friendController: friendController,
+            mediaController: _FakeMediaController(
+              onGetPresignedUrl: (_) async => null,
+            ),
           ),
         );
         await tester.pumpAndSettle();
