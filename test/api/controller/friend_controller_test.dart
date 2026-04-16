@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soi/api/controller/friend_controller.dart';
-import 'package:soi/api/models/friend.dart';
 import 'package:soi/api/services/friend_service.dart';
 import 'package:soi_api_client/api.dart';
 

@@ -10,9 +10,6 @@ class _FakeContactRepository extends ContactRepository {
     this.onRequestContactPermission,
     this.onGetContacts,
     this.onSearchContacts,
-    this.onLoadContactSyncSetting,
-    this.onSaveContactSyncSetting,
-    this.onGetContact,
   });
 
   final Future<bool> Function()? onLoadContactSyncSetting;

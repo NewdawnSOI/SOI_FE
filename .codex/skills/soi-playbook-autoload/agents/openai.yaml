@@ -1,0 +1,4 @@
+interface:
+  display_name: "SOI Playbook Autoload"
+  short_description: "Load SOI repo rules before coding or policy changes"
+  default_prompt: "Use $soi-playbook-autoload to load .antigravity/rules.md first, then consult the detailed playbooks only if this SOI task needs them."

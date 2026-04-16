@@ -1,0 +1,4 @@
+interface:
+  display_name: "SOI Optimizer"
+  short_description: "Optimize slow SOI Flutter code with guarded minimal edits"
+  default_prompt: "Use $soi-optimizer to diagnose this slow SOI Flutter path, apply the smallest safe fix, and run focused validation."

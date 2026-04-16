@@ -94,7 +94,7 @@ class _FakeFriendController extends FriendController {
 }
 
 class _FakeMediaController extends MediaController {
-  _FakeMediaController({this.onGetPresignedUrl})
+  _FakeMediaController()
     : super(mediaService: MediaService(mediaApi: _NoopMediaApi()));
 
   final Future<String?> Function(String key)? onGetPresignedUrl;

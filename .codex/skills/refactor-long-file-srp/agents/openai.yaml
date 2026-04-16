@@ -1,0 +1,4 @@
+interface:
+  display_name: "Long File SRP Refactor"
+  short_description: "Split long source files into focused, low-coupling units"
+  default_prompt: "Use $refactor-long-file-srp to split this long file into smaller units while preserving behavior and keeping dependencies shallow."

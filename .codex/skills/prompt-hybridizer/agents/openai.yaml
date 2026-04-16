@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prompt Hybridizer"
+  short_description: "Rewrite prompts into compact hybrid execution contracts"
+  default_prompt: "Use $prompt-hybridizer to rewrite this request into a short hybrid prompt with a minimal JSON execution contract."
+policy:
+  allow_implicit_invocation: false

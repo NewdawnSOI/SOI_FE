@@ -22,7 +22,6 @@ class _FakeUserController extends UserController {
 /// 아카이브 프로필 행 테스트에서 presigned URL 응답을 제어하는 미디어 컨트롤러입니다.
 class _FakeMediaController extends MediaController {
   _FakeMediaController({
-    this.cachedUrls = const <String, String?>{},
     this.urls = const <String, String?>{},
     this.delay = Duration.zero,
   }) : super(mediaService: MediaService(mediaApi: _NoopMediaApi()));
