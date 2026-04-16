@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../api/controller/comment_controller.dart';
+import '../../../features/tagging/application/tagging_save_delegate.dart';
 import '../../../api/models/post.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/controller/audio_controller.dart';
@@ -75,6 +76,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
   // 상태 관리 관련
   final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
   final Map<int, PendingApiCommentMarker> pendingVoiceComments;
+  final TaggingSaveDelegate saveDelegate;
 
   // 콜백 함수들
   final Function(Post) onToggleAudio;
@@ -112,6 +114,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
     this.onReportSubmitted,
     required this.pendingCommentDrafts,
     this.pendingVoiceComments = const {},
+    required this.saveDelegate,
     required this.onToggleAudio,
     this.onTextCommentCompleted,
     this.onAudioCommentCompleted,
@@ -615,6 +618,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
               child: CommentInputWidget(
                 postId: widget.post.id,
                 pendingCommentDrafts: widget.pendingCommentDrafts,
+                saveDelegate: widget.saveDelegate,
                 onTextCommentCompleted: (postId, text) =>
                     _handleTextCommentCreated(text),
                 onAudioCommentCompleted:

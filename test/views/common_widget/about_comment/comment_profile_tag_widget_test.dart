@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:soi/api/api_client.dart';
 import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
+import 'package:soi/api/models/comment.dart';
 import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/media_service.dart';
+import 'package:soi/features/tagging/application/tagging_save_delegate.dart';
 import 'package:soi/views/common_widget/comment/comment_profile_tag_widget.dart';
 import 'package:soi/views/common_widget/comment/comment_save_payload.dart';
 import 'package:soi/views/common_widget/comment/comment_tag_bubble.dart';
@@ -41,6 +43,18 @@ class _FakeMediaController extends MediaController {
       await Future<void>.delayed(delay);
     }
     return urls[key];
+  }
+}
+
+class _NoopTaggingSaveDelegate implements TaggingSaveDelegate {
+  const _NoopTaggingSaveDelegate();
+
+  @override
+  Future<Comment> save({
+    required CommentSavePayload payload,
+    void Function(double progress)? onProgress,
+  }) {
+    throw UnimplementedError('save should not run in this widget test');
   }
 }
 
@@ -81,6 +95,7 @@ Widget _buildHarness({
               profileImageUrl: profileImageUrl,
               profileImageKey: profileImageKey,
             ),
+            saveDelegate: const _NoopTaggingSaveDelegate(),
             avatarSize: kPendingCommentAvatarSize,
             resolveDropRelativePosition: () => const Offset(0.5, 0.5),
           ),

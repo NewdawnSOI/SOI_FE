@@ -14,8 +14,10 @@ import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/media_service.dart';
 import 'package:soi/api/services/user_service.dart';
+import 'package:soi/features/tagging/application/tagging_save_delegate.dart';
 import 'package:soi/views/common_widget/comment/comment_media_tag_preview_widget.dart';
 import 'package:soi/views/common_widget/comment/comment_list_bottom_sheet.dart';
+import 'package:soi/views/common_widget/comment/comment_save_payload.dart';
 import 'package:soi/views/common_widget/comment/comment_tag_bubble.dart';
 import 'package:soi/views/common_widget/comment/model/comment_pending_model.dart';
 import 'package:soi/views/common_widget/photo/photo_card_widget.dart';
@@ -86,6 +88,18 @@ class _FakeMediaController extends MediaController {
 
   @override
   Future<String?> getPresignedUrl(String key) async => urls[key];
+}
+
+class _NoopTaggingSaveDelegate implements TaggingSaveDelegate {
+  const _NoopTaggingSaveDelegate();
+
+  @override
+  Future<Comment> save({
+    required CommentSavePayload payload,
+    void Function(double progress)? onProgress,
+  }) {
+    throw UnimplementedError('save should not run in overlay tests');
+  }
 }
 
 void main() {
@@ -169,6 +183,7 @@ void main() {
         displayOnly: true,
         pendingCommentDrafts: <int, PendingApiCommentDraft>{},
         pendingVoiceComments: const <int, PendingApiCommentMarker>{},
+        saveDelegate: const _NoopTaggingSaveDelegate(),
         onToggleAudio: (_) {},
         onTextCommentCompleted: (_, __) {},
         onAudioCommentCompleted: (_, __, ___, ____) async {},

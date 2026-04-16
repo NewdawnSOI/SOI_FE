@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import '../../../features/tagging/application/tagging_save_delegate.dart';
 import '../../common_widget/comment/model/comment_pending_model.dart';
 import '../../common_widget/comment/comment_list_bottom_sheet.dart';
 import '../../common_widget/comment/comment_input_widget.dart';
@@ -25,6 +26,7 @@ class FeedPageBuilder extends StatefulWidget {
   final Map<int, String?> selectedEmojisByPostId;
   final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
   final Map<int, PendingApiCommentMarker> pendingVoiceComments;
+  final TaggingSaveDelegate saveDelegate;
   final Function(FeedPostItem) onToggleAudio;
   final Future<void> Function(int, String) onTextCommentCompleted;
   final Future<void> Function(
@@ -58,6 +60,7 @@ class FeedPageBuilder extends StatefulWidget {
     required this.selectedEmojisByPostId,
     required this.pendingCommentDrafts,
     required this.pendingVoiceComments,
+    required this.saveDelegate,
     required this.onToggleAudio,
     required this.onTextCommentCompleted,
     required this.onAudioCommentCompleted,
@@ -237,6 +240,7 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
           widget.onEmojiSelected(feedItem.post.id, emoji),
       pendingCommentDrafts: widget.pendingCommentDrafts,
       pendingVoiceComments: widget.pendingVoiceComments,
+      saveDelegate: widget.saveDelegate,
       onToggleAudio: (p) => widget.onToggleAudio(feedItem),
       onProfileImageDragged: widget.onProfileImageDragged,
       onCommentsReloadRequested: widget.onReloadComments,
@@ -323,6 +327,7 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
               child: CommentInputWidget(
                 postId: currentPost.post.id,
                 pendingCommentDrafts: widget.pendingCommentDrafts,
+                saveDelegate: widget.saveDelegate,
                 onTextCommentCompleted: (postId, text) =>
                     widget.onTextCommentCompleted(postId, text),
                 onAudioCommentCompleted:

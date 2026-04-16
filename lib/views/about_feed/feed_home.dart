@@ -8,13 +8,14 @@ import 'package:provider/provider.dart';
 
 import '../../api/controller/category_controller.dart' as api_category;
 import '../../api/controller/comment_controller.dart';
+import '../../api/controller/media_controller.dart';
 import '../../api/controller/post_controller.dart';
 import '../../api/controller/user_controller.dart';
 import '../../api/models/comment.dart';
 import '../../api/models/post.dart' show PostStatus;
+import '../../features/tagging/tagging.dart';
 import 'manager/feed_audio_manager.dart';
 import 'manager/feed_data_manager.dart';
-import 'manager/voice_comment_state_manager.dart';
 import 'widgets/feed_page_builder.dart';
 import '../../utils/snackbar_utils.dart';
 import '../../utils/tab_reselect_registry.dart';
@@ -31,8 +32,10 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   // FeedDataManager를 Provider로 만들어서, 여러 화면에서 동일한 인스턴스를 사용하도록 합니다.
   FeedDataManager? _feedDataManager;
 
-  // 오디오 및 음성 댓글 매니저
-  VoiceCommentStateManager? _voiceCommentStateManager;
+  // 피드와 상세가 공유하는 태깅 상태/저장 추상화입니다.
+  TaggingSessionController? _taggingController;
+  TaggingSaveDelegate? _taggingSaveDelegate;
+  VoidCallback? _taggingControllerListener;
 
   // 오디오 매니저
   FeedAudioManager? _feedAudioManager;
@@ -54,14 +57,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     // 홈 탭(인덱스 0) 재선택 시, 호출될 콜백 등록
     TabReselectRegistry.register(0, _onFeedTabReselected);
 
-    _voiceCommentStateManager = VoiceCommentStateManager();
-
     // 오디오 매니저 초기화
     _feedAudioManager = FeedAudioManager();
-
-    _voiceCommentStateManager?.setOnStateChanged(
-      () => mounted ? setState(() {}) : null,
-    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // FeedDataManager 인스턴스 가져오기
@@ -98,8 +95,42 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     // IndexedStack 전환 시 TickerMode 변경을 의존성으로 추적해
     // 숨김 탭에서 누적된 posts-changed 갱신을 재개합니다.
     TickerMode.valuesOf(context);
+    _userController ??= context.read<UserController>();
+    if (_taggingController == null || _taggingSaveDelegate == null) {
+      final commentController = context.read<CommentController>();
+      final mediaController = context.read<MediaController>();
+      _taggingController = TaggingSessionController(
+        commentGateway: SoiTaggingCommentGateway(commentController),
+        mediaResolver: SoiTaggingMediaResolver(mediaController),
+        currentUserHandleResolver: () => _userController?.currentUser?.userId,
+      );
+      _taggingSaveDelegate = SoiTaggingSaveDelegate(
+        commentController: commentController,
+        mediaController: mediaController,
+      );
+      _taggingControllerListener ??= () {
+        if (mounted) {
+          setState(() {});
+        }
+      };
+      _taggingController!.addListener(_taggingControllerListener!);
+    }
     _feedDataManager ??= Provider.of<FeedDataManager>(context, listen: false);
     _feedDataManager?.refreshIfPendingVisible();
+  }
+
+  /// 태깅 draft는 작성자 ID/핸들/프로필 source만 알면 생성할 수 있습니다.
+  TaggingAuthor? _currentTaggingAuthor() {
+    final currentUser = _userController?.currentUser;
+    if (currentUser == null) {
+      return null;
+    }
+
+    return TaggingAuthor(
+      id: currentUser.id,
+      handle: currentUser.userId,
+      profileImageSource: currentUser.profileImageKey,
+    );
   }
 
   /// 초기 데이터 로드
@@ -119,11 +150,14 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     if (_userControllerListener != null) {
       _userController?.removeListener(_userControllerListener!);
     }
+    if (_taggingControllerListener != null && _taggingController != null) {
+      _taggingController!.removeListener(_taggingControllerListener!);
+    }
     // FeedDataManager는 전역 Provider가 소유하므로 여기서 dispose 하면 캐시가 날아가거나
     // "disposed object" 에러가 날 수 있습니다. 화면이 사라질 때는 리스너만 해제합니다.
     _feedDataManager?.detachFromPostController();
 
-    _voiceCommentStateManager?.dispose();
+    _taggingController?.dispose();
 
     super.dispose();
   }
@@ -170,15 +204,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
           _feedDataManager?.removePhoto(
             index,
           ); // UI에서 즉시 제거 --> 서버에 접근하는 것이 아니라, UI단에서 제거하는 것.
-          _voiceCommentStateManager?.pendingVoiceComments.remove(
-            item.post.id,
-          ); // 대기 중인 댓글도 제거
-          _voiceCommentStateManager?.voiceCommentActiveStates.remove(
-            item.post.id,
-          ); // 댓글 활성 상태도 제거
-          _voiceCommentStateManager?.voiceCommentSavedStates.remove(
-            item.post.id,
-          ); // 댓글 저장 상태도 제거
+          _taggingController?.clearPostState(item.post.id);
         });
         if (userId != null) {
           // 카테고리도 강제 새로고침 --> 댓글 수정을 반영하기 위함
@@ -229,12 +255,9 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   /// - [postId]: 댓글이 달린 게시물 ID
   /// - [text]: 작성된 텍스트 댓글 내용
   Future<void> _onTextCommentCompleted(int postId, String text) async {
-    if (_userController == null) return;
-    await _voiceCommentStateManager?.onTextCommentCompleted(
-      postId,
-      text,
-      _userController!,
-    );
+    final author = _currentTaggingAuthor();
+    if (author == null) return;
+    _taggingController?.stageTextDraft(postId: postId, text: text, author: author);
   }
 
   Future<void> _onAudioCommentCompleted(
@@ -243,13 +266,14 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     List<double> waveformData,
     int durationMs,
   ) async {
-    if (_userController == null) return;
-    await _voiceCommentStateManager?.onVoiceCommentCompleted(
-      postId,
-      audioPath,
-      waveformData,
-      durationMs,
-      _userController!,
+    final author = _currentTaggingAuthor();
+    if (author == null) return;
+    _taggingController?.stageAudioDraft(
+      postId: postId,
+      audioPath: audioPath,
+      waveformData: waveformData,
+      durationMs: durationMs,
+      author: author,
     );
   }
 
@@ -258,12 +282,13 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     String localFilePath,
     bool isVideo,
   ) async {
-    if (_userController == null) return;
-    await _voiceCommentStateManager?.onMediaCommentCompleted(
-      postId,
-      localFilePath,
-      isVideo,
-      _userController!,
+    final author = _currentTaggingAuthor();
+    if (author == null) return;
+    _taggingController?.stageMediaDraft(
+      postId: postId,
+      localFilePath: localFilePath,
+      isVideo: isVideo,
+      author: author,
     );
   }
 
@@ -273,11 +298,15 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   /// - [postId]: 댓글이 달린 게시물 ID
   /// - [absolutePosition]: 드래그된 프로필 이미지의 절대 위치
   void _onProfileImageDragged(int postId, Offset absolutePosition) {
-    _voiceCommentStateManager?.onProfileImageDragged(postId, absolutePosition);
+    _taggingController?.updatePendingMarkerFromAbsolutePosition(
+      postId: postId,
+      absolutePosition: absolutePosition,
+      imageSize: Size(354.w, 500.h),
+    );
   }
 
   void _onCommentSaveProgress(int postId, double progress) {
-    _voiceCommentStateManager?.updatePendingProgress(postId, progress);
+    _taggingController?.updatePendingProgress(postId, progress);
   }
 
   /// 댓글 저장 성공 처리
@@ -288,12 +317,12 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   /// - [postId]: 댓글이 달린 게시물 ID
   /// - [comment]: 서버에서 저장되어 반환된 댓글 데이터
   void _onCommentSaveSuccess(int postId, Comment comment) {
-    _voiceCommentStateManager?.handleCommentSaveSuccess(postId, comment);
+    _taggingController?.handleCommentSaveSuccess(postId, comment);
   }
 
   void _onCommentSaveFailure(int postId, Object error) {
     debugPrint('댓글 저장 실패(postId: $postId): $error');
-    _voiceCommentStateManager?.handleCommentSaveFailure(postId);
+    _taggingController?.handleCommentSaveFailure(postId);
   }
 
   /// 모든 오디오 정지
@@ -363,9 +392,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     );
     final refreshTargets = _buildParentRefreshCandidates(refreshedVisiblePosts);
     if (refreshTargets.isNotEmpty) {
-      await _voiceCommentStateManager?.loadParentCommentsForPosts(
+      await _taggingController?.loadParentCommentsForPosts(
         refreshTargets.map((item) => item.post.id).toList(growable: false),
-        context,
         forceReload: true,
       );
     }
@@ -377,7 +405,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   /// refresh 경로에서는 stale full cache 재사용을 막기 위해 현재 보이는 카드들의 댓글 캐시와 선택 이모지를 함께 비웁니다.
   void _invalidateFeedCommentCaches(Iterable<int> postIds) {
     final commentController = context.read<CommentController>();
-    final selectedEmojis = _voiceCommentStateManager?.selectedEmojisByPostId;
+    final selectedEmojis = _taggingController?.selectedEmojisByPostId;
     for (final postId in postIds.toSet()) {
       commentController.invalidatePostCaches(postId: postId);
       selectedEmojis?.remove(postId);
@@ -439,9 +467,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
 
     final postIds = items.map((item) => item.post.id).toList(growable: false);
     unawaited(
-      _voiceCommentStateManager?.loadTagCommentsForPosts(
+      _taggingController?.loadTagCommentsForPosts(
         postIds,
-        context,
         forceReload: forceReload,
       ),
     );
@@ -449,14 +476,14 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
 
   /// 태그 삭제 후에는 현재 cache 상태에 맞춰 full/parent/tag 중 필요한 범위만 다시 동기화합니다.
   Future<void> _reloadCommentsForPost(int postId) async {
-    final manager = _voiceCommentStateManager;
-    if (manager == null) {
+    final controller = _taggingController;
+    if (controller == null) {
       return;
     }
 
     if (context.read<CommentController>().peekCommentsCache(postId: postId) !=
         null) {
-      await manager.loadCommentsForPost(postId, context, forceReload: true);
+      await controller.loadCommentsForPost(postId, forceReload: true);
       return;
     }
 
@@ -464,24 +491,23 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
           postId: postId,
         ) !=
         null) {
-      await manager.loadParentCommentsForPost(
+      await controller.loadParentCommentsForPost(
         postId,
-        context,
         forceReload: true,
       );
       return;
     }
 
-    await manager.loadTagCommentsForPost(postId, context, forceReload: true);
+    await controller.loadTagCommentsForPost(postId, forceReload: true);
   }
 
   /// 댓글시트는 mount 직후 full thread를 hydrate하고 재오픈 시에는 full cache를 재사용합니다.
   Future<List<Comment>> _loadFullCommentsForPost(int postId) async {
-    final manager = _voiceCommentStateManager;
-    if (manager == null) {
+    final controller = _taggingController;
+    if (controller == null) {
       return const <Comment>[];
     }
-    return manager.loadCommentsForPost(postId, context);
+    return controller.loadCommentsForPost(postId);
   }
 
   @override
@@ -535,6 +561,11 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
           ),
         );
     _feedDataManager ??= context.read<FeedDataManager>();
+    if (_taggingController == null || _taggingSaveDelegate == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
 
     if (feedViewState.isLoading) {
       return const Center(
@@ -582,10 +613,10 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
         posts: feedViewState.visiblePosts,
         hasMoreData: feedViewState.hasMoreData,
         isLoadingMore: feedViewState.isLoadingMore,
-        selectedEmojisByPostId:
-            _voiceCommentStateManager!.selectedEmojisByPostId,
-        pendingCommentDrafts: _voiceCommentStateManager!.pendingCommentDrafts,
-        pendingVoiceComments: _voiceCommentStateManager!.pendingVoiceComments,
+        selectedEmojisByPostId: _taggingController!.selectedEmojisByPostId,
+        pendingCommentDrafts: _taggingController!.pendingDrafts,
+        pendingVoiceComments: _taggingController!.pendingMarkers,
+        saveDelegate: _taggingSaveDelegate!,
         onToggleAudio: _toggleAudio,
         onTextCommentCompleted: _onTextCommentCompleted,
         onAudioCommentCompleted: _onAudioCommentCompleted,
@@ -601,7 +632,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
         onReloadComments: _reloadCommentsForPost,
         onLoadFullComments: _loadFullCommentsForPost,
         onEmojiSelected: (postId, emoji) =>
-            _voiceCommentStateManager!.setSelectedEmoji(postId, emoji),
+            _taggingController!.setSelectedEmoji(postId, emoji),
       ),
     );
   }

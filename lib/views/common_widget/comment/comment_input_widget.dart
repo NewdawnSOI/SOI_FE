@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../api/controller/media_controller.dart';
 import '../../../api/models/comment.dart';
+import '../../../features/tagging/application/tagging_save_delegate.dart';
 import 'model/comment_pending_model.dart';
 import 'comment_audio_recording_bottom_sheet_widget.dart';
 import 'comment_camera_bottom_sheet_widget.dart';
@@ -60,6 +61,7 @@ class CommentInputWidget extends StatefulWidget {
   onAudioCommentCompleted;
   final Future<void> Function(int postId, String localFilePath, bool isVideo)
   onMediaCommentCompleted;
+  final TaggingSaveDelegate saveDelegate;
   final FutureOr<Offset?> Function(int postId) resolveDropRelativePosition;
   final void Function(int postId, double progress) onCommentSaveProgress;
   final void Function(int postId, Comment comment) onCommentSaveSuccess;
@@ -75,6 +77,7 @@ class CommentInputWidget extends StatefulWidget {
     required this.onTextCommentCompleted,
     required this.onAudioCommentCompleted,
     required this.onMediaCommentCompleted,
+    required this.saveDelegate,
     required this.resolveDropRelativePosition,
     required this.onCommentSaveProgress,
     required this.onCommentSaveSuccess,
@@ -308,6 +311,7 @@ class _CommentInputWidgetState extends State<CommentInputWidget> {
       alignment: Alignment.center,
       child: CommentProfileTagWidget(
         payload: payload,
+        saveDelegate: widget.saveDelegate,
         avatarSize: kPendingCommentAvatarSize, //
         resolveDropRelativePosition: _resolveDropPosition,
         onSaveProgress: (progress) {

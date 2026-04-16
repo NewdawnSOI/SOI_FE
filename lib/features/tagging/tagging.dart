@@ -1,0 +1,10 @@
+export 'application/tagging_comment_gateway.dart';
+export 'application/tagging_media_resolver.dart';
+export 'application/tagging_save_delegate.dart';
+export 'application/tagging_session_controller.dart';
+export 'adapters/soi/soi_tagging_comment_gateway.dart';
+export 'adapters/soi/soi_tagging_media_resolver.dart';
+export 'adapters/soi/soi_tagging_save_delegate.dart';
+export 'domain/tagging_author.dart';
+export 'domain/tagging_save_payload.dart';
+export 'domain/tagging_state_models.dart';
