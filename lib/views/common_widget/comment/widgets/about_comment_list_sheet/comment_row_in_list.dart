@@ -4,13 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:tagging_flutter/tagging_flutter.dart';
 
 // 내부 모듈
 import '../../../../../api/controller/audio_controller.dart';
 import '../../../../../api/models/comment.dart';
 import '../../../../../utils/format_utils.dart';
 import '../../../../../utils/ios_haptic_feedback_service.dart';
-import '../../comment_circle_avatar.dart';
 import '../../../photo/services/photo_waveform_parser_service.dart';
 import '../../../user/current_user_image_builder.dart';
 import 'comment_media_preview.dart';
@@ -575,7 +575,7 @@ class _CommentRowAvatar extends StatelessWidget {
       fallbackImageUrl: fallbackProfileUrl,
       fallbackImageKey: fallbackProfileKey,
       builder: (context, imageUrl, cacheKey) {
-        return CommentCircleAvatar(
+        return TagCircleAvatar(
           imageUrl: imageUrl,
           size: size,
           cacheKey: cacheKey,

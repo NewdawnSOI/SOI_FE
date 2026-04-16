@@ -2,33 +2,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-import 'comment_tag_bubble.dart';
-import 'comment_tag_specs.dart';
+import 'tag_bubble.dart';
+import 'tag_specs.dart';
 
-/// 댓글 작성자 프로필 사진을 원형 아바타로 보여주는 위젯입니다.
-/// - 이미지 URL이 유효하지 않거나 로드에 실패한 경우 기본 아바타 이미지가 보여집니다.
-/// - 표준 댓글 태그에서는 27x27 프로필 이미지 규격을 기본값으로 사용합니다.
-///
-/// 사용처
-/// - 댓글 오버레이에서 댓글 작성자의 프로필 사진을 원형 아바타로 보여줄 때 사용됩니다.
-/// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
-///
-/// fields:
-/// - [imageUrl]: 아바타로 보여줄 이미지의 URL입니다. null이거나 빈 문자열인 경우 기본 아바타 이미지가 보여집니다.
-/// - [size]: 아바타의 가로세로 크기를 결정하는 값입니다. 기본값은 32입니다.
-/// - [showBorder]: 아바타에 테두리를 보여줄지 여부를 결정하는 플래그입니다. 기본값은 false입니다.
-/// - [borderColor]: 테두리를 보여줄 때 사용할 테두리 색상입니다. 기본값은 null이며, showBorder가 true이고 borderColor가 null인 경우 테두리 색상은 흰색으로 설정됩니다.
-/// - [borderWidth]: 테두리를 보여줄 때 사용할 테두리 두께입니다. 기본값은 1.5입니다.
-/// - [opacity]: 아바타의 투명도를 결정하는 값입니다. 0.0 (완전히 투명)에서 1.0 (완전히 불투명) 사이의 값을 가질 수 있으며, 기본값은 1입니다.
-/// - [cacheKey]
-///   - CachedNetworkImage에서 이미지 캐싱에 사용할 키입니다.
-///   - 명시적으로 제공되지 않으면 imageUrl을 기반으로 캐시 키가 생성됩니다.
-///   - 캐시 키는 이미지 URL이 변경되었을 때도 동일한 이미지를 재사용할 수 있도록 하는 역할을 합니다.
-class CommentCircleAvatar extends StatelessWidget {
-  const CommentCircleAvatar({
+/// 네트워크 기반 태그 아바타를 공통 캐시 정책으로 렌더링합니다.
+class TagCircleAvatar extends StatelessWidget {
+  const TagCircleAvatar({
     super.key,
     required this.imageUrl,
-    this.size = CommentProfileTagSpec.avatarSize,
+    this.size = TagProfileTagSpec.avatarSize,
     this.showBorder = false,
     this.borderColor,
     this.borderWidth = 1.5,
@@ -78,27 +60,11 @@ class CommentCircleAvatar extends StatelessWidget {
               ),
             ),
           ),
-          errorWidget: (context, url, error) => Container(
-            width: size,
-            height: size,
-            decoration: const BoxDecoration(
-              color: Color(0xffd9d9d9),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person, color: Colors.white),
-          ),
+          errorWidget: (context, url, error) => _buildFallback(),
         ),
       );
     } else {
-      avatarContent = Container(
-        width: size,
-        height: size,
-        decoration: const BoxDecoration(
-          color: Color(0xffd9d9d9),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.person, color: Colors.white),
-      );
+      avatarContent = _buildFallback();
     }
 
     if (showBorder) {
@@ -119,6 +85,18 @@ class CommentCircleAvatar extends StatelessWidget {
     return opacity < 1
         ? Opacity(opacity: opacity, child: avatarContent)
         : avatarContent;
+  }
+
+  Widget _buildFallback() {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xffd9d9d9),
+      ),
+      child: const Icon(Icons.person, color: Colors.white),
+    );
   }
 
   String? _resolveCacheKey({
@@ -149,19 +127,16 @@ class CommentCircleAvatar extends StatelessWidget {
   }
 }
 
-/// pending중인 댓글 마커로 사용할 원형 아바타 위젯입니다.
-/// - 댓글 작성 중인 위치에 드래그하여 배치할 수 있으며, 드래그가 완료되면 댓글 작성이 완료되는 방식으로 동작합니다.
-/// - 댓글 작성이 완료되면, 부모 위젯에 댓글 저장 진행 상황과 결과를 전달하는 역할도 수행합니다.
-/// - pending 상태도 부착된 태그와 동일한 33x33 외곽, 27x27 이미지 규격을 따릅니다.
-class CommentPendingProgressAvatar extends StatelessWidget {
-  const CommentPendingProgressAvatar({
+/// pending 진행률을 함께 보여주는 태그 아바타입니다.
+class TagPendingProgressAvatar extends StatelessWidget {
+  const TagPendingProgressAvatar({
     super.key,
     required this.imageUrl,
     required this.size,
     required this.progress,
     this.opacity = 1,
     this.cacheKey,
-    this.tagPadding = CommentProfileTagSpec.padding,
+    this.tagPadding = TagProfileTagSpec.padding,
     this.tagBackgroundColor = const Color(0xFF959595),
   });
 
@@ -175,30 +150,27 @@ class CommentPendingProgressAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CommentTagBubble(
-      contentSize: size, // 태그의 원형 부분의 크기를 size로 지정하여 전체 태그 크기를 계산하도록 합니다.
+    return TagBubble(
+      contentSize: size,
       padding: tagPadding,
       backgroundColor: tagBackgroundColor,
       child: SizedBox(
-        width: size, // 아바타의 가로 크기를 size로 지정하여 원형 부분의 크기를 size로 맞춥니다.
-        height: size, // 아바타의 세로 크기를 size로 지정하여 원형 부분의 크기를 size로 맞춥니다.
+        width: size,
+        height: size,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // 진행률 표시 원형 프로그레스 인디케이터
             SizedBox(
               width: size,
               height: size,
               child: CircularProgressIndicator(
-                value: progress?.clamp(0.0, 2.0),
+                value: progress?.clamp(0.0, 1.0),
                 strokeWidth: 2,
                 valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
                 backgroundColor: Colors.transparent,
               ),
             ),
-
-            // 프로필 이미지 아바타
-            CommentCircleAvatar(
+            TagCircleAvatar(
               imageUrl: imageUrl,
               size: size,
               opacity: opacity,

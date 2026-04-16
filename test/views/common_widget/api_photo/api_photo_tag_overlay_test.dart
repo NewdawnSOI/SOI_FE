@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tagging_flutter/tagging_flutter.dart';
 import 'package:soi/api/controller/comment_controller.dart';
 import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/controller/user_controller.dart';
@@ -14,10 +15,9 @@ import 'package:soi/api/models/user.dart';
 import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/media_service.dart';
 import 'package:soi/api/services/user_service.dart';
+import 'package:soi/features/tagging_soi/tagging_soi.dart';
 import 'package:soi/views/common_widget/comment/comment_media_tag_preview_widget.dart';
 import 'package:soi/views/common_widget/comment/comment_list_bottom_sheet.dart';
-import 'package:soi/views/common_widget/comment/comment_tag_bubble.dart';
-import 'package:soi/views/common_widget/comment/model/comment_pending_model.dart';
 import 'package:soi/views/common_widget/photo/photo_card_widget.dart';
 import 'package:soi/views/common_widget/photo/photo_display_widget.dart';
 import 'package:soi_api_client/api.dart';
@@ -86,6 +86,24 @@ class _FakeMediaController extends MediaController {
 
   @override
   Future<String?> getPresignedUrl(String key) async => urls[key];
+
+  @override
+  Future<List<String>> getPresignedUrls(List<String> keys) async {
+    return keys.map((key) => urls[key] ?? '').toList(growable: false);
+  }
+}
+
+/// 오버레이 경로에서는 저장 로직이 호출되면 안 되므로 즉시 실패시키는 delegate입니다.
+class _NoopTaggingSaveDelegate implements TaggingSaveDelegate {
+  const _NoopTaggingSaveDelegate();
+
+  @override
+  Future<TagSaveResult> save({
+    required TagSavePayload payload,
+    void Function(double progress)? onProgress,
+  }) {
+    throw UnimplementedError('save should not run in overlay tests');
+  }
 }
 
 void main() {
@@ -116,6 +134,21 @@ void main() {
     );
     final effectiveUserController = userController ?? _FakeUserController();
     final effectiveMediaController = mediaController ?? _FakeMediaController();
+    final effectiveCommentController = CommentController(
+      commentService: CommentService(commentApi: _NoopCommentApi()),
+    );
+    effectiveCommentController.replaceCommentsCache(
+      postId: post.id,
+      comments: comments,
+    );
+    effectiveCommentController.replaceTagCommentsCache(
+      postId: post.id,
+      comments: comments,
+    );
+    final taggingController = TaggingSessionController(
+      commentGateway: SoiTaggingCommentGateway(effectiveCommentController),
+      mediaResolver: SoiTaggingMediaResolver(effectiveMediaController),
+    );
 
     return ScreenUtilInit(
       designSize: const Size(393, 852),
@@ -132,17 +165,8 @@ void main() {
             ChangeNotifierProvider<UserController>.value(
               value: effectiveUserController,
             ),
-            ChangeNotifierProvider<CommentController>(
-              create: (_) {
-                final controller = CommentController(
-                  commentService: CommentService(commentApi: _NoopCommentApi()),
-                );
-                controller.replaceCommentsCache(
-                  postId: post.id,
-                  comments: comments,
-                );
-                return controller;
-              },
+            ChangeNotifierProvider<CommentController>.value(
+              value: effectiveCommentController,
             ),
           ],
           child: Builder(
@@ -167,8 +191,10 @@ void main() {
         index: 0,
         isOwner: true,
         displayOnly: true,
-        pendingCommentDrafts: <int, PendingApiCommentDraft>{},
-        pendingVoiceComments: const <int, PendingApiCommentMarker>{},
+        pendingCommentDrafts: const <TagScopeId, TagDraft>{},
+        pendingVoiceComments: const <TagScopeId, TagPendingMarker>{},
+        taggingController: taggingController,
+        saveDelegate: const _NoopTaggingSaveDelegate(),
         onToggleAudio: (_) {},
         onTextCommentCompleted: (_, __) {},
         onAudioCommentCompleted: (_, __, ___, ____) async {},
@@ -201,10 +227,10 @@ void main() {
       await tester.pumpWidget(buildHarness(comments: [mediaComment(y: 0.02)]));
       await tester.pump();
 
-      expect(find.byType(CommentTagBubble), findsOneWidget);
+      expect(find.byType(TagBubble), findsOneWidget);
       expect(find.byType(CommentMediaTagPreviewWidget), findsNothing);
 
-      await tester.tap(find.byType(CommentTagBubble));
+      await tester.tap(find.byType(TagBubble));
       await tester.pump();
 
       expect(find.byType(CommentMediaTagPreviewWidget), findsOneWidget);
@@ -272,12 +298,16 @@ void main() {
     await tester.pumpWidget(buildHarness(comments: [mediaComment(y: 0.3)]));
     await tester.pump();
 
-    await tester.tap(find.byType(CommentTagBubble));
+    await tester.tap(find.byType(TagBubble));
     await tester.pump();
 
     expect(find.byType(CommentMediaTagPreviewWidget), findsOneWidget);
 
-    await tester.tap(find.byType(CommentMediaTagPreviewWidget));
+    final previewCenter = tester.getCenter(
+      find.byType(CommentMediaTagPreviewWidget),
+      warnIfMissed: false,
+    );
+    await tester.tapAt(previewCenter);
     await tester.pump();
 
     expect(find.byType(CommentMediaTagPreviewWidget), findsNothing);
@@ -290,7 +320,7 @@ void main() {
     await tester.pumpWidget(buildHarness(comments: [mediaComment(y: 0.25)]));
     await tester.pump();
 
-    await tester.tap(find.byType(CommentTagBubble));
+    await tester.tap(find.byType(TagBubble));
     await tester.pump();
 
     expect(find.byType(CommentMediaTagPreviewWidget), findsOneWidget);
@@ -320,7 +350,7 @@ void main() {
       await tester.pumpWidget(buildHarness(comments: [unavailableComment]));
       await tester.pump();
 
-      await tester.tap(find.byType(CommentTagBubble));
+      await tester.tap(find.byType(TagBubble));
       await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.byType(CommentMediaTagPreviewWidget), findsNothing);

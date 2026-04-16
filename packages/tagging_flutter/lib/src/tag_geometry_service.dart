@@ -1,21 +1,26 @@
 import 'dart:ui';
 
-import '../../../../api/models/comment.dart';
-import '../../comment/comment_tag_bubble.dart';
+import 'package:tagging_core/tagging_core.dart';
 
-class ApiPhotoTagGeometryService {
-  const ApiPhotoTagGeometryService._();
+import 'tag_bubble.dart';
+
+/// 태그 버블의 anchor와 top-left를 media bounds 안에서 계산합니다.
+class TagGeometryService {
+  const TagGeometryService._();
 
   static Offset clampTagAnchor(
     Offset anchor,
     Size containerSize,
-    double contentSize,
-  ) {
-    final diameter = CommentTagBubble.diameterForContent(
+    double contentSize, {
+    double padding = 3.0,
+  }) {
+    final diameter = TagBubble.diameterForContent(
       contentSize: contentSize,
+      padding: padding,
     );
-    final tipOffset = CommentTagBubble.pointerTipOffset(
+    final tipOffset = TagBubble.pointerTipOffset(
       contentSize: contentSize,
+      padding: padding,
     );
     final minX = diameter / 2;
     final maxX = containerSize.width - diameter / 2;
@@ -27,36 +32,42 @@ class ApiPhotoTagGeometryService {
 
   static Offset tagCircleCenterFromTipAnchor(
     Offset tipAnchor,
-    double contentSize,
-  ) {
-    final tipOffset = CommentTagBubble.pointerTipOffset(
+    double contentSize, {
+    double padding = 3.0,
+  }) {
+    final tipOffset = TagBubble.pointerTipOffset(
       contentSize: contentSize,
+      padding: padding,
     );
-    final diameter = CommentTagBubble.diameterForContent(
+    final diameter = TagBubble.diameterForContent(
       contentSize: contentSize,
+      padding: padding,
     );
     final left = tipAnchor.dx - tipOffset.dx;
     final top = tipAnchor.dy - tipOffset.dy;
     return Offset(left + (diameter / 2), top + (diameter / 2));
   }
 
-  static Offset tagTopLeftFromTipAnchor(Offset tipAnchor, double contentSize) {
-    final tipOffset = CommentTagBubble.pointerTipOffset(
+  static Offset tagTopLeftFromTipAnchor(
+    Offset tipAnchor,
+    double contentSize, {
+    double padding = 3.0,
+  }) {
+    final tipOffset = TagBubble.pointerTipOffset(
       contentSize: contentSize,
+      padding: padding,
     );
     return Offset(tipAnchor.dx - tipOffset.dx, tipAnchor.dy - tipOffset.dy);
   }
 
-  static bool canExpandMediaComment(Comment comment) {
-    if (comment.type != CommentType.photo) {
+  static bool canExpandMediaComment(TagComment comment) {
+    if (!(comment.isImage || comment.isVideo)) {
       return false;
     }
-
     final fileUrl = (comment.fileUrl ?? '').trim();
     if (fileUrl.isNotEmpty) {
       return true;
     }
-
     final fileKey = (comment.fileKey ?? '').trim();
     return fileKey.isNotEmpty;
   }

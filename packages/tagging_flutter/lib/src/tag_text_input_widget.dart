@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-class CommentTextInputWidget extends StatefulWidget {
+/// 텍스트 입력과 제출 상태만 담당하는 태그 전용 입력창입니다.
+class TagTextInputWidget extends StatefulWidget {
+  const TagTextInputWidget({
+    super.key,
+    required this.onSubmitText,
+    this.onFocusChanged,
+    this.onEditingCancelled,
+    this.hintText = '',
+    this.initialText = '',
+    this.autoFocus = true,
+  });
+
   final Future<void> Function(String text) onSubmitText;
   final ValueChanged<bool>? onFocusChanged;
   final VoidCallback? onEditingCancelled;
@@ -9,42 +20,14 @@ class CommentTextInputWidget extends StatefulWidget {
   final String initialText;
   final bool autoFocus;
 
-  /// 댓글 입력창 위젯입니다.
-  /// - 텍스트 입력과 제출 기능을 제공합니다.
-  /// - 제출 중에는 입력과 제출 버튼이 비활성화됩니다.
-  ///
-  /// fields:
-  /// - [onSubmitText]: 텍스트 제출 시 호출되는 콜백 함수입니다. 비동기 함수로, 텍스트를 인자로 받아 처리합니다.
-  /// - [onFocusChanged]: 입력창의 포커스 상태가 변경될 때 호출되는 콜백 함수입니다. 포커스 상태를 bool 값으로 전달합니다.
-  /// - [onEditingCancelled]: 입력창이 포커스를 잃고 텍스트가 비어 있을 때 호출되는 콜백 함수입니다. 편집이 취소되었음을 알립니다.
-  /// - [hintText]: 입력창에 표시되는 힌트 텍스트입니다. 기본값은 '댓글 추가...'입니다.
-  /// - [initialText]: 입력창이 처음 렌더링될 때 설정되는 초기 텍스트입니다. 기본값은 빈 문자열입니다.
-  /// - [autoFocus]: 위젯이 렌더링될 때 자동으로 포커스를 받을지 여부를 결정하는 플래그입니다. 기본값은 true입니다.
-
-  const CommentTextInputWidget({
-    super.key,
-    required this.onSubmitText,
-    this.onFocusChanged,
-    this.onEditingCancelled,
-    this.hintText = '댓글 추가...',
-    this.initialText = '',
-    this.autoFocus = true,
-  });
-
   @override
-  State<CommentTextInputWidget> createState() => _CommentTextInputWidgetState();
+  State<TagTextInputWidget> createState() => _TagTextInputWidgetState();
 }
 
-class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
-  /// 텍스트 입력을 관리하는 TextEditingController입니다.
-  /// - 입력된 텍스트를 읽고 수정하는 데 사용됩니다.
+/// 입력 상태와 제출 로딩을 한 곳에서 관리해 상위가 텍스트만 받게 만듭니다.
+class _TagTextInputWidgetState extends State<TagTextInputWidget> {
   final TextEditingController _controller = TextEditingController();
-
-  /// 입력창의 포커스 상태를 관리하는 FocusNode입니다.
-  /// - 포커스 변경 이벤트를 감지하여 콜백을 호출하는 데 사용됩니다.
   final FocusNode _focusNode = FocusNode();
-
-  /// 제출 중인지 여부를 나타내는 플래그입니다. 제출이 진행 중일 때 입력과 제출 버튼을 비활성화하는 데 사용됩니다.
   bool _isSubmitting = false;
 
   @override
@@ -65,7 +48,6 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
     super.dispose();
   }
 
-  /// 입력창의 포커스 상태가 변경될 때 호출되는 핸들러입니다.
   void _handleFocusChanged() {
     widget.onFocusChanged?.call(_focusNode.hasFocus);
     if (!_focusNode.hasFocus && _controller.text.trim().isEmpty) {
@@ -73,8 +55,6 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
     }
   }
 
-  /// 텍스트 제출을 처리하는 비동기 함수입니다.
-  /// - 제출 중에는 입력과 제출 버튼이 비활성화됩니다.
   Future<void> _submit() async {
     if (_isSubmitting) {
       return;
@@ -144,7 +124,7 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
                 border: InputBorder.none,
                 hintText: widget.hintText,
                 hintStyle: TextStyle(
-                  color: Color(0xFFF8F8F8),
+                  color: const Color(0xFFF8F8F8),
                   fontSize: 16.sp,
                   fontFamily: 'Pretendard Variable',
                   fontWeight: FontWeight.w200,
@@ -164,7 +144,7 @@ class _CommentTextInputWidgetState extends State<CommentTextInputWidget> {
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                : Image.asset('assets/send_icon.png', width: 17, height: 17),
+                : const Icon(Icons.send_rounded, color: Colors.white, size: 17),
           ),
         ],
       ),

@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:tagging_flutter/tagging_flutter.dart';
 
 import '../../../../api/models/post.dart';
 import '../../../../api/models/comment.dart';
@@ -19,12 +20,10 @@ import '../../../../api/controller/friend_controller.dart';
 import '../../../../api/controller/post_controller.dart';
 import '../../../../api/controller/media_controller.dart';
 import '../../../../api/controller/audio_controller.dart';
-import '../../../../utils/position_converter.dart';
 import '../../../../utils/snackbar_utils.dart';
+import '../../../../features/tagging_soi/tagging_soi.dart';
 import '../../../common_widget/photo/photo_card_widget.dart';
 import '../../../common_widget/photo/user_info_widget.dart';
-import '../../../common_widget/comment/model/comment_pending_model.dart';
-import '../../../common_widget/comment/comment_input_widget.dart';
 import '../../../common_widget/comment/comment_list_bottom_sheet.dart';
 import '../../../../api/models/friend.dart';
 
@@ -76,55 +75,47 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   FriendController? _friendController;
   VoidCallback? _friendListener;
   int _lastBlockedFriendsRevision = 0;
+  TaggingSessionController? _taggingController;
+  TaggingSaveDelegate? _taggingSaveDelegate;
+  VoidCallback? _taggingControllerListener;
 
   // 상태 맵 (Firebase 버전과 동일한 구조)
-  final Map<int, String?> _selectedEmojisByPostId = {}; // postId별 내가 선택한 이모지
   final Map<String, String> _userProfileImages = {};
   final Map<String, bool> _profileLoadingStates = {};
   final Map<String, String> _userNames = {};
-  final Map<int, PendingApiCommentDraft> _pendingCommentDrafts = {};
-  final Map<int, PendingApiCommentMarker> _pendingCommentMarkers = {};
   final Map<int, String> _resolvedAudioUrls = {};
-  final Map<int, Future<List<Comment>>> _inFlightParentCommentLoads = {};
-  final Map<int, Future<void>> _inFlightTagCommentLoads = {};
-  final Map<int, Future<List<Comment>>> _inFlightFullCommentLoads = {};
   bool _isTextFieldFocused = false;
 
-  String? _emojiFromId(int? emojiId) {
-    switch (emojiId) {
-      case 0:
-        return '😀';
-      case 1:
-        return '😍';
-      case 2:
-        return '😭';
-      case 3:
-        return '😡';
-    }
-    return null;
-  }
+  /// 상세 화면의 post 식별자를 tagging 모듈이 이해하는 scope 식별자로 감쌉니다.
+  TagScopeId _postScopeId(int postId) => SoiTaggingIds.postScopeId(postId);
 
-  String? _selectedEmojiFromComments({
-    required List<Comment> comments,
-    required String currentUserNickname,
-  }) {
-    for (final comment in comments.reversed) {
-      if (comment.emojiId == null || comment.emojiId == 0) continue;
-      if (comment.nickname != currentUserNickname) continue;
-      return _emojiFromId(comment.emojiId);
-    }
-    return null;
-  }
+  Map<TagScopeId, String?> get _selectedEmojisByScopeId =>
+      _taggingController?.selectedEmojisByScopeId ??
+      const <TagScopeId, String?>{};
+
+  Map<TagScopeId, TagDraft> get _pendingCommentDrafts =>
+      _taggingController?.pendingDrafts ?? const <TagScopeId, TagDraft>{};
+
+  Map<TagScopeId, TagPendingMarker> get _pendingCommentMarkers =>
+      _taggingController?.pendingMarkers ??
+      const <TagScopeId, TagPendingMarker>{};
 
   void _setSelectedEmoji(int postId, String? emoji) {
-    if (!mounted) return;
-    setState(() {
-      if (emoji == null) {
-        _selectedEmojisByPostId.remove(postId);
-      } else {
-        _selectedEmojisByPostId[postId] = emoji;
-      }
-    });
+    _taggingController?.setSelectedEmoji(_postScopeId(postId), emoji);
+  }
+
+  /// 태깅 draft는 작성자 ID/핸들/프로필 source만 알면 생성할 수 있습니다.
+  TagAuthor? _currentTaggingAuthor() {
+    final currentUser = _userController?.currentUser;
+    if (currentUser == null) {
+      return null;
+    }
+
+    return TagAuthor(
+      id: SoiTaggingIds.entityIdFromInt(currentUser.id)!,
+      handle: currentUser.userId,
+      profileImageSource: currentUser.profileImageKey,
+    );
   }
 
   @override
@@ -138,6 +129,17 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     _audioController = AudioController();
     _userController = Provider.of<UserController>(context, listen: false);
     _friendController = Provider.of<FriendController>(context, listen: false);
+    _taggingController = SoiTaggingFactory.createSessionController(
+      context,
+      currentUserHandleResolver: () => _userController?.currentUser?.userId,
+    );
+    _taggingSaveDelegate = SoiTaggingFactory.createSaveDelegate(context);
+    _taggingControllerListener = () {
+      if (mounted) {
+        setState(() {});
+      }
+    };
+    _taggingController!.addListener(_taggingControllerListener!);
     _lastBlockedFriendsRevision =
         _friendController?.blockedFriendsRevision ?? 0;
     if (!widget.singlePostMode) {
@@ -181,6 +183,10 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       _friendController?.removeListener(_friendListener!);
       _friendListener = null;
     }
+    if (_taggingControllerListener != null && _taggingController != null) {
+      _taggingController!.removeListener(_taggingControllerListener!);
+    }
+    _taggingController?.dispose();
     // (배포버전 프리즈 방지) 전역 imageCache.clear()는 캐시가 큰 실사용 환경에서
     // dispose 타이밍에 수 초 프리즈를 만들 수 있어 제거합니다.
     super.dispose();
@@ -300,10 +306,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     final commentController = context.read<CommentController>();
     for (final postId in postIds) {
       commentController.invalidatePostCaches(postId: postId);
-      _selectedEmojisByPostId.remove(postId);
-      _inFlightParentCommentLoads.remove(postId);
-      _inFlightTagCommentLoads.remove(postId);
-      _inFlightFullCommentLoads.remove(postId);
+      _taggingController?.clearScopeState(_postScopeId(postId));
     }
   }
 
@@ -475,19 +478,78 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               padding: EdgeInsets.only(bottom: composerBottomInset),
-              child: CommentInputWidget(
-                postId: _posts[_currentIndex].id,
-                pendingCommentDrafts: _pendingCommentDrafts,
-                onTextCommentCompleted: (postId, text) async {
-                  await _onTextCommentCreated(postId, text);
+              child: TagComposerWidget(
+                scopeId: _postScopeId(_posts[_currentIndex].id),
+                pendingDrafts: _pendingCommentDrafts,
+                saveDelegate: _taggingSaveDelegate!,
+                avatarBuilder: SoiTaggingAvatarBuilders.buildComposerAvatar,
+                onTextDraftSubmitted: (scopeId, text) async {
+                  await _onTextCommentCreated(
+                    SoiTaggingIds.postIdFromScopeId(scopeId),
+                    text,
+                  );
                 },
-                onAudioCommentCompleted: _onAudioCommentCompleted,
-                onMediaCommentCompleted: _onMediaCommentCompleted,
-                resolveDropRelativePosition: (postId) =>
-                    _pendingCommentMarkers[postId]?.relativePosition,
-                onCommentSaveProgress: _onCommentSaveProgress,
-                onCommentSaveSuccess: _onCommentSaveSuccess,
-                onCommentSaveFailure: _onCommentSaveFailure,
+                onAudioDraftRequested: (scopeId) {
+                  final postId = SoiTaggingIds.postIdFromScopeId(scopeId);
+                  return SoiTaggingComposerActions.requestAudioDraft(
+                    context: context,
+                    onSelected: (audioPath, waveformData, durationMs) async {
+                      await _onAudioCommentCompleted(
+                        postId,
+                        audioPath,
+                        waveformData,
+                        durationMs,
+                      );
+                    },
+                  );
+                },
+                onCameraDraftRequested: (scopeId) {
+                  final postId = SoiTaggingIds.postIdFromScopeId(scopeId);
+                  return SoiTaggingComposerActions.requestCameraDraft(
+                    context: context,
+                    onSelected: (localFilePath, isVideo) async {
+                      await _onMediaCommentCompleted(
+                        postId,
+                        localFilePath,
+                        isVideo,
+                      );
+                    },
+                  );
+                },
+                basePlaceholderText: tr(
+                  'comments.add_comment_placeholder',
+                  context: context,
+                ),
+                textInputHintText: tr(
+                  'comments.add_comment_placeholder',
+                  context: context,
+                ),
+                cameraIcon: Image.asset(
+                  'assets/camera_button_baseBar.png',
+                  width: 32.sp,
+                  height: 32.sp,
+                ),
+                micIcon: Image.asset('assets/mic_icon.png'),
+                resolveDropRelativePosition: (scopeId) =>
+                    _pendingCommentMarkers[scopeId]?.relativePosition,
+                onCommentSaveProgress: (scopeId, progress) {
+                  _onCommentSaveProgress(
+                    SoiTaggingIds.postIdFromScopeId(scopeId),
+                    progress,
+                  );
+                },
+                onCommentSaveSuccess: (scopeId, comment) {
+                  _onCommentSaveSuccess(
+                    SoiTaggingIds.postIdFromScopeId(scopeId),
+                    comment,
+                  );
+                },
+                onCommentSaveFailure: (scopeId, error) {
+                  _onCommentSaveFailure(
+                    SoiTaggingIds.postIdFromScopeId(scopeId),
+                    error,
+                  );
+                },
                 onTextFieldFocusChanged: (isFocused) {
                   setState(() {
                     _isTextFieldFocused = isFocused;
@@ -538,10 +600,12 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       isArchive: true,
       isCategory: true,
       displayOnly: true,
-      selectedEmoji: _selectedEmojisByPostId[post.id],
+      selectedEmoji: _selectedEmojisByScopeId[_postScopeId(post.id)],
       onEmojiSelected: (emoji) => _setSelectedEmoji(post.id, emoji),
       pendingCommentDrafts: _pendingCommentDrafts,
       pendingVoiceComments: _pendingCommentMarkers,
+      taggingController: _taggingController!,
+      saveDelegate: _taggingSaveDelegate!,
       onToggleAudio: _toggleAudio,
       onProfileImageDragged: (postId, absolutePosition) {
         _onProfileImageDragged(postId, absolutePosition);
@@ -692,37 +756,10 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     int postId, {
     bool forceReload = false,
   }) async {
-    final commentController = context.read<CommentController>();
-    if (!forceReload) {
-      if (commentController.peekTagCommentsCache(postId: postId) != null) {
-        return;
-      }
-      final inFlight = _inFlightTagCommentLoads[postId];
-      if (inFlight != null) {
-        return inFlight;
-      }
-    }
-
-    final future = () async {
-      try {
-        await commentController.getTagComments(
-          postId: postId,
-          forceReload: forceReload,
-        );
-      } catch (error) {
-        debugPrint('태그 댓글 로드 실패(postId: $postId): $error');
-      }
-    }();
-
-    _inFlightTagCommentLoads[postId] = future;
-    try {
-      await future;
-    } finally {
-      final registered = _inFlightTagCommentLoads[postId];
-      if (identical(registered, future)) {
-        _inFlightTagCommentLoads.remove(postId);
-      }
-    }
+    await _taggingController?.loadTagCommentsForScope(
+      _postScopeId(postId),
+      forceReload: forceReload,
+    );
   }
 
   /// 알림 진입/수동 새로고침에서는 원댓글만 다시 받아 태그와 시트 초기 미리보기를 가볍게 최신화합니다.
@@ -730,48 +767,13 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     int postId, {
     bool forceReload = false,
   }) async {
-    final commentController = context.read<CommentController>();
-    if (!forceReload) {
-      final cached = commentController.peekParentCommentsCache(postId: postId);
-      if (cached != null) {
-        return cached;
-      }
-      final inFlight = _inFlightParentCommentLoads[postId];
-      if (inFlight != null) {
-        return inFlight;
-      }
-    }
-
-    final future = () async {
-      try {
-        final comments = await commentController.getAllParentComments(
-          postId: postId,
-          forceReload: forceReload,
-        );
-        if (!mounted) {
-          return comments;
-        }
-
-        setState(() {
-          _syncSelectedEmojiForPost(postId, comments);
-        });
-        return comments;
-      } catch (error) {
-        debugPrint('원댓글 로드 실패(postId: $postId): $error');
-        return commentController.peekParentCommentsCache(postId: postId) ??
-            const <Comment>[];
-      }
-    }();
-
-    _inFlightParentCommentLoads[postId] = future;
-    try {
-      return await future;
-    } finally {
-      final registered = _inFlightParentCommentLoads[postId];
-      if (identical(registered, future)) {
-        _inFlightParentCommentLoads.remove(postId);
-      }
-    }
+    final comments = await _taggingController?.loadParentCommentsForScope(
+      _postScopeId(postId),
+      forceReload: forceReload,
+    );
+    return comments == null
+        ? const <Comment>[]
+        : SoiTagCommentMapper.toComments(comments);
   }
 
   /// 댓글시트는 full thread를 캐시해 재오픈 시 네트워크 비용을 줄입니다.
@@ -779,48 +781,13 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     int postId, {
     bool forceReload = false,
   }) async {
-    final commentController = context.read<CommentController>();
-    if (!forceReload) {
-      final cached = commentController.peekCommentsCache(postId: postId);
-      if (cached != null) {
-        return cached;
-      }
-      final inFlight = _inFlightFullCommentLoads[postId];
-      if (inFlight != null) {
-        return inFlight;
-      }
-    }
-
-    final future = () async {
-      try {
-        final comments = await commentController.getComments(
-          postId: postId,
-          forceReload: forceReload,
-        );
-        if (!mounted) {
-          return comments;
-        }
-
-        setState(() {
-          _syncSelectedEmojiForPost(postId, comments);
-        });
-        return comments;
-      } catch (error) {
-        debugPrint('전체 댓글 로드 실패(postId: $postId): $error');
-        return commentController.peekCommentsCache(postId: postId) ??
-            const <Comment>[];
-      }
-    }();
-
-    _inFlightFullCommentLoads[postId] = future;
-    try {
-      return await future;
-    } finally {
-      final registered = _inFlightFullCommentLoads[postId];
-      if (identical(registered, future)) {
-        _inFlightFullCommentLoads.remove(postId);
-      }
-    }
+    final comments = await _taggingController?.loadCommentsForScope(
+      _postScopeId(postId),
+      forceReload: forceReload,
+    );
+    return comments == null
+        ? const <Comment>[]
+        : SoiTagCommentMapper.toComments(comments);
   }
 
   /// overlay 삭제 후에는 이미 가진 cache 범위에 맞춰 full/parent/tag 중 필요한 조회만 다시 수행합니다.
@@ -859,29 +826,10 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
   /// 댓글 시트에서 수정된 전체 스레드는 controller cache와 로컬 이모지 상태를 같은 기준으로 다시 맞춥니다.
   void _replaceCommentCaches(int postId, List<Comment> comments) {
-    context.read<CommentController>().replaceCommentsCache(
-      postId: postId,
-      comments: comments,
+    _taggingController?.replaceCommentsCache(
+      _postScopeId(postId),
+      SoiTagCommentMapper.fromComments(comments),
     );
-    _syncSelectedEmojiForPost(postId, comments);
-  }
-
-  /// 댓글 캐시가 갱신되면 현재 사용자가 선택한 이모지를 로컬 UI 상태와 같은 기준으로 맞춥니다.
-  void _syncSelectedEmojiForPost(int postId, List<Comment> comments) {
-    final currentUserId = _userController?.currentUser?.userId;
-    if (currentUserId == null) {
-      return;
-    }
-
-    final selected = _selectedEmojiFromComments(
-      comments: comments,
-      currentUserNickname: currentUserId,
-    );
-    if (selected == null) {
-      _selectedEmojisByPostId.remove(postId);
-      return;
-    }
-    _selectedEmojisByPostId[postId] = selected;
   }
 
   /// 프로필 이미지 드래그 시 위치 업데이트 처리
@@ -890,25 +838,14 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   /// - [postId]: 프로필 이미지가 드래그된 게시물 ID
   /// - [absolutePosition]: 드래그된 절대 위치
   void _onProfileImageDragged(int postId, Offset absolutePosition) {
-    // 표시 프레임(354x500)과 동일한 좌표계를 사용해 위치를 변환합니다.
-    final imageSize = Size(354.w, 500.h);
-    // pending 태그 원형 중심 좌표를 사진 상대 위치로 변환합니다.
-    final relativePosition = PositionConverter.toRelativePosition(
-      absolutePosition,
-      imageSize,
+    _taggingController?.updatePendingMarkerFromAbsolutePosition(
+      scopeId: _postScopeId(postId),
+      absolutePosition: TagPosition(
+        x: absolutePosition.dx,
+        y: absolutePosition.dy,
+      ),
+      imageSize: TagViewportSize(width: 354.w, height: 500.h),
     );
-
-    final draft = _pendingCommentDrafts[postId];
-    if (draft == null) return;
-
-    setState(() {
-      final previousProgress = _pendingCommentMarkers[postId]?.progress;
-      _pendingCommentMarkers[postId] = (
-        relativePosition: relativePosition,
-        profileImageUrlKey: draft.profileImageUrlKey,
-        progress: previousProgress,
-      );
-    });
   }
 
   /// 오디오 토글 처리
@@ -941,28 +878,13 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   /// - [text]: 생성할 텍스트 댓글 내용
   Future<void> _onTextCommentCreated(int postId, String text) async {
     try {
-      final userId = _userController?.currentUser?.id;
-      if (userId == null) return;
-
-      // 임시 댓글 데이터에 추가
-      final currentUserProfileImageUrl =
-          _userController?.currentUser?.profileImageKey;
-
-      _pendingCommentDrafts[postId] = (
-        isTextComment: true,
+      final author = _currentTaggingAuthor();
+      if (author == null) return;
+      _taggingController?.stageTextDraft(
+        scopeId: _postScopeId(postId),
         text: text,
-        audioPath: null,
-        mediaPath: null,
-        isVideo: null,
-        waveformData: null,
-        duration: null,
-        recorderUserId: userId,
-        profileImageUrlKey: currentUserProfileImageUrl,
+        author: author,
       );
-
-      if (mounted) {
-        setState(() {});
-      }
     } catch (e) {
       debugPrint('텍스트 댓글 임시 저장 실패: $e');
     }
@@ -975,27 +897,15 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     int durationMs,
   ) async {
     try {
-      final userId = _userController?.currentUser?.id;
-      if (userId == null) return;
-
-      final currentUserProfileImageUrl =
-          _userController?.currentUser?.profileImageKey;
-
-      _pendingCommentDrafts[postId] = (
-        isTextComment: false,
-        text: null,
+      final author = _currentTaggingAuthor();
+      if (author == null) return;
+      _taggingController?.stageAudioDraft(
+        scopeId: _postScopeId(postId),
         audioPath: audioPath,
-        mediaPath: null,
-        isVideo: null,
         waveformData: waveformData,
-        duration: durationMs,
-        recorderUserId: userId,
-        profileImageUrlKey: currentUserProfileImageUrl,
+        durationMs: durationMs,
+        author: author,
       );
-
-      if (mounted) {
-        setState(() {});
-      }
     } catch (e) {
       debugPrint('음성 댓글 임시 저장 실패: $e');
     }
@@ -1007,72 +917,34 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     bool isVideo,
   ) async {
     try {
-      final userId = _userController?.currentUser?.id;
-      if (userId == null) return;
-
-      final currentUserProfileImageUrl =
-          _userController?.currentUser?.profileImageKey;
-
-      _pendingCommentDrafts[postId] = (
-        isTextComment: false,
-        text: null,
-        audioPath: null,
-        mediaPath: localFilePath,
+      final author = _currentTaggingAuthor();
+      if (author == null) return;
+      _taggingController?.stageMediaDraft(
+        scopeId: _postScopeId(postId),
+        localFilePath: localFilePath,
         isVideo: isVideo,
-        waveformData: null,
-        duration: null,
-        recorderUserId: userId,
-        profileImageUrlKey: currentUserProfileImageUrl,
+        author: author,
       );
-
-      if (mounted) {
-        setState(() {});
-      }
     } catch (e) {
       debugPrint('미디어 댓글 임시 저장 실패: $e');
     }
   }
 
   void _updatePendingProgress(int postId, double progress) {
-    final marker = _pendingCommentMarkers[postId];
-    if (marker == null) return;
-    final clamped = progress.clamp(0.0, 1.0).toDouble();
-    if (!mounted) return;
-    setState(() {
-      _pendingCommentMarkers[postId] = (
-        relativePosition: marker.relativePosition,
-        profileImageUrlKey: marker.profileImageUrlKey,
-        progress: clamped,
-      );
-    });
+    _taggingController?.updatePendingProgress(_postScopeId(postId), progress);
   }
 
   void _onCommentSaveProgress(int postId, double progress) {
     _updatePendingProgress(postId, progress);
   }
 
-  void _onCommentSaveSuccess(int postId, Comment _) {
-    if (!mounted) return;
-    setState(() {
-      _pendingCommentDrafts.remove(postId);
-      _pendingCommentMarkers.remove(postId);
-    });
+  void _onCommentSaveSuccess(int postId, TagComment comment) {
+    _taggingController?.handleCommentSaveSuccess(_postScopeId(postId), comment);
   }
 
   void _onCommentSaveFailure(int postId, Object error) {
     debugPrint('댓글 저장 실패(postId: $postId): $error');
-    final marker = _pendingCommentMarkers[postId];
-    if (marker == null) {
-      return;
-    }
-    if (!mounted) return;
-    setState(() {
-      _pendingCommentMarkers[postId] = (
-        relativePosition: marker.relativePosition,
-        profileImageUrlKey: marker.profileImageUrlKey,
-        progress: null,
-      );
-    });
+    _taggingController?.handleCommentSaveFailure(_postScopeId(postId));
   }
 
   // 게시물 삭제 처리
@@ -1145,12 +1017,8 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   /// - [nickName]: 삭제된 게시물 작성자의 닉네임 (사용자 캐시 정리를 위해 필요)
   void _clearPostScopedState(int postId, {required String nickName}) {
     context.read<CommentController>().invalidatePostCaches(postId: postId);
-    _selectedEmojisByPostId.remove(postId);
-    _pendingCommentDrafts.remove(postId);
-    _pendingCommentMarkers.remove(postId);
+    _taggingController?.clearScopeState(_postScopeId(postId));
     _resolvedAudioUrls.remove(postId);
-    _inFlightTagCommentLoads.remove(postId);
-    _inFlightFullCommentLoads.remove(postId);
 
     final hasOtherPostsByNickname = _posts.any(
       (existingPost) =>

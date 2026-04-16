@@ -1,18 +1,19 @@
 import 'dart:async';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import '../../common_widget/comment/model/comment_pending_model.dart';
+import 'package:tagging_flutter/tagging_flutter.dart';
+
 import '../../common_widget/comment/comment_list_bottom_sheet.dart';
-import '../../common_widget/comment/comment_input_widget.dart';
 import '../../common_widget/photo/photo_card_widget.dart';
 import '../../common_widget/photo/user_info_widget.dart';
 import '../../../api/controller/audio_controller.dart';
 import '../../../api/controller/comment_controller.dart';
 import '../../../api/models/comment.dart';
+import '../../../features/tagging_soi/tagging_soi.dart';
 import '../manager/feed_data_manager.dart';
-import '../../../utils/analytics_service.dart';
 
 /// 피드 화면 레이아웃 위젯.
 ///
@@ -22,9 +23,11 @@ class FeedPageBuilder extends StatefulWidget {
   final List<FeedPostItem> posts;
   final bool hasMoreData;
   final bool isLoadingMore;
-  final Map<int, String?> selectedEmojisByPostId;
-  final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
-  final Map<int, PendingApiCommentMarker> pendingVoiceComments;
+  final Map<TagScopeId, String?> selectedEmojisByScopeId;
+  final Map<TagScopeId, TagDraft> pendingCommentDrafts;
+  final Map<TagScopeId, TagPendingMarker> pendingVoiceComments;
+  final TaggingSessionController taggingController;
+  final TaggingSaveDelegate saveDelegate;
   final Function(FeedPostItem) onToggleAudio;
   final Future<void> Function(int, String) onTextCommentCompleted;
   final Future<void> Function(
@@ -38,7 +41,7 @@ class FeedPageBuilder extends StatefulWidget {
   onMediaCommentCompleted;
   final Function(int, Offset) onProfileImageDragged;
   final void Function(int, double) onCommentSaveProgress;
-  final void Function(int, Comment) onCommentSaveSuccess;
+  final void Function(int, TagComment) onCommentSaveSuccess;
   final void Function(int, Object) onCommentSaveFailure;
   final Future<void> Function(int, FeedPostItem) onDeletePost;
   final Function(int) onPageChanged;
@@ -55,9 +58,11 @@ class FeedPageBuilder extends StatefulWidget {
     required this.posts,
     required this.hasMoreData,
     required this.isLoadingMore,
-    required this.selectedEmojisByPostId,
+    required this.selectedEmojisByScopeId,
     required this.pendingCommentDrafts,
     required this.pendingVoiceComments,
+    required this.taggingController,
+    required this.saveDelegate,
     required this.onToggleAudio,
     required this.onTextCommentCompleted,
     required this.onAudioCommentCompleted,
@@ -88,15 +93,18 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
   int _currentIndex = 0;
   bool _isTextFieldFocused = false;
 
+  /// 피드 카드가 다루는 post 식별자를 tagging scope 계약으로 맞춥니다.
+  TagScopeId _postScopeId(int postId) => SoiTaggingIds.postScopeId(postId);
+
   /// 게시물이 한 장뿐인 경우에는 PageView 대신 refresh 전용 scroll host를 사용해 Android pull-to-refresh를 안정화합니다.
   bool get _usesSinglePostRefreshScroll =>
       widget.posts.length == 1 && !widget.hasMoreData;
 
   /// 피드 시트에서 바뀐 full thread를 controller cache 한 곳에 되돌립니다.
   void _replaceCommentCaches(int postId, List<Comment> updatedComments) {
-    context.read<CommentController>().replaceCommentsCache(
-      postId: postId,
-      comments: updatedComments,
+    widget.taggingController.replaceCommentsCache(
+      _postScopeId(postId),
+      SoiTagCommentMapper.fromComments(updatedComments),
     );
   }
 
@@ -141,13 +149,12 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
   /// - [String]
   ///   - 'text', 'audio', 'image', 'video' 중 하나. 작성 중인 댓글의 종류에 따라 결정됩니다.
   ///   - 'unknown' 작성 중인 댓글이 없거나, 종류를 판단할 수 없는 경우 반환됩니다.
-  String _resolveTagContentType(PendingApiCommentDraft? draft) {
+  String _resolveTagContentType(TagDraft? draft) {
     if (draft == null) return 'unknown';
     if (draft.isTextComment) return 'text';
-    if ((draft.audioPath ?? '').isNotEmpty) return 'audio';
-    if ((draft.mediaPath ?? '').isNotEmpty) {
-      return draft.isVideo == true ? 'video' : 'image';
-    }
+    if (draft.isAudioComment) return 'audio';
+    if (draft.isImageComment) return 'image';
+    if (draft.isVideoComment) return 'video';
     return 'unknown';
   }
 
@@ -158,39 +165,42 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
     required int categoryId,
     required String tagContentType,
     required int existingTagCountBefore,
-    required Comment comment,
+    required TagComment comment,
   }) async {
-    try {
-      // AnalyticsService 인스턴스를 가져옵니다.
-      final analytics = context.read<AnalyticsService>();
+    await SoiTaggingAnalytics.trackCommentTagSaved(
+      context,
+      postId: postId,
+      categoryId: categoryId,
+      surface: 'feed_home',
+      tagContentType: tagContentType,
+      existingTagCountBefore: existingTagCountBefore,
+      comment: comment,
+    );
+  }
 
-      // Mixpanel 이벤트에 포함할 속성들을 준비합니다.
-      // 'post_id': 태그가 저장된 게시물의 ID입니다.
-      // 'category_id': 태그가 저장된 게시물이 속한 카테고리의 ID입니다.
-      // 'surface': 이벤트가 발생한 화면이나 위치를 나타냅니다. 여기서는 'feed_home'으로 고정합니다.
-      // 'tag_content_type': 작성 중인 댓글의 종류입니다. 'text', 'audio', 'image', 'video' 중 하나입니다.
-      // 'existing_tag_count_before': 태그가 저장되기 전, 해당 게시물에 이미 존재하던 위치 태그의 수입니다.
-      // 'existing_tag_count_after': 태그가 저장된 후, 해당 게시물에 존재하는 위치 태그의 수입니다. 기존 태그 수에 1을 더한 값으로 계산합니다.
-      final properties = <String, dynamic>{
-        'post_id': postId,
-        'category_id': categoryId,
-        'surface': 'feed_home',
-        'tag_content_type': tagContentType,
-        'existing_tag_count_before': existingTagCountBefore,
-        'existing_tag_count_after': existingTagCountBefore + 1,
-      };
+  Future<bool> _requestCameraDraft(TagScopeId scopeId) {
+    final postId = SoiTaggingIds.postIdFromScopeId(scopeId);
+    return SoiTaggingComposerActions.requestCameraDraft(
+      context: context,
+      onSelected: (localFilePath, isVideo) async {
+        await widget.onMediaCommentCompleted(postId, localFilePath, isVideo);
+      },
+    );
+  }
 
-      // comment 객체에 ID가 있으면 properties에 추가합니다.
-      // ID가 없으면 새로 생성된 댓글이 아직 서버에서 반환되지 않은 상태일 수 있습니다.
-      if (comment.id != null) {
-        properties['comment_id'] = comment.id;
-      }
-
-      // Mixpanel에 'comment_tag_saved' 이벤트를 전송합니다.
-      await analytics.track('comment_tag_saved', properties: properties);
-    } catch (error) {
-      debugPrint('Mixpanel comment_tag_saved tracking failed: $error');
-    }
+  Future<bool> _requestAudioDraft(TagScopeId scopeId) {
+    final postId = SoiTaggingIds.postIdFromScopeId(scopeId);
+    return SoiTaggingComposerActions.requestAudioDraft(
+      context: context,
+      onSelected: (audioPath, waveformData, durationMs) async {
+        await widget.onAudioCommentCompleted(
+          postId,
+          audioPath,
+          waveformData,
+          durationMs,
+        );
+      },
+    );
   }
 
   /// 게시물 수에 따라 PageView 또는 단일 카드 레이아웃을 선택해 refresh 제스처와 페이지 스와이프를 함께 보장합니다.
@@ -232,11 +242,14 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
       index: index,
       isOwner: false,
       displayOnly: true,
-      selectedEmoji: widget.selectedEmojisByPostId[feedItem.post.id],
+      selectedEmoji:
+          widget.selectedEmojisByScopeId[_postScopeId(feedItem.post.id)],
       onEmojiSelected: (emoji) =>
           widget.onEmojiSelected(feedItem.post.id, emoji),
       pendingCommentDrafts: widget.pendingCommentDrafts,
       pendingVoiceComments: widget.pendingVoiceComments,
+      taggingController: widget.taggingController,
+      saveDelegate: widget.saveDelegate,
       onToggleAudio: (p) => widget.onToggleAudio(feedItem),
       onProfileImageDragged: widget.onProfileImageDragged,
       onCommentsReloadRequested: widget.onReloadComments,
@@ -320,41 +333,50 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               padding: EdgeInsets.only(bottom: composerBottomInset),
-              child: CommentInputWidget(
-                postId: currentPost.post.id,
-                pendingCommentDrafts: widget.pendingCommentDrafts,
-                onTextCommentCompleted: (postId, text) =>
-                    widget.onTextCommentCompleted(postId, text),
-                onAudioCommentCompleted:
-                    (postId, audioPath, waveformData, durationMs) =>
-                        widget.onAudioCommentCompleted(
-                          postId,
-                          audioPath,
-                          waveformData,
-                          durationMs,
-                        ),
-                onMediaCommentCompleted: (postId, localFilePath, isVideo) =>
-                    widget.onMediaCommentCompleted(
-                      postId,
-                      localFilePath,
-                      isVideo,
+              child: TagComposerWidget(
+                scopeId: _postScopeId(currentPost.post.id),
+                pendingDrafts: widget.pendingCommentDrafts,
+                saveDelegate: widget.saveDelegate,
+                avatarBuilder: SoiTaggingAvatarBuilders.buildComposerAvatar,
+                onTextDraftSubmitted: (scopeId, text) =>
+                    widget.onTextCommentCompleted(
+                      SoiTaggingIds.postIdFromScopeId(scopeId),
+                      text,
                     ),
-                resolveDropRelativePosition: (id) =>
-                    widget.pendingVoiceComments[id]?.relativePosition,
-                onCommentSaveProgress: widget.onCommentSaveProgress,
-                onCommentSaveSuccess: (postId, comment) {
-                  final commentController = context.read<CommentController>();
-                  final existingTagCountBefore =
-                      (commentController.peekTagCommentsCache(postId: postId) ??
-                              const <Comment>[])
-                          .length;
+                onAudioDraftRequested: _requestAudioDraft,
+                onCameraDraftRequested: _requestCameraDraft,
+                basePlaceholderText: 'comments.add_comment_placeholder'.tr(
+                  context: context,
+                ),
+                textInputHintText: 'comments.add_comment_placeholder'.tr(
+                  context: context,
+                ),
+                cameraIcon: Image.asset(
+                  'assets/camera_button_baseBar.png',
+                  width: 32.sp,
+                  height: 32.sp,
+                ),
+                micIcon: Image.asset('assets/mic_icon.png'),
+                resolveDropRelativePosition: (scopeId) =>
+                    widget.pendingVoiceComments[scopeId]?.relativePosition,
+                onCommentSaveProgress: (scopeId, progress) {
+                  widget.onCommentSaveProgress(
+                    SoiTaggingIds.postIdFromScopeId(scopeId),
+                    progress,
+                  );
+                },
+                onCommentSaveSuccess: (scopeId, comment) {
+                  final postId = SoiTaggingIds.postIdFromScopeId(scopeId);
+                  final existingTagCountBefore = widget.taggingController
+                      .peekTagComments(scopeId)
+                      .length;
                   if (comment.hasLocation) {
                     unawaited(
                       _trackCommentTagSaved(
                         postId: postId,
                         categoryId: currentPost.categoryId,
                         tagContentType: _resolveTagContentType(
-                          widget.pendingCommentDrafts[postId],
+                          widget.pendingCommentDrafts[scopeId],
                         ),
                         existingTagCountBefore: existingTagCountBefore,
                         comment: comment,
@@ -363,7 +385,12 @@ class _FeedPageBuilderState extends State<FeedPageBuilder> {
                   }
                   widget.onCommentSaveSuccess(postId, comment);
                 },
-                onCommentSaveFailure: widget.onCommentSaveFailure,
+                onCommentSaveFailure: (scopeId, error) {
+                  widget.onCommentSaveFailure(
+                    SoiTaggingIds.postIdFromScopeId(scopeId),
+                    error,
+                  );
+                },
                 onTextFieldFocusChanged: (isFocused) {
                   setState(() {
                     _isTextFieldFocused = isFocused;
