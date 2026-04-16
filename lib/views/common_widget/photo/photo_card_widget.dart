@@ -1,27 +1,21 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:tagging_flutter/tagging_flutter.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../api/controller/comment_controller.dart';
-import '../../../features/tagging/application/tagging_save_delegate.dart';
 import '../../../api/models/post.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/controller/audio_controller.dart';
-import '../../../utils/analytics_service.dart';
+import '../../../features/tagging_soi/tagging_soi.dart';
 import 'photo_display_widget.dart';
 import 'user_info_widget.dart';
-import '../comment/comment_input_widget.dart';
-import '../comment/comment_circle_avatar.dart';
 import '../comment/comment_media_tag_preview_widget.dart';
-import '../comment/comment_tag_bubble.dart';
-import '../comment/comment_tag_specs.dart';
 import '../comment/comment_list_bottom_sheet.dart';
-import '../comment/model/comment_pending_model.dart';
 import '../report/report_bottom_sheet.dart';
 
 /// 사진 카드 위젯.
@@ -74,8 +68,9 @@ class ApiPhotoCardWidget extends StatefulWidget {
   onReportSubmitted;
 
   // 상태 관리 관련
-  final Map<int, PendingApiCommentDraft> pendingCommentDrafts;
-  final Map<int, PendingApiCommentMarker> pendingVoiceComments;
+  final Map<TagScopeId, TagDraft> pendingCommentDrafts;
+  final Map<TagScopeId, TagPendingMarker> pendingVoiceComments;
+  final TaggingSessionController taggingController;
   final TaggingSaveDelegate saveDelegate;
 
   // 콜백 함수들
@@ -92,7 +87,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
   onMediaCommentCompleted;
   final Function(int, Offset) onProfileImageDragged;
   final void Function(int, double)? onCommentSaveProgress;
-  final void Function(int, Comment)? onCommentSaveSuccess;
+  final void Function(int, TagComment)? onCommentSaveSuccess;
   final void Function(int, Object)? onCommentSaveFailure;
   final VoidCallback? onDeletePressed;
   final Future<void> Function(int postId)? onCommentsReloadRequested;
@@ -114,6 +109,7 @@ class ApiPhotoCardWidget extends StatefulWidget {
     this.onReportSubmitted,
     required this.pendingCommentDrafts,
     this.pendingVoiceComments = const {},
+    required this.taggingController,
     required this.saveDelegate,
     required this.onToggleAudio,
     this.onTextCommentCompleted,
@@ -147,11 +143,11 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   late final Animation<double> _overlayExpandAnimation;
   bool _isOverlayDismissAnimating = false;
 
-  List<Comment> get _tagComments =>
-      context.read<CommentController>().peekTagCommentsCache(
-        postId: widget.post.id,
-      ) ??
-      const <Comment>[];
+  /// 카드가 보여 주는 post를 tagging 모듈의 공통 scope 식별자로 노출합니다.
+  TagScopeId get _scopeId => SoiTaggingIds.postScopeId(widget.post.id);
+
+  List<TagComment> get _tagComments =>
+      widget.taggingController.peekTagComments(_scopeId);
 
   /// 댓글 시트는 full cache가 없을 때 원댓글 미리보기를 먼저 사용하고, 마지막 fallback으로 태그 캐시를 사용합니다.
   List<Comment> get _parentComments =>
@@ -173,7 +169,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
     if (_parentComments.isNotEmpty) {
       return _parentComments;
     }
-    return _tagComments;
+    return SoiTagCommentMapper.toComments(_tagComments);
   }
 
   /// 텍스트 댓글 작성이 완료되면 부모 위젯에 알립니다.
@@ -183,7 +179,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
 
   /// 작성 중인 댓글의 종류를 반환합니다. 통계 기록에 사용됩니다.
   String _currentTagContentType() {
-    final draft = widget.pendingCommentDrafts[widget.post.id];
+    final draft = widget.pendingCommentDrafts[_scopeId];
     if (draft == null) {
       return 'unknown';
     }
@@ -192,13 +188,12 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
       return 'text';
     }
 
-    if ((draft.audioPath ?? '').isNotEmpty) {
+    if (draft.isAudioComment) {
       return 'audio';
     }
 
-    if ((draft.mediaPath ?? '').isNotEmpty) {
-      return draft.isVideo == true ? 'video' : 'image';
-    }
+    if (draft.isImageComment) return 'image';
+    if (draft.isVideoComment) return 'video';
 
     return 'unknown';
   }
@@ -206,44 +201,23 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
   /// 댓글 태그가 사진에 저장됐을 때 통계 이벤트를 전송합니다.
   /// 어느 화면인지, 댓글 종류, 기존 태그 수 등의 정보를 함께 보냅니다.
   Future<void> _trackCommentTagSaved({
-    required Comment comment,
+    required TagComment comment,
     required int existingTagCountBefore,
   }) async {
-    try {
-      // AnalyticsService 인스턴스를 가지고 옵니다.
-      final analytics = context.read<AnalyticsService>();
-
-      // 이벤트 속성을 설정합니다.
-      final properties = <String, dynamic>{
-        'post_id': widget.post.id,
-        'category_id': widget.categoryId,
-        'surface': widget.isArchive ? 'archive_detail' : 'feed_home',
-        'tag_content_type': _currentTagContentType(),
-        'existing_tag_count_before': existingTagCountBefore,
-        'existing_tag_count_after': existingTagCountBefore + 1,
-      };
-
-      // comment.id가 null이 아닐 때만 comment_id 속성을 추가합니다.
-      if (comment.id != null) {
-        properties['comment_id'] = comment.id;
-      }
-
-      // Mixpanel에 이벤트를 전송합니다.
-      await analytics.track('comment_tag_saved', properties: properties);
-
-      // 디버그 모드에서는 이벤트가 즉시 전송되도록 flush를 호출합니다.
-      // release 모드에서는 Mixpanel SDK가 자체적으로 최적화된 타이밍에 이벤트를 전송하므로 flush를 호출하지 않습니다.
-      if (kDebugMode) {
-        analytics.flush();
-      }
-    } catch (error) {
-      debugPrint('Mixpanel comment_tag_saved tracking failed: $error');
-    }
+    await SoiTaggingAnalytics.trackCommentTagSaved(
+      context,
+      postId: widget.post.id,
+      categoryId: widget.categoryId,
+      surface: widget.isArchive ? 'archive_detail' : 'feed_home',
+      tagContentType: _currentTagContentType(),
+      existingTagCountBefore: existingTagCountBefore,
+      comment: comment,
+    );
   }
 
   /// 음성 댓글을 드래그해서 사진에 태그할 때의 위치를 반환합니다.
-  Offset? _resolveDropRelativePosition(int postId) {
-    return widget.pendingVoiceComments[postId]?.relativePosition;
+  TagPosition? _resolveDropRelativePosition(TagScopeId scopeId) {
+    return widget.pendingVoiceComments[scopeId]?.relativePosition;
   }
 
   @override
@@ -304,9 +278,9 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
 
   /// 시트가 돌려준 full thread 결과를 controller cache 한 곳에 반영합니다.
   void _replaceCommentCaches(List<Comment> updatedComments) {
-    context.read<CommentController>().replaceCommentsCache(
-      postId: widget.post.id,
-      comments: updatedComments,
+    widget.taggingController.replaceCommentsCache(
+      _scopeId,
+      SoiTagCommentMapper.fromComments(updatedComments),
     );
   }
 
@@ -399,13 +373,13 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
               final previewOpacity = Curves.easeOutCubic.transform(
                 Interval(0.18, 1.0).transform(animationValue),
               );
-              final diameter = CommentTagBubble.diameterForContent(
+              final diameter = TagBubble.diameterForContent(
                 contentSize: contentSize,
-                padding: CommentMediaTagSpec.padding,
+                padding: TagMediaTagSpec.padding,
               );
-              final totalHeight = CommentTagBubble.totalHeightForContent(
+              final totalHeight = TagBubble.totalHeightForContent(
                 contentSize: contentSize,
-                padding: CommentMediaTagSpec.padding,
+                padding: TagMediaTagSpec.padding,
               );
               final topLeft = Offset(
                 data.globalCircleCenter.dx - (diameter / 2),
@@ -436,16 +410,16 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                     );
                   },
                   onLongPress: data.onLongPress,
-                  child: CommentTagBubble(
+                  child: TagBubble(
                     contentSize: contentSize,
-                    padding: CommentMediaTagSpec.padding,
+                    padding: TagMediaTagSpec.padding,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         IgnorePointer(
                           child: Opacity(
                             opacity: avatarOpacity.clamp(0.0, 1.0),
-                            child: CommentCircleAvatar(
+                            child: TagCircleAvatar(
                               key: ValueKey('overlay_avatar_${data.tagKey}'),
                               imageUrl: data.comment.userProfileUrl,
                               size: contentSize,
@@ -501,6 +475,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
           categoryName: widget.categoryName,
           isArchive: widget.isArchive,
           isFromCamera: widget.isFromCamera,
+          taggingController: widget.taggingController,
           loadFullComments: widget.onLoadFullComments,
           onProfileImageDragged: widget.onProfileImageDragged,
           onToggleAudio: widget.onToggleAudio,
@@ -547,6 +522,7 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
                   categoryName: widget.categoryName,
                   isArchive: widget.isArchive,
                   isFromCamera: widget.isFromCamera,
+                  taggingController: widget.taggingController,
                   loadFullComments: widget.onLoadFullComments,
                   onProfileImageDragged: widget.onProfileImageDragged,
                   onToggleAudio: widget.onToggleAudio,
@@ -615,34 +591,58 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               padding: EdgeInsets.only(bottom: composerBottomInset),
-              child: CommentInputWidget(
-                postId: widget.post.id,
-                pendingCommentDrafts: widget.pendingCommentDrafts,
+              child: TagComposerWidget(
+                scopeId: _scopeId,
+                pendingDrafts: widget.pendingCommentDrafts,
                 saveDelegate: widget.saveDelegate,
-                onTextCommentCompleted: (postId, text) =>
+                avatarBuilder: SoiTaggingAvatarBuilders.buildComposerAvatar,
+                onTextDraftSubmitted: (_, text) =>
                     _handleTextCommentCreated(text),
-                onAudioCommentCompleted:
-                    (postId, audioPath, waveformData, durationMs) =>
-                        widget.onAudioCommentCompleted!(
-                          postId,
-                          audioPath,
-                          waveformData,
-                          durationMs,
-                        ),
-                onMediaCommentCompleted: (postId, localFilePath, isVideo) =>
-                    widget.onMediaCommentCompleted!(
-                      postId,
-                      localFilePath,
-                      isVideo,
-                    ),
+                onAudioDraftRequested: (scopeId) {
+                  final postId = SoiTaggingIds.postIdFromScopeId(scopeId);
+                  return SoiTaggingComposerActions.requestAudioDraft(
+                    context: context,
+                    onSelected: (audioPath, waveformData, durationMs) async {
+                      await widget.onAudioCommentCompleted!(
+                        postId,
+                        audioPath,
+                        waveformData,
+                        durationMs,
+                      );
+                    },
+                  );
+                },
+                onCameraDraftRequested: (scopeId) {
+                  final postId = SoiTaggingIds.postIdFromScopeId(scopeId);
+                  return SoiTaggingComposerActions.requestCameraDraft(
+                    context: context,
+                    onSelected: (localFilePath, isVideo) async {
+                      await widget.onMediaCommentCompleted!(
+                        postId,
+                        localFilePath,
+                        isVideo,
+                      );
+                    },
+                  );
+                },
+                basePlaceholderText: '댓글 추가...',
+                textInputHintText: '댓글 추가...',
+                cameraIcon: Image.asset(
+                  'assets/camera_button_baseBar.png',
+                  width: 32.sp,
+                  height: 32.sp,
+                ),
+                micIcon: Image.asset('assets/mic_icon.png'),
                 resolveDropRelativePosition: _resolveDropRelativePosition,
-                onCommentSaveProgress: widget.onCommentSaveProgress!,
-                onCommentSaveSuccess: (postId, comment) {
-                  final existingTagCountBefore = _tagComments.where((
-                    existingComment,
-                  ) {
-                    return existingComment.hasLocation;
-                  }).length;
+                onCommentSaveProgress: (scopeId, progress) {
+                  widget.onCommentSaveProgress!(
+                    SoiTaggingIds.postIdFromScopeId(scopeId),
+                    progress,
+                  );
+                },
+                onCommentSaveSuccess: (scopeId, comment) {
+                  final postId = SoiTaggingIds.postIdFromScopeId(scopeId);
+                  final existingTagCountBefore = _tagComments.length;
 
                   if (comment.hasLocation) {
                     unawaited(
@@ -655,7 +655,12 @@ class _ApiPhotoCardWidgetState extends State<ApiPhotoCardWidget>
 
                   widget.onCommentSaveSuccess!(postId, comment);
                 },
-                onCommentSaveFailure: widget.onCommentSaveFailure!,
+                onCommentSaveFailure: (scopeId, error) {
+                  widget.onCommentSaveFailure!(
+                    SoiTaggingIds.postIdFromScopeId(scopeId),
+                    error,
+                  );
+                },
                 onTextFieldFocusChanged: (isFocused) {
                   setState(() {
                     _isTextFieldFocused = isFocused;

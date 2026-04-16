@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:tagging_core/tagging_core.dart';
 import 'package:soi/api/controller/comment_controller.dart';
 import 'package:soi/api/controller/media_controller.dart';
 import 'package:soi/api/models/post.dart';
 import 'package:soi/api/services/comment_service.dart';
 import 'package:soi/api/services/media_service.dart';
-import 'package:soi/views/common_widget/comment/model/comment_pending_model.dart';
+import 'package:soi/features/tagging_soi/tagging_soi.dart';
 import 'package:soi/views/common_widget/photo/photo_display_widget.dart';
 import 'package:soi_api_client/api.dart';
 
@@ -71,11 +72,15 @@ Widget _buildHarness({
   required MediaController mediaController,
   required Post post,
 }) {
+  final commentController = _FakeCommentController();
+  final taggingController = TaggingSessionController(
+    commentGateway: SoiTaggingCommentGateway(commentController),
+    mediaResolver: SoiTaggingMediaResolver(mediaController),
+  );
+
   return MultiProvider(
     providers: [
-      ChangeNotifierProvider<CommentController>(
-        create: (_) => _FakeCommentController(),
-      ),
+      ChangeNotifierProvider<CommentController>.value(value: commentController),
       ChangeNotifierProvider<MediaController>.value(value: mediaController),
     ],
     child: ScreenUtilInit(
@@ -87,9 +92,10 @@ Widget _buildHarness({
               post: post,
               categoryId: 1,
               categoryName: 'category',
+              taggingController: taggingController,
               onProfileImageDragged: (_, __) {},
               onToggleAudio: (_) {},
-              pendingVoiceComments: const <int, PendingApiCommentMarker>{},
+              pendingVoiceComments: const <TagScopeId, TagPendingMarker>{},
             ),
           ),
         ),

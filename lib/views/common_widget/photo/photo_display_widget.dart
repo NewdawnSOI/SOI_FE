@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:tagging_flutter/tagging_flutter.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../api/controller/audio_controller.dart';
@@ -12,14 +13,10 @@ import '../../../utils/snackbar_utils.dart';
 import '../../../api/controller/comment_controller.dart';
 import '../../../api/models/comment.dart';
 import '../../../api/models/post.dart';
+import '../../../features/tagging_soi/tagging_soi.dart';
 import '../../about_archiving/screens/archive_detail/category_photos_screen.dart';
 import '../comment/comment_list_bottom_sheet.dart';
-import '../comment/comment_overlay.dart';
-import '../comment/comment_tag_bubble.dart';
-import '../comment/comment_tag_specs.dart';
-import '../comment/model/comment_pending_model.dart';
 import 'audio_control_widget.dart';
-import 'services/photo_tag_geometry_service.dart';
 import 'services/photo_waveform_parser_service.dart';
 import 'widgets/photo_caption_overlay.dart';
 import 'widgets/photo_delete_action_popup.dart';
@@ -60,7 +57,7 @@ Widget _heroFlightShuttleBuilder(
 ///   - 이 함수를 통해 댓글 삭제 등의 추가 액션을 구현할 수 있습니다.
 class ExpandedMediaTagOverlayData {
   final String tagKey;
-  final Comment comment;
+  final TagComment comment;
   final Offset globalCircleCenter;
   final double collapsedContentSize;
   final double expandedContentSize;
@@ -87,10 +84,11 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
   final String categoryName;
   final bool isArchive;
   final bool isFromCamera;
+  final TaggingSessionController taggingController;
   final Future<List<Comment>> Function(int postId)? loadFullComments;
   final Function(int, Offset) onProfileImageDragged;
   final Function(Post) onToggleAudio;
-  final Map<int, PendingApiCommentMarker> pendingVoiceComments;
+  final Map<TagScopeId, TagPendingMarker> pendingVoiceComments;
   final Future<void> Function(int postId)? onCommentsReloadRequested;
   final ValueChanged<ExpandedMediaTagOverlayData?>?
   onExpandedMediaOverlayChanged;
@@ -131,6 +129,7 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
     required this.categoryName,
     this.isArchive = false,
     this.isFromCamera = false,
+    required this.taggingController,
     this.loadFullComments,
     required this.onProfileImageDragged,
     required this.onToggleAudio,
@@ -147,12 +146,15 @@ class ApiPhotoDisplayWidget extends StatefulWidget {
 class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     with WidgetsBindingObserver {
   /// 댓글 태그의 기본 아바타 규격은 공용 댓글 태그 상수와 동일하게 유지합니다.
-  static const double _avatarSize = CommentProfileTagSpec.avatarSize;
-  static const double _expandedAvatarSize = CommentMediaTagSpec.contentSize;
+  static const double _avatarSize = TagProfileTagSpec.avatarSize;
+  static const double _expandedAvatarSize = TagMediaTagSpec.contentSize;
   static const double _imageWidth = 354.0;
   static const double _imageHeight = 500.0;
 
   Size get _imageSize => Size(_imageWidth.w, _imageHeight.h);
+
+  /// display 전용 오버레이 상태는 항상 현재 post의 공통 tagging scope에 묶입니다.
+  TagScopeId get _scopeId => SoiTaggingIds.postScopeId(widget.post.id);
 
   String get _heroTag => 'archive_photo_${widget.categoryId}_${widget.post.id}';
 
@@ -172,7 +174,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
 
   String? _selectedCommentKey;
   String? _expandedMediaTagKey;
-  int? _selectedCommentId;
+  TagEntityId? _selectedCommentId;
   Offset? _selectedCommentPosition;
   bool _showActionOverlay = false;
   bool _isShowingComments = false;
@@ -184,11 +186,8 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   int _mediaLoadGeneration = 0;
   final GlobalKey _displayStackKey = GlobalKey();
 
-  List<Comment> get _overlayComments =>
-      context.read<CommentController>().peekTagCommentsCache(
-        postId: widget.post.id,
-      ) ??
-      const <Comment>[];
+  List<TagComment> get _overlayComments =>
+      widget.taggingController.peekTagComments(_scopeId);
 
   /// 댓글 시트는 full cache가 없을 때 원댓글 미리보기를 먼저 보여 주고, 없으면 태그 캐시로 즉시 엽니다.
   List<Comment> get _parentComments =>
@@ -208,10 +207,9 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
       ? _postComments
       : _parentComments.isNotEmpty
       ? _parentComments
-      : _overlayComments;
+      : SoiTagCommentMapper.toComments(_overlayComments);
 
-  bool get _hasPendingMarker =>
-      widget.pendingVoiceComments[widget.post.id] != null;
+  bool get _hasPendingMarker => widget.pendingVoiceComments[_scopeId] != null;
 
   bool get _hasComments => _overlayComments.isNotEmpty;
 
@@ -652,7 +650,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   /// 확장된 미디어 오버레이를 표시하기 위해 필요한 데이터를 계산하고, 상위 위젯에 전달하는 함수입니다.
   void _emitExpandedMediaOverlay({
     required String tagKey,
-    required Comment comment,
+    required TagComment comment,
     required Offset localCircleCenter,
     required double collapsedContentSize,
     required double expandedContentSize,
@@ -716,15 +714,14 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   /// 댓글 태그가 탭되어 확장된 미디어 오버레이를 표시할 때 필요한 데이터를 계산하고, 상위 위젯에 전달하는 함수입니다.
   void _showExpandedMediaOverlay({
     required String tagKey,
-    required Comment comment,
+    required TagComment comment,
     required Offset tipAnchor,
     VoidCallback? onLongPress,
   }) {
-    final localCircleCenter =
-        ApiPhotoTagGeometryService.tagCircleCenterFromTipAnchor(
-          tipAnchor,
-          _avatarSize,
-        );
+    final localCircleCenter = TagGeometryService.tagCircleCenterFromTipAnchor(
+      tipAnchor,
+      _avatarSize,
+    );
 
     // 확장된 미디어 오버레이를 표시하기 위해 필요한 데이터를 계산하고, 상위 위젯에 전달합니다.
     _emitExpandedMediaOverlay(
@@ -746,12 +743,12 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   ///   - 현재 확장된 미디어 태그가 있다면 축소합니다.
   ///   - 댓글 시트를 엽니다.
   Future<void> _handleCommentTap({
-    required Comment comment,
+    required TagComment comment,
     required String key,
     required Offset tipAnchor,
   }) async {
-    if (comment.type == CommentType.photo) {
-      if (!ApiPhotoTagGeometryService.canExpandMediaComment(comment)) {
+    if (comment.isImage || comment.isVideo) {
+      if (!TagGeometryService.canExpandMediaComment(comment)) {
         _openCommentSheet(key);
         return;
       }
@@ -856,7 +853,7 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
 
   void _handleCommentLongPress({
     required String key,
-    required int? commentId,
+    required TagEntityId? commentId,
     required Offset position,
   }) {
     if (commentId == null) {
@@ -876,12 +873,17 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
   Future<void> _deleteSelectedComment() async {
     final targetId = _selectedCommentId;
     if (targetId == null) return;
+    final numericCommentId = SoiTaggingIds.intFromEntityId(targetId);
+    if (numericCommentId == null) {
+      _showSnackBar(tr('comments.delete_unavailable', context: context));
+      return;
+    }
     try {
       final commentController = Provider.of<CommentController>(
         context,
         listen: false,
       );
-      final success = await commentController.deleteComment(targetId);
+      final success = await commentController.deleteComment(numericCommentId);
       if (!mounted) return;
       if (success) {
         _removeCommentFromCache(targetId);
@@ -898,18 +900,18 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
     }
   }
 
-  void _removeCommentFromCache(int commentId) {
-    context.read<CommentController>().removeCommentFromCache(
-      postId: widget.post.id,
+  void _removeCommentFromCache(TagEntityId commentId) {
+    widget.taggingController.removeCommentFromCache(
+      scopeId: _scopeId,
       commentId: commentId,
     );
   }
 
   /// 댓글시트의 full thread 결과를 controller cache 한 곳에 반영합니다.
   void _replaceCommentCaches(List<Comment> updatedComments) {
-    context.read<CommentController>().replaceCommentsCache(
-      postId: widget.post.id,
-      comments: updatedComments,
+    widget.taggingController.replaceCommentsCache(
+      _scopeId,
+      SoiTagCommentMapper.fromComments(updatedComments),
     );
   }
 
@@ -1025,9 +1027,9 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                     builderContext.findRenderObject() as RenderBox?;
                 if (renderBox == null) return;
                 final localPosition = renderBox.globalToLocal(details.offset);
-                final tipOffset = CommentTagBubble.pointerTipOffset(
+                final tipOffset = TagBubble.pointerTipOffset(
                   contentSize: _avatarSize,
-                  padding: kPendingCommentTagPadding,
+                  padding: TagProfileTagSpec.padding,
                 );
                 widget.onProfileImageDragged(
                   widget.post.id,
@@ -1131,15 +1133,18 @@ class _ApiPhotoDisplayWidgetState extends State<ApiPhotoDisplayWidget>
                         ),
                       // 댓글이 있는 경우, 댓글 태그를 미디어 위에 오버레이로 렌더링합니다.
                       Positioned.fill(
-                        child: CommentOverlay(
+                        child: TagOverlay(
                           comments: _overlayComments,
-                          pendingMarker:
-                              widget.pendingVoiceComments[widget.post.id],
+                          pendingMarker: widget.pendingVoiceComments[_scopeId],
                           isShowingComments: _isShowingComments,
                           showActionOverlay: _showActionOverlay,
                           selectedCommentKey: _selectedCommentKey,
                           expandedMediaTagKey: _expandedMediaTagKey,
                           imageSize: _imageSize,
+                          commentAvatarBuilder:
+                              SoiTaggingAvatarBuilders.buildCommentAvatar,
+                          pendingAvatarBuilder:
+                              SoiTaggingAvatarBuilders.buildPendingMarkerAvatar,
                           onCommentTap: _handleCommentTap,
                           onCommentLongPress: _handleCommentLongPress,
                         ),
