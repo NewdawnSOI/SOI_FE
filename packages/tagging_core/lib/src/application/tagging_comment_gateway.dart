@@ -10,6 +10,9 @@ abstract class TaggingCommentGateway {
 
   List<TagComment>? peekTagCommentsCache({required TagScopeId scopeId});
 
+  /// 태그 캐시가 서버 기준의 완전한 목록인지 로더가 판단할 수 있게 노출합니다.
+  bool hasHydratedTagCommentsCache({required TagScopeId scopeId});
+
   void replaceCommentsCache({
     required TagScopeId scopeId,
     required List<TagComment> comments,

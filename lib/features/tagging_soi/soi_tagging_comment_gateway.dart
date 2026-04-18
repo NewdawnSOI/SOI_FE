@@ -96,6 +96,14 @@ class SoiTaggingCommentGateway implements TaggingCommentGateway {
     return cached == null ? null : SoiTagCommentMapper.fromComments(cached);
   }
 
+  /// tagging_core가 임시 tag cache와 서버 hydrate cache를 구분할 수 있게 연결합니다.
+  @override
+  bool hasHydratedTagCommentsCache({required TagScopeId scopeId}) {
+    return _commentController.hasHydratedTagCommentsCache(
+      postId: SoiTaggingIds.postIdFromScopeId(scopeId),
+    );
+  }
+
   @override
   TagThreadSnapshot peekThreadSnapshot({required TagScopeId scopeId}) {
     return TagThreadSnapshot(

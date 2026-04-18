@@ -243,6 +243,7 @@ class TaggingSessionController {
     _notifyListeners();
   }
 
+  /// tag overlay 로드는 로컬 임시 cache를 그대로 신뢰하지 않고, hydrate 여부까지 확인합니다.
   Future<void> loadTagCommentsForScopes(
     List<TagScopeId> scopeIds, {
     bool forceReload = false,
@@ -253,6 +254,7 @@ class TaggingSessionController {
           final cached = _commentGateway.peekTagCommentsCache(scopeId: scopeId);
           return forceReload ||
               cached == null ||
+              !_commentGateway.hasHydratedTagCommentsCache(scopeId: scopeId) ||
               _needsProfileImageResolution(cached);
         })
         .toList(growable: false);
@@ -407,12 +409,15 @@ class TaggingSessionController {
       final cached = forceReload
           ? null
           : _commentGateway.peekTagCommentsCache(scopeId: scopeId);
-      final comments =
-          cached ??
-          await _commentGateway.loadTagComments(
-            scopeId: scopeId,
-            forceReload: forceReload,
-          );
+      final shouldReuseCached =
+          cached != null &&
+          _commentGateway.hasHydratedTagCommentsCache(scopeId: scopeId);
+      final comments = shouldReuseCached
+          ? cached
+          : await _commentGateway.loadTagComments(
+              scopeId: scopeId,
+              forceReload: forceReload,
+            );
       await _resolveAndStoreCommentsIfNeeded(
         scopeId: scopeId,
         comments: comments,

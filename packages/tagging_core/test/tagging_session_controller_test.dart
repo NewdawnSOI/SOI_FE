@@ -8,6 +8,10 @@ class _FakeGateway implements TaggingCommentGateway {
       <TagScopeId, List<TagComment>>{};
   final Map<TagScopeId, List<TagComment>> tag =
       <TagScopeId, List<TagComment>>{};
+  final Map<TagScopeId, List<TagComment>> tagLoadResponses =
+      <TagScopeId, List<TagComment>>{};
+  final Set<TagScopeId> hydratedTagScopes = <TagScopeId>{};
+  int loadTagCommentsCallCount = 0;
 
   @override
   void appendCreatedComment({
@@ -49,7 +53,12 @@ class _FakeGateway implements TaggingCommentGateway {
     required TagScopeId scopeId,
     bool forceReload = false,
   }) async {
-    return tag[scopeId] ?? const <TagComment>[];
+    loadTagCommentsCallCount += 1;
+    final response =
+        tagLoadResponses[scopeId] ?? tag[scopeId] ?? const <TagComment>[];
+    tag[scopeId] = response;
+    hydratedTagScopes.add(scopeId);
+    return response;
   }
 
   @override
@@ -63,6 +72,10 @@ class _FakeGateway implements TaggingCommentGateway {
   @override
   List<TagComment>? peekTagCommentsCache({required TagScopeId scopeId}) =>
       tag[scopeId];
+
+  @override
+  bool hasHydratedTagCommentsCache({required TagScopeId scopeId}) =>
+      hydratedTagScopes.contains(scopeId);
 
   @override
   TagThreadSnapshot peekThreadSnapshot({required TagScopeId scopeId}) {
@@ -81,6 +94,7 @@ class _FakeGateway implements TaggingCommentGateway {
     tag[scopeId] = (tag[scopeId] ?? const <TagComment>[])
         .where((comment) => comment.id != commentId)
         .toList(growable: false);
+    hydratedTagScopes.remove(scopeId);
   }
 
   @override
@@ -89,6 +103,7 @@ class _FakeGateway implements TaggingCommentGateway {
     required List<TagComment> comments,
   }) {
     full[scopeId] = comments;
+    hydratedTagScopes.add(scopeId);
   }
 
   @override
@@ -97,6 +112,7 @@ class _FakeGateway implements TaggingCommentGateway {
     required List<TagComment> comments,
   }) {
     parent[scopeId] = comments;
+    hydratedTagScopes.add(scopeId);
   }
 
   @override
@@ -105,6 +121,7 @@ class _FakeGateway implements TaggingCommentGateway {
     required List<TagComment> comments,
   }) {
     tag[scopeId] = comments;
+    hydratedTagScopes.add(scopeId);
   }
 }
 
@@ -188,6 +205,50 @@ void main() {
         expect(controller.pendingDrafts.containsKey('post:10'), isFalse);
         expect(controller.pendingMarkers.containsKey('post:10'), isFalse);
         expect(controller.peekTagComments('post:10'), hasLength(1));
+      },
+    );
+
+    test(
+      'reloads tag comments when only a provisional local tag cache exists',
+      () async {
+        final gateway = _FakeGateway()
+          ..tag['post:10'] = const <TagComment>[
+            TagComment(
+              id: '1',
+              userId: '3',
+              locationX: 0.5,
+              locationY: 0.6,
+              kind: TagCommentKind.text,
+            ),
+          ]
+          ..tagLoadResponses['post:10'] = const <TagComment>[
+            TagComment(
+              id: '1',
+              userId: '3',
+              locationX: 0.5,
+              locationY: 0.6,
+              kind: TagCommentKind.text,
+            ),
+            TagComment(
+              id: '2',
+              userId: '7',
+              locationX: 0.2,
+              locationY: 0.4,
+              kind: TagCommentKind.text,
+            ),
+          ];
+        final controller = TaggingSessionController(
+          commentGateway: gateway,
+          mediaResolver: _FakeResolver(),
+        );
+
+        await controller.loadTagCommentsForScope('post:10');
+
+        expect(gateway.loadTagCommentsCallCount, 1);
+        expect(
+          controller.peekTagComments('post:10').map((comment) => comment.id),
+          ['1', '2'],
+        );
       },
     );
   });
