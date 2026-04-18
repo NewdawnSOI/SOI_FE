@@ -48,6 +48,14 @@ class CommentService {
     if (kDebugMode) debugPrint(message);
   }
 
+  /// 긴 디버그 메시지를 줄 단위로 나눠 로그가 잘리지 않게 출력합니다.
+  void _debugLogMultiline(String message) {
+    if (!kDebugMode) return;
+    for (final line in const LineSplitter().convert(message)) {
+      debugPrint(line);
+    }
+  }
+
   /// in-flight 중복 요청 방지 + 공통 에러 핸들링 헬퍼.
   ///
   /// [cache]에 [key]로 진행 중인 요청이 있으면 재사용하고, 없으면 [compute]를 실행합니다.
@@ -83,6 +91,49 @@ class CommentService {
   // ============================================
   // 댓글 생성
   // ============================================
+
+  /// parent 댓글 조회 응답에서 comment data만 디버그 로그로 남겨 payload 구조를 바로 확인합니다.
+  Future<void> debugLogParentCommentResponse({
+    required int postId,
+    int page = _defaultPage,
+  }) async {
+    if (!kDebugMode) return;
+
+    try {
+      final response = await _commentApi.getParentComment(postId, page);
+      if (response == null) {
+        _debugLog(
+          '[CommentService.debug] /comment/get-parent '
+          'postId:$postId page:$page response:null',
+        );
+        return;
+      }
+
+      final data = response.data;
+      if (data == null) {
+        _debugLog(
+          '[CommentService.debug] /comment/get-parent '
+          'postId:$postId page:$page data:null',
+        );
+        return;
+      }
+
+      _debugLog(
+        '[CommentService.debug] /comment/get-parent '
+        'postId:$postId page:$page',
+      );
+      final payload = const JsonEncoder.withIndent('  ').convert(
+        data.content.map((comment) => comment.toJson()).toList(growable: false),
+      );
+      _debugLogMultiline(payload);
+    } catch (e, stackTrace) {
+      _debugLog(
+        '[CommentService.debug] /comment/get-parent failed '
+        'postId:$postId page:$page error:$e',
+      );
+      _debugLogMultiline(stackTrace.toString());
+    }
+  }
 
   /// 게시물에 댓글을 생성합니다.
   ///
