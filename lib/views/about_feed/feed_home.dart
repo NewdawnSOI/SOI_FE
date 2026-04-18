@@ -71,7 +71,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       // 각 게시물에 대한 댓글을 로드하는 콜백 설정
       _feedDataManager?.setOnPostsLoaded((items) {
         if (!mounted) return;
-        _loadTagCommentsForItems(_buildTagPreloadCandidates(items));
+        _loadParentCommentsForItems(_buildParentPreloadCandidates(items));
       });
 
       _userController = Provider.of<UserController>(context, listen: false);
@@ -229,7 +229,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       return;
     }
 
-    _loadTagCommentsAroundIndex(index);
+    _loadParentCommentsAroundIndex(index);
 
     // 수정: 현재 5개를 보여줄 때 4번째(인덱스 3)에서 다음 5개를 미리 로드합니다.
     // (일반화: 끝에서 2번째에 도달하면 다음 청크를 요청)
@@ -367,7 +367,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       _feedDataManager?.loadUserCategoriesAndPhotos(context).then((_) {
         if (!mounted) return;
         final refreshedPosts = _feedDataManager?.visiblePosts ?? const [];
-        _loadTagCommentsForItems(refreshedPosts, forceReload: true);
+        _loadParentCommentsForItems(refreshedPosts, forceReload: true);
         if (mounted) {
           setState(() {});
         }
@@ -431,8 +431,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     return items.sublist(startIndex, endIndex);
   }
 
-  /// 현재/인접 post의 태그 댓글만 선로딩해 visible 카드의 첫 오버레이 표시를 앞당깁니다.
-  void _loadTagCommentsAroundIndex(int index) {
+  /// 현재/인접 post의 부모 댓글 미리보기를 선로딩해 태그 오버레이와 시트 초기값을 함께 안정화합니다.
+  void _loadParentCommentsAroundIndex(int index) {
     final visiblePosts =
         _feedDataManager?.visiblePosts ?? const <FeedPostItem>[];
     if (visiblePosts.isEmpty || index < 0 || index >= visiblePosts.length) {
@@ -442,11 +442,11 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     final upperBound = (index + 2) < visiblePosts.length
         ? (index + 2)
         : visiblePosts.length;
-    _loadTagCommentsForItems(visiblePosts.sublist(index, upperBound));
+    _loadParentCommentsForItems(visiblePosts.sublist(index, upperBound));
   }
 
-  /// 잠정 후보와 현재 visible post를 합쳐 새 상단 후보가 나타나도 태그 preload가 늦지 않게 합니다.
-  List<FeedPostItem> _buildTagPreloadCandidates(List<FeedPostItem> items) {
+  /// 잠정 후보와 현재 visible post를 합쳐 새 상단 후보가 나타나도 부모 댓글 preload가 늦지 않게 합니다.
+  List<FeedPostItem> _buildParentPreloadCandidates(List<FeedPostItem> items) {
     final currentVisible =
         _feedDataManager?.visiblePosts ?? const <FeedPostItem>[];
     final targetCount = currentVisible.isNotEmpty ? currentVisible.length : 5;
@@ -462,8 +462,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     return mergedByPostId.values.toList(growable: false);
   }
 
-  /// 피드 preload는 full thread 대신 태그 좌표 댓글만 가져옵니다.
-  void _loadTagCommentsForItems(
+  /// 피드 preload는 `comment/getParentComment` 기반의 부모 댓글을 먼저 받아 태그 캐시를 함께 파생합니다.
+  void _loadParentCommentsForItems(
     List<FeedPostItem> items, {
     bool forceReload = false,
   }) {
@@ -471,9 +471,12 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       return;
     }
 
-    final postIds = items.map((item) => item.post.id).toList(growable: false);
+    final postIds = items
+        .map((item) => item.post.id)
+        .toSet()
+        .toList(growable: false);
     unawaited(
-      _taggingController?.loadTagCommentsForScopes(
+      _taggingController?.loadParentCommentsForScopes(
         postIds.map(_postScopeId).toList(growable: false),
         forceReload: forceReload,
       ),
@@ -507,7 +510,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
       return;
     }
 
-    await controller.loadTagCommentsForScope(
+    await controller.loadParentCommentsForScope(
       _postScopeId(postId),
       forceReload: true,
     );

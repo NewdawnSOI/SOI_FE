@@ -169,8 +169,8 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
         return;
       }
 
-      // 초기 댓글 로드
-      _loadTagCommentsForPost(_posts[_currentIndex].id);
+      // 초기 댓글 로드는 부모 댓글 미리보기 기준으로 태그 cache를 함께 맞춥니다.
+      unawaited(_loadParentCommentsForPost(_posts[_currentIndex].id));
     });
   }
 
@@ -622,7 +622,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     });
     _stopAudio();
     unawaited(_loadUserProfileImage());
-    _loadTagCommentsForPost(_posts[index].id);
+    unawaited(_loadParentCommentsForPost(_posts[index].id));
   }
 
   /// 서버가 내려준 URL을 즉시 표시용 값으로 정규화합니다.
@@ -751,18 +751,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     );
   }
 
-  /// 상세 화면은 overlay용 tag cache를 우선 사용하고 full thread는 시트를 열 때만 가져옵니다.
-  Future<void> _loadTagCommentsForPost(
-    int postId, {
-    bool forceReload = false,
-  }) async {
-    await _taggingController?.loadTagCommentsForScope(
-      _postScopeId(postId),
-      forceReload: forceReload,
-    );
-  }
-
-  /// 알림 진입/수동 새로고침에서는 원댓글만 다시 받아 태그와 시트 초기 미리보기를 가볍게 최신화합니다.
+  /// 상세 화면 초기 렌더와 새로고침은 부모 댓글 미리보기 기준으로 태그와 시트 초기값을 함께 최신화합니다.
   Future<List<Comment>> _loadParentCommentsForPost(
     int postId, {
     bool forceReload = false,
@@ -804,7 +793,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
       await _loadParentCommentsForPost(postId, forceReload: true);
       return;
     }
-    await _loadTagCommentsForPost(postId, forceReload: true);
+    await _loadParentCommentsForPost(postId, forceReload: true);
   }
 
   /// 댓글 시트는 full cache가 없을 때 원댓글 미리보기를 먼저 보여 주고, 없으면 태그 캐시로 즉시 엽니다.
@@ -1062,7 +1051,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
 
     // profile 이미지 및 댓글 재로딩
     unawaited(_loadUserProfileImage());
-    _loadTagCommentsForPost(_posts[_currentIndex].id);
+    unawaited(_loadParentCommentsForPost(_posts[_currentIndex].id));
   }
 
   Future<void> _stopAudio() async {
