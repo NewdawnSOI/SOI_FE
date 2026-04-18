@@ -142,13 +142,6 @@ class CommentController extends ChangeNotifier {
   /// 반환값: 에러 메시지가 있으면 문자열을, 없으면 `null`을 반환함.
   String? get errorMessage => _errorMessage;
 
-  /// 디버그에서 parent 댓글 API 응답 원본을 직접 조회해 로그로 남깁니다.
-  Future<void> debugLogParentCommentResponse({
-    required int postId,
-    int page = 0,
-  }) =>
-      _commentService.debugLogParentCommentResponse(postId: postId, page: page);
-
   // ============================================
   // 캐시 접근
   // ============================================

@@ -79,9 +79,6 @@ class _CapturingCommentController extends CommentController {
     : super(commentService: CommentService(commentApi: _NoopCommentApi()));
 
   final Comment createdComment;
-  int debugParentDumpCallCount = 0;
-  int? debugDumpPostId;
-  int? debugDumpPage;
   int? capturedPostId;
   int? capturedUserId;
   int? capturedParentId;
@@ -121,17 +118,6 @@ class _CapturingCommentController extends CommentController {
   Future<bool> deleteComment(int commentId) async {
     deletedCommentId = commentId;
     return true;
-  }
-
-  @override
-  /// 디버그 버튼이 눌렸을 때 시트가 raw parent 댓글 dump를 요청했는지 기록합니다.
-  Future<void> debugLogParentCommentResponse({
-    required int postId,
-    int page = 0,
-  }) async {
-    debugParentDumpCallCount++;
-    debugDumpPostId = postId;
-    debugDumpPage = page;
   }
 
   @override
@@ -193,51 +179,6 @@ void main() {
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({});
     await EasyLocalization.ensureInitialized();
-  });
-
-  testWidgets('debug parent comment dump button triggers controller logger', (
-    tester,
-  ) async {
-    await _setPhoneSurface(tester);
-
-    final currentUser = User(
-      id: 999,
-      userId: 'me',
-      name: '테스트 유저',
-      phoneNumber: '01099999999',
-    );
-    final commentController = _CapturingCommentController(
-      createdComment: Comment(
-        id: 300,
-        userId: currentUser.id,
-        nickname: currentUser.userId,
-        text: '저장된 댓글',
-        createdAt: DateTime(2026, 3, 3),
-        type: CommentType.text,
-      ),
-    );
-
-    await tester.pumpWidget(
-      _buildHarness(
-        userController: _FakeUserController(currentUser: currentUser),
-        commentController: commentController,
-        child: ApiVoiceCommentListSheet(
-          postId: 321,
-          initialComments: const [],
-          loadFullComments: null,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(
-      find.byKey(const ValueKey('debug_parent_comment_dump_button')),
-    );
-    await tester.pump();
-
-    expect(commentController.debugParentDumpCallCount, 1);
-    expect(commentController.debugDumpPostId, 321);
-    expect(commentController.debugDumpPage, 0);
   });
 
   testWidgets(

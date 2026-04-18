@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
@@ -853,15 +852,6 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
     SnackBarUtils.showSnackBar(context, message);
   }
 
-  /// 디버그 버튼 탭은 현재 postId의 parent 댓글 raw 응답을 별도 조회로 로그에 남깁니다.
-  void _handleDebugDumpParentCommentTap() {
-    unawaited(
-      context.read<CommentController>().debugLogParentCommentResponse(
-        postId: widget.postId,
-      ),
-    );
-  }
-
   /// 댓글 시트 본문은 헤더, 리스트, 액션 바를 조합해 현재 댓글 상호작용 상태를 렌더링합니다.
   @override
   Widget build(BuildContext context) {
@@ -908,38 +898,13 @@ class _ApiVoiceCommentListSheetState extends State<ApiVoiceCommentListSheet> {
               child: Column(
                 children: [
                   SizedBox(height: 20.sp),
-                  SizedBox(
-                    height: 32.sp,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Text(
-                          tr('comments.title', context: context),
-                          style: TextStyle(
-                            color: const Color(0xFFF8F8F8),
-                            fontSize: 18.sp,
-                            fontFamily: 'Pretendard Variable',
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (kDebugMode)
-                          Positioned(
-                            right: 12.sp,
-                            child: IconButton(
-                              key: const ValueKey(
-                                'debug_parent_comment_dump_button',
-                              ),
-                              onPressed: _handleDebugDumpParentCommentTap,
-                              tooltip: null,
-                              splashRadius: 18.sp,
-                              icon: Icon(
-                                Icons.bug_report_rounded,
-                                color: const Color(0xFFF8F8F8),
-                                size: 20.sp,
-                              ),
-                            ),
-                          ),
-                      ],
+                  Text(
+                    tr('comments.title', context: context),
+                    style: TextStyle(
+                      color: const Color(0xFFF8F8F8),
+                      fontSize: 18.sp,
+                      fontFamily: 'Pretendard Variable',
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   SizedBox(height: 15.sp),
