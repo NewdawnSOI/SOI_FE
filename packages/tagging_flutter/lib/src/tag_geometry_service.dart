@@ -1,7 +1,5 @@
 import 'dart:ui';
 
-import 'package:tagging_core/tagging_core.dart';
-
 import 'tag_bubble.dart';
 
 /// 태그 버블의 anchor와 top-left를 media bounds 안에서 계산합니다.
@@ -58,17 +56,5 @@ class TagGeometryService {
       padding: padding,
     );
     return Offset(tipAnchor.dx - tipOffset.dx, tipAnchor.dy - tipOffset.dy);
-  }
-
-  static bool canExpandMediaComment(TagComment comment) {
-    if (!(comment.isImage || comment.isVideo)) {
-      return false;
-    }
-    final fileUrl = (comment.fileUrl ?? '').trim();
-    if (fileUrl.isNotEmpty) {
-      return true;
-    }
-    final fileKey = (comment.fileKey ?? '').trim();
-    return fileKey.isNotEmpty;
   }
 }

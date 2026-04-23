@@ -6,33 +6,33 @@ import 'package:tagging_core/tagging_core.dart';
 import 'tag_bubble.dart';
 import 'tag_specs.dart';
 
-typedef TagPendingAvatarBuilder =
-    Widget Function(BuildContext context, TagSavePayload payload, double size);
+typedef TagDragHandleBuilder =
+    Widget Function(BuildContext context, TagSaveRequest request, double size);
 
-/// 저장 전 pending 태그를 드래그하고 drop 이후 저장까지 이어주는 위젯입니다.
-class TagProfileDragWidget extends StatefulWidget {
-  const TagProfileDragWidget({
+/// 저장 전 pending 태그를 드래그하고 drop 이후 generic mutation port에 저장을 위임합니다.
+class TagDragHandle extends StatefulWidget {
+  const TagDragHandle({
     super.key,
-    required this.payload,
-    required this.saveDelegate,
-    required this.avatarBuilder,
+    required this.request,
+    required this.mutationPort,
+    required this.handleBuilder,
     required this.resolveDropRelativePosition,
     this.onSaveProgress,
     this.onSaveSuccess,
     this.onSaveFailure,
     this.onDropCancelled,
-    this.dragData = 'profile_image',
+    this.dragData = 'tag_entry',
     this.avatarSize = TagProfileTagSpec.avatarSize,
     this.tagPadding = TagProfileTagSpec.padding,
     this.tagBackgroundColor = const Color(0xFF595959),
   });
 
-  final TagSavePayload payload;
-  final TaggingSaveDelegate saveDelegate;
-  final TagPendingAvatarBuilder avatarBuilder;
+  final TagSaveRequest request;
+  final TagMutationPort mutationPort;
+  final TagDragHandleBuilder handleBuilder;
   final FutureOr<TagPosition?> Function() resolveDropRelativePosition;
   final ValueChanged<double>? onSaveProgress;
-  final ValueChanged<TagComment>? onSaveSuccess;
+  final ValueChanged<TagEntry>? onSaveSuccess;
   final ValueChanged<Object>? onSaveFailure;
   final VoidCallback? onDropCancelled;
   final String dragData;
@@ -41,11 +41,11 @@ class TagProfileDragWidget extends StatefulWidget {
   final Color tagBackgroundColor;
 
   @override
-  State<TagProfileDragWidget> createState() => _TagProfileDragWidgetState();
+  State<TagDragHandle> createState() => _TagDragHandleState();
 }
 
-/// 드래그 앵커와 저장 진행률 상태를 일관되게 유지합니다.
-class _TagProfileDragWidgetState extends State<TagProfileDragWidget> {
+/// 드래그 앵커와 저장 진행률을 묶어 drop-then-save 흐름을 안정적으로 유지합니다.
+class _TagDragHandleState extends State<TagDragHandle> {
   bool _isSaving = false;
   double _progress = 0.0;
 
@@ -73,31 +73,27 @@ class _TagProfileDragWidgetState extends State<TagProfileDragWidget> {
     setState(() {
       _isSaving = true;
     });
-
     _updateProgress(0.05);
 
     try {
-      final validationError = widget.payload.validateForSave();
-      if (validationError != null) {
-        throw StateError(validationError);
-      }
-
       await Future<void>.delayed(Duration.zero);
       final relativePosition = await widget.resolveDropRelativePosition();
       if (relativePosition == null) {
-        throw StateError('댓글 위치를 확인하지 못했습니다.');
+        throw StateError('tag anchor is unavailable');
       }
 
-      final payloadWithLocation = widget.payload.copyWithLocation(
-        relativePosition,
-      );
+      final requestWithAnchor = widget.request.copyWithAnchor(relativePosition);
+      final validationError = requestWithAnchor.validateForSave();
+      if (validationError != null) {
+        throw StateError(validationError.name);
+      }
 
-      final saved = await widget.saveDelegate.save(
-        payload: payloadWithLocation,
+      final saved = await widget.mutationPort.save(
+        request: requestWithAnchor,
         onProgress: _updateProgress,
       );
       _updateProgress(1.0);
-      widget.onSaveSuccess?.call(saved.comment);
+      widget.onSaveSuccess?.call(saved.entry);
     } catch (error) {
       _updateProgress(0.0);
       widget.onSaveFailure?.call(error);
@@ -110,7 +106,7 @@ class _TagProfileDragWidgetState extends State<TagProfileDragWidget> {
     }
   }
 
-  Widget _buildAvatar() {
+  Widget _buildHandle() {
     return SizedBox(
       width: widget.avatarSize,
       height: widget.avatarSize,
@@ -128,7 +124,7 @@ class _TagProfileDragWidgetState extends State<TagProfileDragWidget> {
                 backgroundColor: Colors.black.withValues(alpha: 0.3),
               ),
             ),
-          widget.avatarBuilder(context, widget.payload, widget.avatarSize),
+          widget.handleBuilder(context, widget.request, widget.avatarSize),
         ],
       ),
     );
@@ -140,7 +136,7 @@ class _TagProfileDragWidgetState extends State<TagProfileDragWidget> {
       contentSize: widget.avatarSize,
       padding: widget.tagPadding,
       backgroundColor: widget.tagBackgroundColor,
-      child: _buildAvatar(),
+      child: _buildHandle(),
     );
 
     if (_isSaving) {

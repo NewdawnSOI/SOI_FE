@@ -1,36 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tagging_core/tagging_core.dart';
 import 'package:tagging_flutter/tagging_flutter.dart';
 
-/// 드롭 이후 delegate에 전달된 payload를 기록해 저장 계약을 검증합니다.
-class _RecordingSaveDelegate implements TaggingSaveDelegate {
-  TagSavePayload? lastPayload;
+/// 드롭 이후 mutation port에 전달된 저장 요청을 기록해 drag handle 계약을 검증합니다.
+class _RecordingMutationPort implements TagMutationPort {
+  TagSaveRequest? lastRequest;
 
   @override
-  Future<TagSaveResult> save({
-    required TagSavePayload payload,
+  Future<TagMutationResult> save({
+    required TagSaveRequest request,
     void Function(double progress)? onProgress,
   }) async {
-    lastPayload = payload;
+    lastRequest = request;
     onProgress?.call(1.0);
-    return TagSaveResult(
-      comment: TagComment(
+    return TagMutationResult(
+      entry: TagEntry(
         id: '1',
-        userId: payload.userId,
-        locationX: payload.locationX,
-        locationY: payload.locationY,
-        kind: TagCommentKind.text,
+        scopeId: request.scopeId,
+        actorId: request.actorId,
+        anchor: request.anchor,
+        content: request.content,
       ),
     );
   }
 }
 
 void main() {
-  testWidgets('saves the dropped payload with the resolved relative position', (
+  testWidgets('saves the dropped request with the resolved relative position', (
     tester,
   ) async {
-    final delegate = _RecordingSaveDelegate();
-    TagComment? savedComment;
+    final port = _RecordingMutationPort();
+    TagEntry? savedEntry;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -51,21 +52,20 @@ void main() {
               ),
               Align(
                 alignment: Alignment.center,
-                child: TagProfileDragWidget(
-                  payload: const TagSavePayload(
+                child: TagDragHandle(
+                  request: const TagSaveRequest(
                     scopeId: 'post:1',
-                    userId: '7',
-                    kind: TagDraftKind.text,
-                    text: 'hello',
+                    actorId: '7',
+                    content: TagContent.text('hello'),
                   ),
-                  saveDelegate: delegate,
-                  avatarBuilder: (context, payload, size) {
+                  mutationPort: port,
+                  handleBuilder: (context, request, size) {
                     return SizedBox(width: size, height: size);
                   },
                   resolveDropRelativePosition: () =>
                       const TagPosition(x: 0.25, y: 0.75),
-                  onSaveSuccess: (comment) {
-                    savedComment = comment;
+                  onSaveSuccess: (entry) {
+                    savedEntry = entry;
                   },
                 ),
               ),
@@ -84,9 +84,9 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(delegate.lastPayload?.locationX, 0.25);
-    expect(delegate.lastPayload?.locationY, 0.75);
-    expect(savedComment?.locationX, 0.25);
-    expect(savedComment?.locationY, 0.75);
+    expect(port.lastRequest?.anchor?.x, 0.25);
+    expect(port.lastRequest?.anchor?.y, 0.75);
+    expect(savedEntry?.anchor?.x, 0.25);
+    expect(savedEntry?.anchor?.y, 0.75);
   });
 }

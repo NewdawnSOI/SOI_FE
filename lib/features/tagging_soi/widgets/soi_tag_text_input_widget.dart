@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-/// 텍스트 입력과 제출 상태만 담당하는 태그 전용 입력창입니다.
-class TagTextInputWidget extends StatefulWidget {
-  const TagTextInputWidget({
+/// SOI 댓글 입력창은 텍스트 편집과 제출 로딩만 담당해 상위가 draft 생성에 집중하게 합니다.
+class SoiTagTextInputWidget extends StatefulWidget {
+  const SoiTagTextInputWidget({
     super.key,
     required this.onSubmitText,
     this.onFocusChanged,
@@ -21,11 +21,11 @@ class TagTextInputWidget extends StatefulWidget {
   final bool autoFocus;
 
   @override
-  State<TagTextInputWidget> createState() => _TagTextInputWidgetState();
+  State<SoiTagTextInputWidget> createState() => _SoiTagTextInputWidgetState();
 }
 
-/// 입력 상태와 제출 로딩을 한 곳에서 관리해 상위가 텍스트만 받게 만듭니다.
-class _TagTextInputWidgetState extends State<TagTextInputWidget> {
+/// 입력 상태와 제출 진행 상태를 한 곳에서 관리해 SOI 상위 레이어를 단순화합니다.
+class _SoiTagTextInputWidgetState extends State<SoiTagTextInputWidget> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isSubmitting = false;
@@ -69,16 +69,16 @@ class _TagTextInputWidgetState extends State<TagTextInputWidget> {
       _isSubmitting = true;
     });
 
-    var submissionSucceeded = false;
+    var succeeded = false;
     try {
       await widget.onSubmitText(text);
-      submissionSucceeded = true;
+      succeeded = true;
     } catch (_) {
       if (mounted) {
         _focusNode.requestFocus();
       }
     } finally {
-      if (mounted && submissionSucceeded) {
+      if (mounted && succeeded) {
         _controller.clear();
         FocusScope.of(context).unfocus();
       }

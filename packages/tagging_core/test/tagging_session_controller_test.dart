@@ -1,162 +1,125 @@
 import 'package:tagging_core/tagging_core.dart';
 import 'package:test/test.dart';
 
-class _FakeGateway implements TaggingCommentGateway {
-  final Map<TagScopeId, List<TagComment>> full =
-      <TagScopeId, List<TagComment>>{};
-  final Map<TagScopeId, List<TagComment>> parent =
-      <TagScopeId, List<TagComment>>{};
-  final Map<TagScopeId, List<TagComment>> tag =
-      <TagScopeId, List<TagComment>>{};
-  final Map<TagScopeId, List<TagComment>> tagLoadResponses =
-      <TagScopeId, List<TagComment>>{};
-  final Set<TagScopeId> hydratedTagScopes = <TagScopeId>{};
-  int loadTagCommentsCallCount = 0;
+class _FakeQueryPort implements TagQueryPort {
+  final Map<TagScopeId, List<TagEntry>> overlay =
+      <TagScopeId, List<TagEntry>>{};
+  final Map<TagScopeId, List<TagEntry>> thread = <TagScopeId, List<TagEntry>>{};
+  final Map<TagScopeId, List<TagEntry>> overlayLoadResponses =
+      <TagScopeId, List<TagEntry>>{};
+  final Set<TagScopeId> hydratedOverlayScopes = <TagScopeId>{};
+  int loadOverlayCallCount = 0;
 
   @override
-  void appendCreatedComment({
+  void appendCreatedEntry({
     required TagScopeId scopeId,
-    required TagComment comment,
+    required TagEntry entry,
   }) {
-    final existing = tag[scopeId] ?? const <TagComment>[];
-    if (comment.hasLocation) {
-      tag[scopeId] = <TagComment>[...existing, comment];
+    final existing = overlay[scopeId] ?? const <TagEntry>[];
+    if (entry.hasAnchor) {
+      overlay[scopeId] = <TagEntry>[...existing, entry];
     }
   }
 
   @override
-  void invalidateScopeCaches({
+  void invalidateScope({
     required TagScopeId scopeId,
-    bool full = true,
-    bool parent = false,
-    bool tag = true,
+    bool overlay = true,
+    bool thread = true,
   }) {}
 
   @override
-  Future<List<TagComment>> loadComments({
+  Future<List<TagEntry>> loadEntries({
     required TagScopeId scopeId,
+    required TagEntryLoadMode mode,
     bool forceReload = false,
   }) async {
-    return full[scopeId] ?? const <TagComment>[];
+    if (mode == TagEntryLoadMode.overlay) {
+      loadOverlayCallCount += 1;
+      final response =
+          overlayLoadResponses[scopeId] ??
+          overlay[scopeId] ??
+          const <TagEntry>[];
+      overlay[scopeId] = response;
+      hydratedOverlayScopes.add(scopeId);
+      return response;
+    }
+
+    return thread[scopeId] ?? const <TagEntry>[];
   }
 
   @override
-  Future<List<TagComment>> loadParentComments({
-    required TagScopeId scopeId,
-    bool forceReload = false,
-  }) async {
-    return parent[scopeId] ?? const <TagComment>[];
-  }
-
-  @override
-  Future<List<TagComment>> loadTagComments({
-    required TagScopeId scopeId,
-    bool forceReload = false,
-  }) async {
-    loadTagCommentsCallCount += 1;
-    final response =
-        tagLoadResponses[scopeId] ?? tag[scopeId] ?? const <TagComment>[];
-    tag[scopeId] = response;
-    hydratedTagScopes.add(scopeId);
-    return response;
-  }
-
-  @override
-  List<TagComment>? peekCommentsCache({required TagScopeId scopeId}) =>
-      full[scopeId];
-
-  @override
-  List<TagComment>? peekParentCommentsCache({required TagScopeId scopeId}) =>
-      parent[scopeId];
-
-  @override
-  List<TagComment>? peekTagCommentsCache({required TagScopeId scopeId}) =>
-      tag[scopeId];
-
-  @override
-  bool hasHydratedTagCommentsCache({required TagScopeId scopeId}) =>
-      hydratedTagScopes.contains(scopeId);
-
-  @override
-  TagThreadSnapshot peekThreadSnapshot({required TagScopeId scopeId}) {
-    return TagThreadSnapshot(
-      comments: full[scopeId],
-      parentComments: parent[scopeId],
-      tagComments: tag[scopeId],
+  TagEntrySnapshot peekSnapshot({required TagScopeId scopeId}) {
+    return TagEntrySnapshot(
+      overlayEntries: overlay[scopeId],
+      threadEntries: thread[scopeId],
     );
   }
 
   @override
-  void removeCommentFromCache({
+  List<TagEntry>? peekEntries({
     required TagScopeId scopeId,
-    required TagEntityId commentId,
+    required TagEntryLoadMode mode,
+  }) => mode == TagEntryLoadMode.overlay ? overlay[scopeId] : thread[scopeId];
+
+  @override
+  bool hasHydratedEntries({
+    required TagScopeId scopeId,
+    required TagEntryLoadMode mode,
   }) {
-    tag[scopeId] = (tag[scopeId] ?? const <TagComment>[])
-        .where((comment) => comment.id != commentId)
+    return mode == TagEntryLoadMode.overlay
+        ? hydratedOverlayScopes.contains(scopeId)
+        : thread.containsKey(scopeId);
+  }
+
+  @override
+  void removeEntryFromCache({
+    required TagScopeId scopeId,
+    required TagEntityId entryId,
+  }) {
+    overlay[scopeId] = (overlay[scopeId] ?? const <TagEntry>[])
+        .where((entry) => entry.id != entryId)
         .toList(growable: false);
-    hydratedTagScopes.remove(scopeId);
+    hydratedOverlayScopes.remove(scopeId);
   }
 
   @override
-  void replaceCommentsCache({
+  void replaceEntries({
     required TagScopeId scopeId,
-    required List<TagComment> comments,
+    required TagEntryLoadMode mode,
+    required List<TagEntry> entries,
   }) {
-    full[scopeId] = comments;
-    hydratedTagScopes.add(scopeId);
+    if (mode == TagEntryLoadMode.overlay) {
+      overlay[scopeId] = entries;
+      hydratedOverlayScopes.add(scopeId);
+      return;
+    }
+
+    thread[scopeId] = entries;
   }
-
-  @override
-  void replaceParentCommentsCache({
-    required TagScopeId scopeId,
-    required List<TagComment> comments,
-  }) {
-    parent[scopeId] = comments;
-    hydratedTagScopes.add(scopeId);
-  }
-
-  @override
-  void replaceTagCommentsCache({
-    required TagScopeId scopeId,
-    required List<TagComment> comments,
-  }) {
-    tag[scopeId] = comments;
-    hydratedTagScopes.add(scopeId);
-  }
-}
-
-class _FakeResolver implements TaggingMediaResolver {
-  @override
-  Future<String?> getPresignedUrl(String key) async => key;
-
-  @override
-  Future<List<String>> getPresignedUrls(List<String> keys) async => keys;
-
-  @override
-  String? peekPresignedUrl(String key) => key;
 }
 
 void main() {
   group('TaggingSessionController', () {
     test('stages drafts and resolves relative marker positions', () {
-      final controller = TaggingSessionController(
-        commentGateway: _FakeGateway(),
-        mediaResolver: _FakeResolver(),
-      );
+      final controller = TaggingSessionController(queryPort: _FakeQueryPort());
 
-      controller.stageTextDraft(
+      controller.stageDraft(
         scopeId: 'post:10',
-        text: 'hello',
-        author: const TagAuthor(id: '3', profileImageSource: 'profiles/me.png'),
+        draft: const TagDraft(
+          actorId: '3',
+          content: TagContent.text('hello'),
+          metadata: <String, Object?>{'profileImageSource': 'profiles/me.png'},
+        ),
       );
 
       controller.updatePendingMarkerFromAbsolutePosition(
         scopeId: 'post:10',
         absolutePosition: const TagPosition(x: 177, y: 125),
-        imageSize: const TagViewportSize(width: 354, height: 500),
+        viewportSize: const TagViewportSize(width: 354, height: 500),
       );
 
-      expect(controller.pendingDrafts['post:10']?.isTextComment, isTrue);
+      expect(controller.pendingDrafts['post:10']?.content.isText, isTrue);
       expect(
         controller.resolveDropRelativePosition('post:10')?.x,
         closeTo(0.5, 0.001),
@@ -167,89 +130,80 @@ void main() {
       );
     });
 
-    test(
-      'appends saved comments into loaded tag cache and clears pending state',
-      () {
-        final gateway = _FakeGateway()
-          ..replaceTagCommentsCache(
-            scopeId: 'post:10',
-            comments: const <TagComment>[],
-          );
-        final controller = TaggingSessionController(
-          commentGateway: gateway,
-          mediaResolver: _FakeResolver(),
-        );
-
-        controller.stageTextDraft(
+    test('appends saved entries into loaded overlay cache and clears pending state', () {
+      final queryPort = _FakeQueryPort()
+        ..replaceEntries(
           scopeId: 'post:10',
-          text: 'hello',
-          author: const TagAuthor(id: '3'),
+          mode: TagEntryLoadMode.overlay,
+          entries: const <TagEntry>[],
         );
-        controller.updatePendingMarkerFromAbsolutePosition(
-          scopeId: 'post:10',
-          absolutePosition: const TagPosition(x: 50, y: 60),
-          imageSize: const TagViewportSize(width: 100, height: 100),
-        );
+      final controller = TaggingSessionController(queryPort: queryPort);
 
-        controller.handleCommentSaveSuccess(
-          'post:10',
-          const TagComment(
+      controller.stageDraft(
+        scopeId: 'post:10',
+        draft: const TagDraft(
+          actorId: '3',
+          content: TagContent.text('hello'),
+        ),
+      );
+      controller.updatePendingMarkerFromAbsolutePosition(
+        scopeId: 'post:10',
+        absolutePosition: const TagPosition(x: 50, y: 60),
+        viewportSize: const TagViewportSize(width: 100, height: 100),
+      );
+
+      controller.handleSaveSuccess(
+        'post:10',
+        const TagEntry(
+          id: '1',
+          scopeId: 'post:10',
+          actorId: '3',
+          anchor: TagPosition(x: 0.5, y: 0.6),
+          content: TagContent.text('hello'),
+        ),
+      );
+
+      expect(controller.pendingDrafts.containsKey('post:10'), isFalse);
+      expect(controller.pendingMarkers.containsKey('post:10'), isFalse);
+      expect(controller.peekOverlayEntries('post:10'), hasLength(1));
+    });
+
+    test('reloads overlay entries when only a provisional local cache exists', () async {
+      final queryPort = _FakeQueryPort()
+        ..overlay['post:10'] = const <TagEntry>[
+          TagEntry(
             id: '1',
-            userId: '3',
-            locationX: 0.5,
-            locationY: 0.6,
-            kind: TagCommentKind.text,
+            scopeId: 'post:10',
+            actorId: '3',
+            anchor: TagPosition(x: 0.5, y: 0.6),
+            content: TagContent.text('first'),
           ),
-        );
+        ]
+        ..overlayLoadResponses['post:10'] = const <TagEntry>[
+          TagEntry(
+            id: '1',
+            scopeId: 'post:10',
+            actorId: '3',
+            anchor: TagPosition(x: 0.5, y: 0.6),
+            content: TagContent.text('first'),
+          ),
+          TagEntry(
+            id: '2',
+            scopeId: 'post:10',
+            actorId: '7',
+            anchor: TagPosition(x: 0.2, y: 0.4),
+            content: TagContent.text('second'),
+          ),
+        ];
+      final controller = TaggingSessionController(queryPort: queryPort);
 
-        expect(controller.pendingDrafts.containsKey('post:10'), isFalse);
-        expect(controller.pendingMarkers.containsKey('post:10'), isFalse);
-        expect(controller.peekTagComments('post:10'), hasLength(1));
-      },
-    );
+      await controller.loadOverlayEntriesForScope('post:10');
 
-    test(
-      'reloads tag comments when only a provisional local tag cache exists',
-      () async {
-        final gateway = _FakeGateway()
-          ..tag['post:10'] = const <TagComment>[
-            TagComment(
-              id: '1',
-              userId: '3',
-              locationX: 0.5,
-              locationY: 0.6,
-              kind: TagCommentKind.text,
-            ),
-          ]
-          ..tagLoadResponses['post:10'] = const <TagComment>[
-            TagComment(
-              id: '1',
-              userId: '3',
-              locationX: 0.5,
-              locationY: 0.6,
-              kind: TagCommentKind.text,
-            ),
-            TagComment(
-              id: '2',
-              userId: '7',
-              locationX: 0.2,
-              locationY: 0.4,
-              kind: TagCommentKind.text,
-            ),
-          ];
-        final controller = TaggingSessionController(
-          commentGateway: gateway,
-          mediaResolver: _FakeResolver(),
-        );
-
-        await controller.loadTagCommentsForScope('post:10');
-
-        expect(gateway.loadTagCommentsCallCount, 1);
-        expect(
-          controller.peekTagComments('post:10').map((comment) => comment.id),
-          ['1', '2'],
-        );
-      },
-    );
+      expect(queryPort.loadOverlayCallCount, 1);
+      expect(
+        controller.peekOverlayEntries('post:10').map((comment) => comment.id),
+        ['1', '2'],
+      );
+    });
   });
 }

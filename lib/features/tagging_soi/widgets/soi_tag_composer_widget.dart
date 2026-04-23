@@ -2,21 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:tagging_core/tagging_core.dart';
+import 'package:tagging_flutter/tagging_flutter.dart';
 
-import 'tag_base_bar_widget.dart';
-import 'tag_profile_drag_widget.dart';
-import 'tag_specs.dart';
-import 'tag_text_input_widget.dart';
+import 'soi_tag_base_bar_widget.dart';
+import 'soi_tag_text_input_widget.dart';
 
-enum _TagComposerMode { base, typing, placing }
+enum _SoiTagComposerMode { base, typing, placing }
 
-/// 기본 바, 텍스트 입력, 드래그 저장 모드를 오가는 태그 컴포저입니다.
-class TagComposerWidget extends StatefulWidget {
-  const TagComposerWidget({
+/// SOI 댓글 컴포저는 draft 작성, 미디어 선택, 드래그 저장 모드를 서비스 UX에 맞게 오케스트레이션합니다.
+class SoiTagComposerWidget extends StatefulWidget {
+  const SoiTagComposerWidget({
     super.key,
     required this.scopeId,
     required this.pendingDrafts,
-    required this.saveDelegate,
+    required this.mutationPort,
     required this.avatarBuilder,
     required this.resolveDropRelativePosition,
     required this.onTextDraftSubmitted,
@@ -35,8 +34,8 @@ class TagComposerWidget extends StatefulWidget {
 
   final TagScopeId scopeId;
   final Map<TagScopeId, TagDraft> pendingDrafts;
-  final TaggingSaveDelegate saveDelegate;
-  final TagPendingAvatarBuilder avatarBuilder;
+  final TagMutationPort mutationPort;
+  final TagDragHandleBuilder avatarBuilder;
   final FutureOr<TagPosition?> Function(TagScopeId scopeId)
   resolveDropRelativePosition;
   final Future<void> Function(TagScopeId scopeId, String text)
@@ -49,83 +48,39 @@ class TagComposerWidget extends StatefulWidget {
   final Widget micIcon;
   final void Function(TagScopeId scopeId, double progress)
   onCommentSaveProgress;
-  final void Function(TagScopeId scopeId, TagComment comment)
+  final void Function(TagScopeId scopeId, TagEntry comment)
   onCommentSaveSuccess;
   final void Function(TagScopeId scopeId, Object error) onCommentSaveFailure;
   final ValueChanged<bool>? onTextFieldFocusChanged;
   final double avatarSize;
 
   @override
-  State<TagComposerWidget> createState() => _TagComposerWidgetState();
+  State<SoiTagComposerWidget> createState() => _SoiTagComposerWidgetState();
 }
 
-/// 드래프트 종류에 따라 payload를 만들고 모드 전환을 조정합니다.
-class _TagComposerWidgetState extends State<TagComposerWidget> {
-  _TagComposerMode _mode = _TagComposerMode.base;
+/// 현재 scope draft를 저장 요청으로 바꾸고 모드 전환을 담당합니다.
+class _SoiTagComposerWidgetState extends State<SoiTagComposerWidget> {
+  _SoiTagComposerMode _mode = _SoiTagComposerMode.base;
 
   void _showTyping() {
     setState(() {
-      _mode = _TagComposerMode.typing;
+      _mode = _SoiTagComposerMode.typing;
     });
   }
 
-  (String? profileImageUrl, String? profileImageKey) _splitProfileSource(
-    String? profileSource,
-  ) {
-    final normalized = profileSource?.trim();
-    if (normalized == null || normalized.isEmpty) {
-      return (null, null);
-    }
-
-    final uri = Uri.tryParse(normalized);
-    if (uri != null && uri.hasScheme) {
-      return (normalized, null);
-    }
-
-    return (null, normalized);
-  }
-
-  TagSavePayload? _buildPayloadFromDraft() {
+  TagSaveRequest? _buildRequestFromDraft() {
     final draft = widget.pendingDrafts[widget.scopeId];
     if (draft == null) {
       return null;
     }
-    final (profileImageUrl, profileImageKey) = _splitProfileSource(
-      draft.profileImageSource,
-    );
 
-    switch (draft.kind) {
-      case TagDraftKind.text:
-        return TagSavePayload(
-          scopeId: widget.scopeId,
-          userId: draft.recorderUserId,
-          kind: TagDraftKind.text,
-          text: draft.text,
-          profileImageUrl: profileImageUrl,
-          profileImageKey: profileImageKey,
-        );
-      case TagDraftKind.audio:
-        return TagSavePayload(
-          scopeId: widget.scopeId,
-          userId: draft.recorderUserId,
-          kind: TagDraftKind.audio,
-          audioPath: draft.audioPath,
-          waveformData: draft.waveformData,
-          duration: draft.durationMs,
-          profileImageUrl: profileImageUrl,
-          profileImageKey: profileImageKey,
-        );
-      case TagDraftKind.image:
-      case TagDraftKind.video:
-        return TagSavePayload(
-          scopeId: widget.scopeId,
-          userId: draft.recorderUserId,
-          kind: draft.kind,
-          localFilePath: draft.mediaPath,
-          profileImageUrl: profileImageUrl,
-          profileImageKey: profileImageKey,
-        );
-    }
+    return TagSaveRequest(
+      scopeId: widget.scopeId,
+      actorId: draft.actorId,
+      content: draft.content,
+      parentEntryId: draft.parentEntryId,
+      metadata: draft.metadata,
+    );
   }
 
   Future<void> _handleTextSubmit(String text) async {
@@ -135,7 +90,7 @@ class _TagComposerWidgetState extends State<TagComposerWidget> {
     }
 
     setState(() {
-      _mode = _TagComposerMode.placing;
+      _mode = _SoiTagComposerMode.placing;
     });
     widget.onTextFieldFocusChanged?.call(false);
   }
@@ -147,7 +102,7 @@ class _TagComposerWidgetState extends State<TagComposerWidget> {
     }
 
     setState(() {
-      _mode = _TagComposerMode.placing;
+      _mode = _SoiTagComposerMode.placing;
     });
     widget.onTextFieldFocusChanged?.call(false);
   }
@@ -159,7 +114,7 @@ class _TagComposerWidgetState extends State<TagComposerWidget> {
     }
 
     setState(() {
-      _mode = _TagComposerMode.placing;
+      _mode = _SoiTagComposerMode.placing;
     });
     widget.onTextFieldFocusChanged?.call(false);
   }
@@ -173,7 +128,7 @@ class _TagComposerWidgetState extends State<TagComposerWidget> {
       return;
     }
     setState(() {
-      _mode = _TagComposerMode.base;
+      _mode = _SoiTagComposerMode.base;
     });
     widget.onTextFieldFocusChanged?.call(false);
   }
@@ -182,13 +137,13 @@ class _TagComposerWidgetState extends State<TagComposerWidget> {
     return widget.resolveDropRelativePosition(widget.scopeId);
   }
 
-  void _handleSaveSuccess(TagComment comment) {
+  void _handleSaveSuccess(TagEntry comment) {
     widget.onCommentSaveSuccess(widget.scopeId, comment);
     if (!mounted) {
       return;
     }
     setState(() {
-      _mode = _TagComposerMode.base;
+      _mode = _SoiTagComposerMode.base;
     });
   }
 
@@ -198,29 +153,33 @@ class _TagComposerWidgetState extends State<TagComposerWidget> {
       return;
     }
     setState(() {
-      _mode = _TagComposerMode.placing;
+      _mode = _SoiTagComposerMode.placing;
     });
   }
 
+  Widget _buildBaseBar() {
+    return SoiTagBaseBarWidget(
+      onCenterTap: _showTyping,
+      placeholderText: widget.basePlaceholderText,
+      cameraIcon: widget.cameraIcon,
+      micIcon: widget.micIcon,
+      onCameraPressed: _handleCameraPressed,
+      onMicPressed: _handleMicPressed,
+    );
+  }
+
   Widget _buildPlacingMode() {
-    final payload = _buildPayloadFromDraft();
-    if (payload == null) {
-      return TagBaseBarWidget(
-        onCenterTap: _showTyping,
-        placeholderText: widget.basePlaceholderText,
-        cameraIcon: widget.cameraIcon,
-        micIcon: widget.micIcon,
-        onCameraPressed: _handleCameraPressed,
-        onMicPressed: _handleMicPressed,
-      );
+    final request = _buildRequestFromDraft();
+    if (request == null) {
+      return _buildBaseBar();
     }
 
     return Align(
       alignment: Alignment.center,
-      child: TagProfileDragWidget(
-        payload: payload,
-        saveDelegate: widget.saveDelegate,
-        avatarBuilder: widget.avatarBuilder,
+      child: TagDragHandle(
+        request: request,
+        mutationPort: widget.mutationPort,
+        handleBuilder: widget.avatarBuilder,
         avatarSize: widget.avatarSize,
         resolveDropRelativePosition: _resolveDropPosition,
         onSaveProgress: (progress) {
@@ -237,27 +196,17 @@ class _TagComposerWidgetState extends State<TagComposerWidget> {
     late final Widget child;
 
     switch (_mode) {
-      case _TagComposerMode.base:
-        child = TagBaseBarWidget(
-          onCenterTap: _showTyping,
-          placeholderText: widget.basePlaceholderText,
-          cameraIcon: widget.cameraIcon,
-          micIcon: widget.micIcon,
-          onCameraPressed: _handleCameraPressed,
-          onMicPressed: _handleMicPressed,
-        );
-        break;
-      case _TagComposerMode.typing:
-        child = TagTextInputWidget(
+      case _SoiTagComposerMode.base:
+        child = _buildBaseBar();
+      case _SoiTagComposerMode.typing:
+        child = SoiTagTextInputWidget(
           onSubmitText: _handleTextSubmit,
           onFocusChanged: _handleTextFocusChanged,
           onEditingCancelled: _handleTypingCancelled,
           hintText: widget.textInputHintText,
         );
-        break;
-      case _TagComposerMode.placing:
+      case _SoiTagComposerMode.placing:
         child = _buildPlacingMode();
-        break;
     }
 
     return SizedBox(

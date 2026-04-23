@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tagging_core/tagging_core.dart';
 import 'package:tagging_flutter/tagging_flutter.dart';
 
 void main() {
@@ -7,12 +8,12 @@ void main() {
     'places persisted tags from normalized coordinates inside the viewport',
     (tester) async {
       const imageSize = Size(200, 100);
-      const comment = TagComment(
+      const comment = TagEntry(
         id: '1',
-        userId: '4',
-        locationX: 0.5,
-        locationY: 0.1,
-        kind: TagCommentKind.text,
+        scopeId: 'post:1',
+        actorId: '4',
+        anchor: TagPosition(x: 0.5, y: 0.1),
+        content: TagContent.text('hello'),
       );
 
       await tester.pumpWidget(
@@ -61,7 +62,7 @@ void main() {
 
 Widget _buildCommentAvatar(
   BuildContext context,
-  TagComment comment,
+  TagEntry comment,
   double size,
   bool isSelected,
 ) {
@@ -78,7 +79,7 @@ Widget _buildPendingAvatar(
 }
 
 Future<void> _noopTap({
-  required TagComment comment,
+  required TagEntry comment,
   required String key,
   required Offset tipAnchor,
 }) async {}

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-/// 카메라, 텍스트 진입, 마이크 액션을 담는 기본 태그 바입니다.
-class TagBaseBarWidget extends StatelessWidget {
-  const TagBaseBarWidget({
+/// SOI 댓글 입력 진입점에서 카메라, 텍스트, 마이크 액션을 한 줄로 노출합니다.
+class SoiTagBaseBarWidget extends StatelessWidget {
+  const SoiTagBaseBarWidget({
     super.key,
     required this.onCenterTap,
     required this.placeholderText,

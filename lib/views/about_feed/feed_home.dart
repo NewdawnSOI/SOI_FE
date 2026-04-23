@@ -33,8 +33,8 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
   FeedDataManager? _feedDataManager;
 
   // 피드와 상세가 공유하는 태깅 상태/저장 추상화입니다.
-  TaggingSessionController? _taggingController;
-  TaggingSaveDelegate? _taggingSaveDelegate;
+  SoiTaggingController? _taggingController;
+  TagMutationPort? _taggingSaveDelegate;
   VoidCallback? _taggingControllerListener;
 
   // 오디오 매니저
@@ -100,10 +100,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
     TickerMode.valuesOf(context);
     _userController ??= context.read<UserController>();
     if (_taggingController == null || _taggingSaveDelegate == null) {
-      _taggingController = SoiTaggingFactory.createSessionController(
-        context,
-        currentUserHandleResolver: () => _userController?.currentUser?.userId,
-      );
+      _taggingController = SoiTaggingFactory.createSessionController(context);
       _taggingSaveDelegate = SoiTaggingFactory.createSaveDelegate(context);
       _taggingControllerListener ??= () {
         if (mounted) {
@@ -305,7 +302,7 @@ class _FeedHomeScreenState extends State<FeedHomeScreen> {
         x: absolutePosition.dx,
         y: absolutePosition.dy,
       ),
-      imageSize: TagViewportSize(width: 354.w, height: 500.h),
+      viewportSize: TagViewportSize(width: 354.w, height: 500.h),
     );
   }
 

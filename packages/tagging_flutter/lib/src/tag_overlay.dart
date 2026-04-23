@@ -9,7 +9,7 @@ import 'tag_specs.dart';
 
 typedef TagTapCallback =
     Future<void> Function({
-      required TagComment comment,
+      required TagEntry comment,
       required String key,
       required Offset tipAnchor,
     });
@@ -24,7 +24,7 @@ typedef TagLongPressCallback =
 typedef TagCommentAvatarBuilder =
     Widget Function(
       BuildContext context,
-      TagComment comment,
+      TagEntry comment,
       double size,
       bool isSelected,
     );
@@ -52,9 +52,10 @@ class TagOverlay extends StatelessWidget {
     required this.pendingAvatarBuilder,
     required this.onCommentTap,
     required this.onCommentLongPress,
+    this.canExpandEntry,
   });
 
-  final List<TagComment> comments;
+  final List<TagEntry> comments;
   final TagPendingMarker? pendingMarker;
   final bool isShowingComments;
   final bool showActionOverlay;
@@ -65,6 +66,7 @@ class TagOverlay extends StatelessWidget {
   final TagPendingMarkerAvatarBuilder pendingAvatarBuilder;
   final TagTapCallback onCommentTap;
   final TagLongPressCallback onCommentLongPress;
+  final bool Function(TagEntry entry)? canExpandEntry;
 
   @override
   Widget build(BuildContext context) {
@@ -85,12 +87,13 @@ class TagOverlay extends StatelessWidget {
     return List<Widget>.generate(filteredComments.length, (index) {
       final comment = filteredComments[index];
       final key = _buildStableCommentKey(comment, index);
-      final canExpandMedia = TagGeometryService.canExpandMediaComment(comment);
+      final canExpandMedia = canExpandEntry?.call(comment) ?? false;
+      final anchor = comment.anchor;
+      if (anchor == null) {
+        return const SizedBox.shrink();
+      }
       final absolute = TagPositionMath.denormalizeRelativePosition(
-        relativePosition: TagPosition(
-          x: comment.locationX ?? 0.5,
-          y: comment.locationY ?? 0.5,
-        ),
+        relativePosition: anchor,
         viewportSize: TagViewportSize(
           width: imageSize.width,
           height: imageSize.height,
@@ -187,15 +190,15 @@ class TagOverlay extends StatelessWidget {
     );
   }
 
-  String _buildStableCommentKey(TagComment comment, int index) {
+  String _buildStableCommentKey(TagEntry comment, int index) {
     final commentId = comment.id;
     if (commentId != null) {
       return 'comment_$commentId';
     }
 
-    final userId = comment.userId ?? 'anonymous';
-    final x = comment.locationX?.toStringAsFixed(4) ?? 'x';
-    final y = comment.locationY?.toStringAsFixed(4) ?? 'y';
+    final userId = comment.actorId;
+    final x = comment.anchor?.x.toStringAsFixed(4) ?? 'x';
+    final y = comment.anchor?.y.toStringAsFixed(4) ?? 'y';
     return 'comment_${userId}_${x}_${y}_$index';
   }
 }

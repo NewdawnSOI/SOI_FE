@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:tagging_core/tagging_core.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:tagging_flutter/tagging_flutter.dart';
 
 import '../../../../api/models/post.dart';
 import '../../../../api/models/comment.dart';
@@ -75,8 +75,8 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   FriendController? _friendController;
   VoidCallback? _friendListener;
   int _lastBlockedFriendsRevision = 0;
-  TaggingSessionController? _taggingController;
-  TaggingSaveDelegate? _taggingSaveDelegate;
+  SoiTaggingController? _taggingController;
+  TagMutationPort? _taggingSaveDelegate;
   VoidCallback? _taggingControllerListener;
 
   // 상태 맵 (Firebase 버전과 동일한 구조)
@@ -129,10 +129,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
     _audioController = AudioController();
     _userController = Provider.of<UserController>(context, listen: false);
     _friendController = Provider.of<FriendController>(context, listen: false);
-    _taggingController = SoiTaggingFactory.createSessionController(
-      context,
-      currentUserHandleResolver: () => _userController?.currentUser?.userId,
-    );
+    _taggingController = SoiTaggingFactory.createSessionController(context);
     _taggingSaveDelegate = SoiTaggingFactory.createSaveDelegate(context);
     _taggingControllerListener = () {
       if (mounted) {
@@ -478,10 +475,10 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOut,
               padding: EdgeInsets.only(bottom: composerBottomInset),
-              child: TagComposerWidget(
+              child: SoiTagComposerWidget(
                 scopeId: _postScopeId(_posts[_currentIndex].id),
                 pendingDrafts: _pendingCommentDrafts,
-                saveDelegate: _taggingSaveDelegate!,
+                mutationPort: _taggingSaveDelegate!,
                 avatarBuilder: SoiTaggingAvatarBuilders.buildComposerAvatar,
                 onTextDraftSubmitted: (scopeId, text) async {
                   await _onTextCommentCreated(
@@ -817,7 +814,10 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
   void _replaceCommentCaches(int postId, List<Comment> comments) {
     _taggingController?.replaceCommentsCache(
       _postScopeId(postId),
-      SoiTagCommentMapper.fromComments(comments),
+      SoiTagCommentMapper.fromComments(
+        comments,
+        scopeId: _postScopeId(postId),
+      ),
     );
   }
 
@@ -833,7 +833,7 @@ class _ApiPhotoDetailScreenState extends State<ApiPhotoDetailScreen> {
         x: absolutePosition.dx,
         y: absolutePosition.dy,
       ),
-      imageSize: TagViewportSize(width: 354.w, height: 500.h),
+      viewportSize: TagViewportSize(width: 354.w, height: 500.h),
     );
   }
 
