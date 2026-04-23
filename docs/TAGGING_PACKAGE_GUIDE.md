@@ -17,9 +17,16 @@
 
 여기서 주의할 점은:
 
-- `tagging_core`와 `tagging_flutter`는 실제 `packages/...` 아래의 패키지입니다.
+- `tagging_core`와 `tagging_flutter`는 이제 SOI repo 안의 로컬 패키지가 아닙니다.
+- 두 패키지는 각각 별도 GitHub repo로 분리되었습니다.
+- 현재 SOI 앱은 두 패키지를 git dependency로 가져다 씁니다.
 - `tagging_soi`는 패키지가 아닙니다.
 - `tagging_soi`는 `lib/features/tagging_soi` 아래에 있는 앱 내부 feature/module입니다.
+
+현재 분리된 repo는 아래입니다.
+
+- `https://github.com/minchanpark/tagging_core`
+- `https://github.com/minchanpark/tagging_flutter`
 
 ---
 

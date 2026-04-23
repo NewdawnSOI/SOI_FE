@@ -38,9 +38,13 @@ dependencies:
   soi_media_native:
     path: packages/soi_media_native
   tagging_core:
-    path: packages/tagging_core
+    git:
+      url: https://github.com/minchanpark/tagging_core.git
+      ref: v0.1.0
   tagging_flutter:
-    path: packages/tagging_flutter
+    git:
+      url: https://github.com/minchanpark/tagging_flutter.git
+      ref: v0.1.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
