@@ -2,6 +2,7 @@ name: tagging_core
 description: Core tagging models and session orchestration for anchored comment tags.
 publish_to: 'none'
 version: 0.1.0
+repository: https://github.com/minchanpark/tagging_core
 
 environment:
   sdk: ^3.8.0
